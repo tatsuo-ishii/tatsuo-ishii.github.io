@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>9.28. イベントトリガ関数</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.78.1" /><link rel="home" href="index.html" title="PostgreSQL 9.4.5文書" /><link rel="up" href="functions.html" title="第9章 関数と演算子" /><link rel="prev" href="functions-trigger.html" title="9.27. トリガ関数" /><link rel="next" href="typeconv.html" title="第10章 型変換" /><link rel="copyright" href="legalnotice.html" title="法的告知" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">9.28. イベントトリガ関数</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="functions-trigger.html">戻る</a> </td><th width="60%" align="center">第9章 関数と演算子</th><td width="20%" align="right"> <a accesskey="n" href="typeconv.html">次へ</a></td></tr></table><hr /></div><div class="sect1" id="functions-event-triggers"><div class="titlepage"><div><div><h2 class="title" style="clear: both">9.28. イベントトリガ関数</h2></div></div></div><!--
+   <title>Event Trigger Functions</title>
+--><a id="idp67995600" class="indexterm"></a><p><!--
+    Currently <productname>PostgreSQL</> provides one built-in event trigger
+    helper function, <function>pg_event_trigger_dropped_objects</>.
+-->現時点で<span class="productname">PostgreSQL</span>は一つの組み込みイベントトリガ支援関数、<code class="function">pg_event_trigger_dropped_objects</code>を提供しています。
+   </p><p><!--
+    <function>pg_event_trigger_dropped_objects</> returns a list of all objects
+    dropped by the command in whose <literal>sql_drop</> event it is called.
+    If called in any other context,
+    <function>pg_event_trigger_dropped_objects</> raises an error.
+    <function>pg_event_trigger_dropped_objects</> returns the following columns:
+-->関数<code class="function">pg_event_trigger_dropped_objects</code>は、それが呼ばれた<code class="literal">sql_drop</code>イベントのコマンドにより削除された全てのオブジェクトのリストを返します。
+その他いかなる状況で呼ばれた場合、<code class="function">pg_event_trigger_dropped_objects</code>はエラーを生じさせます。
+<code class="function">pg_event_trigger_dropped_objects</code>は以下の列を返します。
+
+    </p><div class="informaltable"><table border="1"><colgroup><col /><col /><col /></colgroup><thead><tr><th>名前</th><th>型</th><th>説明</th></tr></thead><tbody><tr><td><code class="literal">classid</code></td><td><code class="type">Oid</code></td><td>オブジェクトが所属するカタログのOID</td></tr><tr><td><code class="literal">objid</code></td><td><code class="type">Oid</code></td><td>カタログ内に所有するオブジェクトのOID</td></tr><tr><td><code class="literal">objsubid</code></td><td><code class="type">int32</code></td><td> (列の属性番号のような)オブジェクトの副id</td></tr><tr><td><code class="literal">object_type</code></td><td><code class="type">text</code></td><td>オブジェクトの型</td></tr><tr><td><code class="literal">schema_name</code></td><td><code class="type">text</code></td><td><!--
+         Name of the schema the object belonged in, if any; otherwise <literal>NULL</>.
+         No quoting is applied.
+-->オブジェクトが所属しているスキーマの名前, if any; otherwise <code class="literal">NULL</code>.
+No quoting is applied.
+        </td></tr><tr><td><code class="literal">object_name</code></td><td><code class="type">text</code></td><td><!--
+         Name of the object, if the combination of schema and name can be
+         used as a unique identifier for the object; otherwise <literal>NULL</>.
+         No quoting is applied, and name is never schema-qualified.
+-->スキーマと名前の組み合わせがオブジェクトに対する一意の識別子として使用可能な場合のオブジェクトの名前。そうでないときは<code class="literal">NULL</code>。
+引用符は適用されず、名前は決してスキーマで修飾されません。
+        </td></tr><tr><td><code class="literal">object_identity</code></td><td><code class="type">text</code></td><td><!--
+         Text rendering of the object identity, schema-qualified. Each and every
+         identifier present in the identity is quoted if necessary.
+-->オブジェクト識別のテキスト表現で、スキーマで修飾さられています。
+権限のなかにあるそれぞれ全ての識別子は必要であれば引用符で括られます。
+        </td></tr></tbody></table></div><p>
+   </p><p><!--
+    The <function>pg_event_trigger_dropped_objects</> function can be used
+    in an event trigger like this:
+-->関数<code class="function">pg_event_trigger_dropped_objects</code>は以下のようにイベントトリガとして使用可能です。
+</p><pre class="programlisting">CREATE FUNCTION test_event_trigger_for_drops()
+        RETURNS event_trigger LANGUAGE plpgsql AS $$
+DECLARE
+    obj record;
+BEGIN
+    FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects()
+    LOOP
+        RAISE NOTICE '% dropped object: % %.% %',
+                     tg_tag,
+                     obj.object_type,
+                     obj.schema_name,
+                     obj.object_name,
+                     obj.object_identity;
+    END LOOP;
+END
+$$;
+CREATE EVENT TRIGGER test_event_trigger_for_drops
+   ON sql_drop
+   EXECUTE PROCEDURE test_event_trigger_for_drops();</pre><p>
+    </p><p><!--
+       For more information about event triggers,
+       see <xref linkend="event-triggers">.
+-->イベントトリガについての詳細は<a class="xref" href="event-triggers.html" title="第37章 イベントトリガ">37章<em>イベントトリガ</em></a>を参照してください。
+    </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="functions-trigger.html">戻る</a> </td><td width="20%" align="center"><a accesskey="u" href="functions.html">上に戻る</a></td><td width="40%" align="right"> <a accesskey="n" href="typeconv.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">9.27. トリガ関数 </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 第10章 型変換</td></tr></table></div></body></html>
