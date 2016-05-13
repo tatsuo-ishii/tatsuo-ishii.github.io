@@ -1,0 +1,658 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>拡張性</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.5.2文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="BRINインデックス"
+HREF="brin.html"><LINK
+REL="PREVIOUS"
+TITLE="組込み演算子クラス"
+HREF="brin-builtin-opclasses.html"><LINK
+REL="NEXT"
+TITLE="データベースの物理的な格納"
+HREF="storage.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-05-13T05:09:04"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.5.2文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="組込み演算子クラス"
+HREF="brin-builtin-opclasses.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="brin.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 62章BRINインデックス</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="データベースの物理的な格納"
+HREF="storage.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="BRIN-EXTENSIBILITY"
+>62.3. 拡張性</A
+></H1
+><P
+><ACRONYM
+CLASS="ACRONYM"
+>BRIN</ACRONYM
+>のインターフェイスは高度に抽象化されており、アクセスメソッドを実装する人は、アクセスされるデータ型のセマンティクスを実装するだけで良いようになっています。
+<ACRONYM
+CLASS="ACRONYM"
+>BRIN</ACRONYM
+>層は、同時実行性、ログ、インデックス構造の検索を担当します。
+ </P
+><P
+><ACRONYM
+CLASS="ACRONYM"
+>BRIN</ACRONYM
+>アクセスメソッドを動作させるために必要なのは、インデックスに格納された要約値の振る舞いと、それらがインデックススキャンする際にどう関係するのかを定義する少数のメソッドを実装することだけです。
+つまり、<ACRONYM
+CLASS="ACRONYM"
+>BRIN</ACRONYM
+>は一般性、コードの再利用性、整理されたインターフェイスと拡張性を同時に実現しています。
+ </P
+><P
+><ACRONYM
+CLASS="ACRONYM"
+>BRIN</ACRONYM
+>用の演算子クラスは、4つのメソッドを提供する必要があります。
+  <P
+></P
+></P><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><CODE
+CLASS="FUNCTION"
+>BrinOpcInfo *opcInfo(Oid type_oid)</CODE
+></DT
+><DD
+><P
+>インデックスが貼られた列の要約データに関する内部情報を返します。
+返却値はpallocされたBrinOpcInfoへのポインタでなければなりません。BrinOpcInfoは以下の定義を持ちます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>typedef struct BrinOpcInfo
+{
+    /* Number of columns stored in an index column of this opclass */
+    uint16      oi_nstored;
+
+    /* Opaque pointer for the opclass' private use */
+    void       *oi_opaque;
+
+    /* Type cache entries of the stored columns */
+    TypeCacheEntry *oi_typcache[FLEXIBLE_ARRAY_MEMBER];
+} BrinOpcInfo;</PRE
+><P>
+<TT
+CLASS="STRUCTNAME"
+>BrinOpcInfo</TT
+>.<TT
+CLASS="STRUCTFIELD"
+>oi_opaque</TT
+>は、インデックススキャンで、演算子クラスのサポートルーチンが情報のやり取りをする際に使うことができます。
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>bool consistent(BrinDesc *bdesc, BrinValues *column,
+       ScanKey key)</CODE
+></DT
+><DD
+><P
+>Scankeyがある範囲のインデックス値と一致しているかどうかを返します。
+属性の数はスキャンキーの一部として渡されます。
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>bool addValue(BrinDesc *bdesc, BrinValues *column,
+       Datum newval, bool isnull)</CODE
+></DT
+><DD
+><P
+>追加された新しい値をインデックスが表現できるように、与えられたインデックスタプルとインデックス値にしたがい、タプルの指定アトリビュートを変更します。
+タプルの更新が行われれば、<TT
+CLASS="LITERAL"
+>true</TT
+>が返却されます。
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>bool unionTuples(BrinDesc *bdesc, BrinValues *a,
+       BrinValues *b)</CODE
+></DT
+><DD
+><P
+>2つのインデックスタプルを統合します。
+与えられた2つのインデックスタプルのうち、最初のインデックスタプルを変更して、両方のタプルを表現できるようにします。
+2番目のタプルは変更されません。
+     </P
+></DD
+></DL
+></DIV
+><P>
+
+コア配布物には、2種類の演算子クラスが含まれます。すなわち、minmaxとinclusionです。
+それらを使った演算子クラスの定義がコア配布物に必要に応じて含まれます。
+同じ定義を使って、ユーザは他のデータ型のために演算子クラスを定義することができます。
+そのためにソースコードを書く必要はありません。適切なシステムカタログの定義があれば十分です。
+演算子ストラテジのセマンティクスは、サポート関数のソースコード中に埋め込まれていることに注意してください。
+ </P
+><P
+>前述の4つの主要なサポート関数を実装することにより、まったく異なるセマンティクスを実装する演算子クラスも可能です。
+なお、メジャーリリース間では下位互換性は保証されていません。
+たとえば、新しいリリースでは、サポート関数が追加で必要になるかもしれません。
+ </P
+><P
+><A
+HREF="brin-extensibility.html#BRIN-EXTENSIBILITY-MINMAX-TABLE"
+>表62-2</A
+>で示すように、全順序集合を実装するデータ型のための演算子クラスを書くために、関連する演算子とともにminmaxサポート関数を使うことができます。
+演算子クラスのメンバー(手続きと演算子)はすべて必須です。
+ </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="BRIN-EXTENSIBILITY-MINMAX-TABLE"
+></A
+><P
+><B
+>表 62-2. Minmax演算子クラスの関数とサポート番号</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><THEAD
+><TR
+><TH
+>演算子クラスメンバー</TH
+><TH
+>オブジェクト</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>Support Procedure 1</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_minmax_opcinfo()</CODE
+></TD
+></TR
+><TR
+><TD
+>Support Procedure 2</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_minmax_add_value()</CODE
+></TD
+></TR
+><TR
+><TD
+>Support Procedure 3</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_minmax_consistent()</CODE
+></TD
+></TR
+><TR
+><TD
+>Support Procedure 4</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_minmax_union()</CODE
+></TD
+></TR
+><TR
+><TD
+>Operator Strategy 1</TD
+><TD
+>operator less-than</TD
+></TR
+><TR
+><TD
+>Operator Strategy 2</TD
+><TD
+>operator less-than-or-equal-to</TD
+></TR
+><TR
+><TD
+>Operator Strategy 3</TD
+><TD
+>operator equal-to</TD
+></TR
+><TR
+><TD
+>Operator Strategy 4</TD
+><TD
+>operator greater-than-or-equal-to</TD
+></TR
+><TR
+><TD
+>Operator Strategy 5</TD
+><TD
+>operator greater-than</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+><P
+><A
+HREF="brin-extensibility.html#BRIN-EXTENSIBILITY-INCLUSION-TABLE"
+>表62-3</A
+>で示すように、他のデータ型の値を含む複合データ型の演算子クラスを書くには、関連する演算子とともに、inclusionサポート関数を使うことができます。
+任意の言語で書かれたたったひとつの関数を追加するだけです。
+機能を追加するために関数を追加できます。
+すべての演算子はオプションです。
+表の中依存性の項目で示されているように、ある種の演算子は他の演算子を必要とすることもあります。
+ </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="BRIN-EXTENSIBILITY-INCLUSION-TABLE"
+></A
+><P
+><B
+>表 62-3. Inclusion演算子クラスの関数とサポート番号</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><COL><THEAD
+><TR
+><TH
+>演算子クラスメンバー</TH
+><TH
+>オブジェクト</TH
+><TH
+>依存性</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>Support Procedure 1</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_inclusion_opcinfo()</CODE
+></TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 2</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_inclusion_add_value()</CODE
+></TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 3</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_inclusion_consistent()</CODE
+></TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 4</TD
+><TD
+>internal function <CODE
+CLASS="FUNCTION"
+>brin_inclusion_union()</CODE
+></TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 11</TD
+><TD
+>function to merge two elements</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 12</TD
+><TD
+>optional function to check whether two elements are mergeable</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 13</TD
+><TD
+>optional function to check if an element is contained within another</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Support Procedure 14</TD
+><TD
+>optional function to check whether an element is empty</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Operator Strategy 1</TD
+><TD
+>operator left-of</TD
+><TD
+>Operator Strategy 4</TD
+></TR
+><TR
+><TD
+>Operator Strategy 2</TD
+><TD
+>operator does-not-extend-to-the-right-of</TD
+><TD
+>Operator Strategy 5</TD
+></TR
+><TR
+><TD
+>Operator Strategy 3</TD
+><TD
+>operator overlaps</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Operator Strategy 4</TD
+><TD
+>operator right-of</TD
+><TD
+>Operator Strategy 2</TD
+></TR
+><TR
+><TD
+>Operator Strategy 5</TD
+><TD
+>operator does-not-extend-to-the-right-of</TD
+><TD
+>Operator Strategy 1</TD
+></TR
+><TR
+><TD
+>Operator Strategy 6, 18</TD
+><TD
+>operator same-as-or-equal-to</TD
+><TD
+>Operator Strategy 7</TD
+></TR
+><TR
+><TD
+>Operator Strategy 7, 13, 16, 24, 25</TD
+><TD
+>operator contains-or-equal-to</TD
+><TD
+>&nbsp;</TD
+></TR
+><TR
+><TD
+>Operator Strategy 8, 14, 26, 27</TD
+><TD
+>operator is-contained-by-or-equal-to</TD
+><TD
+>Operator Strategy 3</TD
+></TR
+><TR
+><TD
+>Operator Strategy 9</TD
+><TD
+>operator does-not-extend-above</TD
+><TD
+>Operator Strategy 11</TD
+></TR
+><TR
+><TD
+>Operator Strategy 10</TD
+><TD
+>operator is-below</TD
+><TD
+>Operator Strategy 12</TD
+></TR
+><TR
+><TD
+>Operator Strategy 11</TD
+><TD
+>operator is-above</TD
+><TD
+>Operator Strategy 9</TD
+></TR
+><TR
+><TD
+>Operator Strategy 12</TD
+><TD
+>operator does-not-extend-below</TD
+><TD
+>Operator Strategy 10</TD
+></TR
+><TR
+><TD
+>Operator Strategy 20</TD
+><TD
+>operator less-than</TD
+><TD
+>Operator Strategy 4</TD
+></TR
+><TR
+><TD
+>Operator Strategy 21</TD
+><TD
+>operator less-than-or-equal-to</TD
+><TD
+>Operator Strategy 4</TD
+></TR
+><TR
+><TD
+>Operator Strategy 22</TD
+><TD
+>operator greater-than</TD
+><TD
+>Operator Strategy 1</TD
+></TR
+><TR
+><TD
+>Operator Strategy 23</TD
+><TD
+>operator greater-than-or-equal-to</TD
+><TD
+>Operator Strategy 1</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+><P
+>サポート関数番号1-10は、BRINの内部関数用に予約されており、SQLレベルの関数は番号11から始まります。
+サポート関数11は、インデックスを構築するのに必要なメイン関数です。
+その関数はopclassのデータ型と同じ2つの引数を受け取り、それらの和を返します。
+もし<TT
+CLASS="LITERAL"
+>STORAGE</TT
+>パラメータで定義されていれば、inclusion opclassは異なるデータ型の和を格納できます。
+和関数の返り値は、<TT
+CLASS="LITERAL"
+>STORAGE</TT
+>データ型と一致していなければなりません。
+ </P
+><P
+>サポート関数番号12と14は、組込みデータ型の例外事象をサポートするために提供されます
+サポート関数番号12は、マージできない異なるファミリーのネットワークアドレスをサポートするために使用されます。
+サポート関数番号14は、空のレンジをサポートするために使用されます。
+サポート関数番号13はオプションで、和関数に渡される前に新しい値のチェックを行うためのものとして推奨されます。
+BRINフレームワークは和が変化しない時に操作を省略することができるため、この関数を使うことによってインデックスの性能が向上する可能性があります。
+ </P
+><P
+>minmaxとinclusion演算子クラスは、データ型をまたがる演算子をサポートします。
+しかし、これらを使用すると依存関係はより複雑になります。
+minmax演算子クラスは、両方の引数がデータ型が同じ型である完全な演算子のセットが必要になります。
+追加の演算子の組を定義することにより、追加のデータ型をサポートすることができます。
+<A
+HREF="brin-extensibility.html#BRIN-EXTENSIBILITY-INCLUSION-TABLE"
+>表62-3</A
+>で示すように、inclusion演算子クラスのストラテジは、他の演算子クラスのストラテジに依存するか、自分自身の演算子クラスのストラテジに依存します。
+演算子クラスは、依存演算子が<TT
+CLASS="LITERAL"
+>STORAGE</TT
+>データ型とともにサポートするデータ型の左辺引数、他のサポートするデータ型をサポートする演算子の右辺引数として定義される必要があります。
+minmaxの例として<TT
+CLASS="LITERAL"
+>float4_minmax_ops</TT
+>、inclusionの例として<TT
+CLASS="LITERAL"
+>box_inclusion_ops</TT
+>を参照してください。
+ </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="brin-builtin-opclasses.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="storage.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>組込み演算子クラス</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="brin.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>データベースの物理的な格納</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

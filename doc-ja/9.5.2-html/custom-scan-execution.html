@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>カスタムスキャンの実行</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.5.2文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="カスタムスキャンプロバイダの作成"
+HREF="custom-scan.html"><LINK
+REL="PREVIOUS"
+TITLE="カスタムスキャン計画の作成"
+HREF="custom-scan-plan.html"><LINK
+REL="NEXT"
+TITLE="遺伝的問い合わせ最適化"
+HREF="geqo.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-05-13T05:09:04"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.5.2文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="カスタムスキャン計画の作成"
+HREF="custom-scan-plan.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="custom-scan.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 56章カスタムスキャンプロバイダの作成</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="遺伝的問い合わせ最適化"
+HREF="geqo.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="CUSTOM-SCAN-EXECUTION"
+>56.3. カスタムスキャンの実行</A
+></H1
+><P
+><TT
+CLASS="STRUCTFIELD"
+>CustomScan</TT
+>が実行されるとき、その実行状態は<TT
+CLASS="STRUCTFIELD"
+>CustomScanState</TT
+>で表現されます。
+これは次のように宣言されています。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>typedef struct CustomScanState
+{
+    ScanState ss;
+    uint32    flags;
+    const CustomExecMethods *methods;
+} CustomScanState;</PRE
+><P>
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>ss</TT
+>は他のすべてのスキャン状態と同じく初期化されますが、スキャンがベースリレーションではなく結合を対象にしているときは例外で、<TT
+CLASS="LITERAL"
+>ss.ss_currentRelation</TT
+>はNULLのままになります。
+<TT
+CLASS="STRUCTFIELD"
+>flags</TT
+>は<TT
+CLASS="STRUCTNAME"
+>CustomPath</TT
+>および<TT
+CLASS="STRUCTNAME"
+>CustomScan</TT
+>と同じ意味のビットマスクです。
+<TT
+CLASS="STRUCTFIELD"
+>methods</TT
+>は必要なカスタムスキャン状態のメソッドを実装するオブジェクト（通常は静的に割り当てられる）を指していなければなりません。
+これについては以下で詳しく説明します。
+<TT
+CLASS="STRUCTNAME"
+>CustomScanState</TT
+>は<CODE
+CLASS="FUNCTION"
+>copyObject</CODE
+>をサポートしなくてもよく、典型的には上記を先頭のメンバーとして組み込んだより大きな構造体になっています。
+  </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="CUSTOM-SCAN-EXECUTION-CALLBACKS"
+>56.3.1. カスタムスキャン実行のコールバック</A
+></H2
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*BeginCustomScan) (CustomScanState *node,
+                         EState *estate,
+                         int eflags);</PRE
+><P>
+提供された<TT
+CLASS="STRUCTNAME"
+>CustomScanState</TT
+>の初期化を完了します。
+標準的なフィールドは<CODE
+CLASS="FUNCTION"
+>ExecInitCustomScan</CODE
+>で初期化が済んでいますが、プライベートフィールドはここで初期化されます。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>TupleTableSlot *(*ExecCustomScan) (CustomScanState *node);</PRE
+><P>
+次のスキャンタプルをフェッチします。
+タプルが残っている場合は、現在のスキャン方向で次にあるタプルを<TT
+CLASS="LITERAL"
+>ps_ResultTupleSlot</TT
+>に入れます。
+タプルが残っていないときは、<TT
+CLASS="LITERAL"
+>NULL</TT
+>または空のスロットが戻されます。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*EndCustomScan) (CustomScanState *node);</PRE
+><P>
+<TT
+CLASS="LITERAL"
+>CustomScanState</TT
+>に関連付けられたプライベートデータを整理します。
+このメソッドは必須ですが、関連付けられたデータがない場合、あるいはそれが自動的に整理される場合は、このメソッドは何もする必要はありません。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*ReScanCustomScan) (CustomScanState *node);</PRE
+><P>
+現在のスキャンを先頭まで巻き戻し、リレーションの再スキャンの準備をします。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*MarkPosCustomScan) (CustomScanState *node);</PRE
+><P>
+現在のスキャン位置を保存し、後で<CODE
+CLASS="FUNCTION"
+>RestrPosCustomScan</CODE
+>コールバックでリストアできるようにします。
+このコールバックは必須ではなく、<TT
+CLASS="LITERAL"
+>CUSTOMPATH_SUPPORT_MARK_RESTORE</TT
+>フラグがセットされている場合にのみ、提供する必要があります。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*RestrPosCustomScan) (CustomScanState *node);</PRE
+><P>
+<CODE
+CLASS="FUNCTION"
+>MarkPosCustomScan</CODE
+>コールバックで保存された以前のスキャン位置をリストアします。
+このコールバックは必須ではなく、<TT
+CLASS="LITERAL"
+>CUSTOMPATH_SUPPORT_MARK_RESTORE</TT
+>フラグがセットされている場合にのみ、提供する必要があります。
+   </P
+><P
+></P><PRE
+CLASS="PROGRAMLISTING"
+>void (*ExplainCustomScan) (CustomScanState *node,
+                           List *ancestors,
+                           ExplainState *es);</PRE
+><P>
+カスタムスキャンの計画ノードの<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>について追加情報を出力します。
+このコールバックは必須ではありません。
+対象のリストやスキャンのリレーションなど<TT
+CLASS="STRUCTNAME"
+>ScanState</TT
+>に格納される共通データは、このコールバックがなくても表示されますが、このコールバックにより、追加のプライベートな状態が表示できるようになります。
+   </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="custom-scan-plan.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="geqo.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>カスタムスキャン計画の作成</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="custom-scan.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>遺伝的問い合わせ最適化</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,0 +1,373 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>リリース9.2.1</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.5.2文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="リリースノート"
+HREF="release.html"><LINK
+REL="PREVIOUS"
+TITLE="リリース9.2.2"
+HREF="release-9-2-2.html"><LINK
+REL="NEXT"
+TITLE="リリース9.2"
+HREF="release-9-2.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-05-13T05:09:04"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.5.2文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="リリース9.2.2"
+HREF="release-9-2-2.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 E. リリースノート</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="リリース9.2"
+HREF="release-9-2.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RELEASE-9-2-1"
+>E.40. リリース9.2.1</A
+></H1
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>リリース日: </B
+>2012-09-24</P
+></BLOCKQUOTE
+></DIV
+><P
+>このリリースは9.2.0に対し、各種不具合を修正したものです。
+9.2メジャーリリースにおける新機能については<A
+HREF="release-9-2.html"
+>項E.41</A
+>を参照してください。
+  </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN135671"
+>E.40.1. バージョン9.2.1への移行</A
+></H2
+><P
+>9.2.Xからの移行ではダンプ/リストアは不要です。
+   </P
+><P
+>しかし、以下の変更履歴の最初に記述されているデータ破損の不具合の影響から復旧させるために、<TT
+CLASS="COMMAND"
+>REINDEX</TT
+>および、あるいは<TT
+CLASS="COMMAND"
+>VACUUM</TT
+>の操作を実行する必要があるかもしれません。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN135677"
+>E.40.2. 変更点</A
+></H2
+><P
+></P
+><UL
+><LI
+><P
+>WAL再生時の共有バッファの永続性の印付けを修正しました。(Jeff Davis)
+     </P
+><P
+>この間違いにより、チェックポイント時にバッファが書き出されないことがありました。
+その結果、その後もそのバッファを書き出すことなくサーバがクラッシュすると、データ破損が発生することになります。
+データ破損は、クラッシュからの復旧の後はどのサーバでも発生する可能性がありますが、特にスタンバイのスレーブサーバではWAL再生を実行する回数がずっと多いですから、この問題が発生する可能性もずっと高くなります。
+btreeおよびGINインデックスが破損する可能性は低いです。
+テーブルの<SPAN
+CLASS="QUOTE"
+>"可視性マップ"</SPAN
+>が破損する可能性はずっと高く、これによりインデックスオンリースキャンが誤った結果を返す可能性があります。
+テーブルデータの内容はこの不具合によって破損することはありません。
+     </P
+><P
+>この不具合のためにインデックスが破損したという既知の事例はありませんが、念のため、稼働用のインストレーションでは、9.2.1にアップグレードした後、都合の良い時に、すべてのbtreeおよびGINインデックスについて<TT
+CLASS="COMMAND"
+>REINDEX</TT
+>を実行することを勧めます。
+     </P
+><P
+>また、<A
+HREF="runtime-config-client.html#GUC-VACUUM-FREEZE-TABLE-AGE"
+><TT
+CLASS="VARNAME"
+>vacuum_freeze_table_age</TT
+></A
+>を0に設定して、すべてのテーブルについて<TT
+CLASS="COMMAND"
+>VACUUM</TT
+>を実行することを勧めます。
+これにより、すべての不正な可視性マップのデータが修正されます。
+<A
+HREF="runtime-config-resource.html#GUC-VACUUM-COST-DELAY"
+><TT
+CLASS="VARNAME"
+>vacuum_cost_delay</TT
+></A
+>を調整して、バキュームがパフォーマンスに与える影響を小さくすることができます。
+ただし、それによりバキュームが終了するまでの時間は長くなります。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>WHERE <TT
+CLASS="REPLACEABLE"
+><I
+>indexed_column</I
+></TT
+> IN (<TT
+CLASS="REPLACEABLE"
+><I
+>list_of_values</I
+></TT
+>)</TT
+>を含む問い合わせの結果のソートが正しくない場合があるのを修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>GROUP BY</TT
+>でウィンドウ関数および集計関数を含む式がある問い合わせに対して、プランナがエラーになることがあるのを修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>プランナによるエグゼキュータのパラメータの代入について修正しました。(Tom Lane)
+     </P
+><P
+>この間違いにより、同じ<TT
+CLASS="LITERAL"
+>WITH</TT
+>の副問い合わせを複数回スキャンする問い合わせについて、間違った結果を返すことがありました。
+     </P
+></LI
+><LI
+><P
+>インデックススキャンの結合条件について、プランナの処理を改善しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>接頭辞、つまり<TT
+CLASS="REPLACEABLE"
+><I
+>word</I
+></TT
+><TT
+CLASS="LITERAL"
+>:*</TT
+>のパターンを含むテキスト検索の問い合わせについて、選択性の推定を改善しました。(Tom Lane)
+     </P
+><P
+>     </P
+></LI
+><LI
+><P
+>権限の変更についての遅延した認知を修正しました。(Tom Lane)
+     </P
+><P
+>自分のトランザクションで既に保持しているロックだけしか必要としないコマンドは、それと同時の<TT
+CLASS="COMMAND"
+>GRANT</TT
+>または<TT
+CLASS="COMMAND"
+>REVOKE</TT
+>で、そのトランザクションの開始よりも後に実行されたものに気付かない場合がありました。
+     </P
+></LI
+><LI
+><P
+>列が配列型のドメインである場合に、<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>がエラーとならないよう修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>PL/Perlの再帰関数が実行時に再定義される場合に、PL/Perlがクラッシュしないようにしました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>PL/Perlで正しく最適化されない場合があるのを回避しました。(Tom Lane)
+     </P
+><P
+>一部のLinuxディストリビューションでは、誤ったバージョンの<TT
+CLASS="FILENAME"
+>pthread.h</TT
+>がインストールされており、PL/Perlのコンパイルされたコードが誤ったものになります。
+この結果、PL/Perlの関数がエラーを発生させる他の関数を呼び出すと、クラッシュすることがありました。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>pg_upgrade</SPAN
+>の<SPAN
+CLASS="APPLICATION"
+>pg_config</SPAN
+>への依存は、不要なので取り除きました。(Peter Eisentraut)
+     </P
+></LI
+><LI
+><P
+>時間帯データファイルを<SPAN
+CLASS="APPLICATION"
+>tzdata</SPAN
+>リリース2012fに更新しました。
+フィジーでの夏時間の変更が含まれます。
+     </P
+></LI
+></UL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release-9-2-2.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="release-9-2.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>リリース9.2.2</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>リリース9.2</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
