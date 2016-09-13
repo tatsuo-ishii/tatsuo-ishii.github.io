@@ -1,0 +1,219 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10882] pgbash&#45;1.1.0の仕様 -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Mon, 27 Sep 1999 13:42:32 +0900 -->
+<!--X-Message-Id: 37EEF5B8168.E484SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10882] pgbash-1.1.0の仕様 </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00378.html">Date Prev</A>][<A HREF="msg00380.html">Date Next</A>][<A HREF="msg00384.html">Thread Prev</A>][<A HREF="msg00381.html">Thread Next</A>][<A HREF="index.html#00379">Date Index</A>][<A HREF="threads.html#00379">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10882] pgbash-1.1.0の仕様</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 27 Sep 1999 13:42:32 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+　pgbash-1.1.0の仕様ができましたので、お知らせします。今回の
+バージョンアップは、主に「出力形態の統一」と「CGI機能の追加」
+です。ご意見などありましたらお願いします。
+
+# 今回のバージョンでは書式付き出力は実現できていません。
+# プログラムの公開は 9/30 の予定です。
+
+１．出力形態の統一
+
+　従来(psqlを含む)のバージョンは、selectの「検索結果」の表示
+と「データベース情報の表示」は異なる書式が使用されていました
+が、今回統一しました。(PQprint()を改良しました）
+
+(1) 出力に関するオプション
+
+    -P        平文出力(通常モードではdefault)
+    -H        HTML出力(CGI モードではdefault)
+    -X        拡張モードの設定(ex. -PX or -HX)
+    -C cap    タイトルの設定(ex. -C 'TITLE')
+    -O opt    HTMLテーブルオプションの設定(ex. -O 'BORDER=0')
+    -L        平文出力時の外枠罫線出力
+    -T        テーブルのヘッダー出力停止
+    -B        行数表示の停止
+    -A        アラインメントの解除 (ex. -PXA)
+    -S sep    フィールド区切り文字の設定(defaultは'|')
+    -N null   NULL値文字列の設定(ex. -N 'NULL')
+    -Z zero   ZERO値文字列の設定(ex. -Z '-0-' )
+
+(2) 使用例
+
+&gt; (タイトル指定の例)
+&gt; exec_sql -C "# TEST TABLE"  "seelct * from test"
+# TEST TABLE
+code|name      |address
+----+----------+---------
+ 111|sakaida   |kobe
+ 222|haruhiko  |hiroshima
+ 333|          |
+(3 rows)
+
+&gt; (NULL値、zero値を文字列で表す例)
+&gt; exec_sql -N '-NULL-' -Z '-0-' -L "select * from test"
++------+------------+-----------+
+| code | name       | address   |
++------+------------+-----------+
+|  111 | sakaida    | kobe      |
+|  222 | haruhiko   | hiroshima |
+|  333 | -NULL-     | -0-       |
++------+------------+-----------+
+(3 rows)
+
+&gt; (データベース情報の出力例）
+&gt; exec_sql -Bp test  
+# Table   = test
+
+Filed  |Type     |Length
+-------+---------+------
+code   |int4     |     4
+name   |char()   |    10
+address|varchar()|    32
+
+index
+--------
+code_ind
+
+&gt; (データベース情報の外枠有り出力例）
+&gt; exec_sql -C "# TABLES LIST" -Lp test
+# TABLES LIST
++---------+-----------+--------+
+| Filed   | Type      | Length |
++---------+-----------+--------+
+| code    | int4      |      4 |
+| name    | char()    |     10 |
+| address | varchar() |     32 |
++---------+-----------+--------+
+(3 rows)
+
++----------+
+| index    |
++----------+
+| code_ind |
++----------+
+(1 row)
+
+
+２．CGI機能の追加
+
+　exec_sql -i を実行すると、HTML出力&lt;TABLE BORDER=1&gt;をデフォ
+ルトにします。また GET/POSTメソッドによるWWWサーバからのデー
+タ入力およびHTTP_COOKIEのデータ読込を行います。
+
+(1) CGIプログラム例
+
+　例えば、次のようなホームページがあるものとします。
+ &lt;HTML&gt;
+ &lt;FORM METHOD=POST ACTION="pgbash-test.sh"&gt;
+ &lt;INPUT TYPE=password NAME=passwd &gt;
+ &lt;INPUT TYPE=text NAME="MYNAME" VALUE="sakaida"&gt;
+ &lt;INPUT TYPE=text NAME="ADDRESS" VALUE="Osaka"&gt;
+ &lt;INPUT TYPE=submit VALUE=submit&gt;
+ &lt;/HTML&gt;
+
+　このとき、CGIプログラム(pgbash-test.sh)は、プログラムの先頭
+で exec 2&gt;&amp;1、Content-typeの指定、enable文および exec_sql -i 
+を指定します。
+
+ #!/usr/local/bin/bash
+ exec 2&gt;&amp;1                                    
+ echo "Content-type: text/html"             
+ echo "" 
+ enable -f /usr/local/pgsql/lib/libpgbash.so exec_sql
+ exec_sql -i                                
+ #
+ exec_sql "connect to dbname as db1 user nopbody $passwd" 
+ exec_sql "insert into test values( '$MYNAME','$ADDRESS')"
+
+(2) GET/POSTメソッドのデータ
+
+　上例のように、ホームページで指定した名前（passwd, MYNAME,
+ADDRESS)はそのままシェル変数として使用できます。
+
+(3) クッキーの値
+
+  クッキーが設定されている場合は、$HTTP_COOKIE の値を分解して
+次のシェル変数に代入します。
+
+  $HTTP_NCOOKIE        : クッキーの個数
+  ${HTTP_COOKIEKEY[i]} : クッキーのキー名
+  ${HTTP_COOKIEVAL[i]} : クッキーの値
+
+
+３．その他
+
+　selectで読んだ列名は、次のシェル変数にセットされます。
+
+　$SQL_NFIELD　　　   : 列数
+　${SQL_FILEDNAME[i]} : 列名
+
+
+--
+境田雅明
+Personal Software, Inc.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00381" HREF="msg00381.html">[pgsql-jp 10884] Re: pgbash-1.1.0の仕様</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00378.html">[pgsql-jp 10881] Re: time型とdate型</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 10883] Re: time型とdate型</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 10887] Re: mod_auth_pgsql</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00381.html">[pgsql-jp 10884] Re: pgbash-1.1.0の仕様</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00379"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00379"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

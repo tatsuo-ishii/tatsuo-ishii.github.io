@@ -1,0 +1,172 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失 -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Fri, 05 Nov 1999 11:08:35 +0900 -->
+<!--X-Message-Id: 199911050208.LAA06447@sraigw.sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 199911030408.NAA16263@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失 </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00149.html">Date Prev</A>][<A HREF="msg00152.html">Date Next</A>][<A HREF="msg00061.html">Thread Prev</A>][<A HREF="msg00155.html">Thread Next</A>][<A HREF="index.html#00150">Date Index</A>][<A HREF="threads.html#00150">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 05 Nov 1999 11:08:35 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00061.html">199911030408.NAA16263@sraigw.sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) SEMI/1.13.3 (Komaiko) FLIM/1.12.5 (Hirahata) MULE/2.3 (SUETSUMUHANA) (based on Emacs 19.34)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+Wed, 03 Nov 1999 13:08:00 +0900 頃、
+佐藤 純弘 &lt;y-satou@azb.nttls.co.jp&gt; さんは言いました :
+佐&gt; 
+佐&gt; で、早速本題なのですが、現在、FreeBSD 3.3-RELEASE +
+佐&gt; PostgreSQL 6.5.2 で運用しているサーバで、postmaster が不定期
+佐&gt; に消失する現象に悩まされています。
+佐&gt; postmaster が落ちる際は
+佐&gt; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+佐&gt;  ....(snip)....
+佐&gt; proc_exit(0) [#0]
+佐&gt; shmem_exit(0) [#0]
+佐&gt; exit(0)
+佐&gt; proc_exit(1) [#0]
+佐&gt; shmem_exit(1) [#0]
+佐&gt; exit(1)
+佐&gt; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+佐&gt; という形で、proc_exit(1)、shmem_exit(1)、exit(1) の3つが出て
+佐&gt; お亡くなりになっています。この際、標準エラー出力には
+佐&gt;   /usr/local/pgsql/bin/postmaster: ServerLoop: select failed: No child processes
+佐&gt; というエラーが出ています。
+
+たまたま、社内の別のところで(お互い全く知らずに) FreeBSD +
+PostgreSQL の組合せで同じ症状が出ていることが発覚し、お互い
+に連絡を取り合ってみるなどしてました。
+＃灯台もと暗し…
+
+
+で、上の log からざっと postmaster.c を見てみたところ、
+
+* proc_exit が proc_exit(1) で呼ばれるケースは
+  ExitPostmaster() が ExipPostmaster(1) で呼ばれるとき
+
+* PostmasterMain では
+     status = ServerLoop();
+     ExitPostmaster(status != STATUS_OK);
+  で ExitPostmaster が呼ばれる
+
+* ServerLoop では
+     if (select(nSockets, &amp;rmask, &amp;wmask, (fd_set *) NULL,
+                        (struct timeval *) NULL) &lt; 0)
+     {
+             if (errno == EINTR)
+                     continue;
+             fprintf(stderr, "%s: ServerLoop: select failed: %s\n",
+                             progname, strerror(errno));
+             return STATUS_ERROR;
+     }
+  で、select でエラーを返している場合に STATUS_ERROR (= -1)
+  を返していて、この時のエラーが
+       ServerLoop: select failed: No child processes
+  (/usr/include/sys/errno.h では ECHILD の errno = 10) となっ
+  ている
+
+というところまでは追ったのですが、ここで ECHILD が返ってくる
+場合はなにか、という部分がわからず(man 2 select では EINTR 
+が返ってくる説明はあれども ECHILD が返ってくる説明がない)、
+FreeBSD の方のメーリングリストのアーカイブや GNATS なども追っ
+てみたのですが、select と ECHILD で検索をかけてみた限りでは、
+このような症例が出てきませんでした。
+
+とりあえず、select はディスクリプタのステータスチェックなの
+で、と割り切って、EINTR と同様に ECHILD が返ってきた場合も
+そのまま continue するように postmaster.c を変えてみて、様子
+を見てみることにしました。
+
+- - - - -
+
+ところで、FreeBSD で postgreSQL を回している方で、同様の症状
+が出ている方はいないでしょうか？
+
+こちらでは、(たまたまお互い知らずに)
+  FreeBSD 2.2.8 + PostgreSQL 6.5.1
+  FreeBSD 3.3   + PostgreSQL 6.5.2
+という2つの環境で、同様の症状が出ている(システムは全く別)こ
+とが今回発覚したのですが、このせまい範囲で両方出ているだけに、
+他にも FreeBSD + PostgreSQL という環境で同じ症状が出ている方
+がいるのでは、と思ったりしてるのですけれど…
+＃どちらのシステムでも検索・更新は頻繁かもしれません
+</PRE>
+<PRE>
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00162" HREF="msg00162.html">[pgsql-jp 11588] Re: FreeBSD 3.3 でpostmaster が消失</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00155" HREF="msg00155.html">[pgsql-jp 11581] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+<UL><LI><EM>From:</EM> Manabu Watanabe &lt;manyabu.nabe@ooi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00061" HREF="msg00061.html">[pgsql-jp 11486] FreeBSD 3.3 でpostmaster が消失</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 11576] Re: 24H稼動は出来ない?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 11578] Re: Mariposa?(was Re:  始めまして  )</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 11486] FreeBSD 3.3 でpostmaster が消失</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 11581] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00150"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00150"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

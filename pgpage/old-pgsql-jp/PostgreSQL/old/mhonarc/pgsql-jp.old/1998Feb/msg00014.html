@@ -1,0 +1,203 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3323] Re: about EUC -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 05 Feb 1998 11:26:04 +0900 -->
+<!--X-Message-Id: 199802050226.LAA26679@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199802042220.OAA12347@dlsun329.oracle.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3323] Re: about EUC </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00013.html">Date Prev</A>][<A HREF="msg00015.html">Date Next</A>][<A HREF="msg00012.html">Thread Prev</A>][<A HREF="msg00015.html">Thread Next</A>][<A HREF="index.html#00014">Date Index</A>][<A HREF="threads.html#00014">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3323] Re: about EUC</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 05 Feb 1998 11:26:04 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。ちょっと長いです。
+
+&gt;よしおかです．
+&gt;
+&gt;どーしても，ちゃちゃをいれたくなっちゃうです．
+&gt;ごめんなさい．
+
+私も間違いを一杯やらかしている可能性大なので、ちゃちゃ歓迎です:-)
+
+&gt;&gt; &gt;  Code set 2 (CNS 11643-1992 Planes 1-16):      0x8EA1A1A1-0x8EB0FEFE
+&gt;&gt; CS2 が 4 バイトですか。これってもはや EUC とは言わないのでは:-)
+&gt;
+&gt;まあ，言葉の定義の問題なんですけど，世間ではEUCっていっていたりするで
+&gt;す．
+
+まあ、そうなんですけど、ものの本(たとえば「マルチリンガル環境の実現」)
+によれば、EUC とは
+
+『EUC(Extended Unix Code)は、ISO 2022 8 単位符号の拡張にのっとったもの
+で、「GL に G0 集合を、GR に G1 集合を呼び出したままにしておき、シング
+ルシフト2(SS2)とシングルシフト3(SS3)という制御文字によって、1文字分だ
+けGRにG2集合やG3集合の文字を置き替える」という部分を使って拡張している。
+その結果、最大4つの文字集合が扱える』
+
+だそうで、CS2 に CNS 11643-1 から CNS 11643-16 までを切替えるなんての
+は明らかに反則だと思えます。
+
+でも、所詮 Defact Standard に過ぎない EUC ですから、EUC の定義そのもの
+も、こうやって変質して行くんでしょうね。
+
+&gt;でもって，postgressの実装をまったく見たこともさわってことも，まして石
+&gt;井さんの実装についてまったくもって知らないものの素朴な疑問なんですけど．
+&gt;文字コードの区別ってどーやってやっているんでしょうか？思いつく，案とし
+&gt;て，
+
+もっともな疑問です。その前にちょっと PostgreSQL の実装について解説(と
+いうほどじゃないんですけど)
+
+PostgreSQL は、いわゆるクライアント／サーバ方式で実装されており、クラ
+イアントが入力した SQL 文は socket 通信を通じてサーバに渡され、
+parser-&gt;planner/optimizer-&gt;executor の順で処理されて、結果がクライアン
+トに返って来ます。文字コードの扱いで言うと、1文字 = 7 bit ASCII を前提
+にしてますが、ほとんどの所は 8 bit が通ります。例外は正規表現と like 
+の処理で、逆に言うとここを直せば、ASCII 以外は 8 bit 目が立ってるよう
+なコード系、たとえば EUC や UTF-8、mule internal code はとりあえずその
+まま通ります。
+
+で、私のパッチの方針ですが、
+
+1. サーバプロセスの内部コード、およびデータベースにデータを格納すると
+きのコードは 1 種類(EUC、UTF-8、mule internal code のどれか)とする。
+
+2. クライアントは原則として 1 と同じコードを使うが、可能ならば 1 と異
+なったコードを使い、サーバ側でコード変換することも考慮する(たとえば、
+クライアント側が EUC-jp、サーバ側が UTF-8 など)。
+
+と今のところ考えています。さて、よしおかさんの質問ですが、
+
+&gt;1) プロセスに一つのグローバルな環境変数によって決める．
+&gt;   たとえば， locale のようなもの．
+&gt;2) 実装に一つ，コンパイル時に，日本語版とか，中国語版とかを決める．
+
+今のところ 2 です。1 にしなかったのは、単に効率を考えてのことで、論理
+的には 1 も可能です。
+
+&gt;3) 各データベース毎に，文字集合を規定できる．
+&gt;   たとえば，データベースを生成するときに，日本語の文字とか．
+
+これはなかなか魅力的ですね。ただ、カタログの拡張が必要になりますけど。
+
+&gt;4) 各表ごとに，文字集合を規定できる．
+&gt;5) 各列ごとに，文字集合を規定できる．
+&gt;   create table foo(bar char(10) character set euc-jp);
+
+実は、4, 5 はあんまり意味がないような気がしてます。実際問題として、
+
+create table foo(bar char(10) character set euc-jp
+		 buz char(10) character set euc-china);
+
+とかやっちゃったら、一体どうやって insert の SQL 文を書くのか疑問だし。
+また、各国語を混ぜて使いたいという要求であれば、UTF-8 とか、mule
+internal code をつかえば対応できますし。(それどころか、列の中に複数の
+文字集合を混在させることも出来る)
+
+&gt;文字集合に関する数々の暗黙の仮定をとっぱらって，文字集合独立の実装をつ
+&gt;くると美しいと思うです．そーゆーのであれば，２バイトだろうが，４バイト
+&gt;であろうが，ＵＣＳ−２であろうがサポートできるような気がします．
+
+でも、結局どっかで「1文字」を切り出して来る処理が必要になりますよね。
+それは文字集合独立にはならない。
+# もちろん、そこの部分をユーザ定義関数などを使って拡張可能にする戦略は
+# 考えられます。
+
+&gt;文字列に，null とか仮定しているのかなあ？
+
+残念ながら、PostgreSQL にはそういうのがそこら中にあります。
+
+お、このメールを書いている間にまつもとさんから...
+
+&gt;まつもとです．
+&gt;
+&gt;石井さんなら既にご存知のことかと思いますが，ちょっとだけつけたしです．
+&gt;
+&gt;石井さん:
+&gt;&gt; mule の internal code を使えば、各国語を混在させたデータが扱えるはず
+&gt;&gt; ですが、正規表現の修正が追い付いていません
+&gt;
+&gt;さきほどのcjk.infのことを教えてくれた友人は，mule方面にもちょっと
+&gt;詳しい人で，その人がいうには「mule の内部コードは1文字が可変長で、
+&gt;最大長の制限がないから大変．例えば、Thai 語の場合だと、7 バイトに
+&gt;なるのがあります。」ということなんで，
+
+タイ語のことは良く知りませんが、重ね打ちのための合成文字かな。実は、実
+装の都合で mule internal code を扱う、とはいっても(leading character 
+も含めて)3ないし4バイト以内の文字集合に制限せざるをえませんが、ISO
+2022 に準拠した文字集合ならこれで扱えるはずです。(ISO 8859 シリーズと
+日本語、中国語、韓国語位は利用できます)。
+#合成文字の扱いは他にも難しい問題があって、たとえば正規表現や LIKE の
+#処理がうまくできないと聞いています。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00015" HREF="msg00015.html">[pgsql-jp 3324] Re: about EUC</A></STRONG>
+<UL><LI><EM>From:</EM> OTA Takeaki &lt;ota@cs.titech.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 3321] about EUC</A></STRONG>
+<UL><LI><EM>From:</EM> hyoshiok@jp.oracle.com</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 3322] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 3324] Re: about EUC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 3321] about EUC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 3324] Re: about EUC</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00014"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00014"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

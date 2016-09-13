@@ -1,0 +1,73 @@
+Subject: [COMMITTERS] pgsql: Introduce visibility map.
+From: heikki@postgresql.org (Heikki Linnakangas)
+To: pgsql-committers@postgresql.org
+Date: Wed,  3 Dec 2008 13:05:22 +0000 (UTC)
+X-Mailer: activitymail 1.24, http://search.cpan.org/dist/activitymail/
+
+Log Message:
+-----------
+Introduce visibility map. The visibility map is a bitmap with one bit per
+heap page, where a set bit indicates that all tuples on the page are
+visible to all transactions, and the page therefore doesn't need
+vacuuming. It is stored in a new relation fork.
+
+Lazy vacuum uses the visibility map to skip pages that don't need
+vacuuming. Vacuum is also responsible for setting the bits in the map.
+In the future, this can hopefully be used to implement index-only-scans,
+but we can't currently guarantee that the visibility map is always 100%
+up-to-date.
+
+In addition to the visibility map, there's a new PD_ALL_VISIBLE flag on
+each heap page, also indicating that all tuples on the page are visible to
+all transactions. It's important that this flag is kept up-to-date. It
+is also used to skip visibility tests in sequential scans, which gives a
+small performance gain on seqscans.
+
+Modified Files:
+--------------
+    pgsql/src/backend/access/heap:
+        Makefile (r1.18 -> r1.19)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/access/heap/Makefile?r1=1.18&r2=1.19)
+        heapam.c (r1.270 -> r1.271)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/access/heap/heapam.c?r1=1.270&r2=1.271)
+    pgsql/src/backend/access/transam:
+        xlogutils.c (r1.64 -> r1.65)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/access/transam/xlogutils.c?r1=1.64&r2=1.65)
+    pgsql/src/backend/catalog:
+        catalog.c (r1.79 -> r1.80)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/catalog/catalog.c?r1=1.79&r2=1.80)
+        storage.c (r1.1 -> r1.2)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/catalog/storage.c?r1=1.1&r2=1.2)
+    pgsql/src/backend/commands:
+        vacuum.c (r1.381 -> r1.382)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/commands/vacuum.c?r1=1.381&r2=1.382)
+        vacuumlazy.c (r1.111 -> r1.112)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/commands/vacuumlazy.c?r1=1.111&r2=1.112)
+    pgsql/src/backend/utils/cache:
+        relcache.c (r1.277 -> r1.278)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/utils/cache/relcache.c?r1=1.277&r2=1.278)
+    pgsql/src/include/access:
+        htup.h (r1.104 -> r1.105)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/include/access/htup.h?r1=1.104&r2=1.105)
+    pgsql/src/include/storage:
+        bufpage.h (r1.84 -> r1.85)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/include/storage/bufpage.h?r1=1.84&r2=1.85)
+        relfilenode.h (r1.20 -> r1.21)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/include/storage/relfilenode.h?r1=1.20&r2=1.21)
+    pgsql/src/include/utils:
+        rel.h (r1.109 -> r1.110)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/include/utils/rel.h?r1=1.109&r2=1.110)
+
+Added Files:
+-----------
+    pgsql/src/backend/access/heap:
+        visibilitymap.c (r1.1)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/backend/access/heap/visibilitymap.c?rev=1.1&content-type=text/x-cvsweb-markup)
+    pgsql/src/include/access:
+        visibilitymap.h (r1.1)
+        (http://anoncvs.postgresql.org/cvsweb.cgi/pgsql/src/include/access/visibilitymap.h?rev=1.1&content-type=text/x-cvsweb-markup)
+
+-- 
+Sent via pgsql-committers mailing list (pgsql-committers@postgresql.org)
+To make changes to your subscription:
+http://www.postgresql.org/mailpref/pgsql-committers

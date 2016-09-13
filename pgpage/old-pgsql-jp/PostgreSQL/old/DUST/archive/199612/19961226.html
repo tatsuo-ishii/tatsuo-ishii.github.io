@@ -1,0 +1,512 @@
+<A NAME="2">
+<PRE><B>
+From: hiro@exmgfkgw.tmit.ac.jp
+Date: Thu, 26 Dec 96 21:39:57 JST
+Subject: [postgres95 1182] Japanese FAQ (TeX)
+Message-Id: &lt;9612261239.AA01532@exmgfkgw&gt;
+</A>
+</B></PRE>
+<PRE>
+
+宮久地＠科技大です。
+久しぶりにメールさせていただきます。
+
+もしかしたら、どなたか既につくっていらっしゃるのかも知れませんが、
+日本語FAQを TeX のソースにしました。
+
+http://exmgfks5.tmit.ac.jp/~hiro
+
+からリンクをはってあります。ファイル名は、
+
+pg95faqj.tgz
+
+で、TeX のソースと dvi ファイル、postscript がまとめて入っています。
+もしよかったら、お持ちください。
+（グチャグチャした見にくいホームページからのリンクなので、
+分かりにくいかも知れません。）
+
+P.S.
+以前に質問した fmgr.h のジェネレートがうまくいかない原因は、
+awk がこわれてしまっていることでした。
+現在では、1.09に日本語化パッチを当てたものが、
+linux-1.2.13 で稼働しております。
+
+-- 
+宮久地博臣(MIYAKUJI, Hiroomi) hiro@exmgfkgw.tmit.ac.jp
+Tokyo Metropolitan Institute of Technology Fukuda lab
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Dec 1996 12:43:34 +0900
+Subject: [postgres95 1181] MkLinux DR2 port
+Message-Id: &lt;199612260343.MAA28505@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+postgres95 ML の皆様こんにちは。石井です。
+
+以前 MkLinux DR1/postgres95-1.06 のパッチをお届けしましたが、今回新た
+に MkLinux DR2/postgres95-1.09 のパッチを作成しました。ただ、残念なが
+ら、依然として C 関数の Dynamic loading ができません。（やっても落ちま
+せんが、エラーメッセージが出て無視されます）1.09 用の jp patch も入れ
+て regression をかけたところ、一応通っているようですが、詳細は検討して
+いません。
+
+パッチは、附属のファイルを適当な名前でセーブした後postgres95 をインス
+トールしたディレクトリで以下のようにあてます。たとえば、
+/usr/local/postgres95 にインストールしたとすると、
+
+	# cd /usr/local/postgres95
+	# patch -p1 &lt; FILE
+
+となります。
+
+テスト環境についてやや詳しく述べておきます。(MkLinux はインストールと
+かパッチがややこしいもんで）興味ない方は読み飛ばして下さい。
+
+1. ターゲットになった Mac の環境は以下です。
+	PowerMac7100/66AV+48MBメモリ(２次キャッシュなし）
+	内蔵純正500MB+外づけ 1GB (500MB+500MB に分割）
+	外づけより起動、KT7.5.5 使用中。JIS キーボード。
+
+2. MkLinux は内蔵純正500MB に入れました。パーティション設定は 
+   HDT1.8(PE) で以下のようにしました。
+	MacPartition(2048K)
+	A/UX Root &amp; Usr(100MB)
+	A/UX Swap(64MB)
+	Free A/UX(361MB)
+
+3. MkLinux のバージョンは /etc/motd によれば、
+	Developer Release 2 (Linux 2.0.21-osfmach3 on a ppc)
+  と表示されています。インストールに使用したファイルは以下です。
+
+	ftp.mklinux.apple.com/pub/MkLinux_DR2/FullRelease/MkLinux_DR2.sit.hqx 
+	ftp://ftp.cc.miyazaki-u.ac.jp/pub1/Mac-UNIX/MkLinux/MkLinux_DR2/
+	Updates/961211.mklinux/の
+		Mac_Kernel.hqx
+		MkLinux_Booter.hqx
+		vmlinux.gz
+
+	ftp://ftp.cc.miyazaki-u.ac.jp/pub1/Mac-UNIX/MkLinux/MkLinux_DR2/
+	gcc-fix/の
+		libc-5.2.18-5g.ppc.rpm
+		libc-devel-5.2.18-5g.ppc.rpm
+		libc-include-5.2.18-5g.ppc.rpm
+		libc-static-5.2.18-5g.ppc.rpm
+	(/usr/include で、asm -&gt; asm-ppc, linux -&gt; linux-2.0.22 にシボ
+	リックリンクしてます)
+
+4. その他
+	/etc/sysconfig/network-scripts の下のファイルを以下のように設
+	定してます。
+
+	ifup-lo の route add -net ${IPADDR} をコメントにし、route add -net
+	127.0.0.0 を追加する
+
+	ifcfg-eth0 の NETWORK の設定をちゃんとネットワークアドレスにする
+
+	ifup-eth の route add -net ${IPADDR} を route add -net
+	${NETWORK} netmask ${NETMASK} に変更する。
+
+	/usr/bin/X11/{screenrestore,Xmklinux} を chmod 4755 する。
+
+以上。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+---------------------------- cut here ----------------------------
+Index: postgres95/src/backend/port/mklinux/Makefile.inc
+diff -c /dev/null postgres95/src/backend/port/mklinux/Makefile.inc:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:05 1996
+--- postgres95/src/backend/port/mklinux/Makefile.inc	Thu Dec 26 09:54:21 1996
+***************
+*** 0 ****
+--- 1,36 ----
++ #-------------------------------------------------------------------------
++ #
++ # Makefile.inc--
++ #    Makefile for port/linux (Linux specific stuff)
++ #
++ # Copyright (c) 1994, Regents of the University of California
++ #
++ #
++ # IDENTIFICATION
++ #    $Header: /auto/sran362/mnt7/home/mgr/t-ishii/repository/postgres95/src/backend/port/mklinux/Attic/Makefile.inc,v 1.1.2.1 1996/12/26 00:54:21 t-ishii Exp $
++ #
++ # NOTES
++ #    The Linux port is included here by courtesy of Kai Petzke.
++ #
++ #    (C) 1994, Kai Petzke, wpp@marie.physik.tu-berlin.de
++ #
++ #-------------------------------------------------------------------------
++ 
++ #
++ # linux has fast linkers and don't need the BIGOBJ stuff.
++ #
++ BIGOBJS= false
++ 
++ 
++ ifdef LINUX_ELF
++ CC=gcc
++ LDADD+= -ldl
++ CFLAGS+= -DLINUX_ELF
++ else
++ #LDADD+= -ldld
++ SUBSRCS+= dynloader.c
++ endif
++ 
++ HEADERS+= machine.h port-protos.h
++ CFLAGS+= -DNEED_CBRT
++ 
+Index: postgres95/src/backend/port/mklinux/dynloader.c
+diff -c /dev/null postgres95/src/backend/port/mklinux/dynloader.c:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:05 1996
+--- postgres95/src/backend/port/mklinux/dynloader.c	Thu Dec 26 09:54:23 1996
+***************
+*** 0 ****
+--- 1,104 ----
++ /*-------------------------------------------------------------------------
++  *
++  * dynloader.c--
++  *    Dynamic Loader for Postgres for Linux, generated from those for
++  *    Ultrix.
++  *
++  *    You need to install the dld library on your Linux system!
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  *
++  * IDENTIFICATION
++  *    $Header: /auto/sran362/mnt7/home/mgr/t-ishii/repository/postgres95/src/backend/port/mklinux/Attic/dynloader.c,v 1.1.2.1 1996/12/26 00:54:23 t-ishii Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #include &lt;stdio.h&gt;
++ #if !defined(PORTNAME_mklinux)
++ #include &lt;dld.h&gt;
++ #endif
++ #include &quot;postgres.h&quot;
++ #include &quot;port-protos.h&quot;
++ #include &quot;utils/elog.h&quot;
++ #include &quot;fmgr.h&quot;
++ 
++ extern char pg_pathname[];
++ 
++ void *
++ pg_dlopen(char *filename)
++ {
++ #if defined(PORTNAME_mklinux)
++   elog(WARN, &quot;dynamic load not supported&quot;);
++   return(NULL);
++ #else
++     static int dl_initialized= 0;
++ 
++     /*
++      * initializes the dynamic loader with the executable's pathname.
++      * (only needs to do this the first time pg_dlopen is called.)
++      */
++     if (!dl_initialized) {
++         if (dld_init (dld_find_executable (pg_pathname))) {
++ 	    return NULL;
++ 	}
++ 	/*
++ 	 * if there are undefined symbols, we want dl to search from the
++ 	 * following libraries also.
++ 	 */
++ 	dl_initialized= 1;
++     }
++ 
++     /*
++      * link the file, then check for undefined symbols!
++      */
++     if (dld_link(filename)) {
++ 	return NULL;
++     }
++ 
++     /*
++      * If undefined symbols: try to link with the C and math libraries!
++      * This could be smarter, if the dynamic linker was able to handle
++      * shared libs!
++      */
++     if(dld_undefined_sym_count &gt; 0) {
++ 	if (dld_link(&quot;/usr/lib/libc.a&quot;)) {
++ 	    elog(NOTICE, &quot;dld: Cannot link C library!&quot;);
++ 	    return NULL;
++ 	}
++ 	if(dld_undefined_sym_count &gt; 0) {
++ 	    if (dld_link(&quot;/usr/lib/libm.a&quot;)) {
++ 		elog(NOTICE, &quot;dld: Cannot link math library!&quot;);
++ 		return NULL;
++ 	    }
++ 	    if(dld_undefined_sym_count &gt; 0) {
++ 		int count = dld_undefined_sym_count;
++ 		char **list= dld_list_undefined_sym();
++ 
++ 		/* list the undefined symbols, if any */
++ 		elog(NOTICE, &quot;dld: Undefined:&quot;);
++ 		do {
++ 		    elog(NOTICE, &quot;  %s&quot;, *list);
++ 		    list++;
++ 		    count--;
++ 		} while(count &gt; 0);
++ 
++ 		dld_unlink_by_file(filename, 1);
++ 		return NULL;
++ 	    }
++ 	}
++     }
++ 
++     return (void *) strdup(filename);
++ #endif
++ }
++ 
++ char *
++ pg_dlerror()
++ {
++ #if defined(PORTNAME_mklinux)
++   return(&quot;dynaloader unspported&quot;);
++ #else
++     return dld_strerror(dld_errno);
++ #endif
++ }
+Index: postgres95/src/backend/port/mklinux/machine.h
+diff -c /dev/null postgres95/src/backend/port/mklinux/machine.h:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:06 1996
+--- postgres95/src/backend/port/mklinux/machine.h	Thu Dec 26 09:54:24 1996
+***************
+*** 0 ****
+--- 1,18 ----
++ /*-------------------------------------------------------------------------
++  *
++  * machine.h--
++  *    
++  *
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  * $Id: machine.h,v 1.1.2.1 1996/12/26 00:54:24 t-ishii Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #ifndef MACHINE_H
++ #define MACHINE_H
++ 
++ #define BLCKSZ	8192
++ 
++ #endif
+Index: postgres95/src/backend/port/mklinux/port-protos.h
+diff -c /dev/null postgres95/src/backend/port/mklinux/port-protos.h:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:06 1996
+--- postgres95/src/backend/port/mklinux/port-protos.h	Thu Dec 26 09:54:25 1996
+***************
+*** 0 ****
+--- 1,37 ----
++ /*-------------------------------------------------------------------------
++  *
++  * port-protos.h--
++  *    port-specific prototypes for SunOS 4
++  *
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  * $Id: port-protos.h,v 1.1.2.1 1996/12/26 00:54:25 t-ishii Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #ifndef PORT_PROTOS_H
++ #define PORT_PROTOS_H
++ 
++ #include &quot;fmgr.h&quot;			/* for func_ptr */
++ #include &quot;utils/dynamic_loader.h&quot;
++ #ifdef LINUX_ELF
++ #include &quot;dlfcn.h&quot;
++ #endif
++ 
++ /* dynloader.c */
++ 
++ #ifndef LINUX_ELF
++ #define pg_dlsym(handle, funcname)	(NULL)
++ #define pg_dlclose(handle)		({})
++ #else
++ /* #define	pg_dlopen(f)	dlopen(f, 1) */
++ #define	pg_dlopen(f)	dlopen(f, 2)
++ #define	pg_dlsym	dlsym
++ #define	pg_dlclose	dlclose
++ #define	pg_dlerror	dlerror
++ #endif
++ 
++ /* port.c */
++ 
++ #endif /* PORT_PROTOS_H */
+Index: postgres95/src/backend/port/mklinux/port.c
+diff -c /dev/null postgres95/src/backend/port/mklinux/port.c:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:06 1996
+--- postgres95/src/backend/port/mklinux/port.c	Thu Dec 26 09:54:27 1996
+***************
+*** 0 ****
+--- 1,13 ----
++ /*-------------------------------------------------------------------------
++  *
++  * port.c--
++  *    Linux-specific routines
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  *
++  * IDENTIFICATION
++  *    $Header: /auto/sran362/mnt7/home/mgr/t-ishii/repository/postgres95/src/backend/port/mklinux/Attic/port.c,v 1.1.2.1 1996/12/26 00:54:27 t-ishii Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
+Index: postgres95/src/backend/utils/adt/misc.c
+diff -c postgres95/src/backend/utils/adt/misc.c:1.1.1.1 postgres95/src/backend/utils/adt/misc.c:1.1.1.1.6.1
+*** postgres95/src/backend/utils/adt/misc.c:1.1.1.1	Fri Oct 25 11:17:18 1996
+--- postgres95/src/backend/utils/adt/misc.c	Thu Dec 26 09:55:08 1996
+***************
+*** 22,28 ****
+      !defined(PORTNAME_bsdi) &amp;&amp; \
+      !defined(PORTNAME_bsdi_2_1) &amp;&amp; \
+      !defined(PORTNAME_irix5) &amp;&amp; \
+!     !defined(PORTNAME_linux)
+  extern int random();
+  extern int srandom(unsigned);
+  #endif
+--- 22,29 ----
+      !defined(PORTNAME_bsdi) &amp;&amp; \
+      !defined(PORTNAME_bsdi_2_1) &amp;&amp; \
+      !defined(PORTNAME_irix5) &amp;&amp; \
+!     !defined(PORTNAME_linux) &amp;&amp; \
+!     !defined(PORTNAME_mklinux) 
+  extern int random();
+  extern int srandom(unsigned);
+  #endif
+Index: postgres95/src/mk/port/postgres.mk.mklinux
+diff -c /dev/null postgres95/src/mk/port/postgres.mk.mklinux:1.1.2.1
+*** /dev/null	Thu Dec 26 10:05:30 1996
+--- postgres95/src/mk/port/postgres.mk.mklinux	Thu Dec 26 09:57:30 1996
+***************
+*** 0 ****
+--- 1,54 ----
++ #-------------------------------------------------------------------------
++ #
++ # postgres.mk.linux--
++ #    Intel x86/Linux specific rules and variables
++ #
++ # Copyright (c) 1994-5, Regents of the University of California
++ #
++ #    $Id: postgres.mk.mklinux,v 1.1.2.1 1996/12/26 00:57:30 t-ishii Exp $
++ #
++ # NOTE
++ #    you may remove lines that start with ## which are general comments
++ #-------------------------------------------------------------------------
++ ifndef MK_PORT
++ MK_PORT=	mklinux
++ 
++ # Comment the following flag if you're not using Linux ELF
++ #LINUX_ELF = 1
++ 
++ ifndef LINUX_ELF
++ RANLIB=		ranlib
++ SLSUFF=		.o
++ else
++ RANLIB=		ranlib
++ SLSUFF=		.so
++ LDFLAGS+=	-rdynamic
++ endif
++ INSTALL=	install
++ MK_NO_LORDER=	true
++ 
++ # use the regex library
++ USE_REGEX = 1
++ 
++ #
++ # for postgres.user.mk
++ #
++ #CFLAGS_SL=	-fPIC
++ CFLAGS_SL=	-fpic
++ %.so:  %.o
++ 	cd $(objdir); $(CC) -shared -o $(@F) $(&lt;F)
++ 
++ #
++ # for postgres.mk
++ #
++ CFLAGS_OPT=	-O2 -pipe
++ 
++ # The Linux gnulib #defines the problem away for you and calls 
++ # the BSD routines if you give it the right flags.
++ CFLAGS_BE= -D__USE_BSD -D__USE_BSD_SIGNAL -DCONFIG_OSFMACH3
++ LDADD_BE= -lbsd
++ 
++ LEX = flex
++ #YACC = bison -y
++ 
++ endif
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Kayama Yoichi &lt;yoichi@twics.com&gt;
+Date: Thu, 26 Dec 1996 12:09:41 +0900
+Subject: [postgres95 1180] Re: Greetings and Question
+Message-Id: &lt;9612260309.AA00244@GMF.twics.com&gt;
+</A>
+</B></PRE>
+<PRE>
+
+嘉山と申します
+
+自己紹介以来の登場ですが
+
+Takeshi Yamada &lt;ken@tyd1.tydfam.iijnet.or.jp&gt; さんは書きました：
+
+&gt;  もう一つ、環境庁から植生の GIS マップが、１ー２年で公開される、
+&gt;といった新聞報道を読んだのですが、GIS における位置情報のフォーマット
+&gt;はどのように規定されているのでしょうか？  東経度分秒、北緯度分秒では
+&gt;ないと思うのですが、、、。(これも、自分と家族の写真アルバムの整理に
+&gt;GIS と時間のスケールバーを使って、DB から引っ張り出せるような、
+&gt;Virtual Album を作りたいと考えて使用をいろいろいじっているうちに、
+&gt;基本的な所でつまずいてしまった次第です。)
+
+全世界をカバーする場合は緯度、経度でデータを持たないといけない
+でしょう。
+ただこれを２次元の地図にプロットする場合はなんらかの投影変換が必要
+です。
+
+限定された範囲のみが処理対象の場合は投影変換された後の数値を使用
+してデータを管理してもいいです。
+
+日本だと地方自治体等で使用している大縮尺（1/500とか1/2500)の地図は
+平面直角座標系といって国内を１９個所のゾーンに分けて横メルカトル
+図法で投影変換した座標系でデータ持っていることが多いです。
+
+これと同じ図法ではユニバーサル横メルカトル図法というのが経度６度
+単位を１つのゾーンに区切って投影する仕組みでして、これは第２次世界
+大戦時の連合国側で統一して使用していた図法です。ただし適用範囲は
+緯度８０度以下ということです。
+
+日本全土の位置を管理するような場合は上記のような座標系ではカバー
+できませんので、円錐投影とかを行います。
+
+どちらにしてもデータを緯度、経度でもっていれば上記のような投影
+は可能です。
+
+そんなもんでＧＩＳで使用する位置情報はあつかいたい範囲や、位置
+精度によってデータのもちかたはいろいろあります。
+
+投影変換については  USGS  のサイトに &quot;Cartographic Projection 
+Procedures for the UNIX&quot; というプログラムがあります。これは
+膨大な種類の投影変換用ライブラリです。
+
+あと公式な標準というと１９９４年から開始されている
+ISO/TC211  というやつで地理情報標準化作業というのが継続中です。
+
+============================================================================
+ Kayama Yoichi  YOICHI@TWICS.COM  GED02060@niftyserve.or.jp
+     http://www.twics.com/~yoichi/home.html
+   #############    Underground Music Web   ###################
+============================================================================
+<HR>
+</PRE>

@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1251] Re: Compile error on SPARC/Linux -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 23 Jan 1997 12:45:15 +0900 -->
+<!--X-Message-Id: 199701230345.MAA12855@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199701230149.KAA17451@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1251] Re: Compile error on SPARC/Linux </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00066.html">Date Prev</A>][<A HREF="msg00068.html">Date Next</A>][<A HREF="msg00066.html">Thread Prev</A>][<A HREF="msg00076.html">Thread Next</A>][<A HREF="index.html#00067">Date Index</A>][<A HREF="threads.html#00067">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1251] Re: Compile error on SPARC/Linux</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 23 Jan 1997 12:45:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;いしかわ＠岐阜大です。
+&gt;
+&gt;自己紹介を除いて初めて書き込みます。
+&gt;よろしくお願いします。
+
+こちらこそよろしく。
+
+&gt;fjでも尋ねているのですが、
+&gt;＃たった今ですが(^^;
+&gt;
+&gt;SPARC/Linuxでpostgres95を PORTNAME=linux でコンパイルしたところ、
+&gt;次のようなエラーが出て止まりました。
+&gt;
+&gt;gcc -c -DNAMEDATALEN=32 -DOIDNAMELEN=36 -O -DPORTNAME_linux \
+&gt;＜略＞
+&gt;-I/work/postgres95/src/backend/port/linux -DHBA \
+&gt;/work/postgres95/src/backend/storage/ipc/s_lock.c -o obj/s_lock.o
+&gt;/work/postgres95/src/backend/storage/ipc/s_lock.c: In function `tas':
+&gt;/work/postgres95/src/backend/storage/ipc/s_lock.c:393: inconsistent operand constraints in an `asm'
+&gt;make[1]: *** [obj/s_lock.o] Error 1
+&gt;make[1]: Leaving directory `/work/postgres95/src/backend'
+&gt;make: *** [all] Error 2
+&gt;
+&gt;そこで、/work/postgres95/src/backend/storage/ipc/s_lock.c:393 あたりをみてみると、
+&gt;
+&gt;int
+&gt;tas(slock_t *m)
+&gt;{
+&gt;    slock_t res;
+&gt;    __asm__("xchgb %0,%1":"=q" (res),"=m" (*m):"0" (0x1));
+&gt;    return(res);
+&gt;}
+&gt;
+&gt;void
+&gt;S_LOCK(slock_t *lock)
+&gt;{
+&gt;    while (tas(lock))
+&gt;        ;
+&gt;}
+&gt;
+&gt;となっておりasmの記述がおかしいとのことですが、おそらくx86とSPARCの違
+&gt;いではないかと思うのですが、さっぱりわかりません。
+&gt;
+&gt;この部分だけSolaris2 やSunOS4 用のコードに書き換えても、
+&gt;tasがないよ〜。とかいわれてしまいます。
+&gt;＃書き換え方が悪いのかも知れませんが。
+
+tas という命令はありません。実際に sparc 用のアセンブラのコードが書か
+れているのは、s_lock.c の323行目あたりにある tas_dummy() という関数で
+す。
+
+アセンブラをいじるのが面倒な場合は...
+
+&gt;SPARC/Linuxでの動作実績はあるのでしょうか？
+
+多分無いでしょう。でも御安心下さい。私が Mac用 Linux（つまり MkLinux) 
+に移植した時の方法ですが、アセンブラのコードを使わず、system call で代
+用することができます。やり方ですが、src/backend/storage/ipc.h の
+
+#if defined(PORTNAME_aix) || \
+    defined(PORTNAME_alpha) || \
+    defined(PORTNAME_BSD44_derived) || \
+    defined(PORTNAME_bsdi) || \
+    defined(PORTNAME_bsdi_2_1) || \
+    defined(PORTNAME_hpux) || \
+    defined(PORTNAME_i386_solaris) || \
+    defined(PORTNAME_irix5) || \
+    defined(PORTNAME_linux) || \
+    defined(PORTNAME_next) || \
+    defined(PORTNAME_sparc) || \
+    defined(PORTNAME_sparc_solaris)
+#define HAS_TEST_AND_SET
+#endif
+
+から、
+
+    defined(PORTNAME_linux) || \
+
+を抜きます。これでコンパイルが通るはずです。
+# 本来は、新しい port name を sparc_linux とでも定義してきちんと移植す
+# べきですが...
+
+また、system call で代用した場合、20-30% 程度パフォーマンスが悪くなり
+ます。あらかじめ御承知下さい。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[postgres95 1260] Re: Compile error on SPARC/Linux</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00066" HREF="msg00066.html">[postgres95 1250] Compile error on SPARC/Linux</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00066.html">[postgres95 1250] Compile error on SPARC/Linux</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00068.html">[postgres95 1252] Re: Q: FreeBSD gmake ld: -lfl: no match ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00066.html">[postgres95 1250] Compile error on SPARC/Linux</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00076.html">[postgres95 1260] Re: Compile error on SPARC/Linux</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00067"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00067"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

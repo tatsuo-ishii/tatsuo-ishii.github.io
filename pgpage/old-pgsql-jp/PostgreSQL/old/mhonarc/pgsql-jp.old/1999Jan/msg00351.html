@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6764] Re: RE:LOW LEVEL  LOCKINGとは？ -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Mon, 25 Jan 1999 08:46:12 +0900 -->
+<!--X-Message-Id: 000501be47f3$b966ce20$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901220552.OAA23518@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6764] Re: RE:LOW LEVEL  LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00350.html">Date Prev</A>][<A HREF="msg00352.html">Date Next</A>][<A HREF="msg00338.html">Thread Prev</A>][<A HREF="msg00358.html">Thread Next</A>][<A HREF="index.html#00351">Date Index</A>][<A HREF="threads.html#00351">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6764] Re: RE:LOW LEVEL  LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 25 Jan 1999 08:46:12 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 石井です。
+&gt;
+&gt; &gt;&gt; ここが良く分かりません。私は、serializable によって完全にトランザクショ
+&gt; &gt;&gt; ンの一貫性／整合性が保証されると思っていたのですが、serializable でも
+&gt; &gt;&gt; 駄目なケースって具体的にどのような場合でしょう？
+&gt; &gt;
+&gt; &gt;具体的にというと難しいですが、無理矢理作ってみました。
+&gt; &gt;
+&gt; &gt;テーブル a(key int4,kubun char)とb(key int4,data int4)を用意して
+&gt; &gt;            （bのkeyはaのkeyを参照するforeign key)
+&gt; &gt;たとえば、
+&gt; &gt;
+&gt; &gt;      aのkubunが'1'の時は、対応するbのdataには正または0が設定可能
+&gt; &gt;           kubunが'2'の時は、                  dataには負または0が設定可
+能
+&gt; &gt;      という取り決めを作ってみましょう。
+&gt; &gt;      逆に
+&gt; &gt;      kubunはすべての対応するbのdataが0の時のみ変更可能
+&gt; &gt;
+&gt; &gt;      とってつけた取り決めですがあしからず。
+&gt; &gt;
+&gt; &gt;さて kubunはすべて '1',dataはすべて0という状態で
+&gt; &gt;
+&gt; &gt;Session-1(kubunを更新)          Session-2(dataを更新)
+&gt; &gt;
+&gt; &gt;begin;                                    begin;
+&gt; &gt;select data from b where .. ;    select kubun from a where ..;
+&gt; &gt;   (dataが0であることを確認)       (kubunが'1'であることを確認)
+&gt; &gt;update a set kubun='2' ...;       update b set data=10 ...;
+&gt; &gt;end;                                      end;
+&gt; &gt;
+&gt; &gt;両方のsessionが終了した時点で kubun='2' data=10（正)という組み合わ
+&gt; &gt;せが発生してしまいます。
+&gt; &gt;この現象はselectでロック（共有でもよい）がかかれば発生しません。
+&gt;
+&gt; あのー、6.4 では、共有ロックを使うとこの例は deadlock になりませんか？
+
+前回は苦しい言い訳をしてしまいました。
+気が引けるので、少し変形した例を作ってみました。
+
+Session-1(kubunを更新)         Session-2(dataを更新)
+
+begin;                                    begin;
+select data from b where .. ;
+   (dataが0であることを確認)
+update a set kubun='2' ...;
+end;
+                                            select kubun from a where ..;
+                                            (kubunが'1'であることを確認)
+                                            update b set data=10 ...;
+                                            end;
+
+v6.5のserializable isolation levelの場合の流れです。
+現状やv6.5のread committedの場合,(kubunが'1'であることを確認)の
+ところではkubunが'2'に変わっているのが確認されます（別の動作が
+必要になりますね）。
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00358" HREF="msg00358.html">[pgsql-jp 6771] Re: Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00335" HREF="msg00335.html">[pgsql-jp 6748] Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00350.html">[pgsql-jp 6763] 教えて頂きたくメールいたしました。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00352.html">[pgsql-jp 6765] サブジェクトについて(Re: [pgsql-jp 6763] 教えて頂きたくメールいたしました。)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00338.html">[pgsql-jp 6751] RE:LOW LEVEL   LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00358.html">[pgsql-jp 6771] Re: Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00351"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00351"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

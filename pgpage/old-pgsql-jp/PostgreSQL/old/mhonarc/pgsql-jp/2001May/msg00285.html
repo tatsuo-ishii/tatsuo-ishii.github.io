@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21239] Re: DB への入力値 -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Wed, 16 May 2001 14:09:12 +0900 -->
+<!--X-Message-Id: 011901c0ddc6$f7f5ad30$0a00a8c0@nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200105160257.AA10658@pop20240.lsi.melco.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21239] Re: DB への入力値 </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00284.html">Date Prev</A>][<A HREF="msg00286.html">Date Next</A>][<A HREF="msg00283.html">Thread Prev</A>][<A HREF="msg00279.html">Thread Next</A>][<A HREF="index.html#00285">Date Index</A>][<A HREF="threads.html#00285">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21239] Re: DB への入力値</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 16 May 2001 14:09:12 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00283.html">200105160257.AA10658@pop20240.lsi.melco.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: "Fujiyama Kenji" &lt;fujiyama.kenji@lsi.melco.co.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Wednesday, May 16, 2001 11:57 AM
+Subject: [pgsql-jp 21237] Re: DB への入力値
+
+
+&gt; 藤山と言います。
+（中略）
+&gt; これでOKと思ったのですが、当方では入力データの利用方法として、
+&gt; データを取り出して、WEBで表示させております。
+&gt;
+&gt; 取り出す部分に変数を使用しており、下記のようにしてます。
+&gt;
+&gt; $result2 = $conn-&gt;exec("SELECT * FROM revision where name =
+'$string' order by res01 desc");
+&gt;
+&gt; このときに、$string に AA'AA が入った場合に表示できません。
+&gt; もちろん、直接
+&gt; $result2 = $conn-&gt;exec("SELECT * FROM revision where name = 'AA''AA' order
+by res01 desc");
+&gt; と指定すると、正常に表示されます。
+&gt;
+&gt; こういった変数で持ってくる場合は、どのような対処方法があるんでしょうか。
+&gt; こうなるとpgsqlの話でも無く恐縮ですが、どこそこに書いてあるでもいいので、
+&gt; ご教示のほどをお願いいたします。
+&gt; 質問内容に不備があれば追加、訂正しますので連絡ください。
+（以下略)
+PerlでPg.pmを使った場合ということでよいのでしょうか？
+＃$conn-&gt;execとあるからというだけですが、
+普通に考えると置換すれば？ということになるかと思います。
+同じPerlでもDBD::Pgを利用している場合、自分で置換する必要はなくなります。
+代わりに似たようなことを内部でやってくれます、といってもちょっと高度な
+ことをやってるみたいですけど。
+
+[スクリプト例]
+use strict;
+use Pg;
+
+my $sSrcStr = q/AA'AA/;
+my $oConn = Pg::connectdb("dbname=gotdate user=postgres");
+die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+
+my $string = $sSrcStr;
+$string =~ s/'/''/g;
+$string =~ s/\\/\\\\/g;
+
+my $result = $oConn-&gt;exec(
+ "SELECT * FROM revision where name = '$string' order by res01 desc"
+ );
+while (my @row = $result-&gt;fetchrow) {
+        print join(" ", @row), "\n";
+}
+
+use DBI;
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;0, RaiseError=&gt;1});
+my $hSt = $hDb-&gt;prepare('SELECT * FROM revision where name = ? order by
+res01 desc');
+$hSt-&gt;execute($sSrcStr);
+while(my @row = $hSt-&gt;fetchrow_array) {
+        print join(" ", @row), "\n";
+}
+$hSt-&gt;finish;
+$hDb-&gt;disconnect;
+
+[環境]
+TurboLinux 6.0 + Perl 5.005_03
+Pg.pm : 1.9.0
+DBI : 1.14 DBD::Pg : 0.98
+
+==============================================
+川合 孝典 (Hippo2000)
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+   <A HREF="http://www.hippo2000.net/">http://www.hippo2000.net/</A>
+    DBI日本語メーリングリスト管理人、 Kansai.pm所属
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00283" HREF="msg00283.html">[pgsql-jp 21237] Re: DB への入力値</A></STRONG>
+<UL><LI><EM>From:</EM> Fujiyama Kenji &lt;fujiyama.kenji@lsi.melco.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 21238] pg_dumpall 後の検索が遅い・・・</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00286.html">[pgsql-jp 21240] Re: php4.0.4pl1 のmakeがうまくいかない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 21237] Re: DB への入力値</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 21233] ecpg サンプル</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00285"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00285"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

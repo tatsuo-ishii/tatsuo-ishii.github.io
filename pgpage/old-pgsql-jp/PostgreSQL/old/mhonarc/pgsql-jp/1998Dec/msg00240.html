@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6215] emacs to postmaster -->
+<!--X-From: Mikio Nakajima <minakaji@osaka.email.ne.jp> -->
+<!--X-Date: Thu, 17 Dec 1998 21:23:22 +0900 -->
+<!--X-Message-Id: 19981217212322P.minakaji@osaka.email.ne.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6215] emacs to postmaster </TITLE>
+<LINK REV="made" HREF="mailto:minakaji@osaka.email.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00239.html">Date Prev</A>][<A HREF="msg00241.html">Date Next</A>][<A HREF="msg00242.html">Thread Prev</A>][<A HREF="msg00313.html">Thread Next</A>][<A HREF="index.html#00240">Date Index</A>][<A HREF="threads.html#00240">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6215] emacs to postmaster</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mikio Nakajima &lt;<A HREF="mailto:minakaji@osaka.email.ne.jp">minakaji@osaka.email.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Dec 1998 21:23:22 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  こんばんは、中島＠あさひねっとです。
+
+  まつもとえいじ さんと片山＠ＰＦＵ さんのご協力を得て、Emacs から
+postmaster への接続を試みています。
+
+＃ コードはほとんど片山さんが書いてくれています。
+
+postmasterd を -i オプション付で起動し、添付のプログラムをロードしてか
+ら、Emacs で
+
+(get-buffer-create "buf")
+(setq proc (open-network-stream "postmaster" "buf" "localhost" 5432))
+(set-process-coding-system proc 'no-conversion 'no-conversion)
+(send-packet proc (concat 
+ 		   (protocol-version-to-string '(2 . 0))
+	           ;; DBNAME に接続するデータベース名を文字列として指定。
+ 		   (string-to-C-string DBNAME 64)
+	           ;; USERNAME にデータベースに接続するユーザー名を文字列として指定。
+ 		   (string-to-C-string USERNAME 32)
+ 		   (string-to-C-string "" 64)
+ 		   (string-to-C-string "" 64)
+ 		   (string-to-C-string "" 64)))
+
+(accept-process-output proc)
+
+を評価すると、私のところでは添付のようなエラーになるのですが、みなさん
+のところではどうですか？
+
+なお、PostgreSQL のバージョンは、6.4 です。
+
+中島幹夫 &lt;minakaji@osaka.email.ne.jp&gt;
+<A HREF="http://www.asahi-net.or.jp/~gy2m-nkjm/">http://www.asahi-net.or.jp/~gy2m-nkjm/</A>
+</PRE>
+<PRE>
+(defun protocol-version-to-string (protocol-version)
+  (concat (int-to-u2-string (car protocol-version))
+	  (int-to-u2-string (cdr protocol-version))))
+
+(defun int-to-u2-string (i)
+  (concat (list (logand (lsh i -8) 255)
+		(logand i 255))))
+
+(defun string-to-C-string (s &amp;optional len coding-system)
+  "Convert internal string to C string"
+  (if coding-system
+      (setq s (encode-coding-string s coding-system)))
+  (if (null len)
+      (concat s "\C-@")
+    (let ((pad (- len (length s))))
+      (if (&gt; pad 0)
+	  (concat s (make-string pad 0))
+	(substring s 0 len)))))
+
+(defun send-packet (proc packet)
+  (process-send-string proc (concat (int-to-u4-string (length packet)) packet)))
+
+(defun int-to-u4-string (i)
+  "Convert unsigned interger to network byte order 4 bytes string"
+  (concat (list (logand (lsh i -24) 255)
+		(logand (lsh i -16) 255)
+		(logand (lsh i -8) 255)
+		(logand i 255))))
+
+;; (get-buffer-create "buf")
+;; (setq proc (open-network-stream "postmaster" "buf" "localhost" 5432))
+;; (set-process-coding-system proc 'no-conversion 'no-conversion)
+
+;; (send-packet proc (concat 
+;; 		   (protocol-version-to-string '(2 . 0))
+;; 		   (string-to-C-string "skk" 64)
+;; 		   (string-to-C-string "minakaji" 32)
+;; 		   (string-to-C-string "" 64)
+;; 		   (string-to-C-string "" 64)
+;; 		   (string-to-C-string "" 64)))
+
+;; (accept-process-output proc)
+</PRE>
+<P><A HREF="bin00000.bin"> error</A></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00313" HREF="msg00313.html">[pgsql-jp 6288] Re: emacs to postmaster</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00239.html">[pgsql-jp 6214] Re: PostgreSQL 6.4 for Cobalt Qube</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00241.html">[pgsql-jp 6216] Re: サーバーに接続できない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 6217] Re: サーバーに接続できない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00313.html">[pgsql-jp 6288] Re: emacs to postmaster</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00240"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00240"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

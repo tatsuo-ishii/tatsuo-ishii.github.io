@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22675] Re:  [Q] return value of $conn&#45;>exec() of Pg.pm -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Wed, 1 Aug 2001 12:24:54 +0900 -->
+<!--X-Message-Id: 007201c11a39$8b036c80$0b00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200108010236.AA00097@VL400.apl.pref.akita.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22675] Re:  [Q] return value of $conn-&gt;exec() of Pg.pm </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00011.html">Date Prev</A>][<A HREF="msg00013.html">Date Next</A>][<A HREF="msg00011.html">Thread Prev</A>][<A HREF="msg00031.html">Thread Next</A>][<A HREF="index.html#00012">Date Index</A>][<A HREF="threads.html#00012">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22675] Re:  [Q] return value of $conn-&gt;exec() of Pg.pm</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 1 Aug 2001 12:24:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00009.html">200108010236.AA00097@VL400.apl.pref.akita.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: "Yoshio Funaki" &lt;yoshio@apl.pref.akita.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Wednesday, August 01, 2001 11:36 AM
+Subject: [pgsql-jp 22672] [Q] return value of $conn-&gt;exec() of Pg.pm
+
+
+&gt; 船木＠秋田県立図書館です。
+（中略）
+
+&gt; １）$conn-&gt;exec()のreturn value
+（中略）
+&gt; if($result-&gt;resultStatus ne PGRES_COMMAND_OK)
+&gt; として一応動いてはいるようなのですが、これで
+&gt; 正解なのでしょうか？
+&gt; Pg.pmの中身を見てもreturn valueとしてこれらが
+&gt; あると言うことは書いてあるのですが、どんな場合に
+&gt; どんなものが帰ってくるのかまでは書いていないようなので
+&gt; 識者の方、とっかかりでもよろしいのでご教示下さい。
+Pg.pmはPerlからlibpqを呼び出すためのものといった感じの
+モジュールなので、詳しい説明はlibpqを読んだほうがいいでしょう。
+＃　個人的にはlibpqに詳しくない、libpqをこれからも使う予定が
+＃無い場合には、DBIのほうがよいのではないかと思っています。
+とりあえずすぐ手元にあった改訂版シーラカンス（で通じますよね？）
+のP244にはPGRES_COMMAND_OKには「（selectのように）返却
+値のないコマンドが正常終了した」、PGRES_TUPLES_OKには
+「selectが正常に終了した」とありますから、それでよいのでしょう。
+＃専門外なのでちょっと自信なし
+
+&gt; ２）上記例でのfailure
+&gt; ということで、とりあえずCOMMAND_OKの方で実験してみました。
+&gt; 複数テーブルを作るスクリプトを書いて実験したのですが
+&gt; 途中でコケてしまうようです。コケる所は不定です。
+&gt; ＃　すみません。自宅の実験機での実験なので、
+&gt; ＃　エラーメッセージを失念してしまいました。
+&gt; で、考えてみたのですが、テーブル作成が間に合わず
+&gt; $result=$conn-&gt;exec($conn,$SQL)が結果を返す前に
+&gt; 次のSQLを投入しちゃうのではないかと思っているのですが
+&gt; 正解でしょうか？また、対策はどうしたらよろしいでしょうか？
+ソースを見ないとなんともいえませんが、非同期実行されてます？
+以下のソースで一挙に30＋30テーブル作ってもなんとも言いません
+でしたけど。（ハードディスクはガコガコいってましたが(^^)）
+
+[環境]
+TurboLinux Workstation 6.0 + PostgreSQL 7.0.2
+Perl 5.005_03 Pg:1.01 DBI:1.15 + DBD::Pg :0.98
+
+[ソース]
+se strict;
+use DBI;
+use Pg;
+    my $hDb = DBI-&gt;connect('dbi:Pg:dbname=hoge', 'scott', 'tiger',
+      {AutoCommit=&gt;1, RaiseError=&gt;1});
+    for(my $i=0;$i&lt;30;$i++) {
+      $hDb-&gt;do("CREATE TABLE TDBI_$i (NO INTEGER)");
+    }
+    $hDb-&gt;disconnect;
+
+    my $oConn = Pg::connectdb("dbname=hoge user=scott password=tiger");
+    die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+    for(my $i=0;$i&lt;30;$i++) {
+      my $res = $oConn-&gt;exec("CREATE TABLE TPG_$i (NO INTEGER)");
+      die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+    }
+＃後でDROPしなくっちゃ...
+
+==============================================
+川合 孝典 (Hippo2000)
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+   <A HREF="http://www.hippo2000.net/">http://www.hippo2000.net/</A>
+    DBI日本語メーリングリスト管理人、 Kansai.pm所属
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00009" HREF="msg00009.html">[pgsql-jp 22672] [Q] return value of $conn-&gt;exec() of Pg.pm</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 22674] Re: [Q] return value of $conn-&gt;exec() of Pg.pm</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 22676] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 22674] Re: [Q] return value of $conn-&gt;exec() of Pg.pm</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 22694] Re: [Q] return value of $conn-&gt;exec() of Pg.pm</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00012"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00012"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

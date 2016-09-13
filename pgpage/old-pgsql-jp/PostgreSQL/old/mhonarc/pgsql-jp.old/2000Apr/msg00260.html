@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13963] Q:こんな場合のインデックスは？ -->
+<!--X-From: lpk_kanto_yoshikawa@mba.nifty.ne.jp -->
+<!--X-Date: Fri, 14 Apr 2000 14:20:32 +0900 -->
+<!--X-Message-Id: 38F6AA9F.EDAB1A13@mba.nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13963] Q:こんな場合のインデックスは？ </TITLE>
+<LINK REV="made" HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00270.html">Thread Prev</A>][<A HREF="msg00261.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13963] Q:こんな場合のインデックスは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">lpk_kanto_yoshikawa@mba.nifty.ne.jp</A></LI>
+<LI><em>Date</em>: Fri, 14 Apr 2000 14:20:32 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　みなさま、おはようございます。こんにちわ。こんばんわ。
+
+　先日、保管してる過去のMLのログを読んでいて、次のような文章にぶつ
+かりました。
+
+&gt; [pgsql-jp 13724]Re: PostgreSQLの処理限界(?) について
+&gt; 石井さまの発言
+&gt; 
+&gt; DBでの検索処理だけを考えた場合、E-mailのカラムにインデックスが張ってあ
+&gt; れば、100万件であろうと1000万件であろと1秒以内で処理が終わるはずです
+&gt; (そうでなかったらどっかおかしい)。
+
+　昨日時点で、1,068,603件のデータが入っていますが、例えば20,000件
+目のデータを呼び出そうと、
+　select * from data01 where sequence = '20000';
+
+　とpsqlから発行しても、反応が返るまでに軽く5分はかかります。
+　件数が100万件を越えているし、仕方がないのだろうなとは思っていた
+のですが、どうも私の設計が「どっかおかしい」のではないか？と思い始
+めました。
+
+　そこで何度かvacuumdb --analyze をかけてみたり、PostgreSQL完全攻
+略ガイドなどをもう一度見直してみたのですが、よく考えたら「インデッ
+クスを定義」するというのがは具体的にはなにをやるのかが判っていない
+ことに気づきました。
+
+　再度、「インデックス」で過去MLを調べたのですが、「インデックスを
+定義した」という話は出てくるものの、定義方法については見つけられま
+せんでした。
+　インデックスの定義というのは、何かの操作で定義してやるものなので
+しょうか？それとも　vacuumdb --analyzeがそれなのでしょうか？
+
+　使用環境は、Pentium 133MHzのPC-9821Xa13/W16に80MBのメモリを実装
+し、OSがFreeBSD(98) 3.2 で、PostgreSQLのバージョン 6.5.3 です。
+
+　テーブルは
+
+Database    =db01
+
+&gt; +------------------+----------------------------------+---------+
+&gt; |  Owner           |             Relation             |   Type  |
+&gt; +------------------+----------------------------------+---------+
+&gt; | pgsql            | data01                           | table   |
+&gt; | pgsql            | data01_sequ                      | sequence|
+&gt; +------------------+----------------------------------+---------+
+&gt; 
+&gt; 
+&gt; Table    = data01
+&gt; +----------------------------------+------------------------------+-------+
+&gt; |              Field               |           Type               | Length|
+&gt; +----------------------------------+------------------------------+-------+
+&gt; | sequence                         | int4                         |     4 |
+&gt; | fld001                           | varchar()                    |     7 |
+&gt; | fld002                           | varchar()        　          |    30 |
+&gt; | fld003                           | varchar()                    |    20 |
+&gt; | fld004                           | varchar()                    |    22 |
+
+　fld005〜fld055　中略
+&gt; | fld056                           | varchar()                    |     6 |
+&gt; | fld057                           | varchar()                    |     4 |
+&gt; +----------------------------------+------------------------------+-------+
+
+
+　上記で、Fld001は７桁のユーザーコードですが、data01は履歴データな
+ので、ユーザーコードでは重複が発生します。このため、sequenceを付け
+ました。
+　fld002以下はその顧客のデータやその他のコードが50フィールドほど
+あり、056が日付の６ケタ。57が時分の4ケタになります。
+
+　data01は、固定長テキスト形式のデータをperlで区切らせて読み込ませ
+ました。
+
+　この場合、vacuumdb --analyzeではインデックスは作られてないのでし
+ょうか？
+　もし、何かのコマンドで定義するとしたら、どうしたらよいでしょう
+か？
+
+　よろしくご教授ください。
+
+--
+株式会社　エルピーカンシサービス
+関東営業所
+SE: 吉川　一浩
+TEL:042-549-8900  FAX:042-549-8899
+
+株式会社　エルピーカンシサービス
+SE: 吉川　一浩
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00262" HREF="msg00262.html">[pgsql-jp 13965] Re: Q:こんな場合のインデックスは？</A></STRONG>
+<UL><LI><EM>From:</EM> Kenzo Matsushita &lt;matsushita@d-circle.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00261" HREF="msg00261.html">[pgsql-jp 13964] Re: Q:こんな場合のインデックスは？</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 13962] RE: [pgsql-jp 13959] Re: [pgsql-jp 13958] SJISのデータ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 13964] Re: Q:こんな場合のインデックスは？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 13973] pgsql-jp ML down 4/16 22:00 - 4/17 10:00</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 13964] Re: Q:こんな場合のインデックスは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

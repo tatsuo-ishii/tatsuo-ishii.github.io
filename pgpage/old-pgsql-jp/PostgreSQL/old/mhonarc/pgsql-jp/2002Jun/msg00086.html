@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26307] Re: 記念日等の範囲検索 -->
+<!--X-From: 松嶋祥文<mats@itboost.co.jp> -->
+<!--X-Date: Thu, 06 Jun 2002 13:24:24 +0900 -->
+<!--X-Message-Id: 20020606132424#iVn$a@itboost.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020606083047.2B56.ISSY777@entrance&#45;e.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26307] Re: 記念日等の範囲検索 </TITLE>
+<LINK REV="made" HREF="mailto:mats@itboost.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00085.html">Date Prev</A>][<A HREF="msg00087.html">Date Next</A>][<A HREF="msg00101.html">Thread Prev</A>][<A HREF="msg00071.html">Thread Next</A>][<A HREF="index.html#00086">Date Index</A>][<A HREF="threads.html#00086">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26307] Re: 記念日等の範囲検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 松嶋祥文&lt;<A HREF="mailto:mats@itboost.co.jp">mats@itboost.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 06 Jun 2002 13:24:24 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00075.html">20020606083047.2B56.ISSY777@entrance-e.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松嶋＠ITBoost です。
+
+| ユーザーに記念日等を登録させて、期間指定による条件絞り込みを行い該当者に
+| メール配信をしたいのですが、よい方法が思いつきません。
+
+プログラム側で処理する内容を少なくということで、
+
+create table ttt ( ldate timestamp );
+
+というテーブルに対して、
+
+select * from 
+ (select oid, (case when $from &gt; $to and day &lt;= $to 
+                    then 10000 + day 
+                    else day end) as vvv 
+    from (select oid, date_part('month', ldate) * 100
+                      + date_part('day', ldate) as day 
+                 from shift) as xxx
+ ) as yyy 
+where case when $from &gt; $to 
+           then vvv &lt;= $to_fixed and vvv &gt;= $from 
+           else vvv &gt;= $from     and vvv &lt;= $to    end;
+
+みたいな感じでどうでしょう？ 
+
+実際にお使いのテーブルとはデータ型が違うようなので date_part は
+使えないと思いますが、同様のことはできるはずです。
+
+プログラムから用意する各変数は
+
+  $from       〜から（月 * 100 + 日）
+  $to         〜まで（月 * 100 + 日）
+  $to_fixed   $to に 10000 をくわえたもの
+
+です。数値に変換していますが、適当に年を当てはめるときに、
+日付型だと閏年のことを考えるのが面倒だなとおもったからです。
+
+以下、検証用です。
+create table ttt ( ldate timestamp );
+insert into ttt values ('1973-1-2');
+insert into ttt values ('1974-3-2');
+insert into ttt values ('1975-5-2');
+insert into ttt values ('1976-7-2');
+insert into ttt values ('1977-9-2');
+insert into ttt values ('1978-11-2');
+insert into ttt values ('1978-12-2');
+
+$from      =   401
+$to        =   901
+$to_fixed  = 10901  (使われません)
+   oid   | vvv
+---------+------
+ 2002322 | 502
+ 2002323 | 702
+
+
+$from      =  1101
+$to        =   201
+$to_fixed  = 10201
+   oid   |  vvv
+---------+-------
+ 2002320 | 10102
+ 2002325 |  1102
+ 2002326 |  1202
+
+-- 
+                                               ,-------------+
++---------------------------------------------'              |
+| システム開発＆エンジニアスクール　アイティーブースト       |
+| 取締役副社長   松嶋 祥文 [ mats@itboost.co.jp ] ,-------------+
+| +----------------------------------------------'              |
+| | ★ Linux 関連の技術情報満載！    <A HREF="http://www.itboost.co.jp/">http://www.itboost.co.jp/</A>  |
++-|■■■■■ Web アプリケーション開発、請け負います！■■■■■|
+  +-------------------------------------------------------------+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp: 26296] 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Ishiura &lt;issy777@entrance-e.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00085.html">[pgsql-jp: 26306] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00087.html">[pgsql-jp: 26308] overlapsの仕様</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00101.html">[pgsql-jp: 26322] Re: 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00071.html">[pgsql-jp: 26292] 大変恐縮なのですがErrorメッセージについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00086"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00086"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

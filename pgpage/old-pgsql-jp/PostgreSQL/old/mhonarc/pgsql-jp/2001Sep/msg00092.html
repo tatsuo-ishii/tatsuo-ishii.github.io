@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23050] Re: select  の多量・連続発行は大丈夫でしょうか？ -->
+<!--X-From: 宮川健<tak@hdt.co.jp> -->
+<!--X-Date: Tue, 11 Sep 2001 14:59:21 +0900 -->
+<!--X-Message-Id: 4.3.2&#45;J.20010911144914.00bce7a0@ms.hdt.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3B9DA4B0.C2368923@plamo02.home -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23050] Re: select  の多量・連続発行は大丈夫でしょうか？ </TITLE>
+<LINK REV="made" HREF="mailto:tak@hdt.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00095.html">Date Next</A>][<A HREF="msg00091.html">Thread Prev</A>][<A HREF="msg00104.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23050] Re: select  の多量・連続発行は大丈夫でしょうか？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 宮川健&lt;<A HREF="mailto:tak@hdt.co.jp">tak@hdt.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 11 Sep 2001 14:59:21 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　みやかわ＠ホビー・データです。
+
+At 午後 02:44 01/09/11 +0900, Yoshikawa Kazuhiro wrote:
+&gt;　こんにちわ。みなさま
+&gt;
+&gt;　PostgreSQLに関する質問というより、相談に近いと思いますが、こんな事をし
+&gt;て大丈夫かしら？とちょっと不安になったので、お答え頂けたらと思います。
+&gt;
+&gt;　perlスクリプトを使用して、中のループでSELECTのSQLを多量・連続で発行し
+&gt;て、合致するデータを見つけだそうとしています。
+&gt;　内容的には、「登録の無い時間を、時刻表テーブルから探す」というもので
+&gt;す。
+&gt;
+&gt;  Attribute |     Type      | Modifier
+&gt;-----------+---------------+----------
+&gt;  code      | character(10) |
+&gt;  day       | integer       |
+&gt;  hour      | integer       |
+&gt;  min       | integer       |
+&gt;
+&gt;　というテーブルを用意し、データを投入します。
+&gt;　これに対し、
+&gt;
+&gt;for ($h=0;$i&lt;=25;$i++){
+&gt;   for ($i=0;$i&lt;=23;$i++){
+&gt;     for ($j=0;$j&lt;=59;$j++){
+&gt;       $SQL="SELECT * ";
+&gt;       $SQL.="FROM timetable  ";
+&gt;       $SQL.="WHERE qday=";
+&gt;       $SQL.=;$h;
+&gt;       $SQL.=" AND qhour=";
+&gt;       $SQL.=$i;
+&gt;       $SQL.=" AND qmin=";
+&gt;       $SQL.=$j;
+&gt;       $SQL.=";";
+&gt;       $result = $conn-&gt;exec($SQL);
+&gt;     }
+&gt;   }
+&gt;}
+&gt;
+&gt;　という、日、時、分を一つづつあげながらSELECT文を発行するスクリプトを流
+&gt;しています。
+
+　ひどいプログラムだなー。
+　DBIを使っているなら、prepareを使ってカーソルを用意しましょうよ。
+
+$sh = $conn-&gt;prepare(q{
+SELECT COUNT(*)
+    FROM timetable
+  WHERE qday = ? AND
+             qhour = ? AND
+             qmin = ?
+});
+for ($qday = 0; $qday &lt;= 25; ++$qday) {
+   for ($qhour = 0; $qhour &lt;= 23; ++$qhour) {
+     for ($qmin = 0; $qmin &lt;= 59; ++$qmin) {
+       $sh-&gt;execute($qday, $qhour, $qmin);
+       while (($count) = $sh-&gt;fetchrow()) {
+         # $countを使った処理
+       }
+     }
+   }
+}
+
+  ついでに言うと、こう書くべきだよね。
+
+$sh = $conn-&gt;prepare(q{
+SELECT qday,
+              qhour,
+              qmin,
+              COUNT(*)
+   FROM time_table
+GROUP BY qday, qhout, qmin
+});
+$sh-&gt;execute();
+while (($qday, $qhour, $qmin, $count) = $sh-&gt;fetch_row()) {
+   # $qday, $qhour, $qmin, $countを使った処理
+}
+
+&gt;　ただ、このプログラムは動かせば動かす程、検索に時間がかかるようになりま
+&gt;すし、第一、こんなにSELECT文を連続で流して良いのだろうか？とも思います。
+
+　流してもかまいません。やってみればわかるでしょ。
+
+
+&gt;　一方、総当たり以外に「データが存在してない時間を探し出す」事は出来ない
+&gt;様に思います。
+
+　以上のとおり、ありますよ。
+
+
+----
+宮川健 &lt;tak@hdt.co.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00104" HREF="msg00104.html">[pgsql-jp 23062] Re: select の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshikawa Kazuhiro &lt;lpk@aioros.ocn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00091" HREF="msg00091.html">[pgsql-jp 23049] select の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshikawa Kazuhiro &lt;lpk@aioros.ocn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 23049] select の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00095.html">[pgsql-jp 23053] Re: select  の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 23049] select の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00104.html">[pgsql-jp 23062] Re: select の多量・連続発行は大丈夫でしょうか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

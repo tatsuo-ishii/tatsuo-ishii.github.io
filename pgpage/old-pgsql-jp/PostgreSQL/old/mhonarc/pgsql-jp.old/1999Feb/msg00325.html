@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7200] Re: テーブル・ロックについ て -->
+<!--X-From: Tomoyoshi ASANO <asa@use&#45;net.co.jp> -->
+<!--X-Date: Thu, 25 Feb 1999 00:41:14 +0900 -->
+<!--X-Message-Id: 36D41D9A315.1356ASA@mail.use&#45;net.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36D3A1933DE.5586KOBAYASHI.SHIN@10.24.48.132 -->
+<!--X-Reference-Id: 199902241424.XAA00834@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7200] Re: テーブル・ロックについ て </TITLE>
+<LINK REV="made" HREF="mailto:asa@use-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00324.html">Date Prev</A>][<A HREF="msg00326.html">Date Next</A>][<A HREF="msg00324.html">Thread Prev</A>][<A HREF="msg00331.html">Thread Next</A>][<A HREF="index.html#00325">Date Index</A>][<A HREF="threads.html#00325">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7200] Re: テーブル・ロックについ て</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tomoyoshi ASANO &lt;<A HREF="mailto:asa@use-net.co.jp">asa@use-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 25 Feb 1999 00:41:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00320.html">36D3A1933DE.5586KOBAYASHI.SHIN@10.24.48.132</A>&gt; &lt;<A HREF="msg00324.html">199902241424.XAA00834@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+あさの です。
+
+On Wed, 24 Feb 1999 23:24:43 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt; 
+&gt; ちょっと不思議なんですが、このような機能が要求されるアプリケーションっ
+&gt; てどんなものなんですか？
+&gt; 
+&gt; というのは、問題の根源は、
+&gt; 
+&gt; &gt; begin　transaction
+&gt; &gt; update　tableA　set　…
+&gt; 
+&gt; このトランザクションの処理に時間がかかりすぎていることにあるわけですよ
+&gt; ね。であれば、このようなトランザクションは私が考え付く範囲では、
+&gt; 
+&gt; (1) いわゆる「バッチ処理」
+&gt; 
+&gt; (2) ユーザが介入するようなインタラクティブな処理
+&gt; 
+&gt; のどちらかだと思うのです。もし (1) なら、バッチ処理をやっているときは
+&gt; 他の検索とか、ましてや更新処理は御遠慮願うのが普通でしょう。また、(2) 
+&gt; だとすると、ユーザが端末の前で考え込んでいる間、トランザクションが進ま
+&gt; ないようなアプリケーションは、あまりうまい設計とは言えないと思います。
+&gt; 
+&gt; P.S. タイムアウト以外に、6.4 から導入された「query のキャンセル機能」
+&gt; を使う手もあるかと思います。タイマーと組み合わせれば、フロントエンド側
+&gt; で見掛け上タイムアウトと同等の機能を実現することも可能でしょう。
+&gt; ---
+
+小林さんの質問の例題についてはわかりませんが、
+お手軽なAPACHE+PHP3+PGSQLの組み合わせで、情報発信
+およびそれらの情報の登録・変更・削除システムを
+軽い実装で作ろうとするようなアプリケーションの需要は
+あるのだろうと思いますし、そのような話を私はよく聞きます。
+
+「時間がかかるトランザクション」と一言でいってしまっていますが、
+アプリケーション設計時のそれが考えられていたかどうかは
+ともかくとして、データ数が多くなってくればおのずと処理時間が
+かかってきます。
+例えばユーザ登録・変更・削除を WEBブラウザでやらせようと考えた時、
+ちょっとしたユーザ情報を更新しようしたり（たとえば最終
+アクセス日時とか）を行おうとすると、他のWEBユーザが同じテーブル
+情報を見ていたり、更新していたりしたら待たされるわけです。
+
+私の質問に便乗された内容なので心苦しいですが、
+ついでに私の質問のその後ですが
+
+複数接続から同一テーブルを参照・更新するとき、
+いわゆるロックの順番だけでなく、テーブルの更新順序とか
+参照順序を調整しないデッドロックのような障害が出るようです。
+
+たとえば、（SQL の記述方法がちょっといい加減ですが）
+
+ |PROCESS-A | PROCESS-B
+-+----------+----------
+1|BEGIN     | BEGIN      
+2|UPDATE A  | UPDATE B
+3|UPDATE B  | UPDATE A
+4|COMMIT    | COMMIT
+
+PostgreSQL 6.4.2 では、３のタイミングで運が悪いと
+タイムアウトしないデッドロックになったります。
+
+また
+
+ |PROCESS-A   | PROCESS-B
+-+------------+-------------
+1|BEGIN       |
+2|LOCK A      |
+3|            | SELECT * FROM A,B
+4|LOCK B      |
+
+も運がわるいと４のタイミングで
+タイムアウトするデッドロックに
+なったりするようです。
+
+それぞれ単体の処理が短くても障害が発生するのようなので、
+いろいろ工夫して実装することになるのですが、そもそも
+そのような実装が必要なのかどうかを認識するためにも
+そういうものなのかを確認したいとうのが私の質問です。
+
+-- あさの
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00339" HREF="msg00339.html">[pgsql-jp 7214] Re: テーブル・ロックについ て</A></STRONG>
+<UL><LI><EM>From:</EM> kobayashi shin &lt;kobayashi.shin@nsc.cae.ntt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 7206] Re: テーブル・ロックについ て</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00320" HREF="msg00320.html">[pgsql-jp 7195] Re: テーブル・ロックについて</A></STRONG>
+<UL><LI><EM>From:</EM> kobayashi shin &lt;kobayashi.shin@nsc.cae.ntt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp 7199] Re: テーブル・ロックについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00324.html">[pgsql-jp 7199] Re: テーブル・ロックについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00326.html">[pgsql-jp 7201] Re: mojodomoのぬけかた</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp 7199] Re: テーブル・ロックについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 7206] Re: テーブル・ロックについ て</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00325"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00325"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

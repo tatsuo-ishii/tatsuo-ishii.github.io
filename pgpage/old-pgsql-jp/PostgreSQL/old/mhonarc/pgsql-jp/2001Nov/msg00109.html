@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23692] Need Advice -->
+<!--X-From: "Takdir Hossain Chowdhury" <takdir@mcb.netwk.ntt&#45;at.co.jp> -->
+<!--X-Date: Mon, 12 Nov 2001 16:22:49 +0900 -->
+<!--X-Message-Id: 00e401c16b4a$d5befca0$f73fa8c0@netwk.nttat.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23692] Need Advice </TITLE>
+<LINK REV="made" HREF="mailto:takdir@mcb.netwk.ntt-at.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00108.html">Date Prev</A>][<A HREF="msg00110.html">Date Next</A>][<A HREF="msg00115.html">Thread Prev</A>][<A HREF="msg00171.html">Thread Next</A>][<A HREF="index.html#00109">Date Index</A>][<A HREF="threads.html#00109">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23692] Need Advice</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Takdir Hossain Chowdhury" &lt;<A HREF="mailto:takdir@mcb.netwk.ntt-at.co.jp">takdir@mcb.netwk.ntt-at.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 12 Nov 2001 16:22:49 +0900</LI>
+<LI><em>Cc</em>: "Takdir Hossain Chowdhury" &lt;<A HREF="mailto:takdir@mcb.netwk.ntt-at.co.jp">takdir@mcb.netwk.ntt-at.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。初めまして。トックディルと申します。
+いつもお世話になっております。
+
+PostgreSQLを用いて大容量のデータベースを
+構築しようと思っておりますが、構築にあたっていろいろと悩んでおりますので、
+皆様のアドバイスを頂きたく、メールさせていただきました。
+
+
+データの仕様：
+---------------
+問題になるシステムが管理下の装置から波形を受け取って
+1時間で12万件のログを以下のフォマットで吐き出してます。
+
+NAME   CODE   C_DATE               D_DATE
+A          11       20011110160900    20011109160900
+A          11       20011110160900    20011110160901
+                             :
+                             :
+A          11      　20011110160900   20011110160959
+（1装置に対して大体60/分の行を吐き出します）
+
+B          22     　20011110161000    20011110161000
+　　　　　　　　　　　　　:
+                     以降2万行まで続く
+
+
+他にもいくつかの項目がありますが、省力させていただきました。
+
+
+システムの仕様：
+--------------
+上記のログを定期にDBに挿入し、Web経由でname, code,
+c_dateやd_dateで検索できるようにする。
+
+
+DBのテーブル設計：
+-----------
+ログ情報をそのままDBに挿入すると大容量のデータになって
+しまい（一日で220MB程度）、ディスク容量が100GBでも1年間以上持つのが厳しいの
+で、
+データを減らすためにちょっと細工を考えてみました。
+
+上記のログを見ればわかるようにある時刻において
+同じNAMEでC_DATEが変わらないので、それらをひとつにまとめる。
+また同じNAMEでD_DATEが秒のところしか変わらないので、
+秒の直前まで（YYYYYMMDDHHMM）をひとつのフィールドにまとめ、秒のみ別の
+フィールドにARRAYでまとめる。
+この方式を上記にログ情報に適用すると、以下のようになります。
+
+NAME  CODE   C_DATE         　 　 D_DATE           D_DATE_SEC
+A         11       20011110160900    200111091609
+{00,01,02,..................59}
+B         22       20011110160900    200111101609
+{00,01,02,..................59}
+
+この設計だと、ディスクの使用量は一日15M程度になります。
+確かにこの設計だと、DBの第一正規に違反するのですが、
+これでかなりのディスクスペースを節約（ランニングコストを抑えられる）できるの
+でよろしいかと
+思ってます。ただ、ユーザ指定のD_DATEによる検索の場合は検索におけるコスト
+がかなりかかってしまうのではないかと思います。また数ヶ月後、データがある程度
+溜まってくれば
+、検索はもっとひどくなるのではないかと恐れています。ちなみにC_DATE、D_DATEは
+text型です。
+C_DATEをtimestampにしてもいいのですが、
+システムがうるう秒を吐き出すときもあるので、それを考慮してtextにしました。
+timestampがうるう秒をサポートしてないですよね？
+
+上記のテーブル設計についてご指導やアドバイスなどありましたら、大変助かりま
+す。
+
+下手な日本語で申し訳ありません。
+
+宜しくお願いします。
+
+
+
+********************************************
+  TAKDIR H. CHOWDHURY
+  Backbone Network Management Dept.
+  Network Management Division
+  NTT Advanced Technology Corporation
+  Email: takdir@mcb.netwk.ntt-at.co.jp
+*********************************************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00171" HREF="msg00171.html">[pgsql-jp 23755] Re: Need Advice</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00108.html">[pgsql-jp 23691] XML+PostgreSQL</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 23693] Re: XML+PostgreSQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 23698] （無題）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00171.html">[pgsql-jp 23755] Re: Need Advice</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00109"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00109"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

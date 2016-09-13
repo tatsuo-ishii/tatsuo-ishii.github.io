@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7559] Re: 6.4.2のソースのコメントアウトの仕方 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 16 Mar 1999 10:28:06 +0900 -->
+<!--X-Message-Id: 199903160128.KAA08407@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902060114.KAA10119@sakura.meiko.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7559] Re: 6.4.2のソースのコメントアウトの仕方 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00310.html">Date Prev</A>][<A HREF="msg00313.html">Date Next</A>][<A HREF="msg00327.html">Thread Prev</A>][<A HREF="msg00313.html">Thread Next</A>][<A HREF="index.html#00312">Date Index</A>][<A HREF="threads.html#00312">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7559] Re: 6.4.2のソースのコメントアウトの仕方</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 16 Mar 1999 10:28:06 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。ちょっと前の話題ですが...
+
+&gt;花原@明宏です。
+&gt;
+&gt;
+&gt;つまんないことなんですが、
+&gt;NEXTSTEP3.3J(以下NS3)用に6.4.2コンパイルしようとしているのですが、
+&gt;次のような部分でエラーになります(ちなみにbackendはSysV-IPCが無いんで
+&gt;できません。可能にするライブラリはあるようですが...)。
+&gt;
+&gt;
+&gt;src/include/utils/int8.h:
+&gt;
+&gt;	#if FALSE
+&gt;	extern int64 *int28 (int16 val);
+&gt;	extern int16 int82(int64 * val);
+&gt;	
+&gt;	#endif
+&gt;
+&gt;コメントアウトしているのでしょうが、NS3では、FALSEが
+&gt;
+&gt;	#define	FALSE	((boolean_t) 0)
+&gt;
+&gt;と定義されているので、"#if FALSE"の部分が "parse error" になって
+&gt;しまいます。こういうのがあちらこちらにあります。
+&gt;無理やり
+&gt;
+&gt;	#define FALSE	0
+&gt;
+&gt;と定義しなおしてもいいのですが、他の部分で型の警告がでたりします。
+&gt;
+&gt;という訳で、ポータビリティのあるコメントアウトのやり方としては、
+&gt;
+&gt;	#if 0
+&gt;	...
+&gt;	#endif
+&gt;
+&gt;のほうがいいと思います。お手数でなければ、本家の方にお伝え下さい。
+
+この手のやつは全部 #ifdef NOT_USED (PostgreSQL のコンベンションです)に
+変更するパッチを作って本家に投稿しました。6.5 に反映されます。
+
+&gt;あと、似たようなのに次のようなものもあります。
+&gt;
+&gt;私のメモから:
+&gt;&gt; 2. src/include/c.hの修正
+&gt;&gt; ------------------------
+&gt;&gt;
+&gt;&gt; src/include/c.hの中で定義しているDatum型が、NEXTSTEP3.3Jの
+&gt;&gt; Appkitのヘッダーの
+&gt;&gt;
+&gt;&gt; 	/NextDeveloper/Headers/db/db.h:22行目
+&gt;&gt;
+&gt;&gt; と衝突する。libpq.aをAppkitとリンクする場合に問題となる。
+&gt;&gt; この為、c.hに次のような修正を施す。
+&gt;&gt;
+&gt;&gt; 	/*
+&gt;&gt; 	 * NEXTSTEP3.3Jの場合、&lt;appkit/appkit.h&gt;を#importすると、
+&gt;&gt; 	 * /NextDeveloper/Headers/db/db.hのDatumの定義と重複してエラーになる。
+&gt;&gt; 	 * この為、Datumの名前を変更する。
+&gt;&gt; 	 */
+&gt;&gt; 	
+&gt;&gt; 	#ifdef NeXT
+&gt;&gt; 	#undef Datum
+&gt;&gt; 	#define Datum           PG_Datum
+&gt;&gt; 	#define DatumPtr        PG_DatumPtr
+&gt;&gt; 	#endif
+&gt;
+&gt;NS3の場合、AppKit(今のMac OS X ServerではYellow Boxにあたる?)を使うには、
+&gt;&lt;appkit/appkit.h&gt;を#importしますので、こういう逃げを打ってます。
+
+/NextDeveloper/Headers/db/db.hのDatumは #define なんですか？
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00313" HREF="msg00313.html">[pgsql-jp 7560] Re: 6.4.2のソースのコメントアウトの仕方</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiro Hanahara &lt;hanahara@meiko.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00310.html">[pgsql-jp 7557] Re: BOX型デー タに含まれるpointの探し方</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00313.html">[pgsql-jp 7560] Re: 6.4.2のソースのコメントアウトの仕方</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00327.html">[pgsql-jp 7574] benchmark</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00313.html">[pgsql-jp 7560] Re: 6.4.2のソースのコメントアウトの仕方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00312"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00312"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

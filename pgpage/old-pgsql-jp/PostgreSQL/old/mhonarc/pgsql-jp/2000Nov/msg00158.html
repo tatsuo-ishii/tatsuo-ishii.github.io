@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18638] pg_proc_prosrc_index:NUMBER OF INDEX'TUPLES IS NOT THE SAME AS HEAP' -->
+<!--X-From: うひょー！ざくざくシャベルくん　システム<PBI02558@nifty.com> -->
+<!--X-Date: Fri, 10 Nov 2000 16:50:23 +0900 -->
+<!--X-Message-Id: 01e701c04aea$e2507420$1d1912ac@tims.nifty.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18638] pg_proc_prosrc_index:NUMBER OF INDEX'TUPLES IS NOT THE  </TITLE>
+<LINK REV="made" HREF="mailto:PBI02558@nifty.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00157.html">Date Prev</A>][<A HREF="msg00159.html">Date Next</A>][<A HREF="msg00159.html">Thread Prev</A>][<A HREF="msg00171.html">Thread Next</A>][<A HREF="index.html#00158">Date Index</A>][<A HREF="threads.html#00158">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18638] pg_proc_prosrc_index:NUMBER OF INDEX'TUPLES IS NOT THE SAME AS HEAP'</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: うひょー！ざくざくシャベルくん　システム&lt;<A HREF="mailto:PBI02558@nifty.com">PBI02558@nifty.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 10 Nov 2000 16:50:23 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+宮内＠富士通と申します。
+
+SunOS5.6にPostgres6.5.3-patched-20000911で構築したシステムにおいて
+運用中に遭遇したトラブルについてご報告します。
+
+＜１＞概要
+
+・vacuumしたときに、pg_proc_prosrc_index:NUMBER OF INDEX'TUPLES IS
+　NOT THE SAME AS HEAP'というNOTICEが出る。
+
+・pg_dumpすると途中でエラーしてしまうが、途中まで作成されたバックアップ
+　ファイルを編集して、復元したバックアップファイルからデーターベースを
+　再構築（destroydb;createdb;psql &lt; db.out）するとpg_dumpは正常終了する
+　ようになった。
+
+・しかし、vacuum時に上記NOTICEが出るのは解消されない。
+
+＃pg_proc_prosrc_indexというのはシステムが使用するindexのようなので
+＃initdbからやり直さなければならないかなあ・・とため息をついてます。
+
+
+＜２＞詳細
+
+１、現象
+　１）vacuum analize　postgres で下記メッセージが出る。
+
+　NOTICE:  Index pg_proc_prosrc_index: NUMBER OF INDEX' TUPLES (1022)
+　 IS NOT THE SAME AS HEAP' (1023)
+
+　２）pg_dump -o　postgres で下記エラーが出る
+
+　　pqWait() -- connection not open
+    PQendcopy: resetting connection
+    SQL query to dump the contents of Table 'usr' did not execute correctly.
+    After we read all the table contents from the backend, PQend
+    copy() failed.  Explanation from backend: 'ERROR:  Client encoding EUC　
+　　is not supported'.
+    The query was: 'COPY "usr" WITH OIDS TO stdout;
+    '.
+    pg_dump failed on postgres, exiting
+
+　３）select * from usr;　で下記エラーが出る。
+    Backend message type 0x44 arrived while idle
+    Backend message type 0x44 arrived while idle
+    We have lost the connection to the backend, so further processing is
+     impossible.  Terminating.
+　　
+　　ただしselect * from usr where user_id &gt;= -1;や
+　　　　　　select * from usr where user_id &lt;= 100000;
+    とすると全件表示される。
+
+　４）\copy usr to usr.out　で下記エラーが出る。
+    pqWait() -- connection not open
+    PQendcopy: resetting connection
+    Copy failed.
+
+２、調査
+　　メーリングリストアーカイブでTUPLEやpg_dumpで検索し事例を調査。
+　　（pgsql-jp 13525、13536などを参照させていただきました）
+
+３、原因
+　　データベースファイルの破損のためと思われる。
+　　なぜデータベースファイルが破損したかは調査中。
+
+４、対処
+　pg_dumpしたときに途中まで保存されるバックアップファイルについて
+　不足データとスキーマー定義を追加して復元しバックアップを行なった。
+
+５、結果
+　上記「１、現象」の２）〜４）は解消したが、１）は解消しない。
+　→initdbからやり直すことを検討。
+
+
+以上です。
+--
+Hidetaka Miyauchi
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00171" HREF="msg00171.html">[pgsql-jp 18651] Re: pg_proc_prosrc_index:NUMBER OF INDEX'TUPLESIS NOT THE SAME AS HEAP'</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00157.html">[pgsql-jp 18637] access でのデータ挿入時の動作について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 18639] ｔｅｘｔ型についての質問です。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 18639] ｔｅｘｔ型についての質問です。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00171.html">[pgsql-jp 18651] Re: pg_proc_prosrc_index:NUMBER OF INDEX'TUPLESIS NOT THE SAME AS HEAP'</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00158"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00158"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

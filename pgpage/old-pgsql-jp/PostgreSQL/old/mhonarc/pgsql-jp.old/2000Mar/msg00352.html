@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13659] Re: テーブルの外部結合（再投稿） -->
+<!--X-From: "杉原　俊介" <sugihara@central&#45;lib.pref.osaka.jp> -->
+<!--X-Date: Sun, 26 Mar 2000 13:05:27 +0900 -->
+<!--X-Message-Id: 01aa01bf96d8$85b50a80$c4aca3d2@centrallib.pref.osaka.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000301bf967b$caa4b940$070aa8c0@cablenet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13659] Re: テーブルの外部結合（再投稿） </TITLE>
+<LINK REV="made" HREF="mailto:sugihara@central-lib.pref.osaka.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00353.html">Date Prev</A>][<A HREF="msg00351.html">Date Next</A>][<A HREF="msg00353.html">Thread Prev</A>][<A HREF="msg00351.html">Thread Next</A>][<A HREF="index.html#00352">Date Index</A>][<A HREF="threads.html#00352">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13659] Re: テーブルの外部結合（再投稿）</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "杉原　俊介" &lt;<A HREF="mailto:sugihara@central-lib.pref.osaka.jp">sugihara@central-lib.pref.osaka.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 26 Mar 2000 13:05:27 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00349.html">000301bf967b$caa4b940$070aa8c0@cablenet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+うまく送信できていなかったようなので、再送信します。
+
+杉原＠大阪府立中央図書館です。
+
+&gt; 但し、実際のデータを使って見ると、うまくできません。
+&gt; order_tabのcodeは間違いないと思います。（goods_tabから抽出して、order_tab
+に
+&gt; 追加したデータですので）。
+
+goods_tab.codeとorder_tab.codeが一致していないような気がしてなりません。
+どのような方法で、goods_tabから抽出して、order_tabに追加されたのでしょうか？
+
+例えば、抽出するときに、中間の作業変数として可変長ではなく固定長の変数
+使ったりした場合には、後ろに空白が入ることもあると思います。
+
+試しに、
+select count(*) from goods_tab g, order_tab o where g.code = o.code;
+や
+select * from goods_tab where code = 'a-029';
+select * from order_tab where code = 'a-029';
+で確認してみてください。
+思ったとおりの結果になっているでしょうか？
+もし抽出件数が0でしたら、
+select count(*) from goods_tab g, order_tab o
+where trim(trailing from g.code) = trim(trailing from o.code);
+ではどうでしょうか？
+
+&gt; goods_tabに７８２件のデータがありますが、抽出されたのは７８３件です。最後
+の
+&gt; データは空です。sumaryは全て０になったのは多分この空きデータのせいです。
+&gt; 原因は今のところ不明です。
+&gt;
+&gt; データは多いので、省略します。
+&gt; 最後２件はこんな感じ：
+&gt; ---
+&gt; a-029    |ラジコン飛行機|4800| 2625|操縦性良い| 2|3|1|a-029.jpg| 0|0| | |
+&gt; |01-01-2000|     0
+&gt;              |                   |        |        |                |  |
+|
+&gt; |            |  |  | |  | |          |
+&gt; (783 rows)
+
+空の行があるのは、どうも
+select 集計関数(sum,countなど)  from table where --- order by ---;
+のように、集計関数とorder byを組み合わせたときに、抽出件数が0であれば
+空の行が出力されるようです。
+
+回避するには
+select 集計関数(sum,countなど)  from table where --- order by ---
+having count(*)&gt;0;
+とすれば、とりあえず回避できるようです。
+
+范＠埼玉の場合は
+select g.*,sum(o.quantity) as sumary from goods_tab g, order_tab o
+where g.code = o.code group by g.code, g.hinmei, g.price1, g.price2,
+g.description, g.kubun, g.keisaikubun, g.stock, g.image, g.shobun, g.susume,
+g.remark2, g.remark3, g.remark4, g.entry_data
+having count(*)&gt;0
+union  select g.*, 0 as sumary
+from goods_tab g where not exists (select * from order_tab where g.code =
+order_tab.code) order by sumary desc;
+かな？
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+大阪府立中央図書館　司書部企画協力課　杉原　俊介
+〒577-0011 大阪府東大阪市荒本北５７−３番地
+tel:06-6745-0170(代表)　　fax:06-6745-0262
+<A HREF="Mailto:sugihara@central-lib.pref.osaka.jp">Mailto:sugihara@central-lib.pref.osaka.jp</A>
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00349" HREF="msg00349.html">[pgsql-jp 13655] RE: [pgsql-jp 13635] Re: テーブルの外部結合（再投稿）</A></STRONG>
+<UL><LI><EM>From:</EM> "tyuuniti" &lt;tyuuniti@cablenet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00353.html">[pgsql-jp 13660] RE: [pgsql-jp 13655] RE: [pgsql-jp 13635] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 13658] RE: [pgsql-jp 13635] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00353.html">[pgsql-jp 13660] RE: [pgsql-jp 13655] RE: [pgsql-jp 13635] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 13658] RE: [pgsql-jp 13635] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00352"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00352"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

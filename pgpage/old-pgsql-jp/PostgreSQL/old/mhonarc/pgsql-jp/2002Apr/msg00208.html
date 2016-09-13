@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25688] Re: ラージオブジェクトの削除後の領域開放 -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Wed, 24 Apr 2002 11:42:48 +0900 (JST) -->
+<!--X-Message-Id: 20020424.114248.36922002.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020424.104116.126576257.sugita@sra.co.jp -->
+<!--X-Reference-Id: JMEEJKFBLNAJDBDBDBCMOELFCAAA.naito@mdsnet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25688] Re: ラージオブジェクトの削除後の領域開放 </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00207.html">Date Prev</A>][<A HREF="msg00209.html">Date Next</A>][<A HREF="msg00204.html">Thread Prev</A>][<A HREF="msg00214.html">Thread Next</A>][<A HREF="index.html#00208">Date Index</A>][<A HREF="threads.html#00208">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25688] Re: ラージオブジェクトの削除後の領域開放</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 24 Apr 2002 11:42:48 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00201.html">20020424.104116.126576257.sugita@sra.co.jp</A>&gt;&lt;<A HREF="msg00204.html">JMEEJKFBLNAJDBDBDBCMOELFCAAA.naito@mdsnet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "kumiko naito" &lt;naito@mdsnet.co.jp&gt;
+Subject: [pgsql-jp: 25684] Re: ラージオブジェクトの削除後の領域開放
+Date: Wed, 24 Apr 2002 11:20:32 +0900
+
+;;; create table image (name text,raster oid) の場合、このテーブルに格納されてい
+;;; るのは
+;;; oidだけで、実際のラージオブジェクトは別の場所にあるわけですよね。
+;;; この実際のオブジェクトを何らかの方法で削除しなければならないという事でしょう
+;;; か？
+
+  はい。
+
+;;; イメージ的にはOracleの BLOB型（ＤＢ内でラージオブジェクトを保持・管理する）
+;;; では無く、
+;;; BFILE型（管理情報のみをＤＢに格納し、実際のデータは外部に持つ）に近いと
+;;; 考えたほうが良いのでしょうか？
+
+  データはデータベース内にあります。
+
+;;; 現在は検証のため、ローカルＤＢにpsqlでアクセスしていますが、実際のシステムで
+;;; は
+;;; JDBC経由になります。（本番サーバはSolarisになると思います。）
+;;; 
+;;; すみませんが、明示的な開放のしかたを、もう一度、ご教授いただけますでしょうか
+;;; ？
+
+  JDBC による直接の例は、他の方にお願いします。
+
+  JDBC に関わらず、次のようにして、カタログ化されたレコードを削除したときに、
+BLOB を自動的に削除することもできます。
+
+    -- テーブル定義
+    DELETE FROM icon_catalog;
+    DROP TABLE icon_catalog;
+    DROP SEQUENCE icon_catalog_id_seq;
+    CREATE TABLE icon_catalog
+    (
+	id       SERIAL,
+	name     TEXT    NOT NULL,
+	width    INTEGER NOT NULL,
+	height   INTEGER NOT NULL,
+	data_oid OID     NOT NULL,
+
+	CONSTRAINT check_name     CHECK(length(name) &gt; 0),
+	CONSTRAINT check_width    CHECK(width &gt; 0),
+	CONSTRAINT check_height   CHECK(height &gt; 0),
+	CONSTRAINT check_data_oid CHECK(data_oid &gt; 0)
+    );
+
+    COMMENT ON TABLE icon_catalog IS 'アイコンカタログ';
+    COMMENT ON COLUMN icon_catalog.name IS 'アイコンのベースファイル名';
+    COMMENT ON COLUMN icon_catalog.width IS 'アイコンのピクセル幅';
+    COMMENT ON COLUMN icon_catalog.height IS 'アイコンのピクセル高';
+    COMMENT ON COLUMN icon_catalog.data_oid IS 'アイコンデータのラージオブジェクトID';
+
+    -- icon_catalog のインデックス定義
+    CREATE INDEX icon_catalog_name_idx ON icon_catalog(name);
+
+=&gt;  -- icon_catalog のレコード削除時に、アイコンデータを BLOB から削除するトリガーの定義
+=&gt;  DROP FUNCTION icon_catalog_after_delete();
+=&gt;  CREATE FUNCTION icon_catalog_after_delete() RETURNS OPAQUE AS '
+=&gt;  DECLARE
+=&gt;	sql TEXT;
+=&gt;  BEGIN
+=&gt;	sql := ''SELECT lo_unlink('' || OLD.data_oid || '')'';
+=&gt;	EXECUTE sql;
+=&gt;	RETURN NULL;
+=&gt;  END;
+=&gt;  ' LANGUAGE 'plpgsql';
+
+    COMMENT ON FUNCTION icon_catalog_after_delete()
+	IS 'icon_catalogレコードの削除時に対応するBLOBを削除';
+
+=&gt;  CREATE TRIGGER icon_catalog_after_delete_hook AFTER DELETE
+=&gt;	ON icon_catalog FOR EACH ROW
+=&gt;	EXECUTE PROCEDURE icon_catalog_after_delete();
+
+    COMMENT ON TRIGGER icon_catalog_after_delete_hook ON icon_catalog
+	IS 'icon_catalogレコードの削除時に対応するBLOBを削除';
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00214" HREF="msg00214.html">[pgsql-jp: 25694] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+<UL><LI><EM>From:</EM> "kumiko naito" &lt;naito@mdsnet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00201" HREF="msg00201.html">[pgsql-jp: 25681] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00204" HREF="msg00204.html">[pgsql-jp: 25684] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+<UL><LI><EM>From:</EM> "kumiko naito" &lt;naito@mdsnet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00207.html">[pgsql-jp: 25687] システムカタログは今でもこのインデックスを使っているか</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00209.html">[pgsql-jp: 25689] Re: VACUUMが途中でこける</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00204.html">[pgsql-jp: 25684] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00214.html">[pgsql-jp: 25694] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00208"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00208"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

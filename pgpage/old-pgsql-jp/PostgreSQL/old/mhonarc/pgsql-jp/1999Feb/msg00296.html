@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7171] Re: large object fix patch -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 22 Feb 1999 16:57:52 +0900 -->
+<!--X-Message-Id: 199902220757.QAA11402@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902150139.KAA18489@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7171] Re: large object fix patch </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00295.html">Date Prev</A>][<A HREF="msg00297.html">Date Next</A>][<A HREF="msg00194.html">Thread Prev</A>][<A HREF="msg00193.html">Thread Next</A>][<A HREF="index.html#00296">Date Index</A>][<A HREF="threads.html#00296">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7171] Re: large object fix patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 22 Feb 1999 16:57:52 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;すでにご存知の方も多いと思いますが、現状の large object では、large
+&gt;object の途中に seek してから write する、すなわち large object の一部
+&gt;書き換えをしようとすると、バックエンドが落ちます。そこで、このバグを修
+&gt;正するパッチを作ってみました。
+&gt;
+&gt;また、この調査の過程で、large object が不必要に大きくなる問題を発見、
+&gt;解決しました。large object を作ると専用の xinv* で始まるテーブルができ
+&gt;ますが、このテーブルの大きさが常に 8192 バイト余計なのです。具体的には、
+&gt;このテーブルの先頭に 8192バイトの all 0 の領域が作られてしまいます。こ
+&gt;のパッチでは、このバグも修正しています。
+&gt;
+&gt;以上、お試し下さい。
+
+と [7069]で large object のバグ修正をお知らせしたばかりですが、新しい
+バグを見つけてしまいました。Solaris/sparc, HP-UX あたりで large object 
+が動かなくて困っている方はお試し下さい。
+
+# アラインメントの問題なので、プラットフォームによっては症状が表に
+# 出ません。
+
+このパッチは 基本的には [7069] のパッチ
+(2/17日付の
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.4.2/patches/postgresql-6.4.2-patched.tar.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.4.2/patches/postgresql-6.4.2-patched.tar.gz</A> 
+には入っています)
+の後で適用するものですが、たぶんオリジナルの 6.4.2 にも適用できると思
+います。
+
+# 本当に large object ってバグが多いですね。これが最後のバグなら良いの
+# ですが:-)
+---
+t-ishii@sra.co.jp	石井達夫
+
+----------------------------- cut here ----------------------------
+*** postgresql-6.4.2/src/backend/storage/large_object/inv_api.c.orig2	Mon Feb 22 16:15:31 1999
+--- postgresql-6.4.2/src/backend/storage/large_object/inv_api.c	Mon Feb 22 16:16:55 1999
+***************
+*** 1019,1028 ****
+  
+  	/* compute tuple size -- no nulls */
+  	hoff = offsetof(HeapTupleData, t_bits);
+  
+  	/* add in olastbyte, varlena.vl_len, varlena.vl_dat */
+  	tupsize = hoff + (2 * sizeof(int32)) + nwrite;
+! 	tupsize = LONGALIGN(tupsize);
+  
+  	/*
+  	 * Allocate the tuple on the page, violating the page abstraction.
+--- 1019,1029 ----
+  
+  	/* compute tuple size -- no nulls */
+  	hoff = offsetof(HeapTupleData, t_bits);
++ 	hoff = DOUBLEALIGN(hoff);
+  
+  	/* add in olastbyte, varlena.vl_len, varlena.vl_dat */
+  	tupsize = hoff + (2 * sizeof(int32)) + nwrite;
+! 	tupsize = DOUBLEALIGN(tupsize);
+  
+  	/*
+  	 * Allocate the tuple on the page, violating the page abstraction.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00194" HREF="msg00194.html">[pgsql-jp 7069] large object fix patch</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 7170] PostgreSQL on iMode</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 7172] 検索の高速化について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 7069] large object fix patch</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 7068] [Q]about to shutdown postmaster and use psql</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00296"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00296"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

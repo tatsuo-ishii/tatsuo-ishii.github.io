@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7151] Re: [Q] query optimize -->
+<!--X-From: "Naoyoshi J. Yasuda" <nao@dit.co.jp> -->
+<!--X-Date: Fri, 19 Feb 1999 23:46:27 +0900 -->
+<!--X-Message-Id: 199902191446.AA00762@sarah.egg.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902191414.XAA00670@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7151] Re: [Q] query optimize </TITLE>
+<LINK REV="made" HREF="mailto:nao@dit.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00275.html">Date Prev</A>][<A HREF="msg00277.html">Date Next</A>][<A HREF="msg00272.html">Thread Prev</A>][<A HREF="msg00277.html">Thread Next</A>][<A HREF="index.html#00276">Date Index</A>][<A HREF="threads.html#00276">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7151] Re: [Q] query optimize</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Naoyoshi J. Yasuda" &lt;<A HREF="mailto:nao@dit.co.jp">nao@dit.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 Feb 1999 23:46:27 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Tatsuo Ishii さんは書きました:
+&gt;&gt; [psql-jp 7143]の話の続きなんですが、１個のテーブルに全てのデータを
+&gt;&gt; 入れると、速度的に厳しかったので、約６０個のテーブルに分割し、
+&gt;&gt; ユニークIDを共通キーにしてそれぞれのテーブルからデータを引っ張ってくる
+&gt;&gt; と言う方法で対処しています。
+&gt;&gt; で、この「それぞれのテーブルから引っ張る」というクエリーを、現在は
+&gt;&gt; php3側で記述していますが（たぶんクエリーは１個１個順番に行われている）、
+&gt;&gt; これを、ビューを作成し、それに対してクエリーをかけることにすれば
+&gt;&gt; php3側の記述がものすごく楽になると考えています。
+&gt;
+&gt;そうですね。ただ、この場合 60 個の join になるのですか？それはちょっと
+&gt;きつそう。
+
+60個のテーブル名を from に並べるというイメージであっているでしょうか。
+それともPHP側で、一つ一つのテーブルを検索して、結果を順次処理する方でしょうか。
+後者だとすると、下記に書かれたように、1回の検索では約34万件程度が
+検索対象ということなのですね。
+
+&gt;ということで、現在取り扱っている総タプル数は、”最大”で
+&gt;３４万＊６０＝２０４０万
+&gt;ですので、約２０００万タプルだと思います。
+
+検索対象は、インデックス項目に対して行われているのではないのですね。
+where XXXX like '%KEY%' のような grep状態の検索が要求されると考えて
+よろしいでしょうか。PostgreSQLに限らずなのですが、このような
+任意一致に近いデータ検索は、DBMSとして、grepより高速化できるような
+工夫というのはされているものなのでしょうか。
+
+## わき道で質問なのですが、インデックスは hashとかBtreeとか、構造を
+## 指定したり、両方自動的に作られたりするのでしょうか。
+## like 'KEY%' のような前方一致であれば、Btreeでかなり高速化できると
+## 思うのですが、このようなパターン検索の最適化について、実際には
+## どのように行われているのでしょうか。(PostgreSQLに限らずですが...)
+
+&gt;&gt; １．viewから各テーブルに検索に行くときのインデックスの使われ方
+&gt;&gt; ２．クエリーはパラレルに実行されるか否か
+&gt;
+&gt;シーケンシャルです。つまり、view にしたからと言って性能の変化はないと
+&gt;考えて良いと思います。
+&gt;# PostgreSQL の view は、単に問い合わせを書き換えるだけですから。
+&gt;# 商用DBでは、view を作ると実体ができるものもあるようですが。
+
+Viewは、複雑なクエリーを単純に書けるけど、実際には複雑なクエリーが
+発行されているということですね。実態があると、実際のクエリーも
+単純になるので、速度的にも有利になるはずだということでしょうか。
+その場合、別に作られたviewの実体と、元の表との同期が問題になりませんか。
+select だけなら問題ないけど、update, deleteなどでは、同期しないと
+行けませんよね。それも双方向の同期が必要になりますよね。
+## ハードリンクのように、実体は同じだけど、表定義部分と言うか
+## タプル実体へのポインタ部分だけが新しく作られるのでしょうか...??
+
+安田直義 (nao@dit.co.jp)
+株式会社 ディアイティ
+技術本部 開発部 部長
+〒136 江東区新砂1-6-35 Nビル東陽町
+Tel. 03-5634-7651
+Fax. 03-3699-7048
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00291" HREF="msg00291.html">[pgsql-jp 7166] Re: [Q] query optimize</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00277" HREF="msg00277.html">[pgsql-jp 7152] Re: [Q] query optimize</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00272" HREF="msg00272.html">[pgsql-jp 7148] Re: [Q] query optimize</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00275.html">[pgsql-jp 7150] Re: How large scale PostgreSQL endure?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00277.html">[pgsql-jp 7152] Re: [Q] query optimize</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 7148] Re: [Q] query optimize</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00277.html">[pgsql-jp 7152] Re: [Q] query optimize</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00276"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00276"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

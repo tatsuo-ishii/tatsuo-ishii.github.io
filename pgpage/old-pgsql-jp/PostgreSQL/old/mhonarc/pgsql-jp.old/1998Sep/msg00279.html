@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5488] Re: ShmemCreate: cannot create region -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Mon, 28 Sep 1998 14:07:45 +0900 (JST) -->
+<!--X-Message-Id: 199809280507.OAA28095@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809270406.NAA28598@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5488] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00278.html">Date Prev</A>][<A HREF="msg00280.html">Date Next</A>][<A HREF="msg00272.html">Thread Prev</A>][<A HREF="msg00280.html">Thread Next</A>][<A HREF="index.html#00279">Date Index</A>][<A HREF="threads.html#00279">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5488] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 28 Sep 1998 14:07:45 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00272.html">199809270406.NAA28598@meshsv26.tk.mesh.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Sep 27, t-ishii@sra.co.jp (Tatsuo Ishii) writes:]
+&gt;
+&gt;もしかしたら（いや、おそらく）この問題とは別かも知れませんが、
+
+元の問題は、むしろ後半の「bad news」に近い気がします。
+# ただ、こちらではrarelyではなく確実に落ちていますけど。
+
+postmasterのログを見直してみると、昔は、
+========================================================================
+IpcMemoryCreate: memKey=5432101 , size=4501144 , permission=384IpcMemoryCreate: shmget(..., create, ...) failed: Cannot allocate memory
+This type of error is usually caused by improper
+shared memory or System V IPC semaphore configuration.
+See the FAQ for more detailed information
+FATAL 1:  ShmemCreate: cannot create region
+========================================================================
+と言って落ちていたのが、最近は、
+========================================================================
+IpcMemoryCreate: shmget failed (Cannot allocate memory) key=5432110, size=24588, permission=700
+IpcMemoryIdGet: shmget failed (No such file or directory) key=5432110, size=24588, permission=0
+IpcMemoryAttach: shmat failed (Invalid argument) id=-2
+FATAL 1:  AttachSLockMemory: could not attach segment
+========================================================================
+となって、少し変わっています。結局共有メモリ不足なんでしょうか。
+昔は、SHMMAXPGS=2048(共有メモリが8M)で、「-B 512 -o "-S 16384"」で起動し
+ていたのを、
+最近は、SHMMAXPGS=4096(共有メモリが16M)で、「 -B 1957 -o "-S 16384 -F"」
+で起動しています。
+
+また、昔の「FATAL 1:  ShmemCreate: cannot create region」というのがでな
+くなってからは、ときどき
+FATAL 1:  btree: lost page in the chain of duplicates
+というのが出ているのも見つけました。
+これは「-o -F」つきで落ちてしまったからかもしれませんが、その後のvacuum
+でおかしかったときは、
+NOTICE:  Index header_uniq_idx: NUMBER OF INDEX' TUPLES (73446) IS NOT THE SAME AS HEAP' (73445)
+という風に出たので、indexを作り直し、その後はこういうのは出ていません。
+
+&gt;ちなみに、この問題は9/26時点の6.4の current では起きないそうです。
+
+jaistでの
+	postgresql.snapshot.tar.gz . . .  [Sep 26 22:01]   4067k
+に入れ換えてみましたが、やはり同じように
+FATAL 1:  AttachSLockMemory: could not attach segment
+で落ちます。
+取り扱うデータ量から必要な共有メモリを導くようなことはできるのでしょうか?
+ちなみに、今問題となっているデータベースの領域をduすると200Mくらいです。
+# とりあえず共有メモリを64Mくらいまで増やしてみようかな。
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00280" HREF="msg00280.html">[pgsql-jp 5489] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00272" HREF="msg00272.html">[pgsql-jp 5481] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 5487] Re: platform</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 5489] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 5481] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 5489] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00279"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00279"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

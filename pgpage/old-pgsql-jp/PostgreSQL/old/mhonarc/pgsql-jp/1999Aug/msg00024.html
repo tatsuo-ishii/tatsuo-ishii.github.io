@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9868] RE:RDOによるPostgreSQL　ODBCドライバへのアクセス -->
+<!--X-From: "J.Baba" <jbaba@amy.hi&#45;ho.ne.jp> -->
+<!--X-Date: Mon, 2 Aug 1999 09:39:30 +0900 -->
+<!--X-Message-Id: 002101bedc7f$8dbec680$860110ac@baba.mori.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9868] RE:RDOによるPostgreSQL　ODBCドライバへのアクセス </TITLE>
+<LINK REV="made" HREF="mailto:jbaba@amy.hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00021.html">Date Prev</A>][<A HREF="msg00025.html">Date Next</A>][<A HREF="msg00031.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9868] RE:RDOによるPostgreSQL　ODBCドライバへのアクセス</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "J.Baba" &lt;<A HREF="mailto:jbaba@amy.hi-ho.ne.jp">jbaba@amy.hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 2 Aug 1999 09:39:30 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  J.Baba です。
+
+&gt; J.Babaさまからご助言頂き早速試してみたのですが、
+&gt; 残念ながら以前としてロックがかからず困っています。
+
+  はい。「ロックしなくても、データの一貫性は保てるのでは？」
+という事を言いたかったのですが...。
+
+みなさんからのご意見を参考に、"select for update" を使って、
+あえて、ロックを使うコードを書いてみました。いかがでしょうか？。
+ただし、RDO -&gt; PostgreSQL ODBC 直で行って下さい。
+RDO2.0、PostgreSQL 6.5、PostgreSQL ODBC 6.40.0006 で試しました。
+ポイントは、「Batch カーソル」を使う事と、わざわざ "begin" を
+発行している部分です。
+「ODBC カーソル」は、"for update" を食ってしまいます。
+"begin"がなぜ必要かは、PostgreSQL ODBC ドライバの問題点に
+及びますので、ここではご説明致しません。
+
+Private Sub Command1_Click()
+    Dim en As rdoEnvironment
+    Dim cn As rdoConnection
+    Dim qd As rdoQuery
+    Dim rs As rdoResultset
+
+ On Error GoTo Err_1
+
+    Set en = rdoEngine.rdoCreateEnvironment("", "uid", "pwd")
+    en.CursorDriver = rdUseClientBatch
+
+    Set cn = en.OpenConnection("DSName")
+
+    cn.BeginTrans
+    cn.Execute "begin"  '本来は不要ですが、ここでは必須
+
+    Set qd = cn.CreateQuery("", "")
+
+    qd.SQL = "SELECT * FROM test_t FOR UPDATE"
+
+    Set rs = qd.OpenResultset(rdOpenKeyset, rdConcurValues)
+
+    If Not rs.EOF Then
+        rs.Edit
+        rs.rdoColumns("a1") = rs.rdoColumns("a1") &amp; " "
+        'MsgBox "wait"
+        rs.BatchUpdate
+
+        If Not ferr Then
+            cn.CommitTrans
+        Else
+            cn.RollbackTrans
+        End If
+    End If
+
+    rs.Close
+    cn.Close
+    en.Close
+
+    Exit Sub
+
+  Err_1:
+        ferr = True
+        Resume Next
+End Sub
+
+            馬場  二郎
+            E-Mail : jbaba@amy.hi-ho.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 9865] Re: ご挨拶</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 9869] install error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 9876] Re: コマンドサーチパス、環境変数の設定</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 9864] ご挨拶</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

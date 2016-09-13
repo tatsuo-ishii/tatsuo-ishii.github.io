@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7322] Re: patch for NetBSD/macppc -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 05 Mar 1999 15:17:15 +0900 -->
+<!--X-Message-Id: 199903050617.PAA03432@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903050418.NAA08798@jack.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7322] Re: patch for NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00073.html">Date Prev</A>][<A HREF="msg00076.html">Date Next</A>][<A HREF="msg00069.html">Thread Prev</A>][<A HREF="msg00076.html">Thread Next</A>][<A HREF="index.html#00075">Date Index</A>][<A HREF="threads.html#00075">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7322] Re: patch for NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 05 Mar 1999 15:17:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;青木@kinotropeです。
+
+&gt;下記 int2eq() で arg1: -2, arg2: 65534 で呼び出された場合、本来であれ 
+&gt;ば 1 が返るはずですが、0を返してしまう。(int16 は signed short だから  
+&gt;65534 は -2 になるはず)
+&gt;
+&gt;bool
+&gt;int2eq(int16 arg1, int16 arg2)
+&gt;{
+&gt;    return arg1 == arg2;
+&gt;}
+&gt;
+&gt;
+&gt;gcc -O -S では下記のように出力されます、が、PPCのアセンブラを知らない 
+&gt;ので本当のところは分かりません。
+&gt;int2eq:
+&gt;        xor 3,3,4
+&gt;        subfic 0,3,0
+&gt;        adde 3,0,3
+&gt;        blr
+
+MkLinux(egcs-2.90.25 980302 (egcs-1.0.2 prerelease)) では
+
+int2eq:
+        rlwinm 3,3,0,0xffff
+        rlwinm 4,4,0,0xffff
+        xor 3,3,4
+        subfic 0,3,0
+        adde 3,0,3
+        blr
+
+LinuxPPC では
+
+int2eq:
+	extsh 3,3
+	extsh 4,4
+        xor 3,3,4
+        subfic 0,3,0
+        adde 3,0,3
+        blr
+
+となりますね。いずれにしても、引数に対して 16bit のマスクをかけている
+ように思えます(私もアセンブラ良く分かってないので確証は無いのですが)。
+やっぱりこのマスクがかからないのはコンパイラがおかしいような気がするの
+ですが。試しに 
+
+bool
+int2eq(int arg1, int arg2)
+{
+    return arg1 == arg2;
+}
+
+とすると、NetBSD/macppc のように、
+
+int2eq:
+        xor 3,3,4
+        subfic 0,3,0
+        adde 3,0,3
+        blr
+
+というコードが出て来ました。
+
+&gt;そもそも -2 ではなく 65534 を渡す方が悪いと思って、コードを追っかけて 
+&gt;みると、 get_atttype() の UInt16GetDatum() で変更されていました。
+
+ちょっと int2eq とのつながりが良く分からなかったのですが、fmgr 経由で
+すか？
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp 7323] Re: patch for NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00069" HREF="msg00069.html">[pgsql-jp 7316] Re: patch for NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 7320] Re:shared memory how-to</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 7323] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00069.html">[pgsql-jp 7316] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 7323] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00075"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00075"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

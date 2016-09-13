@@ -1,0 +1,243 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16863] Re: [pgsql&#45;jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Tue, 22 Aug 2000 23:13:24 +0900 (JST) -->
+<!--X-Message-Id: 20000822231324.1F405889@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000822164413.19622861@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 014801c00c11$9f93e120$7563bed2@hari.to -->
+<!--X-Reference-Id: 20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 01bf01c00c2c$f7100350$7563bed2@hari.to -->
+<!--X-Reference-Id: 20000822210609.1D368938@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 01f801c00c3a$38268960$7563bed2@hari.to -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16863] Re: [pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoi </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00476.html">Date Prev</A>][<A HREF="msg00478.html">Date Next</A>][<A HREF="msg00476.html">Thread Prev</A>][<A HREF="msg00453.html">Thread Next</A>][<A HREF="index.html#00477">Date Index</A>][<A HREF="threads.html#00477">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16863] Re: [pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Aug 2000 23:13:24 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00448.html">20000822164413.19622861@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00449.html">014801c00c11$9f93e120$7563bed2@hari.to</A>&gt;&lt;<A HREF="msg00454.html">20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00471.html">01bf01c00c2c$f7100350$7563bed2@hari.to</A>&gt;&lt;<A HREF="msg00474.html">20000822210609.1D368938@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00476.html">01f801c00c3a$38268960$7563bed2@hari.to</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+針川＠はり。と　さん、早速のあつかましい
+願いにつきあっていただきましてありがとうございました。
+お蔭様で不具合を迂回することに成功しましたので
+ご報告させていただきます。
+
+まとめますと（おいおいだいじょうぶかい？）
+
+□ 全てINSERT で 新しい OID がオーバーフロー正数と
+　なった場合に以下のような問題が起こる
+
+ ■ INSERT実行時に、OIDの正数値がオーバーフローした場合、
+　PHPの関数 pg_getlastoid() の戻り値がオーバーフロー後の
+　正数値のまま返されます。（PHPのバグではありません）
+　そのオーバーフローした正数をそのまま SELECT の
+　WHERE で、OID に指定すると、
+「　ERROR:  dtoi4: integer out of range　」で
+　PostgreSQL がエラーとなります。
+
+ ■ INSERT で生成される OID がオーバーフローした際に
+　psql の SELECT で 作成された OID を表示させると
+　補数で表示している
+
+ ■ SELECT で WHERE に　OID を補数で直接指定しても
+　PostgreSQL は検索を失敗する。エラーとはならない。
+
+ ■ SELECT で WHERE に OID を文字変数として"'"付きで補数を
+　指定すると検索に成功する
+
+□ 対策：
+　INSERT 直後の pg_getlastoid() の戻り値を以下の針川＠はり。とさん
+　のPHPファンクション to_signed_int() で補数化してから、
+　SELECTでOIDの変数を"'"付きの文字列としてQUERY実行する
+
+これで動作確認しましたが、お蔭様で問題は解消し、
+システムは以前と同じ振る舞いに戻りました。ありがとうございました。
+
+お礼に（おいおい無用だって！）
+本メールの最後に、ホームページのディレクトリー階層の
+任意文字列から任意何番目のディレクトリー名を入手する
+PHPファンクションを作りましたのでご案内します。
+たまたま、ディレクトリー名の小文字をデーターベース名で
+運転しており、今般、DB領域が破損し、CREATEDB で全く同じ
+TABLE群を作成し、PHPファイル群を一からオープンするDBNAMEを
+変更するのではなく、フォルダー名をシンボリック・リンク
+するだけで、異なるDBNAMEに接続させるためのPHPの function
+です。（なんのことやねん）
+
+&gt;こんにちは。針川＠はり。と です。
+&gt;
+&gt;ちなにみ Cだったら キャストだけで済んでしまうんですが、
+&gt;PHPは、普段便利な分、こういったときに不便ですな。
+&gt;
+&gt;----- Original Message -----
+&gt;From: "Yoshio Tokuda" &lt;actords@zaqcad091da.zaq.ne.jp&gt;
+&gt;To: &lt;pgsql-jp@sra.co.jp&gt;
+&gt;Sent: Tuesday, August 22, 2000 9:06 PM
+&gt;Subject: [pgsql-jp 16860] Re: [pgsql-jp 16857] Re: [pgsql-jp 16840] Re:
+&gt;[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正
+&gt;数になってしまう謎
+&gt;
+&gt;
+&gt;&gt; ところで、針川さまは、負数の補数化ですが、逆の場合は
+&gt;&gt; どうするのでしょうか？（って、おまへは甘いとどやされるでしょうか）ビクビク
+&gt;
+&gt;物事は単純化できるものですな。（笑
+&gt;
+&gt;&lt;html&gt;
+&gt;&lt;head&gt;
+&gt;&lt;/head&gt;
+&gt;&lt;body&gt;
+&gt;&lt;p&gt;
+&gt;&lt;?php
+&gt;
+&gt;function to_unsigned_float($OID)
+&gt;{
+&gt;    if ($OID &lt; 0)
+&gt;        return  $OID + 4294967296; // あふれたなら 補う
+&gt;
+&gt;    return $OID;
+&gt;}
+&gt;
+&gt;function to_signed_int($OID)
+&gt;{
+&gt;    if ((float)$OID &lt; 2147483648)
+&gt;        return $OID;
+&gt;
+&gt;    return $OID - 4294967296;  // 補った分を引く
+&gt;}
+&gt;
+&gt;    $OID = -2147478966;
+&gt;    echo $OID;
+&gt;
+&gt;    $OID = to_unsigned_float($OID);
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;    echo "&lt;br&gt;", to_signed_int($OID);
+&gt;
+&gt;    $OID = 78966;
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;
+&gt;    $OID = to_unsigned_float($OID);
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;    echo "&lt;br&gt;", to_signed_int($OID);
+&gt;?&gt;
+&gt;&lt;/body&gt;
+&gt;&lt;/html&gt;
+&gt;
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+     Yoshio Tokuda
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+
+&lt;?
+//	$debug="";
+//
+// get_root_()関数	version:1.0 by Y.Tokuda.
+// include で呼び出せばよいでしょうか
+// 該当PHPスクリプトファイルの上位ディレクトリー名を
+// 受け取る関数です
+// 文法: string get_root_( string needle, int offset );
+// 　　needle文字列を含むディレクトリー名を、offset=0として
+// 　　整数 offset 値で続くディレクトリー名を戻す
+
+function get_root_($ROOT,$PLACE){
+ global $debug;
+ if($PLACE == "") $PLACE = 0;
+ $a = getenv("SCRIPT_NAME");
+ if($ROOT){
+  $array_a = explode("/",substr($a,strrpos(substr($a,0,strpos($a,$ROOT)),"/")+1));
+  $count_a = count($array_a);
+  if($PLACE &gt;= 0){
+   if($PLACE &gt;= $count_a) $PLACE = $count_a - 1;
+   return strtolower($array_a[$PLACE]);
+  }else if($PLACE &lt; 0){
+   if($count_a + $PLACE &lt; 0) $PLACE = 0;
+   else $PLACE = $count_a + $PLACE ;
+   return strtolower($array_a[$PLACE]);
+  } else {
+	return strtolower($array_a[1]);
+  }
+  if($debug){
+   echo "&lt;table border bgcolor=lightyellow&gt;\n";
+   for($i=0;$i&lt;count($c);$i++){
+    echo "&lt;tr&gt;&lt;td&gt;",$i,"&lt;/td&gt;&lt;th&gt;",$c[$i],"&lt;/th&gt;&lt;/tr&gt;\n";
+   }
+   echo "&lt;/table&gt;\n";
+  }
+ }
+ return false;
+}
+?&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00454" HREF="msg00454.html">[pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00471" HREF="msg00471.html">[pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00474" HREF="msg00474.html">[pgsql-jp 16860] Re: [pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00476" HREF="msg00476.html">[pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00476.html">[pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00478.html">[pgsql-jp 16864] Re: [pgsql-jp 16850] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00476.html">[pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00453.html">[pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00477"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00477"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

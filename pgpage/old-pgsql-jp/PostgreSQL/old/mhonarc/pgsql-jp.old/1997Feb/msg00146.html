@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1434] Re:  [HELP] can't compile pgSQl 6.0 on SunOS -->
+<!--X-From: Kuramoto Takafumi <kuramoto@lib.tokushima&#45;u.ac.jp> -->
+<!--X-Date: Sun, 23 Feb 97 21:34:12 JST -->
+<!--X-Message-Id: 9702231234.AA25135@void.lib.tokushima&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1434] Re:  [HELP] can't compile pgSQl 6.0 on SunOS </TITLE>
+<LINK REV="made" HREF="mailto:kuramoto@lib.tokushima-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00150.html">Date Prev</A>][<A HREF="msg00151.html">Date Next</A>][<A HREF="msg00158.html">Thread Prev</A>][<A HREF="msg00143.html">Thread Next</A>][<A HREF="index.html#00146">Date Index</A>][<A HREF="threads.html#00146">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1434] Re:  [HELP] can't compile pgSQl 6.0 on SunOS</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kuramoto Takafumi &lt;<A HREF="mailto:kuramoto@lib.tokushima-u.ac.jp">kuramoto@lib.tokushima-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 23 Feb 97 21:34:12 JST</LI>
+<LI><em>Cc</em>: <A HREF="mailto:kuramoto@lib.tokushima-u.ac.jp">kuramoto@lib.tokushima-u.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+庫元＠徳島大学附属図書館です。
+
+桑村様、MLの皆様へ
+
+やっとコンパイルすることが出来ました。ありがとうございました。
+
+async.c:85: port-protos.h: No such file or directoryというメッセージで
+errorになってしまうと報告しましたが、ソースコードをデフォルトの位置に
+おいてコンパイルしていないのが原因かどうかよくわからないのですが、取り
+敢えず、src/backend/portまでcdしてそこでリンクすることでOKでした。
+
+桑村さまのアドバイスどおりやってみたのですが二箇所でerrorが出たので、
+(原因は私にはわりません。)報告するとともに、私が行ったが処理が正か検証
+してしただきたく思います。
+
+lib44bsd.aを他のWSからコピーし、/usr/libへおいた。
+
+次に、桑村様から教えていただいたとおり パッチをあてました。
+
+gcc  -o postgres access/SUBSYS.o bootstrap/SUBSYS.o catalog/SUBSYS.o commands/SUBS
+YS.o
+executor/SUBSYS.o lib/SUBSYS.o libpq/SUBSYS.o main/SUBSYS.o nodes/SUBSYS.o optimiz
+er/SUBSYS.o
+parser/SUBSYS.o port/SUBSYS.o postmaster/SUBSYS.o regex/SUBSYS.o rewrite/SUBSYS.o
+storage/SUBSYS.o
+tcop/SUBSYS.o utils/SUBSYS.o ../utils/version.o -lm -lln -ldl -l44bsd
+collect2: ld returned 2 exit status
+ld: /lib/lib44bsd.a(inet_addr.o): _inet_aton: multiply defined
+gmake[1]: *** [postgres] Error 1
+gmake[1]: Leaving directory `/home/pgsql/src/backend'
+gmake: *** [all] Error 2
+
+でエラーが出たので、
+
+ &gt;(2.3) src/backend/port&gt; diff -c Makefile.org Makefile
+ &gt;*** Makefile.org	Fri Jan 24 02:00:35 1997
+ &gt;--- Makefile	Wed Feb 19 18:38:00 1997
+ &gt;***************
+ &gt;*** 31,38 ****
+ &gt;  
+ &gt;  OBJS = $(PORTNAME)/SUBSYS.o
+ &gt;  
+ &gt;! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sparc_solaris/ultrix4/nextstep/svr4))
+ &gt;  # Other ports get the inet_aton() function from their standard C libraries.
+ &gt;  OBJS += inet_aton.o
+ &gt;  endif
+ &gt;  
+ &gt;--- 31,39 ----
+ &gt;  
+ &gt;  OBJS = $(PORTNAME)/SUBSYS.o
+ &gt;  
+ &gt;! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sunos4/sparc_solaris/ultrix4/nextstep/svr4))
+ &gt;  # Other ports get the inet_aton() function from their standard C libraries.
+ &gt;+ CC=gcc
+ &gt;  OBJS += inet_aton.o
+ &gt;  endif
+
+のパッチを当てたのを元にもどした。
+
+再コンパイルすると次の箇所でエラーになった。
+
+ar crs libpq.a `lorder fe-auth.o fe-connect.o fe-exec.o fe-misc.o fe-lobj.o ../bac
+kend/lib/dllist.o
+pqsignal.o  | tsort`
+tsort: cycle in data
+tsort: fe-exec.o
+tsort: fe-connect.o
+tsort: fe-auth.o
+ar: bad option `s'
+gmake[1]: *** [libpq.a] Error 1
+gmake[1]: Leaving directory `/home/pgsql/src/libpq'
+gmake: *** [all] Error 2
+
+それで、 Makefile.globalの次の部分を
+
+################################################################
+#  AR
+
+ifneq (,$(findstring /$(PORTNAME)/, /BSD44_derived/bsdi/sparc/))
+
+                           ↓
+
+ifneq (,$(findstring /$(PORTNAME)/, /BSD44_derived/bsdi/sunos4/sparc/))
+                                                        ^^^^^^
+に変更した。
+
+これでコンパイルは最後までとおりました。
+
+Makefile.customは
+
+PORTNAME= sunos4
+CUSTOM_CC= gcc
+jp= 1
+CFLAGS += -DJP
+
+です。
+
+SunOSではCFLAGS += -DJPの変わりにCFLAGS += -D_WCHAR_Tにしないといけない
+ということはないですよね。間違っていましたらどなたか教えてくださいませ。
+
+やっと明日からpostreSQLを使えそうです。うれしい!!
+
+桑村様、MLの皆様ありがとうございました。これからもよろしくお願いします。
+
+----------------------------------------------------------------------
+kuramoto@lib.tokushima-u..ac.jp
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00150.html">[postgres95 1438] Re: Benchmarck on Linux 2.0.28 Pentium Pro 200Mhz</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00151.html">[postgres95 1439] Re: Benchmarck on Linux 2.0.28 Pentium Pro 200Mhz</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00158.html">[postgres95 1446] Re: Itroduce myself</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00143.html">[postgres95 1431] Re:  [HELP] can't compile pgSQl 6.0 on SunOS</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00146"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00146"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

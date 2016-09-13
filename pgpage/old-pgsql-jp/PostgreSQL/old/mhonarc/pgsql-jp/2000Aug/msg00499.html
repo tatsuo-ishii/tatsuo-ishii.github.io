@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16886] pgsql+apache+phpでのインストールについて -->
+<!--X-From: "田中 晃" <akira1984@hotmail.com> -->
+<!--X-Date: Wed, 23 Aug 2000 06:23:44 GMT -->
+<!--X-Message-Id: F61OjIL2jpWkfb81Ifp000007fe@hotmail.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16886] pgsql+apache+phpでのインストールについて </TITLE>
+<LINK REV="made" HREF="mailto:akira1984@hotmail.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00498.html">Date Prev</A>][<A HREF="msg00500.html">Date Next</A>][<A HREF="msg00510.html">Thread Prev</A>][<A HREF="msg00494.html">Thread Next</A>][<A HREF="index.html#00499">Date Index</A>][<A HREF="threads.html#00499">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16886] pgsql+apache+phpでのインストールについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "田中 晃" &lt;<A HREF="mailto:akira1984@hotmail.com">akira1984@hotmail.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 06:23:44 GMT</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+直接pgsql_MLに関係していない問題を提示して、
+不躾で申し訳ないのですが、
+
+postgresql-6.5.2+Apache1.3.6 + PHP3.0.12のインストール過程で、
+apache単体では、正常に動作しているのですが、
+どうも、PHP3の動作確認がうまく行きません。
+
+<A HREF="http://localhost/php-3.0.12/examples/date.php3">http://localhost/php-3.0.12/examples/date.php3</A>
+を開くと
+The requested URL /php-3.0.12/examples/date.php3
+was not found on this server
+  というエラーが返っていきます。
+
+また、
+
+<A HREF="http://localhost/php-3.0.12/date.php3">http://localhost/php-3.0.12/date.php3</A>
+を開くと
+The requested URL /php-3.0.12/date.php3
+was not found on this server
+  というエラーが返ってきます。
+----------------------------------------------------------
+
+ただ、
+  file://localhost/php-3.0.12/date.php3
+とすると、表示されるのでhttpd.confの
+DocumentRoot設定は間違っていないようです。。
+----------------------------------------------------------
+
+それと、localhostのパス指定ではなく、IPアドレス指定
+にしてテストしたのですが、
+was not found on this server
+  とあいかわらず、ワーニングが出てきます。
+
+----------------------------------------------------------
+----------------------------------------------------------
+phpのインストールとconfは、「php徹底攻略・マンモス本」
+のP,296〜300を参照したのですが、念のため下記の通りです。
+
+--------------------
+＊インストール
+# cd /usr/local/src/
+# tar xvzf /mnt/cdrom/archives/php-3.0.12.tar.gz
+# cd php-3.0.12
+# ./configure --with-pgsql --with-apxs=/usr/local/apache/bin/apxs
+# make
+# make install
+
+--------------------
+＊conf
+/usr/local/apache/conf/httpd.confを、viで訂正。
+
+１．
+#AddType application/x-httpd-php3 .php3
+#AddType application/x-httpd-php3-source .phps
+のコメントを外し、
+DirectoryIndex index.html
+に、index.php3を付け足して、
+DirectoryIndex index.html index.php3
+とした。
+
+２．
+また、/etc/ld.so.confに以下の一行を付け足した。
+/usr/local/pgsql/lib
+そして、confの設定変更の反映をするため、
+/usr/local/src/php-3.0.12 のパス上で、
+#ldconfig
+とした。
+
+３.
+次にphpのサンプルディレクトリにapacheからアクセス
+出来るようにリンクするため、
+# cd /usr/local/apache/htdocs/ 上で、
+# ln -s /usr/local/src/php-3.0.12/ .
+とシンボリックリンクを張った。
+
+以上で、先に書いたようにapacheは起動するのですが、
+phpは、
+was not found on this server
+  とワーニングがでます。
+
+-------------------------
+-------------------------
+それから、
+１．php3.iniファイルの最後に、
+    ; internationalization
+    i18n.http_output = PASS
+    i18n.internal_encoding = EUC
+    i18n.script_encoding = AUTO
+    i18n.http_input = AUTO
+と追加した。
+さらに、
+２．httpd.conf（apacheの設定）ファイル内の、
+LoadModule php3_module /usr/local/apache/libexec/libphp3.so
+の前に
+LoadFile /usr/local/pgsql/lib/ligpq.so
+と追加し、ファイルの最後に
+SetEnv LD_LIBRARY_PATH /usr/local/pgsql/lib
+を書き加え、
+phpをブラウザで表示しようとしても、相変わらず
+was not found on this server
+  と警告がでます。
+
+
+----------------------------------------------------------
+----------------------------------------------------------
+以上なのですが、書籍やネット上（様々なMLのログ）で同じような
+原因と解決法を見つけてそれをベースに色々とトライしてみたのですが、
+ちょっと出口なしの状態です。
+（Macベースでプラットホーム違いなのですが。）
+どなたか、解決法を知っている方がいましたら是非教えてください。
+長文になり申し訳ないのですがどうかよろしくお願いいたします。
+
+
+/**************************************************/
+ちなみに、
+システム環境は
+Linux for PPc japanese Edition release 1.0.3
+Based on Red Hat Linux release 5.0
+kernel 2.2.6 on a PowerPC 603ev
+マシンは、
+PowerMacintosh5500/233(MAC-OS 8.0)
+です。
+/**************************************************/
+________________________________________________________________________
+Get Your Private, Free E-mail from MSN Hotmail at <A HREF="http://www.hotmail.com">http://www.hotmail.com</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00500.html">[pgsql-jp 16887] 数値(ｖａｒｃｈａｒ型)を範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00510.html">[pgsql-jp 16897] Re: 数値  (ｖａｒｃｈａｒ型  )を範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00494.html">[pgsql-jp 16880] pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00499"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00499"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

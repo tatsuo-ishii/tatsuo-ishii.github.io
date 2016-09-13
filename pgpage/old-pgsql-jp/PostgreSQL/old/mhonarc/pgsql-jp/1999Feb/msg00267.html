@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7142] RE: creating over 2GB table -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Fri, 19 Feb 1999 09:14:37 +0900 -->
+<!--X-Message-Id: 000001be5b9c$d5c90760$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902181530.AA00746@sarah.egg.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7142] RE: creating over 2GB table </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00265.html">Date Prev</A>][<A HREF="msg00266.html">Date Next</A>][<A HREF="msg00264.html">Thread Prev</A>][<A HREF="msg00268.html">Thread Next</A>][<A HREF="index.html#00267">Date Index</A>][<A HREF="threads.html#00267">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7142] RE: creating over 2GB table</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 Feb 1999 09:14:37 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; Hiroshi Inoue さんは書きました:
+&gt; &gt;PostgreSQLでも大容量のデータを扱っている人は少なくないようなので、本家も
+&gt; &gt;含めて今まで作ろうという人が出てこなかったというのは不思議ですね。
+&gt; &gt;開発者は大容量では実際には運用をしていないのでしょうか ？
+&gt;
+&gt; 実際に数100万件を超えるデータを持っているケースは、やはりま
+&gt; れなのでしょうか。
+
+うーん、船木さんはどうだったかな ？
+
+&gt; せいぜい数万件、数10万件程度と、その1桁上のオーダとは、現実のH/Wでは
+&gt; 大きな障壁があるのかもしれません。ソフトウエア的にも、数の
+&gt; 暴力に耐えるような
+&gt; 作りはそれなりの注意と言うかノウハウが必要なのでしょう。
+&gt;
+&gt; データ量が少ない場合には快適に動いていても、桁違いになってくると、
+&gt; 実用に耐えなくなることは良くあることだと思います。
+&gt; 一般的な研究開発系では、大容量データに対して十分な検証やテ
+&gt; ストをしていない、
+&gt; あるいは環境的にできにくい場合が多いのかもしれません。
+&gt; この辺りをきちんと検証して改善をすることで、お金を取っている場合も
+&gt; 今までは普通だった気がします。
+&gt;
+&gt; &gt;それとも、Tupleの形式とかがわかっている人は意外と多くないのでしょうか ？
+&gt; &gt;私もそのあたりがわかるようになったら考えてみますけど。
+&gt;
+&gt; これはデータの正規化とか呼ばれるものですか？
+&gt; テーブルの分割と関係の定義を整理するようなイメージで理解していますが。
+&gt;
+
+書き方が悪かったですね。
+そのような一般的な概念ではなく、PostgreSQLで実際に物理的に格納される
+形式のことです。ユーザーレベルでは意識する必要がないですが、データセット
+アップ専用ユーティリティを作成しようと思ったら、SQLを使用する通常のルート
+でなく、直接（Oracleでいうダイレクト？）書き込みにいかないとスピードアップは
+期待できませんから。
+
+&gt; &gt;ところで、 Oracleには truncate table
+&gt; コマンドがあるのですが、こちらの方なら
+&gt; &gt;もっと簡単ということはないですか ？
+&gt;
+&gt; 初心者の質問で申し訳有りませんが、truncate table と drop table は
+&gt; どこが違うのでしょうか。drop はSQL-92に定義されているようですし、
+&gt; ORACLEでも使えるようですが、truncate は何か違う機能を持った
+&gt; ORACLE特有の機能なのでしょうか？
+&gt; ## こんな事を知らずに使っている初心者です。(_ _)
+&gt;
+
+Oracleだけだったかな ？
+少なくとも似たような機能は商用DBならありそうな気がしますけど。
+
+truncate は データがなくなる（０件になる）だけでテーブル定義（インデクス
+定義も）は残ります。
+PostgreSQLでこれに近いことをするなら
+
+	delete from table;（さらに vacuum table;  も必要？？)
+
+ということになると思いますが件数が多ければdelete(vacuum)はとても手間
+かかかってしまいます。
+truncateは０件にするという目的のはっきりしたコマンドなのでとても効率的
+に作ってある（作れる）はずです。
+
+drop table;
+create table ...;
+create index ...;
+
+という方式もありますが、テーブル（インデクス）定義を記述しなければ
+ならないのが欠点です（インデクスの増減にも対応しないといけないし）。
+特にOracleの場合は物理定義もするのが普通だと思いますので、気が
+めいってしまいますよね。
+
+昔のことになりますが、再編成の場合はいつも truncate した後に
+SQL*Loaderのダイレクト・パスを実行するというやり方をしていました。
+ダイレクト・パスはインデクスを残したままで効率よく実行できますから。
+
+Hiroshi Inoue
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00274" HREF="msg00274.html">[pgsql-jp 7149] Re: creating over 2GB table</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00270" HREF="msg00270.html">[pgsql-jp 7145] Re: creating over 2GB table</A></STRONG>
+<UL><LI><EM>From:</EM> Naoyoshi Yasuda &lt;nao@dit.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00268" HREF="msg00268.html">[pgsql-jp 7143] RE: creating over 2GB table</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp 7139] Re: creating over 2GB table</A></STRONG>
+<UL><LI><EM>From:</EM> "Naoyoshi J. Yasuda" &lt;nao@dit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00265.html">[pgsql-jp 7140] How large scale PostgreSQL endure?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 7141] Re: 質問：\copy my_table from \my_file_jp について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 7139] Re: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00268.html">[pgsql-jp 7143] RE: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00267"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00267"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

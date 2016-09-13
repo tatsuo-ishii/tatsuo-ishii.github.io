@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 1982] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround. -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Wed, 18 Jun 1997 11:50:45 +0900 -->
+<!--X-Message-Id: 9706180250.AA22084@white.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199706180119.KAA00292@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 1982] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and work </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00103.html">Date Prev</A>][<A HREF="msg00105.html">Date Next</A>][<A HREF="msg00100.html">Thread Prev</A>][<A HREF="msg00111.html">Thread Next</A>][<A HREF="index.html#00104">Date Index</A>][<A HREF="threads.html#00104">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 1982] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 18 Jun 1997 11:50:45 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00100.html">199706180119.KAA00292@srashd.sra.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+In message &lt;<A HREF="msg00100.html">199706180119.KAA00292@srashd.sra.co.jp</A>&gt;, Tatsuo Ishii writes:
+&gt; &gt;Solaris2.5.1 (x86) に 6.1+jp_patch を載せました．とりあえず，
+&gt; &gt;動いていて，regression test (jp 含む) も一応 Ok のようです．
+&gt; 
+&gt; # できれば bench mark test もお願いします。
+
+また時間があれば試したいと思います．
+
+&gt; &gt;(2) register が「わるさ」をしていないでしょうか？
+&gt; &gt;
+&gt; &gt;# これは Solaris2.5.1 上の gcc-2.7.2.2 の問題かもしれません．もうちょっと
+&gt; &gt;# 調べて見ますが，一応 2.7.2.2 が最新のようではあります．
+&gt; &gt;
+&gt; &gt;上記のエラーを直しても，initdb が途中で core を吐いてしまうので，gdb で
+&gt; &gt;core を見たところ，register 変数がおかしくなっていました．
+&gt; &gt;
+&gt; &gt;とりあえず，以下の (i)，(ii)の手順で逃れています．
+&gt; &gt;
+&gt; &gt;    (i) postgres.h にマクロを追加
+&gt; &gt;
+&gt; &gt;#ifndef FLEX_SCANNER
+&gt; &gt;#  define register /**/
+&gt; &gt;#endif
+&gt; 
+&gt; この意味は、flex 以外(つまり lex)なら register 宣言を無効にすると言う
+&gt; ことでしょうか。ということは、lex が生成したコードを使用した時のみ 
+&gt; register 変数がおかしくなるのでしょうか？しかし、市川さんは jp patch 
+&gt; を適用されたと言うことですから、flex をお使いだと推測しますが...
+
+flex-2.5.4 を使っております．これはちょっと説明不足でした．すいません．
+問題は flex/lex ではないのです．
+
+最初に register 変数の値がおかしいことが分かったのは，heap access method です:
+
+	backend/access/heap/heapam.c
+
+このファイルの heap_getnext() の最初で，
+
+   register HeapScanDesc sdesc = scandesc;
+
+と使われているのですが，途中で sdesc =/= scandesc となっていました．
+（正確にいうと sdesc はゴミを指しているようでした．）
+
+この register だけを取り払えばいいのかもしれないのですが，別なところで同じ
+トラブルが発生しても手間がかかるだけですし，i386 ではどうせ register 変数
+にはそれほどの効果もないだろうと判断して，全部の register 指定を取っ払った
+のです．
+
+ただし，flex の出力した C プログラムだけはうまくコンパイルがうまくいかな
+かったので，そこだけを例外扱うするために ifndef FLEX_SCANNER を入れています．
+
+# どうも不思議ですね．
+
+&gt; 
+&gt; &gt;    (ii) いくつかのファイルに見られる，「register i;」 などを，すべて
+&gt; &gt;	「register int i;」 に変更
+
+&gt; これはコンパイラのワーニングを防ぐ意味ですよね？
+
+いえいえ．「register i;」 となっている時に register ≡ /**/ となっていると，
+単なる 「 i; 」になってしまって，それに続く変数宣言が全部エラーになって
+しまいますから，それを避けるためです．
+
+----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 1989] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00100" HREF="msg00100.html">[pgsql-jp 1978] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00103.html">[pgsql-jp 1981] Re: winsconsin benchmark</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00105.html">[pgsql-jp 1983] 初めまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 1978] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 1989] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00104"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00104"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

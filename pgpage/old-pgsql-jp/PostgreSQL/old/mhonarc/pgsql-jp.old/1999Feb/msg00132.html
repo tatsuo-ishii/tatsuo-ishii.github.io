@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7006] Q) palloc -->
+<!--X-From: Takeshi Yamada <ken@tydfam.machida.tokyo.jp> -->
+<!--X-Date: Mon, 08 Feb 1999 22:29:52 +0900 -->
+<!--X-Message-Id: 19990208222952D.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7006] Q) palloc </TITLE>
+<LINK REV="made" HREF="mailto:ken@tydfam.machida.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00131.html">Date Prev</A>][<A HREF="msg00133.html">Date Next</A>][<A HREF="msg00141.html">Thread Prev</A>][<A HREF="msg00133.html">Thread Next</A>][<A HREF="index.html#00132">Date Index</A>][<A HREF="threads.html#00132">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7006] Q) palloc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Yamada &lt;<A HREF="mailto:ken@tydfam.machida.tokyo.jp">ken@tydfam.machida.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 08 Feb 1999 22:29:52 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  山田＠町田市です。
+
+  配列に各県の数字をいれる方法で、６０００件程データを入れて、色々実験をしている
+のですが、(４７県＋その他)の４８県全てを足してやる function を作り実行すると
+
+pqReadData() -- backend closed the channel unexpectedly.
+        This probably means the backend terminated abnormally before or while processing the request.
+We have lost the connection to the backend, so further processing is impossible.  Terminating.
+
+  となって落ちてしまいます。また、その時 postgres は
+
+FATAL 1:  palloc failure: memory exhausted    
+
+  と言って来ています。ただ、top で見る限り 200MB 程メモリは空いているのですが、、。
+何がいけないのでしょうか？
+  尚、total 以外の tohoku, kanto 等の function では全く問題無く
+動作しています。
+
+
+プラットフォームは
+
+  FreeBSD-3.0.. (3.0-current aka Jan 16)
+  MEM.......... 256MB
+
+
+以下、使用した sql
+
+create sales (
+  id_prod     char(9) not null,
+  id_customer char(3) not null,
+  yyyymm      char(6) not null,
+  volume      float8[48],
+  primary key (id_prod, id_customer, yyyymm)
+);
+
+create function total(sales)
+returns float8 as '
+select 
+$1.volume[1] + tohoku($1) + kantokoshinetsu($1) +
+nagoya($1) + osaka($1) + kyushu($1) + $1.volume[48]'
+language 'sql'
+;
+--- 或は
+create function total(sales)
+returns float8 as '
+select 
+$1.volume[1] + $1.volume[2] + ..... + $1.volume[48]'
+language 'sql'
+;
+
+select a.id_prod, sum( total(a) ) as total
+from dist_sales a
+where
+yyyymm
+between
+'199801'
+and
+'199812'
+group by a.id_prod
+;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00133" HREF="msg00133.html">[pgsql-jp 7007] Re: Q) palloc</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Yamada &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00131.html">[pgsql-jp 7005] [Q]データ変更できず</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00133.html">[pgsql-jp 7007] Re: Q) palloc</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 7016] Re: Trouble on TurboLinux V3</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00133.html">[pgsql-jp 7007] Re: Q) palloc</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00132"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00132"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

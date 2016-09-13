@@ -1,0 +1,202 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17886] RE: 誤作成したVIEWの削除が出来ません -->
+<!--X-From: "Kenji Asakawa" <asakawa@fjct.ts.fujitsu.co.jp> -->
+<!--X-Date: Mon, 25 Sep 2000 15:52:28 +0900 -->
+<!--X-Message-Id: 02ae01c026bd$2bdf41e0$97c11f0a@asakawa.oy.fjct.ts.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17886] RE: 誤作成したVIEWの削除が出来ません </TITLE>
+<LINK REV="made" HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00553.html">Date Prev</A>][<A HREF="msg00555.html">Date Next</A>][<A HREF="msg00558.html">Thread Prev</A>][<A HREF="msg00560.html">Thread Next</A>][<A HREF="index.html#00554">Date Index</A>][<A HREF="threads.html#00554">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17886] RE: 誤作成したVIEWの削除が出来ません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kenji Asakawa" &lt;<A HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">asakawa@fjct.ts.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 25 Sep 2000 15:52:28 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+浅川@中央工業です。
+**環境
+PostgreSQL6.4.2
+Server   :Solaris2.5.1
+
+やまもと様フォローありがとうございます。
+
+&gt;　ちと後ろ向きの解決方法かもしれませんが、pg_dumpしてエディタなどで該
+&gt;当のviewを削除して書き戻すっていうのはどうでしょう。
+&gt;
+&gt;　思いつきなので外してたらごめんなさい
+
+
+該当データベースが稼動中の為、pg_dumpしたファイルから該当VIEWの記述を削除し
+別途作成したデータベースへリストアしてみました。
+リストア後のデータベースは正常に機能しているようですが、pg_dump時に
+次のメッセージが出力されたのが気になります。
+**出力メッセージ
+ebi% pg_dump test_iso &gt; test_iso.file
+dumpRules(): SELECT failed for table v_data
+ebi%
+
+また、更に気になったのがpg_dumpのファイルに記述されている該当VIEWのSQLが
+「CREATE TABLE」となっていた点です。
+**pg_dumpファイルの該当行
+     CREATE TABLE "v_data" (
+         "title" text,
+         "u" unknown,
+         "user_name" character varying(50));
+とりあえず、削除して再構築したので問題なかったのですが気になりました。
+もしかして、これは既知の問題なのでしょうか？
+既知の問題であればパッチなどはあるのでしょうか？
+#当分の間、今の環境で運用しなくてはならないので・・・
+#バージョンアップすれば問題無いと思うのですが。
+
+****************
+と、言う事で．．．
+試しに新しくVIEWを作成し、もう一度pg_dump-&gt;リストアをした結果、
+やはりVIEWであるはずのものがTABLEに置き代わっていました。
+#もしかしてpg_dump時の【dumpRules(): SELECT failed for table v_data】
+#が関係あったりして?
+
+
+**実行結果
+■pg_dump前---&gt;
+test_iso=&gt; create view v_data2 as
+test_iso-&gt; select j.title, u.user_name from trs_Jisseki j, mst_user u
+test_iso-&gt; where j.tanto_cd = u.user_cd;
+CREATE
+test_iso=&gt; \dt
+
+Database    = test_iso
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | asakawa          | mst_user                         | table    |
+ | asakawa          | trs_jisseki                      | table    |
+ | asakawa          | v_data                           | view?    |▲
+ | asakawa          | v_data2                          | view?    |▲
+ +------------------+----------------------------------+----------+
+test_iso=&gt; \d v_data2
+
+Table    = v_data2
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| title                            | text                             |   var |
+| user_name                        | varchar()                        |    50 |
++----------------------------------+----------------------------------+-------+
+test_iso=&gt;
+
+■リストア後---&gt;
+view_test=&gt; \dt
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | asakawa          | mst_user                         | table    |
+ | asakawa          | trs_jisseki                      | table    |
+ | asakawa          | v_data                           | table    |▲
+ | asakawa          | v_data2                          | table    |▲
+ +------------------+----------------------------------+----------+
+
+view_test=&gt; \d v_data
+
+Table    = v_data
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| title                            | text                             |   var |
+| user_name                        | varchar()                        |    50 |
++----------------------------------+----------------------------------+-------+
+view_test=&gt; \d v_data2
+
+Table    = v_data2
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| title                            | text                             |   var |
+| user_name                        | varchar()                        |    50 |
++----------------------------------+----------------------------------+-------+
+view_test=&gt; select * from v_data;
+title|user_name
+-----+---------
+(0 rows)
+
+view_test=&gt; select * from v_data2;
+title|user_name
+-----+---------
+(0 rows)
+
+view_test=&gt; drop  view v_data;
+ERROR:  RewriteGetRuleEventRel: rule "_RETv_data" not found
+view_test=&gt; drop  view v_data2;
+ERROR:  RewriteGetRuleEventRel: rule "_RETv_data2" not found
+view_test=&gt;
+view_test=&gt; drop table v_data;
+DROP
+view_test=&gt; drop table v_data2;
+DROP
+
+#やはりTABLEとしてリストアされていました。（う〜む...）
+
+以上
+
+__________________________________________________________Fin___
+From.
+Asakawa: asakawa@fjct.ts.fujitsu.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00560" HREF="msg00560.html">[pgsql-jp 17892] Re: 誤作成したVIEWの削除が出来ません</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroyuki Ohba" &lt;ohba@sun.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00553.html">[pgsql-jp 17884] Re: 宣伝^^;;(@IT 	postgres連載)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00555.html">[pgsql-jp 17887] Re: Pg.pm</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00558.html">[pgsql-jp 17890] Re: Re Pg.pm</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00560.html">[pgsql-jp 17892] Re: 誤作成したVIEWの削除が出来ません</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00554"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00554"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

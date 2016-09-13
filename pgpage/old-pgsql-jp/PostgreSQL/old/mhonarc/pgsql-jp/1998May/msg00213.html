@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4151] Re: [Q] 二重登録防止の手段について -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Thu, 21 May 1998 14:16:30 +0900 -->
+<!--X-Message-Id: 199805210516.OAA06945@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805210227.LAA09691@Qman.shikoku.nttcom.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4151] Re: [Q] 二重登録防止の手段について </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00212.html">Date Prev</A>][<A HREF="msg00214.html">Date Next</A>][<A HREF="msg00214.html">Thread Prev</A>][<A HREF="msg00216.html">Thread Next</A>][<A HREF="index.html#00213">Date Index</A>][<A HREF="threads.html#00213">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4151] Re: [Q] 二重登録防止の手段について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 21 May 1998 14:16:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00209.html">199805210227.LAA09691@Qman.shikoku.nttcom.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+&gt; 
+&gt; ■前提条件
+&gt;       一人目のトランザクション           
+&gt;       は(3)〜(4)の処理中とします。               
+&gt;  
+&gt; ■Ｌｏｃｋする場合 
+&gt;       一人目のトランザクション          二人目のトランザクション         
+&gt;  (1)	BEGIN                             BEGIN 
+&gt;  (2)	LOCK test_db                      LOCK test_db
+&gt;  (3)	select ........                   select ........
+&gt;  (4) 	INSERT or UPDATE                  INSERT or UPDATE
+&gt;  (5)	END                               END
+&gt; 
+&gt; Ｑ．上記の場合は、二人目は、(2)で待ちに入るのでしょうか？
+
+はい。
+1人目がすでに LOCK を呼び出していれば、
+2人目の LOCK の呼び出し時点で2人目は待ちに入ります。
+
+&gt; ■Ｌｏｃｋしない場合 
+&gt;       一人目のトランザクション          二人目のトランザクション         
+&gt;  (1)	BEGIN                             BEGIN 
+&gt;  (2)	LOCK test_db                      
+&gt;  (3)	select ........                   select ........
+&gt;  (4) 	INSERT or UPDATE                  INSERT or UPDATE
+&gt;  (5)	END                               END
+&gt; 
+( 2人目の LOCK 抜きました )
+&gt; Ｑ．上記の場合は、二人目は、(4)で順番待ちに入るのでしょうか？
+
+(3) の時点で待ちに入ります。
+1人目がトランザクションをコミットするまで、
+ロックした表にアクセスするすべての問い合わせが止まります。
+
+
+&gt; 私は、今まで、二人目のトランザクションは、ｌｏｃｋに関係なく(1)で
+&gt; 順番待ちに入ると思っていたのですが。。。
+
+1人がデータベースにアクセスしてトランザクションに入ると、
+他のユーザがトランザクションをスタートした時点で待ちに入る
+という意味でしたら違います。
+# そうしてしまうとあまりにパフォーマンスが悪すぎますよね :-)
+
+で、表へのアクセスをロックしたいときには、
+明示的に LOCK をかけなくてはいけません。
+# Postgres では、表まるまるしかロックできないので、
+# オラクルの行単位のロックがうらやましく思えます... :-)
+
+バックエンド側のトランザクションの処理は、
+「一連の問い合わせを一連にまとめて」処理することを保証するだけ
+だったと認識してます :-)
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00216" HREF="msg00216.html">[pgsql-jp 4154] Re: [Q]二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 4147] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> Kouji Shirakawa &lt;sira@Qman.shikoku.nttcom.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 4150] bigtext on postgresql-6.3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00214.html">[pgsql-jp 4152] Re: [Q]二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00214.html">[pgsql-jp 4152] Re: [Q]二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00216.html">[pgsql-jp 4154] Re: [Q]二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00213"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00213"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

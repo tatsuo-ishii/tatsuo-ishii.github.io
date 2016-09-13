@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6095] Re: グラフ構造は？ -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Wed, 9 Dec 1998 10:52:45 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.96LJ1.1b7.981209102218.10788C&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19981208170151X.ichikawa@is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6095] Re: グラフ構造は？ </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00119.html">Date Prev</A>][<A HREF="msg00121.html">Date Next</A>][<A HREF="msg00096.html">Thread Prev</A>][<A HREF="msg00121.html">Thread Next</A>][<A HREF="index.html#00120">Date Index</A>][<A HREF="threads.html#00120">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6095] Re: グラフ構造は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 9 Dec 1998 10:52:45 +0900 (JST)</LI>
+<LI><em>cc</em>: <A HREF="mailto:nozomi@biol.tsukuba.ac.jp">nozomi@biol.tsukuba.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  どうもありがとうございます。
+
+On Tue, 8 Dec 1998, Yoshihiko ICHIKAWA wrote:
+
+&gt; あまり詳しいことは読み取れないのですが外していたらすいません．
+
+  すみません、漠然とした書き方をして。
+
+&gt; On Tue, 8 Dec 1998 12:58:51 +0900 (JST), Jun Kuwamura &lt;juk@rccm.co.jp&gt; wrote:
+&gt; &gt;   PostgreSQLでグラフ構造を効率良く保存しておくことはできるのでしょうか？
+&gt; 
+&gt; ここで，どの程度の効率がのぞまれるかはわからないのですが，
+&gt; 単純に edge 表を使った表現ではだめなのでしょうか？
+&gt; 
+&gt; &gt;   ある物があって、名付け親はそれに名前を付けるのですが、その名前が変わる
+&gt; &gt; ことがあって、さらに、ある物の名前が別の名づけ親が別の物に付けた名前と同
+&gt; &gt; じになることもあるそうです。そのようして名前が名付け親が代わると供に遷移
+&gt; &gt; していくようなグラフ構造です。検索する時には現在の名前でも過去のどの名前
+&gt; &gt; でも検索でき、出力としては現在の名前と名付け親のほか、過去の名前と名付け
+&gt; &gt; 親も必要です。
+&gt; &gt; 
+&gt; &gt;   グラフについてはノード間の関係を表現するのにリソースの無駄を避けるため
+&gt; &gt; に一つのテーブルで表現できればよいのですがする事は難しいでしょうね。でき
+&gt; &gt; たとしても、検索にはグラフのテーブルを繰返し検索して履歴リストを作る必要
+&gt; &gt; があるのでしょうね。
+&gt; 
+&gt; つまり，(parent-id, edge-info, child-id) のパターンを使って
+&gt; 
+&gt; 	edge(pid, name, valid-from, valid-until, cid)
+&gt; 	node(node-name, ... etc ...)
+&gt; 
+&gt; としまして，SQL レベルでは
+&gt; 
+&gt;         create table edge (pid oid not null,
+&gt; 			   name text not null,
+&gt; 			   valid-from datetime not null,
+&gt; 			   valid-until datetime,
+&gt; 			   cid oid not null);
+&gt;         create table node (node-name text);
+&gt; 
+&gt; としてやります．「現在も有効」は仕方がないので，「valid-unti is null」
+&gt; で表してやれば，(pid, cid) の時間推移を記録することも可能ではないで
+&gt; しょうか？
+&gt; 
+&gt; 名前で引ければ良いのであれば，
+&gt; 
+&gt;         select * from edge where name = 'hogehoge'
+&gt; 
+&gt; と検索できますし，直接の親ならば同時に引けます．
+&gt; また，もしも特定の node 単位でソートしてということであれば，
+&gt; 
+&gt;         select * from edge where name = 'hogehoge'
+&gt;         order by cid, valid-from dec
+&gt; 
+&gt; とやれば，各子ノード毎に履歴が取れます．
+&gt; 
+&gt; 最新のものが必要ならば view を作っておくと:n
+&gt; 
+&gt;         create view current-edge as
+&gt;         select pid, name, cid from edge
+&gt; 	where valid-until is null;
+&gt; 
+&gt; integrity がちょっと面倒ですが，それほど更新が頻繁で無ければ
+&gt; これでも対応が可能なようなきまします．
+
+  そうすると、実際には名前が変わってゆくということなので、もう一つ
+名前の変わりにその物にIDをつけてその対応表を作っておけば良いのですね。
+
+	edge(pid, nid, valid-from, valid-until, cid)
+	node(node-name, name, nid)
+
+そうすると name から、id を絞り込み、各 id の name リストを人が見て
+目的の id を特定して、その id で edge を検索すると履歴が得られると
+いうわけですね。別名は特に定義しなくてもすみそうですね。
+
+--
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: juk@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00121" HREF="msg00121.html">[pgsql-jp 6096] Re: グラフ構造は？</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00096" HREF="msg00096.html">[pgsql-jp 6071] Re: グラフ構造は？</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00119.html">[pgsql-jp 6094] Re: text型の最大長は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 6096] Re: グラフ構造は？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00096.html">[pgsql-jp 6071] Re: グラフ構造は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 6096] Re: グラフ構造は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00120"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00120"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

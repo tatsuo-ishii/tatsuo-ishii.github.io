@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16193] backend が落ちる -->
+<!--X-From: Taro TOKUHIRO <tokuhiro@emi.yamaha.co.jp> -->
+<!--X-Date: Mon, 17 Jul 2000 21:00:34 +0900 -->
+<!--X-Message-Id: 4.2.0.58.J.20000717201538.02586940@smtp.emi.yamaha.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16193] backend が落ちる </TITLE>
+<LINK REV="made" HREF="mailto:tokuhiro@emi.yamaha.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00425.html">Date Prev</A>][<A HREF="msg00427.html">Date Next</A>][<A HREF="msg00431.html">Thread Prev</A>][<A HREF="msg00428.html">Thread Next</A>][<A HREF="index.html#00426">Date Index</A>][<A HREF="threads.html#00426">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16193] backend が落ちる</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Taro TOKUHIRO &lt;<A HREF="mailto:tokuhiro@emi.yamaha.co.jp">tokuhiro@emi.yamaha.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 17 Jul 2000 21:00:34 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳弘＠ヤマハです。
+
+「またか」という Subject かもしれませんが、過去ログを見ても見当が
+つきませんでした。お力をお貸しください。
+
+【環境】
+
+Software
+	PostgreSQL	PostgreSQL-6.5.3
+	Perl		jperl5.005_03-990822 EUC Version
+	DBI		DBI-1.08
+	DBD		DBD-Pg-0.92
+
+Platform A
+	Hardware	NEC PC-98NX VA40H (Note PC です)
+	CPU		Celeron 400MHz
+	RAM		64MB
+	DISK		IDE のはず
+	OS		Linux-2.2.13 (Slackware 7.0 base)
+
+Platform B
+	Hardware	Endeavor Pro-600L
+	CPU		Pentium III 733MHz
+	RAM		256MB
+	DISK		Adaptec 29160 + 18G Ultra160 SCSI HDD
+	OS		Linux-2.2.16 (Slackware 7.0 base)
+
+【対象となる作業】
+
+・httpd のログ解析
+・件数は、約 200 万件/day
+・Perl にて httpd の生データを整形し、copy コマンドにて PostgreSQL
+　に流し込み (phase1)
+・各 URL 毎に件数をカウント (phase2)
+・特定の拡張子別のカウント、ユニークな ipaddress 数のカウントなどの
+　処理(phase3)
+・解析完了後のデータを delete 後、vacuum
+・各処理は、Perl+DBD+DBI で実行
+
+【発生した問題】
+
+・Platform A では、上記作業に約２時間程度かかるものの、何らエラーを
+　発生させることなく終了する（ここ２ヶ月その状態で動作している）
+・Platform B では、各 phase 中の重い sql 実行時に backend が落ちる
+　（たとえば、以下のような sql。この結果は５万件程度になる）
+　　　→現在は、Platform B に関して、distinct() を使わないようにし
+　　　　たが、それでも backend が落ちる
+
+select distinct(ipaddress) from log_data
+	where time_stamp &gt;= '2000-07-10'
+	and time_stamp &lt; '2000-07-11'
+	and url like '/sample/dir%';
+
+log_data テーブルは 200 万レコードで、time_stamp は datetime 型 で
+す。index のたぐいは、特に使っていません。このデータ数で distinct()
+をかけるのは、場合によっては非常に大きな負荷をかけるのかも知れません
+が、Platform A は、特に文句も言わず、何とか処理しきってしまいます。
+
+time_stamp で条件をつけているのは、ログきり出しの関係上、翌日のデー
+タが若干入ってしまう (100 件程度) ためですので、log_data テーブルが
+やたらに大きい (1000 万件など）ということはありません。
+
+Platform B に関しては、かなりの確率で backend が落ちます。もちろん、
+backend が落ちたことを検出して、再度同じ処理をかければよいという考え
+もありますが、構成的により貧弱な Platform A で問題なく実行できる処理
+が、より豊富な資源をもつ Platform B で実行できないというのが納得でき
+ません。
+
+PostgreSQL-7.0.2 (+ jumbo patch) でも試してみました (Platform B)
+が backend が落ちることに関しては、ほとんど差がありませんでした。
+
+このような状態の場合、何を疑えば良いでしょうか？
+
+--
+Taro TOKUHIRO : tokuhiro@emi.yamaha.co.jp
+Yamaha corp.  :<A HREF="http://www.yamaha.co.jp/xg">http://www.yamaha.co.jp/xg</A>
+                053-460-2401(TEL) / 053-460-3209(FAX)
+PGP F.Print   : E914 61D7 46B5 24FF BCB9  9A74 B8F6 4005 2F2C 4A46
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00462" HREF="msg00462.html">[pgsql-jp 16229] Re: backend が落ちる</A></STRONG>
+<UL><LI><EM>From:</EM> Taro TOKUHIRO &lt;tokuhiro@emi.yamaha.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00429" HREF="msg00429.html">[pgsql-jp 16196] Re: backend が落ちる</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00428" HREF="msg00428.html">[pgsql-jp 16195] Re: backend が落ちる</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00425.html">[pgsql-jp 16192] [pgsql-jp 16159] Re:postgreSQL+ODBC+VBを電話回線でのインターネット経由接続</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00427.html">[pgsql-jp 16194] Re: PostgreSQL 6.5.3 on cygwinで日本語を扱いたい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 16198] Re: MLの退会或いは一時停止の方法は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00428.html">[pgsql-jp 16195] Re: backend が落ちる</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00426"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00426"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

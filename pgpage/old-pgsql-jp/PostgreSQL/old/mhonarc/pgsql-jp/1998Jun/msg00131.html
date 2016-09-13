@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4401] transaction throughput -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Wed, 10 Jun 1998 18:41:41 +0900 -->
+<!--X-Message-Id: 199806100941.SAA14604@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4401] transaction throughput </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00130.html">Date Prev</A>][<A HREF="msg00132.html">Date Next</A>][<A HREF="msg00139.html">Thread Prev</A>][<A HREF="msg00124.html">Thread Next</A>][<A HREF="index.html#00131">Date Index</A>][<A HREF="threads.html#00131">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4401] transaction throughput</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 10 Jun 1998 18:41:41 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。長いです。
+
+シングルユーザでの処理速度の測定は Wisconsin benchmark などでお馴染み
+ですが、PostgreSQL のマルチユーザ環境での性能を簡単に調べてみました。
+
+(あくまでこの測定条件での)結論からいうと、
+
+1. 最大スループットは 9 〜 29 トランザクション／秒で、条件によってかな
+   り値が違って来る。
+2. 同時ユーザ数 9 以上で暴走→必要資源の見積りが重要
+3. ユーザ数が増えると性能が下がる
+4. 毎回コネクションを張るのは負荷が高い
+5. サーバマシンとクライアントマシンを別にするのは非常に有効
+6. READ ONLY トランザクションの性能は改善の余地がある
+
+ということがわかりました。特に、4 と 5 から、PostgreSQL + PHP/FI でシ
+ステムを組む場合、web server のマシンと PostgreSQL サーバのマシンを
+別マシンにすると性能向上に有効であることが分かったのは収穫でした。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+---------------------------------------------------------------------
+概要:
+SELECT 文を100回発行するクライアントプロセスを同時に走らせ、それぞれの
+プロセスの実行に要した時間から、1秒あたり何個の SELECT 文を PostgreSQL 
+が処理したかを測定する。
+
+測定条件:
+PostgreSQL 6.3.2(EUC_JP)
+FreeBSD 2.2.1R
+CPU: PentiumPro 200MHz
+memory: 64MB
+disk: Fast/Narrow SCSI
+postmaster の起動条件: 特に option なし
+DB:
+	レコード数約40万。(word text,count int,fname text) のフィール
+	ドからなる。SELECT 対象は fname カラム、Btree index あり、検索
+	結果常に 1件。
+
+
+実験1:
+クライアントプログラム:
+	Tcl/Tk によるプログラム。概要は以下。毎回新たにコネクションを
+	張るので負荷が高い。
+	--------------------------------------
+	while (100回) {
+		pg_connect
+		pg_exec "select fname from words where
+		fname = 'pgsql-jp/[expr [clock clicks] % 4000]'"
+
+		(検索条件は疑似的な乱数を与え、毎回異るキーが使われるようにし
+		ている)
+		pg_disconnect
+	}
+	--------------------------------------
+
+測定結果1:
+プロセス数	トランザクション数/秒
+=======================================
+	1		4.957858
+	2		8.976661
+	3		8.617388
+	4		8.534244
+	5		6.846314
+	6		5.421442
+	7		4.385965
+	8		4.780472
+
+(プロセス数 9 では file table full により暴走状態突入)
+
+評価1:
+o この実験は、毎回コネクションを張る点が PHP/FI をクライアントに用いる
+  ケースに類似している。
+o プロセス数 2 で最大のスループットが得られるが、以後プロセスが増える
+  にしたがってスループットが低下する。
+o プロセス数 9 では暴走状態になり、極めて危険。
+
+実験2:
+クライアントプログラム:
+	実験1 と同様だが、コネクションはループの外側で 1回のみ張る。
+
+測定結果2:
+プロセス数	トランザクション数/秒
+=======================================
+	1		11.737089
+	2		13.324450
+	3		12.354152
+	4		10.983730
+	5		10.763336
+	6		10.266940
+	7		9.318247
+	8		9.120187
+(プロセス数 9 は試していない)
+
+評価2:
+o 実験1と比べ、50%ほど良好な結果である。このことは、プロセスの起動、あ
+  るいは postgres へのコネクションのオーバーヘッドが非常に高いことを示
+  している。
+o プロセス数2で最大のスループットが得られるのは実験１と変わらない。
+
+参考：
+クライアントを別ホストにし、実験2 と同じプログラムを使用する。なお、ク
+ライアントは
+
+Solaris 2.6
+Ultra Sparc 248MHz
+memory 128MB
+
+である。プロセス数 8 の時に 13.761468 トランザクション数/秒 の性能が出
+た。これは、サーバマシンにおけるコンテキストスイッチが減ったための性能
+向上であると考えられる。
+
+次に、クライアントプログラムを変更し、ループの外側で begin; end; を行
+なうようにした。
+
+プロセス数	トランザクション数/秒
+=======================================
+	8		29.011786
+	16		26.090501
+
+このように、極めて良好なスループットを示すとともに、プロセス数16でも安
+定して走行することに注目したい。PostgreSQL の実装では、READ ONLY のト
+ランザクションでもあっても必ず fsync(2)を行なう。このオーバーヘッドが
+なくなるためであると考えられる。
+
+以上。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 4400] Re: Setup Error with PostODBC 5/25 &amp; PostgreSQL ODBC 6/4</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 4402] Re: MS-Access + PostODBC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00139.html">[pgsql-jp 4409] Re: Installについて。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 4394] RPMのアップグレードについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00131"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00131"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

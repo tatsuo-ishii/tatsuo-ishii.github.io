@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23649] Re: rserv & replication -->
+<!--X-From: Satoshi Nagayasu <snaga@oak.forus.or.jp> -->
+<!--X-Date: 9 Nov 2001 03:33:22 GMT -->
+<!--X-Message-Id: 9sfiq2$4h5$1@guam.bioinfo.sfc.keio.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 4.3.2&#45;J.20011108220016.02f020f8@ns1.oak.forus.or.jp -->
+<!--X-Reference-Id: 20011109100246A.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23649] Re: rserv &amp; replication </TITLE>
+<LINK REV="made" HREF="mailto:snaga@oak.forus.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00065.html">Date Prev</A>][<A HREF="msg00067.html">Date Next</A>][<A HREF="msg00065.html">Thread Prev</A>][<A HREF="msg00067.html">Thread Next</A>][<A HREF="index.html#00066">Date Index</A>][<A HREF="threads.html#00066">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23649] Re: rserv &amp; replication</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Nagayasu &lt;<A HREF="mailto:snaga@oak.forus.or.jp">snaga@oak.forus.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: 9 Nov 2001 03:33:22 GMT</LI>
+<LI><em>Newsgroups</em>: <A HREF="news:local.postgres.pgsql-jp">local.postgres.pgsql-jp</A></LI>
+<LI><em>Organization</em>: Oak, ForUs, Japan</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00059.html">4.3.2-J.20011108220016.02f020f8@ns1.oak.forus.or.jp</A>&gt;&lt;<A HREF="msg00064.html">20011109100246A.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+永安です。
+
+Tatsuo Ishii wrote:
+&gt; 石井です．
+
+&gt; そうですか? 非同期方式のレプリケーション(2 phase commitを使用しないレ
+&gt; プリケーションのことを勝手にこう呼ばせて頂きます)で得られる対障害性は，
+&gt; この程度のものだと思いますが．つまり，そのDBシステムが保証する信頼性以
+&gt; 上のものは得られないということです．
+
+うむむ、なるほど。
+
+&gt; ・スレーブの完了を待っていると遅くなる
+&gt; ・スレーブの完了を待たないとすると，2 phase commitができず，結局非同期
+&gt;   方式のレプリケーションと同じになる
+&gt; 
+&gt; ということではないでしょうか．
+
+なぜ、マスター側がスレーブ側に送る(pushする)ことを考えたかというと、
+rserv の実装では、スレーブ側でレプリケーションを実行するためのツール
+(今は contrib/rserv/Replication という Perl スクリプト)を実行せざるを
+得ないわけですが、この方法(スレーブからのpull)だと、マスターのDBが更新
+されてから、それをスレーブに反映させるまでにそれなりの時間がかかってし
+まいます。
+
+実際にはまだ試していないので分かりませんが、例えば5秒毎に Replication 
+を実行する、といったことはあまり現実的でないと感じています。
+
+なので、2 phase commit でなくとも構わないので、マスターからスレーブに
+反映させる時間を極力短かくしたい、と考えています。そうすることによって、
+例えばマスターがコケてスレーブに failover する場合でも、スレーブの状態
+を最新のマスターに近い状態に保つことができると思ったからです。
+
+// しかし、2 phase commit でないレプリケーションにおける failover って
+// それでいいのだろうか、という気がしないでもないような…。
+// 自分で書いてて、ウウムという感じですが。X-(
+
+&gt; その文章は私は記憶にありませんが，他の実装というと，
+&gt; <A HREF="http://gborg.postgresql.org/project/pgreplication/projdisplay.php">http://gborg.postgresql.org/project/pgreplication/projdisplay.php</A>
+&gt; によれば，7個ほどあります(その中にはUsogresも含まれています)．
+
+Usogres は、まだソースを手に入れたばかりなので、あとで試してみます。
+
+ところで、2 phase commit を PostgreSQL に実装しようとすると、どのよう
+な方法が考えられるのでしょうか?
+
+rserv と同じような、トリガとログを用いる方法でもできそうな気もしますし、
+できなさそうな気もするのですが、少なくとも postmaster あたりが 2 phase
+commit の session を理解できないとダメな気がしなくもないです…。
+
+&gt; &gt; なにぶん素人ですので、まだまだレプリケーションに対する疑問は尽きないの
+&gt; &gt; ですが、何らかの suggestion を頂けると幸いです
+&gt; 
+&gt; 同じく素人ですので，このあたり，某PostgreSQL用商用レプリケーションツー
+&gt; ル方面の方からフォローがないかなと密かに期待しているのですが:-)
+
+一人で考えてても、何をどうすりゃいいのか全然分からづ…。;_;
+
+&gt; &gt; // <A HREF="http://snaga.org/cgi-bin/pgsql-jp/namazu.cgi">http://snaga.org/cgi-bin/pgsql-jp/namazu.cgi</A>
+&gt; 
+&gt; ありがとうございます．よろしければ，pgsql-jpのページからリンクさせて下
+&gt; さい．
+
+はい。よろしくお願いいたします。
+
+-- 
+NAGAYASU Satoshi &lt;snaga@oak.forus.or.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00067" HREF="msg00067.html">[pgsql-jp 23650] Re: rserv &amp; replication</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 23642] rserv &amp; replication</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[pgsql-jp 23647] Re: rserv &amp; replication</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 23648] Re: rserv &amp; replication</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00067.html">[pgsql-jp 23650] Re: rserv &amp; replication</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 23648] Re: rserv &amp; replication</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00067.html">[pgsql-jp 23650] Re: rserv &amp; replication</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00066"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00066"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9539] Re: "postgres is dead" の問題 について -->
+<!--X-From: Tomoko Yoshida <toko@da.airnet.ne.jp> -->
+<!--X-Date: Tue, 20 Jul 1999 03:26:30 +0900 -->
+<!--X-Message-Id: 37936DD6126.0580TOKO@mail.da.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3792969D78.A4F4TOKO@mail.da.airnet.ne.jp -->
+<!--X-Reference-Id: 199907190323.MAA26509@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9539] Re: "postgres is dead" の問題 について </TITLE>
+<LINK REV="made" HREF="mailto:toko@da.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00341.html">Date Prev</A>][<A HREF="msg00343.html">Date Next</A>][<A HREF="msg00332.html">Thread Prev</A>][<A HREF="msg00344.html">Thread Next</A>][<A HREF="index.html#00342">Date Index</A>][<A HREF="threads.html#00342">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9539] Re: "postgres is dead" の問題 について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tomoko Yoshida &lt;<A HREF="mailto:toko@da.airnet.ne.jp">toko@da.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 20 Jul 1999 03:26:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00331.html">3792969D78.A4F4TOKO@mail.da.airnet.ne.jp</A>&gt; &lt;<A HREF="msg00332.html">199907190323.MAA26509@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+吉田です。
+石井さん、ありがとうございます。
+
+t-ishii&gt; まずはPostgreSQLを起動する前に pstat でfile tableの残量を調べます。
+t-ishii&gt; PostgreSQLは少なくとも1ユーザあたり20個はfile descriptorを使い、後はテー
+t-ishii&gt; ブルを使えば使う程さらにfile descriptorを消費します。余裕を見て
+t-ishii&gt; 
+t-ishii&gt; 40 * 想定する同時ユーザ数
+t-ishii&gt; 
+t-ishii&gt; 以上file table の残量に余裕があればOKということになりますね。
+想定する同時ユーザ数を可能性として150と考えて、
+40*150 = 6000
+PostgreSQLを起動前のfile tableは、81/8232 が使用中でしたので、
+これは余裕ということですね。
+
+
+t-ishii&gt; それとセマフォはどの位ありますか？これも同時接続ユーザ数分必要です。
+        semmap:     30  (# of entries in semaphore map)
+        semmni:     10  (# of semaphore identifiers)
+        semmns:     60  (# of semaphores in system)
+        semmnu:     30  (# of undo structures in system)
+        semmsl:     60  (max # of semaphores per id)
+        semopm:    100  (max # of operations per semop call)
+        semume:     10  (max # of undo entries per process)
+        semusz:    100  (size in bytes of undo structure)
+        semvmx:  32767  (semaphore maximum value)
+        semaem:  16384  (adjust on exit max value)
+のようになっていますが、このどの値で評価すれば良いのか、良くわかりません。
+semvmxでは充分な数値と思われますが、いいんでしょうか。
+
+
+t-ishii&gt; &gt;&gt; WWWでの大量アクセスをチェックする前に、PostgreSQL自体が大量アクセスを
+t-ishii&gt; &gt;&gt; 受け付けられるかチェックしましょう。26ユーザまでテストしたとありますが、
+t-ishii&gt; &gt;&gt; これではテストが甘いと思います。私なら128ユーザくらいまではテストした
+t-ishii&gt; &gt;&gt; いところです。私が良くテストに使っているのはJDBCBenchです。これは簡単
+t-ishii&gt; &gt;&gt; に同時接続ユーザを大量発生することができます。
+t-ishii&gt; &gt;ぜひこのテストを試したいのですが、方法がわかりません。
+t-ishii&gt; &gt;pgsql/man 以下にもこの項目はないようなのですが、
+t-ishii&gt; &gt;どのように行うものなのか、教えていただけないでしょうか。
+t-ishii&gt; 
+t-ishii&gt; JDBCBenchは
+t-ishii&gt; 
+t-ishii&gt; <A HREF="http://www.worldserver.com/mm.mysql/performance/">http://www.worldserver.com/mm.mysql/performance/</A>
+t-ishii&gt; 
+t-ishii&gt; から入手できます。実行にはJava環境が必要です。
+JDBCBench.javaというファイルを取得しましたが、
+Java環境を作成するのに、時間がかかりそうなので、
+これは時間ができてからということにしました。
+
+
+t-ishii&gt; それと、大事なこと忘れてました。素の6.4.2では最大ユーザ数は64です。そ
+t-ishii&gt; れ以上必要な場合は(どこか忘れましたが)header fileを修正してrecompileが
+t-ishii&gt; 必要です。6.5では postmaster の引数で 1024 までいけます。
+150にしてrecompileしました。
+
+これで上手くいくかどうかテストしてみようと思います。
+
+----------------------------
+Tomoko Yoshida
+Email:   toko@da.airnet.ne.jp
+Tel&amp;Fax: 03-5313-5172
+Mobile:  090-1659-3429
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00344" HREF="msg00344.html">[pgsql-jp 9541] Re: "postgres is dead" の問題 について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 9528] Re: "postgres is dead" の問題 について</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoko Yoshida &lt;toko@da.airnet.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00332" HREF="msg00332.html">[pgsql-jp 9529] Re: "postgres is dead" の問題 について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00341.html">[pgsql-jp 9538] Re: SQL-HTML の連係</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00343.html">[pgsql-jp 9540] 多次元幾何オブジェクト</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00332.html">[pgsql-jp 9529] Re: "postgres is dead" の問題 について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00344.html">[pgsql-jp 9541] Re: "postgres is dead" の問題 について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00342"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00342"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

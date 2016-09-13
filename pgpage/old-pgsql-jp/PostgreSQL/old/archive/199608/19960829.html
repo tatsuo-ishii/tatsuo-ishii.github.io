@@ -1,0 +1,130 @@
+<A NAME="2">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 29 Aug 1996 19:59:55 +0900
+Subject: [postgres95 619] Re: mirror of postgres95.vnet.net 
+Message-Id: &lt;199608291059.TAA08434@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠SRAです。
+
+&gt;藤枝＠ＪＡＩＳＴです。
+&gt;
+&gt;たいへん対応が遅くなりまして申し訳ありません。
+
+いえ、とんでもありません。
+&gt;
+&gt;ftp://ftp.jaist.ac.jp/pub/dbms/postgres95 において、
+&gt;postgres95のlatest releaseのアメリカのミラーサイト
+&gt;ftp://postgres95.vnet.net/pub/postgres95
+&gt;のミラーを開始しました。
+&gt;日本時間の午後1時に毎日ミラーします。
+
+どうもありがとうございます。早速この情報は postgres95 ML(J)のホームペー
+ジに反映させて頂きます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Thu, 29 Aug 96 19:38:53 JST
+Subject: [postgres95 618] Re: FreeBSD2.2+pg95-1.01 fails in createuser
+Message-Id: &lt;9608291038.AA12431@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは、坂本＠中央電子です。
+
+&lt;199608280604.PAA21199@srashc.sra.co.jp&gt;の記事にて
+1996年08月28日(水)、t-ishii@sra.co.jpさんの記述は:
+ &gt; % createuser myname
+ &gt; とやると
+ &gt; monitor: could not find a valid user name
+ &gt; createuser: database access faild.
+ &gt; となってユーザが作れません。もちろん createdb もだめです。
+
+私の所ではSunOS4.1.3とIRIX5.3でpostgres95を動かしていて、
+FreeBSD上では動かしていないのですが(FreeBSD自体はある)、
+大雑把にソースを調べてみました。
+
+&gt; monitor: could not find a valid user name
+といわれる理由は、libpqのfe_getauthnameで得られるはずの、
+データベースを触ろうとしているユーザー名が「存在しない」ときに起こります。
+つまりfe_getauthnameからNULLポインタが返ってくるわけです。
+
+fe_getauthnameがどうやってユーザー名を返してくるかというと、
+# Kerberosを使っていないのであれば
+&gt; *pw = getpwuid(getuid());
+で、monitorを実行したユーザー名を得ます。
+
+ということでFreeBSD 2.2-9608-SNAPでは、ここの所で失敗すると
+いう予想をたてることができます。
+
+# 残念ながら、手元にはFreeBSD 2.2-960612-SNAPしかないし、
+# postgres95をインストールできる程の容量がディスクに残っていません。
+
+というわけで、以下の変更を加えた上で再コンパイル、実行してみると
+何かわかるかもしれません。
+
+$(POSTGRES)/src/libpq/fe-auth.cの525行〜534行を
+=====================================================================
+case STARTUP_MSG:
+	{
+	    struct passwd *pw = getpwuid(getuid());
+	    if (pw &amp;&amp;
+		pw-&gt;pw_name &amp;&amp;
+		(name = (char *) malloc(strlen(pw-&gt;pw_name) + 1))) {
+		(void) strcpy(name, pw-&gt;pw_name);
+	    } else {
+		printf(&quot;pw = 0x%x\n&quot;, (int)pw);
+		printf(&quot;pw-&gt;pw_name = %s\n&quot;, pw-&gt;pw_name);
+		printf(&quot;name = 0x%x\n&quot;, (int)name);
+	    }
+	}
+	break;
+=====================================================================
+という様に変更して、monitorを再コンパイルする。
+
+# 追加したぶんのメッセージが出てこなければ、私の予想違いですので(^^;)
+# 笑って見逃して下せい。
+
+調べてみてください。
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: 藤枝 和宏 (FUJIEDA Kazuhiro) &lt;fujieda@jaist.ac.jp&gt;
+Date: Thu, 29 Aug 1996 15:57:20 JST
+Subject: [postgres95 617] mirror of postgres95.vnet.net
+Message-Id: &lt;199608290657.PAA10871@mikan.jaist.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+藤枝＠ＪＡＩＳＴです。
+
+たいへん対応が遅くなりまして申し訳ありません。
+
+ftp://ftp.jaist.ac.jp/pub/dbms/postgres95 において、
+postgres95のlatest releaseのアメリカのミラーサイト
+ftp://postgres95.vnet.net/pub/postgres95
+のミラーを開始しました。
+日本時間の午後1時に毎日ミラーします。
+
+旧postgres95のミラー
+ftp://ftp.jaist.ac.jp/pub/dbms/postgres95/index.html
+はなくなりましたので、ご注意ください。
+____
+  | ＡＩＳＴ  北陸先端科学技術大学院大学
+  | HOKURIKU  情報科学研究科 落水研究室
+o_/ 1990      藤枝 和宏 fujieda@jaist.ac.jp
+<HR>
+</PRE>

@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16139] Re: OIDの範囲について -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Fri, 14 Jul 2000 23:44:00 +0900 -->
+<!--X-Message-Id: v04220502b594c90ac1b3@[158.214.136.220] -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NEBBIPCKALJLIGIDGKNDEECDCCAA.e&#45;tokuya@mail.sankyo&#45;unyu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16139] Re: OIDの範囲について </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00371.html">Date Prev</A>][<A HREF="msg00373.html">Date Next</A>][<A HREF="msg00366.html">Thread Prev</A>][<A HREF="msg00386.html">Thread Next</A>][<A HREF="index.html#00372">Date Index</A>][<A HREF="threads.html#00372">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16139] Re: OIDの範囲について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 14 Jul 2000 23:44:00 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00366.html">NEBBIPCKALJLIGIDGKNDEECDCCAA.e-tokuya@mail.sankyo-unyu.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。
+
+At 19:48 +0900 2000.07.14, Eiji Tokuya wrote:
+&gt;こんばんわ、徳家です。
+&gt;質問ではないのですが、OIDで気が付いたことです。
+&gt;以前OIDの範囲について-2147483647〜2147483647と、どこかで見た気がしますが、
+
+たぶん、私です。記事は
+「[pgsql-jp 15816] Re: PostgreSQLの最大容量」です。
+内容は、ソースコードで用いられているOid はunsigned int 型、
+SQL で作成可能なoid 型の列は-2147483647〜2147483647 の範囲
+のようだ、という話でした。「oid 型の列」は、システムで振って
+いるOID そのものではなく、例えばcreate table tmp05 ( a oid );
+のような、a という名前のoid 型の列です。
+
+いちおうぼやかしているのは、「unsigned int 型」とは言っても
+「符号なし32ビット」とは言っていない点です、、、が、
+backend/access/transam/varsup.c の中の
+
+#define VAR_OID_PREFETCH                32
+
+という行がとても気になります。これでアーキテクチャごとに
+異なると思われるint 型の32ビットだけ使うようにしているのかな。
+ちょっとこれ以上深くは調べていられないです。
+
+ついでに事故フォロー(わざと誤字)。
+
+At 22:21 +0900 2000.07.04, Shoichi Kosuge wrote:
+&gt;また、SQL 文でoid 型の行を作ることができるのですが、こちらはこんな
+&gt;動作になります(Solaris7 + PostgreSQL 6.5.1)。
+
+「行」は、「列」の間違いです(^_^::
+
+&gt;ちょっと違っていましたので報告します。
+&gt;
+&gt;とりあえず「2147483647の次に何がくるかな？」と思ってINSERTでチェックしてみた
+&gt;ところ
+&gt;
+&gt;2147483648   1
+&gt;2147483649   1
+&gt;      :
+&gt;      :
+&gt;
+&gt;・・・・とそのままカウントを続けていきました。(^^;)
+&gt;しかし
+&gt;SELECT OID FROM テーブル;
+&gt;で見ると、-2147483648と言う数字もありました。
+&gt;という事で、内部的にはソースで書かれている通りに、unsignedで扱い動作していま
+&gt;した。
+&gt;2147483647で止まるリミッタなどは無いようですね。
+&gt;テーブルとして表示させると2147483647を越えると、負の数になり-2147483648か
+&gt;ら-1にむけインクリメントされて行き、「符号付32ビット」で表示されるという事も
+&gt;判明しました。
+
+SQL ではsigned int にキャストしている、、、というところでしょうか。
+
+&gt;ということはOIDのカウント範囲は1〜4294967295まではカウントしてくれそうです。
+
+「システムで振っているOID 」は、どうもそのようですね。
+たぶん、backend/access/transam/varsup.c の中のGetNewObjectId() と
+いう関数でやっていると思うのですが、主要な動作は
+関数で渡されたアドレスにnext_prefetched_oid を設定してあげて、
+next_prefetched_oid をインクリメントしているだけで、特に何も
+判定していないです。
+で、SQL のoid 型のほうは、-2147483647〜2147483647 の範囲で、
+0 を入れられるけど、2147483648, -2147483648 は入れられない、という
+動作をするのがなんでだろう、という話を[pgsql-jp 15816]　でしてたの
+でした。「なんでだろう」というのはなぜSQL のoid 型をソースのOid
+の型と異なる「符号付き」という仕様にしたのだろう? ということです。
+(しかも-2147483648 を扱えない。)
+
+tmp=&gt; insert into tmp05 values (2147483648);
+ERROR:  pg_atoi: error reading "2147483648": Result too large
+tmp=&gt; insert into tmp05 values (-2147483648);
+ERROR:  Unable to convert left operator '-' from type 'unknown'
+
+oid が-2147483648 の行だけ、
+delete from tmp05 where oid = -2147483648;
+のような、oid を指定した操作ができない、ということになります。他の
+値でしたら、次のように、oid を指定した操作ができます。
+
+tmp=&gt; select oid, * from tmp05;
+    oid|          a
+-------+-----------
+1417641|          0
+1417642|          1
+1417643|         -1
+1417644| 2147483647
+1417645|-2147483647
+(5 rows)
+
+tmp=&gt; delete from tmp05 where oid = 1417642;
+DELETE 1
+
+しかし、これ以上深く掘り下げる時間があったら他のことをやってた
+ほうがいいので、私はこのへんで打止めです。(興味が出次第、続行、
+というとこでしょうか。)
+
+--
+
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内5217)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00386" HREF="msg00386.html">[pgsql-jp 16153] Re: OIDの範囲について</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;tokuya@Mail.Sankyo-Unyu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00366" HREF="msg00366.html">[pgsql-jp 16133] OIDの範囲について</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;e-tokuya@Mail.Sankyo-Unyu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00371.html">[pgsql-jp 16138] Re: Re: カラムの削除について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00373.html">[pgsql-jp 16140] Re: web サーバとデータベースサーバとの通信</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00366.html">[pgsql-jp 16133] OIDの範囲について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 16153] Re: OIDの範囲について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00372"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00372"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

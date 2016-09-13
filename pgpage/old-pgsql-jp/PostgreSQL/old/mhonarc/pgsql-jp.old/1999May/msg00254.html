@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8527] joinの際pgReadDataでError -->
+<!--X-From: 松嶋 祥文<mats@osk.toppan.co.jp> -->
+<!--X-Date: Fri, 28 May 1999 11:53:16 +0900 -->
+<!--X-Message-Id: 199905280253.LAA23069@joker.osk.toppan.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8527] joinの際pgReadDataでError </TITLE>
+<LINK REV="made" HREF="mailto:mats@osk.toppan.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00253.html">Date Prev</A>][<A HREF="msg00255.html">Date Next</A>][<A HREF="msg00262.html">Thread Prev</A>][<A HREF="msg00256.html">Thread Next</A>][<A HREF="index.html#00254">Date Index</A>][<A HREF="threads.html#00254">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8527] joinの際pgReadDataでError</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 松嶋 祥文&lt;<A HREF="mailto:mats@osk.toppan.co.jp">mats@osk.toppan.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 May 1999 11:53:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして、松嶋と申します。
+
+psqlでテーブルのジョインをしようとすると、
+
+pqReadData() -- backend closed the channel unexpectedly.
+        This probably means the backend terminated abnormally before or while pr
+ocessing the request.
+We have lost the connection to the backend, so further processing is impossible.
+  Terminating.
+
+というError Messageが出てpsqlが終了してしまいます。
+いろいろ調べたのですが、なにが問題かわからなかったので、
+ヒントだけでも頂けませんでしょうか？
+MLのログは一応調べてみましたが、見つかりませんでした。
+＃ちなみに、「シーラカンス本」は持ってません。^^;
+
+
+テーブルの項目（の一部）は、（カッコ内は型です）
+
+table_a
+ id(serial) | a_name(varchar(255))
+ -----------+---------------------
+
+table_b
+ id(int8)   | b_name(varchar(255))
+ -----------+---------------------
+
+で、varcharの部分には2byte文字がはいっています。
+データはまだあまり入っていません（それぞれ5行くらい）。
+
+ちなみに、table_aのidに入っている値は、
+table_bのidとの参照として使おうと思っています。
+こういうのって、普通、こうするもんなんでしょうか？
+
+上記テーブルに対して発行したSQLは
+
+○ select * from table_a;
+○ select * from table_b;
+○ select a_name from table_a a where a.name='hoge';
+○ select a_name from table_a a, table_b b where a.a_name='hoge';
+○ select * from table_a a, table_b b where a.a_name='hoge';
+× select a_name, b_name from table_a a, table_b b where a.id=b.id;
+× select a_name from table_a a where a.id=table_b.id;
+× select * from table_a a, table_b b where a.id=b.id;
+
+などです。行頭の○は、なんらかの結果が出力されたもの、
+×は、pgReadDataのエラーで落ちたものです。
+
+環境は、
+
+PentiumII-450 128MB memory
+Plamo Linux(kernel:2.0.35)
+postgres-6.4.2-patched-990414.tar.gz
+(石井様のホームページ
+<A HREF="http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/install-basic.html">http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/install-basic.html</A>
+を参考にインストールしました。）
+gcc-2.7.2.3（PGをインストールした頃は2.7.2.2かも）
+gmake-3.76.1
+readline-4.0
+
+%ldd `which psql`
+        libdl.so.1 =&gt; /lib/libdl.so.1 (0x4000b000)
+        libm.so.5 =&gt; /lib/libm.so.5 (0x4000e000)
+        libreadline.so =&gt; /usr/lib/libreadline.so (0x40017000)
+        libtermcap.so.2 =&gt; /lib/libtermcap.so.2 (0x4003a000)
+        libncurses.so.3.0 =&gt; /lib/libncurses.so.3.0 (0x4003d000)
+        libc.so.5 =&gt; /lib/libc.so.5 (0x40078000)
+
+postmasterの起動にはJun Kawamura様の作られた、
+pgsqld(98/03/04版)というスクリプトを使用し、
+PGOPT="-i -B 256"になっています。
+
+といったところです。
+
+
+DBMSに触れるのは初めてで、何か基本的なミスをしているのかも
+しれませんが、ご指導よろしくおねがいします。
+
+-- 
+mats
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00256" HREF="msg00256.html">[pgsql-jp 8529] Re: joinの際pgReadDataでError</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00253.html">[pgsql-jp 8526] Re: Internel compiler error program cc1 get fatal signal 6</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00255.html">[pgsql-jp 8528] Re: Internel compiler error program cc1 get fatal signal 6</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 8535] benchmark</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00256.html">[pgsql-jp 8529] Re: joinの際pgReadDataでError</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00254"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00254"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

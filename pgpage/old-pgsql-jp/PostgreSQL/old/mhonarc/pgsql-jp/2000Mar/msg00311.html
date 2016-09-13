@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13617] Re: JDBC ドライバでの DATE型の扱い -->
+<!--X-From: Takashi SHIODA <tsio@orangesoft.co.jp> -->
+<!--X-Date: Wed, 22 Mar 2000 18:57:01 +0900 -->
+<!--X-Message-Id: 200003221857.IJE37511.JPTU@orangesoft.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000322142310R.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Reference-Id: 38D8604D33B.440DYUTAKA@s34gway.s34.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13617] Re: JDBC ドライバでの DATE型の扱い </TITLE>
+<LINK REV="made" HREF="mailto:tsio@orangesoft.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00310.html">Date Prev</A>][<A HREF="msg00312.html">Date Next</A>][<A HREF="msg00299.html">Thread Prev</A>][<A HREF="msg00312.html">Thread Next</A>][<A HREF="index.html#00311">Date Index</A>][<A HREF="threads.html#00311">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13617] Re: JDBC ドライバでの DATE型の扱い</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takashi SHIODA &lt;<A HREF="mailto:tsio@orangesoft.co.jp">tsio@orangesoft.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 22 Mar 2000 18:57:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00295.html">20000322142310R.kgotoh@cic-kk.co.jp</A>&gt;&lt;<A HREF="msg00298.html">38D8604D33B.440DYUTAKA@s34gway.s34.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+オレンジソフト塩田です。
+いつもお世話になっております。
+
+&lt;<A HREF="msg00298.html">38D8604D33B.440DYUTAKA@s34gway.s34.co.jp</A>&gt; の、
+   "[pgsql-jp 13604] Re: JDBC ドライバでの DATE型の扱い" において、
+   "yutaka tanida &lt;yutaka@marin.or.jp&gt;"さんは書きました：
+
+
+&gt;　えっと・・・postgresql.jdbc1.ResultSet#getDateを直接除くと以下のように
+&gt;なってます。
+&gt;
+&gt;  public java.sql.Date getDate(int columnIndex) throws SQLException
+&gt;  {
+&gt;    String s = getString(columnIndex);
+&gt;    if(s==null)
+&gt;      return null;
+&gt;    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+&gt;    try {
+&gt;      return new java.sql.Date(df.parse(s).getTime());
+&gt;    } catch (ParseException e) {
+&gt;      throw new PSQLException("postgresql.res.baddate",new Integer(e.getErrorOffset()),s);
+&gt;    }
+&gt;  }
+&gt;
+&gt;　これでは単に日付情報しか取ってないように見えます。java.sql.Dateには時間
+&gt;情報の属性もあるので、明らかに jdbc側の問題ですね。
+
+気になったので実験してみました。
+
+まずは、Set DateStyle = 'default'の場合の実験結果
++-------------------------+----------+---------+------------+
+|                         | date型   | time型  | datetime型 |
++-------------------------+----------+---------+------------+
+|ResultSet#getDate()      |    o     |   x     |    x       |
++-------------------------+----------+---------+------------+
+|ResultSet#getTime()      |    x     |   o     |    x       |
++-------------------------+----------+---------+------------+
+|ResultSet#getTimestamp() |    x     |   x     |    x       |
++-------------------------+----------+---------+------------+
+この状態（Set datestyle = 'default'）では datetimeのカラムは
+'Fri Feb 02 00:11:22 2001 JST' のような形式で返されるので
+getTimestamp()は失敗する。
+
+そこで、Set datestyle = 'SQL' にすると 日付が 'mm/dd/yyyy' 形式で
+返されるようになるので getDate()は失敗する。 
+
+さらに、Set datestyle = 'ISO' にすると 日付が 'yyyy-mm-dd' 形式で
+返されるようになるので getDate()は不正な値を返す。 
+（getDate() は default形式の 'mm-dd-yyyy' 形式を期待しているものと思われる） 
+getTimestamp()に関しては、日付部分は正常に認識されるようになるが、
+時刻に関してはタイムゾーンの認識が正しく行われずに、変な値を返すことがある。
+（ '2001-02-02 00:11:22+09' のような場合
+   '2001-02-02 09:11:02'のような値になる） 
+
+また、getTime()に関しては、日付の書式に左右されないため問題なし。 
+
+
+・・・というわけで、DateStyleの状態によって結果が左右されてしまうのは問題だと
+思います。
+getTimestamp()もあんまり信用できないようです。
+
+とりあえず、DateStyleに関してはdefaultのまま使用して
+datetimeを取得する場合にはdate_partを使用するかgetString()して
+さらにSimpleDateFormatを使うというのが安全なような気がします。
+
+JDBCドライバのバグでしょうか？
+
+--
+Takashi SHIODA
+tsio@orangesoft.co.jp
+<A HREF="http://www.orangesoft.co.jp">http://www.orangesoft.co.jp</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00319" HREF="msg00319.html">[pgsql-jp 13625] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+<UL><LI><EM>From:</EM> Takashi SHIODA &lt;tsio@orangesoft.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00312" HREF="msg00312.html">[pgsql-jp 13618] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00295" HREF="msg00295.html">[pgsql-jp 13601] JDBC ドライバでのDATE型の扱い</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00298" HREF="msg00298.html">[pgsql-jp 13604] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+<UL><LI><EM>From:</EM> yutaka tanida &lt;yutaka@marin.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00310.html">[pgsql-jp 13616] Re: Vine1.1 + RPMで、.bashrcの場所は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00312.html">[pgsql-jp 13618] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 13605] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00312.html">[pgsql-jp 13618] Re: JDBC ドライバでの DATE型の扱い</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00311"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00311"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

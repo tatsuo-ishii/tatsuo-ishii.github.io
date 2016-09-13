@@ -1,0 +1,205 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2504] Re: [Q]Access(ODBC)上でのTransaction -->
+<!--X-From: 片岡裕生<kataoka@matsu.interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Sat, 20 Sep 1997 09:22:06 +0900 -->
+<!--X-Message-Id: 199709200022.JAA26886@matsu.interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199709180136.KAA28727@mail.magical.egg.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2504] Re: [Q]Access(ODBC)上でのTransaction </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@matsu.interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00069.html">Date Prev</A>][<A HREF="msg00078.html">Date Next</A>][<A HREF="msg00057.html">Thread Prev</A>][<A HREF="msg00093.html">Thread Next</A>][<A HREF="index.html#00077">Date Index</A>][<A HREF="threads.html#00077">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2504] Re: [Q]Access(ODBC)上でのTransaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 片岡裕生&lt;<A HREF="mailto:kataoka@matsu.interwiz.koganei.tokyo.jp">kataoka@matsu.interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 20 Sep 1997 09:22:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00057.html">199709180136.KAA28727@mail.magical.egg.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: Naoki Sasaki &lt;m-sasaki@magical.egg.or.jp&gt;
+Subject: [pgsql-jp 2484] [Q]Access(ODBC)上でのTransaction
+Date: Thu, 18 Sep 1997 10:36:04 +0900 (JST)
+Message-ID: &lt;<A HREF="msg00057.html">199709180136.KAA28727@mail.magical.egg.or.jp</A>&gt;
+
+&gt; 佐々木＠ＳＭＡＴです。
+&gt; 
+&gt; ODBCを利用してAccess上からAccessのトランザクションを使用していますが、
+&gt; ODBCエラーで止まってしまいます。
+&gt; 
+&gt; やっている事
+&gt; PostgreSQLからリンクしたテーブルとAccess上のテーブルをAccessのトランザク
+&gt; ションを利用して処理をする。
+&gt; 
+&gt; Accessのソース
+&gt;     Dim wsp As Workspace
+&gt;     Dim dbs As DATABASE
+&gt;     Dim sql As String
+&gt;     
+&gt;     
+&gt;     Set wsp = DBEngine.Workspaces(0)
+&gt;     Set dbs = CurrentDb
+&gt; 
+&gt;     wsp.BeginTrans
+&gt; 
+&gt;     'Access上のテーブルに対しての処理
+&gt; 
+&gt;     sql = "DELETE FROM m_tantou where tantou='00020001';"
+&gt;     dbs.Execute sql, dbFailOnError
+&gt;     
+&gt;     sql = "DELETE FROM m_tantou where tantou='00020002';"
+&gt;     dbs.Execute sql, dbFailOnError
+&gt; 
+&gt;     sql = "DELETE FROM m_tantou where tantou='00020003';"
+&gt;     dbs.Execute sql, dbFailOnError
+&gt; 
+&gt;     wsp.CommitTrans
+&gt; 
+&gt;     dbs.Close
+&gt;     wsp.Close
+&gt; 
+&gt;     ※エラー処理はスペースの都合上割愛しています。
+&gt; 
+&gt; 現象
+&gt; ２回目のDELETEを実行した段階でフリーズ（ウェイト状態）して一定時間後ODBC
+&gt; エラーで復帰。  その時のODBCログは以下の様な感じです。
+
+理由はわかりました。上記ソースの場合、Access は各 SQL の実行の度に 
+PostgreSQL に新しいコネクションを作成しトランザクションを開始してしま
+うようです。そのため２件めの DELETE 句の実行時に（１件目の DELETE 句の
+実行時のトランザクションが生きているため）デッドロックしてしまいます。
+他の ODBC ドライバはどうだか知りませんが、PostODBC の場合は同一セッショ
+ン内であっても複数のコネクションはそれぞれ別ユーザ扱いされてしまいます。
+
+ちなみにこの場合でも、もし PostgreSQL がレコードレベルでのロックをサポー
+トしてくれていれば、（処理レコードに重複が無いため）問題なかったでしょ
+う。
+
+そこで以下の様に変更してみてはどうでしょう。QueryDef オブジェクトと 
+Connect プロパティを使用して１つのコネクション内で処理しています。"!" 
+で始まる行が追加・変更した行です。
+
+Accessのソース
+    Dim wsp As Workspace
+    Dim dbs As DATABASE
+!   Dim qdf As QueryDef
+    Dim sql As String
+
+    Set wsp = DBEngine.Workspaces(0)
+    Set dbs = CurrentDb
+    
+!   '以下の DELETE 句を実行するためのテンポラリ QueryDef オブジェクトを作成し
+!   'm_tantou リンクテーブルから ODBC 接続文字列をコピーする。
+!   Set qdf = dbs.CreateQueryDef("")
+!   qdf.Connect = dbs.TableDefs("m_tantou").Connect
+!   qdf.ReturnsRecords = False
+    
+    wsp.BeginTrans
+
+    'Access上のテーブルに対しての処理
+
+    sql = "DELETE FROM aaa where cnt=104;"
+!   qdf.sql = sql
+!   qdf.Execute dbFailOnError
+
+    sql = "DELETE FROM aaa where cnt=105;"
+!   qdf.sql = sql
+!   qdf.Execute dbFailOnError
+
+    sql = "DELETE FROM aaa where cnt=106;"
+!   qdf.sql = sql
+!   qdf.Execute dbFailOnError
+
+    wsp.CommitTrans
+
+!   qdf.Close
+    dbs.Close
+    wsp.Close
+
+上記のやり方では自動的にパススルークエリーになりますので、SQL 文は 
+MS-Access のものでは無く PostgreSQL 準拠のものでなければなりません。
+
+&gt; 根本的にAccess上のトランザクション内でのリンクテーブルに対しての処理はま
+&gt; ずいんでしょうか？  UPDATE、INSERTは上記と同じ内容で問題無く動作していま
+&gt; す。  但し同じテーブルに対して複数回の処理をしていないので問題無く動作し
+&gt; ているのかもしれませんが。
+&gt; 
+&gt; アドバイス、宜しくお願いいたします。
+
+１つのトランザクション上で同一のリンクテーブルに対して複数回の SQL 文
+を実行する場合は、少なくとも MS-Access の場合は問題に逢う確率が高そう
+です。そのためには、トランザクションが１つのコネクション内ですむように、
+QueryDef オブジェクトと Connect プロパティを使用するか、同一のリンクテー
+ブルに対しては１回の SQL 文で済む様にした方が良さそうです。
+
+以上。お役に立てれば幸いです。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00093" HREF="msg00093.html">[pgsql-jp 2520] Re: [Q]Access(ODBC)上でのTransaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naoki Sasaki &lt;m-sasaki@magical.egg.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00057" HREF="msg00057.html">[pgsql-jp 2484] [Q]Access(ODBC)上でのTransaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naoki Sasaki &lt;m-sasaki@magical.egg.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00069.html">[pgsql-jp 2496] select where array[] = ???</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 2505] PostODBC 日本語版でtimestamp 型のサポート</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 2484] [Q]Access(ODBC)上でのTransaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 2520] Re: [Q]Access(ODBC)上でのTransaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00077"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00077"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5043] Re: PostODBC+VB5+DAO -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Wed, 12 Aug 1998 12:21:17 +0900 -->
+<!--X-Message-Id: 000101bdc5a0$4536cb20$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980808012830Q.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5043] Re: PostODBC+VB5+DAO </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00111.html">Date Prev</A>][<A HREF="msg00113.html">Date Next</A>][<A HREF="msg00092.html">Thread Prev</A>][<A HREF="msg00115.html">Thread Next</A>][<A HREF="index.html#00112">Date Index</A>][<A HREF="threads.html#00112">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5043] Re: PostODBC+VB5+DAO</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 12 Aug 1998 12:21:17 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上＠セーレンです。
+
+&gt;
+&gt; 片岡＠インターウィズです。
+&gt;
+［引用省略］
+&gt;
+&gt;&gt; 実は、当方でも(ODBCDirectではなく） RDOで同じような設定でテストを行い
+&gt;&gt; なんとか動作するのは確認しましたが、次のような理由で二の足をふんでいま
+す。
+&gt;&gt; １）VC++のCRecordsetでは forwardOnly以外では動作しない。動作させようと
+&gt;&gt;     ソースを少し調べてみたが、forwardOnly以外は正式にはサポートしていない
+&gt;&gt;     ような感じがする。
+&gt;   上のソースではODBCカーソルライブラリを使用するように指示していますか
+&gt; ら、forwardOnly以外の使用でも多分使えると思います。
+&gt;
+
+&gt;三浦＠ＶＣです
+&gt;
+［引用省略］
+&gt;
+&gt; ＶＢ５では dbOpenDynamic dbOpenDynaset dbOpenSnapshot が使えるようです。
+&gt; ＶＣは使っていません
+
+ほんの少しソースをのぞいただけの感触なので違っていたらすいません。
+
+PostgreSQL ODBCDriverは FORWARD_ONLYとSTATICなカーソル
+（こちらは条件付き）のみをサポートしており、それ以外のモードに対しては
+勝手にDriverがモード変更してしまうようです（SQLSetStmtOption)。
+OpenRecordset等エラーにはならないけれど、設定したオプションは有効に
+なっていない場合があると思います。
+ODBCDirectやRDOを使用する場合は、ODBCDriverそのものの能力が
+問題になります。Driverに不足している能力を、何とかカバーしようとして
+涙ぐましい努力を行うDAO(そのかわりオーバーヘッドが大きいといわれて
+いる）ならばよいのですが。
+ただ、スナップショットタイプ(STATICに相当)のレコードセットは正式動作する
+のかもしれません。本来読み取り専用なのですがODBCDirectの場合は
+更新を許しているようです。
+このタイプだけでも使用できれば運用は可能なのかも。
+
+&gt;&gt; ２）Recordsetのオープン中 共有ロックがかかってしまい
+&gt;&gt;     (Use declare/fetchオプション使用時）、他からの更新ができない。
+
+&gt; たしかにUse declare/fetchオプションを付けるとロックされますね。
+
+この状態ではとても本格的使用に耐えられません。
+Use declare/fetch オプションの意味が理解できていないので、思い切り
+はずしているかもしれませんが、このオプションがPostgresのSQLカーソル
+を単純にODBCカーソルにマップしようとするものだとするならばこの状況は
+多分本質的です。本格使用に耐えうるものにするには次のようなPostgres
+のレベルアップが必要になると思います。
+1) 読み取りロックを一切かけない。(Low Level Lockingの実装はその方向
+    にいきそうな雰囲気？）
+2) トランザクションをまたぐカーソル(TODOリストにはあったような？）
+3) カーソル自体の性格付け
+         (SQL)                          (ODBC)
+    INSENSITIVE  -------&gt; STATIC(SNAPSHOT)?
+    SENSITIVE(?) -------&gt; DYNAMIC ?、DYNASET ?
+           ???         -------&gt; KEYSET等  ????
+
+    あげてはみましたがちょっと無理がありましたか？
+    ODBCの実装でカバーすべき部分でしょうね。
+
+そもそも考え方に無理があるのかな。
+やっぱりはずしてるかも。
+
+セーレン（株） マルチＣＡＤ開発部
+           井上 博史
+       E-mail:Inoue@tpf.co.jp
+                 Inoue@seiren.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 5056] Re: PostODBC+VB5+DAO</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+<LI><STRONG><A NAME="00115" HREF="msg00115.html">[pgsql-jp 5046] Re: PostODBC+VB5+DAO</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00072" HREF="msg00072.html">[pgsql-jp 5003] Re: PostODBC+VB5+DAO</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 5042] Re: pgsql632 for Plamo Linux update.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00113.html">[pgsql-jp 5044] Re: pgsql632 for Plamo Linux update.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00092.html">[pgsql-jp 5023] Re: mailing to ML fails? (Re: PostODBC+VB5+DAO)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 5046] Re: PostODBC+VB5+DAO</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00112"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00112"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

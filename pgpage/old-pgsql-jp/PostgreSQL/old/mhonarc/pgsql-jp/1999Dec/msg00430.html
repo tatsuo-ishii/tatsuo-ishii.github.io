@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12425] Re: トランザクション処理（ PHP→ Postgres）の質問です -->
+<!--X-From: Ishida Akio <iakio@pjam.jpweb.net> -->
+<!--X-Date: Tue, 28 Dec 1999 14:20:07 +0900 -->
+<!--X-Message-Id: 19991228142007E.iakio@pjam.jpweb.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3864EF711B8.EF8AMAYKEART@mailhost.din.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12425] Re: トランザクション処理（ PHP→ Postgres）の質問です </TITLE>
+<LINK REV="made" HREF="mailto:iakio@pjam.jpweb.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00429.html">Date Prev</A>][<A HREF="msg00431.html">Date Next</A>][<A HREF="msg00400.html">Thread Prev</A>][<A HREF="msg00437.html">Thread Next</A>][<A HREF="index.html#00430">Date Index</A>][<A HREF="threads.html#00430">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12425] Re: トランザクション処理（ PHP→ Postgres）の質問です</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ishida Akio &lt;<A HREF="mailto:iakio@pjam.jpweb.net">iakio@pjam.jpweb.net</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 Dec 1999 14:20:07 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00400.html">3864EF711B8.EF8AMAYKEART@mailhost.din.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、石田です。自信ありませんがレスがつかないようなので。
+
+<A HREF="http://www.asakawa.ne.jp/doc/php/ja/features.persistent-connections.html">http://www.asakawa.ne.jp/doc/php/ja/features.persistent-connections.html</A>
+を見ると、持続的接続は、接続／切断のオーバーヘッドをなくす為に有効、
+と書かれています。
+
+From: kouichi matsumoto &lt;maykeart@din.or.jp&gt;
+Subject: [pgsql-jp 12395] トランザクション処理（ PHP→ Postgres）の質問です
+Date: Sun, 26 Dec 1999 01:23:13 +0900
+
+&gt; 1.pg_pconnectを使って、
+(中略)
+&gt; このようなスクリプトを2つ以上にまたがる、トランザクション処理は、
+&gt; できるのでしょうか？
+
+出来るとは思いますが、 begin したクライアントと別のクライアントが
+end を発行しても、 end してしまうと思います。
+
+&gt; 2.もし1.ができる場合、end;も、abort;もrollback work;も実行
+&gt; 　しなかった時に、pg_pconnectでは、どのタイミングで、
+&gt; 　トランザクションがが異常終了してくれるのでしょうか？
+
+Web サーバーが落ちたとき、かも。
+
+&gt; 3.phpスクリプトから、トランザクションのend;がないまま、
+&gt; 　自分自身のphpスクリプトへ POSTした場合も、
+&gt; 　トランザクションは abort;(pg_close()が自動で走る）のでしょうか？
+&gt; 　又、pg_connectとpg_pconnectによる違いはあるでしょうか？
+
+これも、上記の URL を見ていただければわかると思います。
+pg_connect は、毎回 open / close する、
+pg_pconnect は、常に 1つだけ存在し続ける。
+
+&gt; ■PostgresとPHPを使った在庫確認（案1）
+
+を、私なりにアレンジしてみました。
+---
+1. ユーザが在庫確認ボタンを押す
+zaiko-buy.php3--------------------------------------------------
+
+2. 商品在庫テーブルの検索
+   →if(在庫が1の時)→
+   →if(在庫が0の時)→在庫なしと表示
+4. ユーザは注文フォームで個人情報等を入力
+5. 購入ボタンが押されるとbuy.phpへデータをPOST
+↓
+buy.php3-------------------------------------------------
+
+3. PHPから下記のSQLを発行
+　 ・begin:でトランザクションを開始する
++  ・1.で検索した商品をもう一度 select for update で検索。
++    もう存在しなければエラー。
+   ・1.で検索した商品の在庫を1つ減らす。
+6. トランザクションのend:
+
+---
+という風に、 2 つのページ間でロックをかけようとするよりも、
+update する直前に改めて select してみるほうが妥当かなと思います。
+もっとも、ものすごくリクエストが多いシステムであれば、
+かなり使えないでしょう。
+
+# そういう場合は、 Java で作るとか。
+
+---------+---------+---------+---------+---------+---------+---------+
+石田朗雄＠株式会社ネオテクノ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00437" HREF="msg00437.html">[pgsql-jp 12432] Re: トランザクション処理（ PHP→ Postgres）の質問です</A></STRONG>
+<UL><LI><EM>From:</EM> kouichi matsumoto &lt;maykeart@din.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00400" HREF="msg00400.html">[pgsql-jp 12395] トランザクション処理（PHP→Postgres）の質問です</A></STRONG>
+<UL><LI><EM>From:</EM> kouichi matsumoto &lt;maykeart@din.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00429.html">[pgsql-jp 12424] Re: 自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 12426] Re: pgbash-2.0 released</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00400.html">[pgsql-jp 12395] トランザクション処理（PHP→Postgres）の質問です</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00437.html">[pgsql-jp 12432] Re: トランザクション処理（ PHP→ Postgres）の質問です</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00430"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00430"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9589] Re: pqbash -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Thu, 22 Jul 1999 13:25:28 +0900 -->
+<!--X-Message-Id: 37969D382D0.125CSAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37958BD12F8.A53ESAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199907211151.UAA23904@mail.cx.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9589] Re: pqbash </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00391.html">Date Prev</A>][<A HREF="msg00393.html">Date Next</A>][<A HREF="msg00377.html">Thread Prev</A>][<A HREF="msg00409.html">Thread Next</A>][<A HREF="index.html#00392">Date Index</A>][<A HREF="threads.html#00392">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9589] Re: pqbash</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 22 Jul 1999 13:25:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00371.html">37958BD12F8.A53ESAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00377.html">199907211151.UAA23904@mail.cx.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On 21 Jul 1999 20:48:52 +0900
+KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt; さん wrote:
+&gt; 久保＠伊勢原市(引越し予定)です。
+&gt; 
+&gt; &gt; 　selectの結果を bashの変数に直接代入する方法はどのようにします
+&gt; &gt; か？
+&gt; 
+&gt; Orabash では
+&gt;     extern SHELL_VAR *bind_variable __P((char *, char *));
+&gt;     extern SHELL_VAR *bind_array_variable __P((char *, int, char *));
+&gt; を用いています。
+&gt; 
+&gt; select 結果を入れる方法も orafetch と oraselect の 2 種類あります。
+&gt; 
+
+　これは、まだ勉強不足で理解できていません。SHELL_VAR に関する
+ドキュメントがありますか？　それともbashソースをみなければなり
+ませんか？
+
+
+&gt; &gt; 　作成していただいたファイルは、FreeBSD-2.2.7では実行できません
+&gt; &gt; でしたので、FreeBSD用の変更箇所を少し示しておきます。 (まだ実行
+&gt; &gt; テストしていませんが）
+
+　一応、FreeBSDで実行できましたので修正点などをまとめてみます。
+
+&gt; &gt;  1.ヘッダー
+
+　"#include &lt;getopt.h&gt;"は、FreeBSDにはありませんので削除しまし
+た。その他は、そのままです。
+
+&gt; &gt;  ２.getopt_long()をinternal_getopt()へ変更
+
+　FreeBSDでは、getopt_long()は無いようです。それで、別の方法
+でと思ったのですが、今回はテストですので、getopt_long() 部分
+をばっさり削除してDB名を直接入力しました。
+
+  conn = PQsetdb(pghost, pgport, pgoptions, pgtty, "DB名");
+
+# internal_getopt()は「exec_sql [オプション] "SQL文"」のオプ
+　ションを処理するときだけ必要ですね。今回の getopt_long()の
+　代用にはなりませんでした。
+
+&gt; &gt; 
+&gt; &gt;  ３.FreeBSD用コンパイルリンク
+&gt; &gt; 
+&gt; えー、-lpq つけないと bash に組み込むときに
+&gt;    bash: error in loading shared libraries: ./pqbash.so: undefined symbol: PQXXXXXX
+&gt; と怒られると思います。
+
+　libpq.a のリンクは必要です。うっかりしてました。念の為、こち
+らで、テストに使用したMakefileを付けます。
+--------------------------------------------------------------
+# -*-  Makefile -*-
+PG_HOME    = /usr/local/pgsql
+PG_LIB     = $(PG_HOME)/lib/libpq.a
+PG_INCDIR  = $(PG_HOME)/include
+BASH_INCDIR= /usr/local/include/bash  #&lt;==ユーザ環境で異なる
+
+        # FreeBSD        # Linux   
+PICFLAG = -fpic          # -fPIC   
+LD      = ld             # cc      
+LFLAGS  = -x -Bshareable # -shared 
+
+CC      = cc
+CFLAGS  = -g $(PICFLAG) -I$(PG_INCDIR) -I$(BASH_INCDIR)
+
+all:pqbash.so
+
+pqbash.so:pqbash.o
+	$(LD) $(LFLAGS) pqbash.o $(PG_LIB) -o pqbash.so
+pqbash.o: pqbash.c
+	$(CC) $(CFLAGS) -c pqbash.c
+-------------------------------------------------------------
+
+４．実行テスト
+
+　会話モードの実行、シェルスクリプト実行ともに、正常に動作し
+ました。
+
+# ちょっと感動しました(^^)。
+
+
+５．改良希望点
+
+　私なりの改良希望点をまとめてみました。ご意見などありましたらお
+願いします。
+
+(1) "pq"より"pg"の略語の方が多く使われているようですので、pqbash
+    より pgbash の方が良いのではないかと思います。
+
+    pqbash --&gt; pgbash
+
+(2) enable -f (組込みコマンドのロード) は、".bash_login"に記述
+　　すればいいと思うのですが、それにしても、コマンド数が多くて 
+　　enable -f文が長くなります。できれば、コマンドは exec_sqlに
+　　統一したいと思います。
+
+　　enable -f pgbash.so exec_sql
+
+(3) 会話モードの場合、pqexec実行結果が表示されないために、SQLの
+    エラーが発生してもわかりません。それで、実行結果を表示する
+    状態(psqlと同じ)をデフォルトにしたいと思います。
+
+    exec_sql    "create table test(id int)" --&gt; 実行結果を表示する。
+    exec_sql -n "create table test(id int)" --&gt; 実行結果を表示しない
+
+
+--
+SAKAIDA Masaaki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00409" HREF="msg00409.html">[pgsql-jp 9606] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00371" HREF="msg00371.html">[pgsql-jp 9568] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00377" HREF="msg00377.html">[pgsql-jp 9574] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00391.html">[pgsql-jp 9588] Re: About search of Japanese character</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00393.html">[pgsql-jp 9590] はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 9574] Re: pqbash</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 9606] Re: pqbash</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00392"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00392"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

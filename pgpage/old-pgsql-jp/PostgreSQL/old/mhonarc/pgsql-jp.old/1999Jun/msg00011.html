@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8577] Re: 大量のデータ処理について教えて下さい。 -->
+<!--X-From: "terumi.chida" <terumi@rnac.ne.jp> -->
+<!--X-Date: Wed, 02 Jun 1999 06:11:38 +0900 -->
+<!--X-Message-Id: 37544C8A.61D1A610@rnac.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001101beac0a$493038a0$44c9e6ca@suzume.interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8577] Re: 大量のデータ処理について教えて下さい。 </TITLE>
+<LINK REV="made" HREF="mailto:terumi@rnac.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00010.html">Date Prev</A>][<A HREF="msg00012.html">Date Next</A>][<A HREF="msg00008.html">Thread Prev</A>][<A HREF="msg00058.html">Thread Next</A>][<A HREF="index.html#00011">Date Index</A>][<A HREF="threads.html#00011">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8577] Re: 大量のデータ処理について教えて下さい。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "terumi.chida" &lt;<A HREF="mailto:terumi@rnac.ne.jp">terumi@rnac.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Jun 1999 06:11:38 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00008.html">001101beac0a$493038a0$44c9e6ca@suzume.interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+terumi.chidaです。
+アドバイスありがとうございます。
+
+Hiroki Kataoka wrote:
+
+&gt; 片岡＠インターウィズです。
+&gt;
+&gt; &gt; ＊アクセス９７で生成されたselect文についてはこんなかんじです。
+&gt; &gt; SELECT siwake_tab.keiri_date, siwake_tab.ssiten_cd, siwake_tab.kanjou_cd,
+&gt; &gt; siwake_tab.jigyo_cd, tax_tab.s_zei, siwake_tab.hsiten_cd,
+&gt; &gt; siwake_tab.kenmei,
+&gt; &gt; siwake_tab.bumon_cd, siwake_tab.kari_kin AS 借方金額,
+&gt; &gt; siwake_tab.kasi_kin AS 貸方
+&gt; &gt; 金額, siwake_tab.tekiyo, siwake_tab.denpyo_no, siwake_tab.tanto
+&gt; &gt; FROM siwake_tab LEFT JOIN tax_tab ON siwake_tab.rec_key = tax_tab.rec_key
+&gt; &gt; WHERE (((siwake_tab.keiri_date)&gt;=[経理日?] And
+&gt; &gt; (siwake_tab.keiri_date)&lt;=[?経理
+&gt; &gt; 日]) AND ((siwake_tab.kanjou_cd)&gt;=[勘定科目?] And
+&gt; &gt; (siwake_tab.kanjou_cd)&lt;=[?勘定
+&gt; &gt; 科目]) AND ((tax_tab.s_zei)&lt;[固定税区分?] Or
+&gt; &gt; (tax_tab.s_zei)&gt;[?固定税区分]) AND
+&gt; &gt; ((siwake_tab.hsiten_cd)&gt;=[発生支店?] And
+&gt; &gt; (siwake_tab.hsiten_cd)&lt;=[?発生支店]));
+&gt; &gt; ＊上記[？＊＊＊？]についてはいろんなパターンがありますので
+&gt; &gt; 都度パラメタ入力で渡し
+&gt; &gt; てます。
+&gt;
+&gt;   経理日と勘定科目と発生支店を範囲指定していますが、これだけ不等号が多いと
+&gt; シーケンシャルスキャンになってしまうと思います。もちろんrec_keyでの結合には
+&gt; インデックスが利用されると思いますが、その後の結合結果はシーケンシャルスキャ
+&gt; ンすると思います。ですから
+&gt;
+&gt; SELECT * FROM siwake_tab, tax_tab WHERE siwake_tab.rec_key = tax_tab.rec_key
+&gt;
+&gt; とほぼ同じだけの時間がかかると考えられます（データの転送に費やす時間は除いて
+&gt; ですが）。
+&gt;
+&gt;   範囲指定しないで済むカラムは無いでしょうか。10個や20個ものデータが範囲に含
+&gt; まれるのであれは仕方ないですが、2〜3個くらいのデータが範囲指定されるのであれ
+&gt; ば、等号による比較に（あるいは IN (何とか, かんとか, …)に）変えることも不可
+&gt; 能ではないと思いますがどうでしょう。もしそのように変えられるとしたら、変えた
+&gt; カラムとrec_keyの複合インデックスを作成したほうが断然いいと思います。
+&gt;
+
+これは特定データを取り出すクエリなのですが、等号による比較では対象レコードが多す
+ぎ、またパターンも都度変わるので
+等号では難しいと思います。また、条件として複数のカラムに条件範囲をぶつけなくては
+求める答えがでません。
+
+&gt;   私もよくやるのですが、色々なパターン（問い合わせパターンやインデックスの組
+&gt; み合わせ）をEXPLAIN SELECT …で試して比較すると、どうすれば早くなるのかがわ
+&gt; かって面白いと思います。
+&gt;
+
+いろいろ試してみます。
+ＳQLについてはpostgresが初めてですので何かよいアドバイスありましたら、
+よろしくお願いします。
+
+*******************
+terumi.chida
+terumi@rnac.ne.jp
+*******************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00008" HREF="msg00008.html">[pgsql-jp 8574] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 8576] Re: pgReadData() Error.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 8578] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 8574] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 8624] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00011"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00011"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23461] Re: [再説明] win2k javaから　unix  psqlを接続したい -->
+<!--X-From: 冨田高徳<t_tomita@yo.rim.or.jp> -->
+<!--X-Date: Tue, 16 Oct 2001 23:17:33 +0900 -->
+<!--X-Message-Id: a04320400b7f1e1619f03@[211.18.206.183] -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 004001c15620$b8868390$81c5fea9@PC01 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23461] Re: [再説明] win2k javaから　unix  psqlを接続したい </TITLE>
+<LINK REV="made" HREF="mailto:t_tomita@yo.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00191.html">Date Prev</A>][<A HREF="msg00194.html">Date Next</A>][<A HREF="msg00191.html">Thread Prev</A>][<A HREF="msg00183.html">Thread Next</A>][<A HREF="index.html#00192">Date Index</A>][<A HREF="threads.html#00192">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23461] Re: [再説明] win2k javaから　unix  psqlを接続したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 冨田高徳&lt;<A HREF="mailto:t_tomita@yo.rim.or.jp">t_tomita@yo.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 16 Oct 2001 23:17:33 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00186.html">004001c15620$b8868390$81c5fea9@PC01</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは
+
+At 5:58 PM +0900 01.10.16, tan2c@yahoo.co.jp wrote:
+&gt;tan2c です。さきの問題もっと詳しく説明します。
+&gt;
+&gt;
+&gt;環境
+&gt; 1) win2k 側
+&gt;
+&gt;　　 win2k jdk1.3 jrun
+&gt;
+&gt; 2) unix 側
+&gt;　　redhead    ver 5?
+&gt;    postgresql  ver 6.5.2
+&gt;
+&gt;目的： win2k 側 servlet を利用して、 psql データを読みたい。
+
+基本的な設定が２つあると思います。
+１つめ　　postmasterの起動オプションには -i が必要。
+２つめ　　pg_hba.confの設定変更
+host all  0.0.0.0  0.0.0.0 trust
+
+この設定は、これで良いかどうかは、問題があります。
+しかし、この項目を理解できるまでは、この設定をお勧めします。
+　　
+&gt;現状：
+&gt;　　&gt; ps ax|grep postmaster
+&gt;     403 ?     S   0:00 /usr/bin/postmaster -S -D /home/pgsql
+
+これを見ると、-i がないので、win2kからは接続できません。
+
+&gt;設定ファイル /etc/rc.d/init.d/postgresql にある　２　行以下のように書いてい
+&gt;ます。
+&gt;
+&gt;　su -l "$PGUSER" -c "$PGPROG -S -D $PGDATA"
+&gt;
+&gt;さき　ただ　su -l "$PGUSER" -c "$PGPROG -S -i -D $PGDATA"
+&gt; 　と変更したが、ほかのsql と関するものが実行できなくなりました。
+
+ほかのsql と関するものが実行できなくなるのは、変ですね。
+su -l "$PGUSER" -c "$PGPROG -S -i -D $PGDATA"
+が正しいと思います。
+
+
+&gt;なお、手動　（ su -l postgres -c "postmaster -S -i  -D /home/pgsql ") 時, 以
+&gt;下の error がでました。
+&gt;FATAL:  StreamServerPort: bind() failed: Address already in use
+&gt;            Is another postmaster already running on that port?
+&gt;            If not, remove socket node(/tmp/.s.PGSQL.5583) and retry.
+&gt;postmaster: cannot create UNIX stream port.
+
+これは、すでにpostmasterが動いているときに出るアラートです。
+/etc/rc.d/init.d/postgresql stop
+として、postmasterを停止します。
+それから
+su -l postgres -c "postmaster -S -i  -D /home/pgsql
+を実効すると、正しく動くはずです。
+su -l "$PGUSER" -c "$PGPROG -S -i -D $PGDATA"
+と比較すると、全く同じ結果になるはずです。
+
+
+postmasterが存在しないのにこのアラートが出る場合は
+rm /tmp/.s.PGSQL.5583
+として、このファイルを消してください。
+それから
+su -l postgres -c "postmaster -S -i  -D /home/pgsql
+を実行すると、正しく動くはずです。
+
+&gt;やはり、　-S 　-D の設定　方法を教えてください。
+&gt;
+&gt;　　　　　　　　よろしく、お願いします。
+
+-S はwin2kなどから接続するときには、必須です。
+-D はデーターベースが格納してある場所を指定します。
+ですから -D /home/pgsqlが間違えていると動きません。
+
+ここまでの説明は、PostgreSQL完全攻略ガイド　石井達夫著
+に書いてあるので読むのがいいと思います。
+日本語が不自由であれば、読むのはつらいかもしれませんが、頑張ってください。
+
+&gt;  まだ、修正後、reboot が必要か？
+
+必要ないと考えます。scriptが正しく書かれていれば
+/etc/rc.d/init.d/postgresql restart
+で良いはずです。
+
+また、これらの問題を質問する場合は
+postgresqlのバージョンだけで足りません。
+どのようにインストールしたかという情報が必要です。
+ソースコードからmakeした場合と、rpmでインストールした場合を比較すると
+$PGPROG や $PGDATA の値が全く違います。
+
+rpmを使った場合は
+/etc/rc.d/init.d/postgresql
+が、rpmでつくられたものなのか、手を加えたのかも知りたいです。
+
+それから
+/etc/rc.d/init.d/postgresql
+の一部を抜きだして提示するよりも
+全文を提示したほうが、正確な情報が提供できると思います。
+
+ではでは
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 23455] [再説明] win2k javaから　unix  psqlを接続したい</A></STRONG>
+<UL><LI><EM>From:</EM> tan2c@yahoo.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 23460] Re: [再説明] win2k javaからunix psqlを接続したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 23462] Re: phppgadmin のがなくなってしまいました。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 23460] Re: [再説明] win2k javaからunix psqlを接続したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 23452] テーブルにデータを追加できないのですが</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00192"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00192"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

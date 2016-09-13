@@ -1,0 +1,212 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21432] Re: コピーコマンドについて改めPQfinish()について -->
+<!--X-From: "Masao Kumagishi" <kumagishi@jfc&#45;net.co.jp> -->
+<!--X-Date: Wed, 23 May 2001 15:33:43 +0900 -->
+<!--X-Message-Id: 009501c0e352$5b708ca0$c900a8c0@IBM -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 49256A55.0006C1D5.00@notesmailgw -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21432] Re: コピーコマンドについて改めPQfinish()について </TITLE>
+<LINK REV="made" HREF="mailto:kumagishi@jfc-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00475.html">Date Prev</A>][<A HREF="msg00476.html">Date Next</A>][<A HREF="msg00468.html">Thread Prev</A>][<A HREF="msg00482.html">Thread Next</A>][<A HREF="index.html#00477">Date Index</A>][<A HREF="threads.html#00477">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21432] Re: コピーコマンドについて改めPQfinish()について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Masao Kumagishi" &lt;<A HREF="mailto:kumagishi@jfc-net.co.jp">kumagishi@jfc-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 May 2001 15:33:43 +0900</LI>
+<LI><em>Organization</em>: JFC</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00449.html">49256A55.0006C1D5.00@notesmailgw</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+熊岸です。
+
+少し追いかけてみました。
+
+PQsetdbLogin（）は、次のようになっています。
+----
+PGconn *
+PQsetdbLogin(const char *pghost, const char *pgport, const char *pgoptions,
+    const char *pgtty, const char *dbName, const char *login,
+    const char *pwd)
+{
+            ・・・
+    if (error)
+        conn-&gt;status = CONNECTION_BAD;
+    else
+    {
+        if (connectDBStart(conn))
+            (void) connectDBComplete(conn);
+    }
+    return conn;
+}
+----
+この connectDBStart() の中で非同期（O_NONBLOCK）のソケットが作られて、
+connect()が行われるのですが、ここでは、errnoはEINPROGRESSとなり、
+エラーにはなりません。
+そして次のconnectDBComplete()で、接続の処理ステップが進められますが、
+ここでENETUNREACHのエラーとなって、エラー終了します。
+しかし、ソケット自体は開かれたままです。これは仕様でしょう。
+
+PQfinish()は、次のようになっています。
+----
+PQfinish(PGconn *conn)
+{
+    if (conn)
+    {
+        closePGconn(conn);
+        freePGconn(conn);
+    }
+}
+----
+
+closePGconn（）はこんな感じです。
+----
+closePGconn(PGconn *conn)
+{
+    if (conn-&gt;sock &gt;= 0)
+    {
+        /*
+         * Try to send "close connection" message to backend. Ignore any
+         * error. Note: this routine used to go to substantial lengths to
+         * avoid getting SIGPIPE'd if the connection were already closed.
+         * Now we rely on pqFlush to avoid the signal.
+         */
+        (void) pqPuts("X", conn);
+        (void) pqFlush(conn);
+    }
+                ・・・
+----
+
+結局ハングしているのは、このpqFlush()の中で、文字列"X"を送ろうとして
+select()で送信可能になるのを待っているのですが、いつまでも返ってきません。
+
+接続されていないソケットを指定したときにselect()がいつ処理を戻すのか、
+よく理解していませんが、素朴に考えて、ソケットが接続されていないときは、
+"X"を送る必要はないと思えます。
+そこで、次のような対処はどうでしょうか？
+
+対策案： closePGconn() の中の
+    if (conn-&gt;sock &gt;= 0)
+    {
+                ・・・
+        (void) pqPuts("X", conn);
+        (void) pqFlush(conn);
+    }
+を次のようにする
+    if (conn-&gt;sock &gt;= 0 &amp;&amp; conn-&gt;laddr.in.sin_addr.s_addr != 0)
+    {
+                ・・・
+        (void) pqPuts("X", conn);
+        (void) pqFlush(conn);
+    }
+
+他の動作に影響がないと言いきれませんが、少なくとも今の問題に対しては、
+回避できるようになります。
+
+
+&gt; &gt;そもそも，select()なんかが呼び出されること自体がおかしいような......
+&gt; &gt;接続に失敗した場合に
+&gt; &gt;    printf("fd = %i\n", PQsocket(srx));
+&gt; &gt;はどのように表示されますでしょうか？
+&gt; fd = 3 と表示されました。
+&gt; ちなみにこちらの環境下（RHL6.2+PostgreSQL7.0.3）での接続先は
+&gt; No route to hostです。
+&gt; 
+&gt; &gt;これは私の早合点でしたね。失礼しました。
+&gt; &gt;ところで、pqWait()についても、7.0.2→7.1.1では修正がなされています。
+&gt; &gt;"except_mask"を追加するというものですが、これの効果はどうでしょうか？
+&gt; うーーむ。まだ５回に１回ほどロックしました。
+&gt; ちなみにその時のselect()の引数の値は
+&gt; conn-&gt;sock = 4
+&gt; input_mask = 0 &lt;repeat 32 times&gt;
+&gt; output_mask = 16, 0 &lt;repeat 31 times&gt;
+&gt; except_mask = 16, 0 &lt;repeat 31 times&gt;
+&gt; でした。
+&gt; なにかあるのでしょうか？
+&gt; 都合上、7.1.1へのバージョンアップが出来ない状態なのですが、
+&gt; 7.1.1ではロックしないのかは（同じ環境下で）調査しようかと思っています。
+&gt; 皆様のお知恵をお貸しください。
+&gt; 宜しくお願いいたします。
+&gt; 
+
+#あと、本題とは外れますが、
+static int
+connectMakeNonblocking(PGconn *conn)
+{
+#ifndef WIN32
+    if (fcntl(conn-&gt;sock, F_SETFL, O_NONBLOCK) &lt; 0)
+            ・・・
+となっているのは、
+    int flags = fcntl(conn-&gt;sock, F_GETFL, 0);
+    if (fcntl(conn-&gt;sock, F_SETFL, flags|O_NONBLOCK) &lt; 0)
+            ・・・
+が正しいんでしょうね？元々設定されていたフラグがなくなってしまいますから。
+（ちなみにやってみると、ここでのflagsは2(=O_RDWR)となっていました）
+
+
+---
+熊岸 正夫
+kumagishi@jfc-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00482" HREF="msg00482.html">[pgsql-jp 21437] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 21404] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> Fumikatu_Saitoh@hq.digi.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00475.html">[pgsql-jp 21430] Re: Kylix での使用に関して</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00476.html">[pgsql-jp 21431] RE: postmaster の自動起動</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00468.html">[pgsql-jp 21423] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00482.html">[pgsql-jp 21437] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00477"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00477"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

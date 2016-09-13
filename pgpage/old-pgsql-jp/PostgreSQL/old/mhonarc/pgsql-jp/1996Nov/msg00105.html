@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1041] Why can't I initdb ? -->
+<!--X-From: "Takashi Mega" <mega@rodan.misc.hit&#45;u.ac.jp> -->
+<!--X-Date: Sat, 16 Nov 1996 21:57:39 +0900 -->
+<!--X-Message-Id: 199611161257.VAA16557@rodan.misc.hit&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1041] Why can't I initdb ? </TITLE>
+<LINK REV="made" HREF="mailto:mega@rodan.misc.hit-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00104.html">Date Prev</A>][<A HREF="msg00106.html">Date Next</A>][<A HREF="msg00108.html">Thread Prev</A>][<A HREF="msg00104.html">Thread Next</A>][<A HREF="index.html#00105">Date Index</A>][<A HREF="threads.html#00105">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1041] Why can't I initdb ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Takashi Mega" &lt;<A HREF="mailto:mega@rodan.misc.hit-u.ac.jp">mega@rodan.misc.hit-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 16 Nov 1996 21:57:39 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+一橋大の妻鹿です。
+
+何とか自力で解決できたようなのですが、不都合らしきものを見付けましたの
+で報告します。
+
+# 原因不明なのです ^^;。
+
+つい先日、Sun OS 4.1.4に載せていたPostgres 95 1.01から1.08へのバージョ
+ンアップを図りました。
+
+# 1.09があるようですが、たまたまjaistのミラーサイトに行ったら1.08しか
+# なかったものですから…。
+
+gmake,gmake installまでは特に問題なく行えたのですが、inistdbを実行する
+と、
+
+) WARN:pg_atoi: error in "t": can't parse "t"
+) initdb: 29643 Memory fault - core dumped
+) initdb: could create shared relations
+) initdb: cleaning up.
+
+という見たこともないエラーを見ました。initdbがshのスクリプトだったよう
+なので、次にsh -x initdb を試みましたところ、
+
+(前略)
+) + echo open pg_database 
+) + echo insert (template1 101 template1) 
+) + echo close pg_database 
+) + test 0 -eq 1 
+) 
+) #
+) # failed here(自分で付けたコメント)
+) #
+) 
+) + postgres -boot -C -F -Q template1 
+) WARN:pg_atoi: error in "t": can't parse "t"
+) initdb: 28751 Memory fault - core dumped
+) + test 139 -ne 0 
+) + echo initdb: could create shared relations 
+) initdb: could create shared relations
+) + test 0 -eq 0 
+) + echo initdb: cleaning up. 
+) initdb: cleaning up.
+(後略)
+
+となりました。ちなみにinitdbの内部で２回postgres $BACKENDARGSを実行し
+ているようですが、前者の postgres $BACKENDARGS template1 &lt; $TEMPLATEは
+うまく行き、後者のpostgres $BACKENDARGS template1 &lt; $GLOBALのところで
+失敗していました。
+
+しょうがないので&lt; $GLOBALの部分を１段階ずつ手動でpostgresに食わせてみ
+たところ、
+
+) create bootstrap pg_user
+)  (
+)  usename = name ,
+)  usesysid = int4 ,
+)  usecreatedb = bool ,
+)  usetrace = bool ,
+)  usesuper = bool ,
+)  usecatupd = bool
+)  )
+) insert OID = 0 ( 101 t t t t )
+) # 73 "" 
+) close pg_user
+
+このinsert行でつまづいていました。そこで、別のマシンに既に入れていた
+Postgres 95 1.08のglobal1.bkiと比べてみたところ、) insert OID = 0
+( postgres 101 t t t t )
+  ^^^^^^^^
+がぬけていることに気づきました。
+
+結局これを修正してからinitdbしたところうまく行ったのですが、何故
+global1.bkiの内容がおかしくなっていたのかは分かりません。もちろん、僕
+も含めて誰もそんなファイルをいじったりはしていません。
+
+以上、大したことではないかもしれませんが、念のため報告しておきます。
+
+
+
+
+
+******************************************************************************
+Hitotsubashi University(in Japan)                                Takashi Mega
+Keywords                                Japanese Sake, International Exchange 
+E-mail Address                                    mega@rodan.misc.hit-u.ac.jp
+******************************************************************************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00104.html">[postgres95 1040] rule</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00106.html">[postgres95 1042] postgreSQL?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00108.html">[postgres95 1044] Re: postgreSQL?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00104.html">[postgres95 1040] rule</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00105"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00105"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

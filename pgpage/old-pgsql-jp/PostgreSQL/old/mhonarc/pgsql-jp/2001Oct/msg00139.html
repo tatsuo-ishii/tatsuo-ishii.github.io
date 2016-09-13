@@ -1,0 +1,309 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23408] SQL についていろいろ質問です -->
+<!--X-From: TB <MList@myrealbox.com> -->
+<!--X-Date: Thu, 11 Oct 2001 00:22:34 +0900 -->
+<!--X-Message-Id: 20011010231525.E745.MLIST@myrealbox.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23408] SQL についていろいろ質問です </TITLE>
+<LINK REV="made" HREF="mailto:MList@myrealbox.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00138.html">Date Prev</A>][<A HREF="msg00140.html">Date Next</A>][<A HREF="msg00143.html">Thread Prev</A>][<A HREF="msg00140.html">Thread Next</A>][<A HREF="index.html#00139">Date Index</A>][<A HREF="threads.html#00139">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23408] SQL についていろいろ質問です</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TB &lt;<A HREF="mailto:MList@myrealbox.com">MList@myrealbox.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 11 Oct 2001 00:22:34 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+はじめまして TB です
+よろしくお願いします
+
+
+大学の卒業研究でPostgreSQLを使い始めた，全くの初心者です．
+自分で解決できなかったので質問メールを出させてもらいました．
+よろしくお願いします．
+
+
+一応ML過去ログ，PostgreSQL 7.1.3 ドキュメント(日本語版 1.6)，
+PostgreSQL完全攻略ガイドを見ました．
+
+
+
+以下のテーブルでの質問です
+
+
+すべてinteger
+┌─────────────┐┌──────────────┐
+│仕入テーブル:siire        ││売上テーブル:uriage         │
+├─────────────┤├──────────────┤
+│仕入伝票ID:siiredenpyou_id││売上伝票ID:uriagedenpyou_id │
+├─────────────┤├──────────────┤
+│商品ID:syouhin_id         ││商品ID:syouhin_id           │
+├─────────────┤├──────────────┤
+│個数:kosuu                ││個数:kosuu                  │
+├─────────────┤└──────────────┘
+│金額:kingaku              │
+└─────────────┘
+
+/*　いらないと思われるが一応
+┌─────────────┐┌──────────────┐
+│仕入:siire                ││売上:uriage                 │
+├─────────────┤├──────────────┤
+│仕入伝票ID:siiredenpyou_id││売上伝票ID:uriagedenpyou_id │serial
+├─────────────┤├──────────────┤
+│仕入日:siirebi            ││売上日:uriagebi             │date
+├─────────────┤├──────────────┤
+│仕入先ID:siiresaki_id     ││商品ID:syouhin_id           │integer
+└─────────────┘└──────────────┘
+*/
+
+
+
+やること
+
+WEBブラウザでユーザーが商品をあるキーワードで検索し，その結果を表示する．
+このとき，在庫が０より多い商品だけを表示しなければならない．
+ [ 仕入テーブル.個数 - 売上テーブル.個数 = 在庫数 ]
+なので，これが０より大きい場合，表示するようにしようとした．
+
+# 商品マスタテーブルに在庫数を持たせるべきなのでしょうか・・・
+
+
+
+そこで，仕入れた商品が商品ID：３　と　商品ID：９　の２つあるとする．
+それぞれ，仕入数は，１００個（商品ID：３），１０個（商品ID：９）である．
+売上が　商品ID:９　５個　とする．
+
+この場合，以下のことがいえる．
+
+商品ID：３　について
+　仕入数（１００個） − 売上数（０個） ＝ 在庫数（１００個）
+商品ID：９　について
+　仕入数（１０個） − 売上数（５個）＝ 在庫数（５個）
+
+テーブルは以下のようになる．
+
+仕入テーブル:siire
+siiredenpyou_id		syouhin_id	kosuu	kingaku
+              1		        3	  100	    100
+              2		        9	   10	     20
+
+売上テーブル:uriage
+uriagedenpyou_id	syouhin_id	kosuu
+              1		        9	    5
+
+
+
+以上のような状況で，WEBブラウザから検索する．
+
+PHP（4.0.6）を使って，PostgreSQLに接続し，以下のSQLを発行した．
+#商品マスタ:syouhin_master テーブルから情報を取り出す．
+
+SELECT * FROM syouhin_master AS SM WHERE 0 &lt; ( (SELECT SUM(S.kosuu) FROM
+siire AS S WHERE S.syouhin_id = SM.syouhin_id GROUP BY S.syouhin_id) -
+(SELECT CASE SUM(U.kosuu) WHEN NULL THEN 0 ELSE SUM(U.kosuu) END FROM
+uriage AS U WHERE U.syouhin_id = SM.syouhin_id GROUP BY U.syouhin_id) )
+
+商品マスターテーブルから 0より大きい 仕入数-売上数 のものを取り出す
+#とてつもなく変な事してますか？SQLよくわかってないんで（ToT
+
+ということを実現している（しようとしている）．
+
+///////////////////////////////////////////////////////////////////////
+しかし，商品ID：３　の　売上情報が無いため，
+仕入数（１００）− NULL( 0 rows )
+で結果が帰ってこない．
+///////////////////////////////////////////////////////////////////////
+
+
+そこで，以下の操作で実現させた．
+
+
+CREATE VIEW siiresuu AS SELECT s.syouhin_id AS id, SUM(s.kosuu) AS
+siiresuu FROM siire AS s GROUP BY s.syouhin_id;
+
+test=&gt;SLECT * FROM siiresuu;
+ id | siiresuu
+----+----------
+  3 |      100
+  9 |       10
+(2 rows)
+
+CREATE VIEW uriagesuu AS SELECT u.syouhin_id AS id, SUM(u.kosuu) AS
+uriagesuu FROM uriage AS u GROUP BY u.syouhin_id;
+
+test=&gt;SELECT * FROM uriagesuu;
+ id | uriagesuu
+----+--------
+  9 |      5
+(1 row)
+
+CREATE VIEW zaikosuu AS SELECT * FROM siiresuu NATURAL LEFT OUTER JOIN
+uriagesuu;
+
+test=&gt; SELECT * FROM zaikosuu;
+ id | siiresuu | uriagesuu
+----+----------+-----------
+  3 |      100 |
+  9 |       10 |         5
+(2 rows)
+
+test=&gt; SELECT id, siiresuu, CASE WHEN uriagesuu IS NULL THEN 0 ELSE
+uriagesuu END AS uriagesuu FROM zaikosuu;
+ id | siiresuu | uriagesuu 
+----+----------+------
+  3 |      100 |    0
+  9 |       10 |    5
+(2 rows)
+
+
+最後の状況でなら
+　　しかし，商品ID：３　の　売上情報が無いため，
+　　仕入数（１００）− NULL( 0 rows )
+　　で結果が帰ってこない．
+という状況は起こらなくなる．
+
+
+
+しかし，仕入情報，売上情報を追加した場合，ビューが更新されないという問題
+が生じた．
+ドキュメント（PostgreSQL 7.1.3 ドキュメント(日本語版 1.6)）では
+　&gt;&gt;現在のところビューは読み取り専用です。
+となっているので更新は不可能ということでしょうか．
+# ruleを使えばいいのでしょうか？ruleがよくわからないのです
+# SUMを使っているのでさらにわからないです
+
+
+
+以上のような状況です．
+
+現在は，DROP VIEW をして，CREATE VIEW をして，無理矢理やっていますが，
+データ数が多くなれば，遅くなってしまうので，違う方法があればと思います．
+
+
+
+
+
+また，以下のように（商品IDを直接３と指定していますが）やってみました．
+
+test=&gt; SELECT siire.syouhin_id AS id, (SELECT SUM(siire.kosuu) AS siiresuu
+FROM siire WHERE siire.syouhin_id = 3 GROUP BY siire.syouhin_id) AS
+siiresuu, CASE WHERE (SELECT SUM(uriage.kosuu) AS uriagesuu FROM uriage
+WHERE uriage.syouhin_id = 3 GROUP BY uriage.syouhin_id) IS NULL THEN 0
+ELSE (SELECT SUM(uriage.kosuu) AS uriagesuu FROM uriage WHERE
+uriage.syouhin_id = 3 GROUP BY uriage.syouhin_id) END AS uriagesuu FROM siire
+WHERE siire.syouhin_id = 3 GROUP BY siire.syouhin_id;
+ id | siiresuu | uriagesuu
+----+----------+-----------
+  3 |      100 |         0
+(1 row)
+
+
+きちんと売上数が０になっていますが，気になる点があります．
+
+CASE WHERE (SQL) IS NULL THEN 0 ELSE (SQL) END
+
+とやっていますが，同じSQLを２回も実行することになるのでしょうか？
+# 無駄な処理をして速度が落ちているのではないかと気になっています
+
+また，一応売上数が０になっていますが，これをどのように使えば，すべての商
+品IDについて，できるのかわかりません．
+
+
+
+
+まとめ
+
+・売上の無い商品の在庫数がきちんと出せない．
+　解決するためのSQLが思いつかない
+・ビューが更新できない．
+　これは無理？ruleで解決？
+・CASE 文において速度が落ちる？
+　SQLを２回実行する？
+
+１番目の在庫数がきちんと出るようなSQLがわかれば一番いいのですが・・・
+複雑になりすぎて，わかりません．どなたかヒントでも答えでもよろしくお願い
+します．
+
+２，３番目の問題についても答えを知りたいところです．
+
+
+
+初めての投稿で，長文，多数の質問ですが，どなたかお力を貸してください．
+お願いします．
+
+
+
+日本語がおかしい場合はどんどんつっこんでください．
+説明が足りない部分も意味がわからない部分についても．
+# どこからどこまでを書けばいいのかわかりませーん(ToT
+
+
+
+PostgreSQL:7.1.2
+PHP:4.0.6
+FreeBSD:???
+RedHat:6.4J
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00142" HREF="msg00142.html">[pgsql-jp 23411] Re: SQL  についていろいろ質問です</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Miyakawa &lt;tak@hdt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp 23410] Re: SQL についていろいろ質問です(取引データから結果をもとめる)</A></STRONG>
+<UL><LI><EM>From:</EM> "Kazuyoshi Shimizu" &lt;shimizu@sunfelt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00140" HREF="msg00140.html">[pgsql-jp 23409] Re: SQL についていろいろ質問です</A></STRONG>
+<UL><LI><EM>From:</EM> h-kato@hokkaido.nsc-kk.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00138.html">[pgsql-jp 23407] Re: postmaster 起動時のエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00140.html">[pgsql-jp 23409] Re: SQL についていろいろ質問です</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 23412] RE: SQL についていろいろ質問です</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00140.html">[pgsql-jp 23409] Re: SQL についていろいろ質問です</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00139"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00139"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

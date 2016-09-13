@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12452] Re: 初めまして +PHPとの連携での質問です。 -->
+<!--X-From: Makoto Kaga <makoto&#45;k@project92.com> -->
+<!--X-Date: Fri, 31 Dec 1999 11:13:54 +0900 -->
+<!--X-Message-Id: 199912310222.LAA13692@deeps.project92.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991229215018D.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 001101bf5239$8e7bba30$bb8017ca@max -->
+<!--X-Reference-Id: 386B64A01AE.DE0BMKOZAI@mail.xa2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12452] Re: 初めまして +PHPとの連携での質問です。 </TITLE>
+<LINK REV="made" HREF="mailto:makoto-k@project92.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00456.html">Date Prev</A>][Date Next][<A HREF="msg00453.html">Thread Prev</A>][<A HREF="msg00392.html">Thread Next</A>][<A HREF="index.html#00457">Date Index</A>][<A HREF="threads.html#00457">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12452] Re: 初めまして +PHPとの連携での質問です。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Makoto Kaga &lt;<A HREF="mailto:makoto-k@project92.com">makoto-k@project92.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 31 Dec 1999 11:13:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00447.html">19991229215018D.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00449.html">001101bf5239$8e7bba30$bb8017ca@max</A>&gt;&lt;<A HREF="msg00452.html">386B64A01AE.DE0BMKOZAI@mail.xa2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加賀です。
+
+From: Masaya Kouzai &lt;mkozai@xa2.so-net.ne.jp&gt;
+Subject: [pgsql-jp 12447] 初めまして +PHPとの連携での質問です。
+Date: Thu, 30 Dec 1999 22:56:48 +0900
+
+&gt; 今、Laser5Linux6.0＋PHP3.0.12＋PostgreSQL6.5.3+
+&gt; Apache1.3.9でWeb上からデータベースを検索するシステム
+&gt; があるのですが、検索結果からPHP側からGnuplotを起動さ
+&gt; せてグラフを表示するという事がPHPでできるのでしょうか？
+
+すでに、石井さんがポストされておられるように、あえて、
+gnuplot でやる意味はあまりないように思えます。もっと複雑な
+グラフを書かれるなら別ですが。
+
+もし、どうしても gnuplot でというのなら、香西さんのご質問
+にあるように、データベースへの問い合わせ結果を一旦ファイル
+に書き出して、それを gnuplot に読ませるというのは得策では
+ないように思えます。なぜなら、
+
+・複数のリクエストが同時に発生したケースのために、一時ファ
+　イルの名前をリクエストごとにユニークにしなくてはならない。
+・ユーザーが読み込み途中でHTTPセッションをキャンセルした
+　場合、一時ファイルが削除されないことがありうる。
+
+からです。そこで、以下のようにしてはどうでしょうか？
+
+1) PostgreSQL に問い合わせを行ない、データを標準出力に出力
+　するようなプログラムを Perl などで作る
+2) gnuplot でグラフを生成する際に、ファイルではなく、1) の
+　実行結果を読むようにする
+3) 2) を PHP3 ないし CGI 経由で実行する
+
+という感じです。たとえば、
+
+1) /tmp/hoge.pl
+------------------------------------------------------------
+#! /usr/local/bin/perl -w
+use Pg;
+
+my($conn, $result, $i, $n);
+
+$conn = Pg::connectdb("dbname=test user=nobody password=");
+if (PGRES_CONNECTION_OK ne $conn-&gt;status) {
+    printf("cannot connect db\n");
+    exit;
+}
+
+$result = $conn-&gt;exec("select * from hoge order by year");
+if ($result-&gt;resultStatus ne PGRES_TUPLES_OK) {
+    printf("search failed. reason: %s",$conn-&gt;errorMessage);
+    exit;
+}
+
+$n = $result-&gt;ntuples;
+
+for ($i = 0; $i &lt; $n; $i++) {
+   printf("%d\t%d\n",$result-&gt;getvalue($i,0),$result-&gt;getvalue($i,1));
+}
+------------------------------------------------------------
+
+2) hoge.gnu
+------------------------------------------------------------
+set terminal gif
+plot '&lt; /tmp/hoge.pl' title 'hoge' with lines
+------------------------------------------------------------
+
+3) hoge.php3
+------------------------------------------------------------
+&lt;?
+  i18n_http_output("pass");
+  Header("Content-Type: image/gif");
+
+  passthru("/usr/local/bin/gnuplot /tmp/hoge.gnu");
+?&gt;
+------------------------------------------------------------
+
+とか？
+
+この場合、PostgreSQL の Perl インターフェイスをインストール
+しておく必要があります。
+とりあえず、/tmp 以下にファイルを置いていますが、これは適当
+なディレクトリに置くべきでしょう。
+
+-- 
+Makoto Kaga
+<A HREF="http://project92.com/~makoto-k/">http://project92.com/~makoto-k/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00447" HREF="msg00447.html">[pgsql-jp 12442] Re: pgbash-2.0 released</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 12444] 今はPHPのインストール</A></STRONG>
+<UL><LI><EM>From:</EM> "Yohsuke Adachi" &lt;eg0004@mail3.doshisha.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00452" HREF="msg00452.html">[pgsql-jp 12447] 初めまして+PHPとの連携での質問です。</A></STRONG>
+<UL><LI><EM>From:</EM> Masaya Kouzai &lt;mkozai@xa2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 12451] Re: はじめまして。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00453.html">[pgsql-jp 12448] Re: 初めまして +PHPとの連携での質問です。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 12386] FreeBSD2.2.8(98)環境でのPostgreSQL-6.5インストール</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00457"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00457"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

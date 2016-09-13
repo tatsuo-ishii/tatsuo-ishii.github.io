@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5467] Re: performance tuning for many users -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Wed, 23 Sep 1998 20:35:06 +0900 -->
+<!--X-Message-Id: 19980923203506O.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809211028.TAA07716@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5467] Re: performance tuning for many users </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00257.html">Date Prev</A>][<A HREF="msg00259.html">Date Next</A>][<A HREF="msg00240.html">Thread Prev</A>][<A HREF="msg00225.html">Thread Next</A>][<A HREF="index.html#00258">Date Index</A>][<A HREF="threads.html#00258">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5467] Re: performance tuning for many users</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Sep 1998 20:35:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00240.html">199809211028.TAA07716@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+# ML のトピックからはちょっとはずれてしまいますが，一応ご参考までに ...
+
+&gt; &gt;パフォーマンスをテストするだけの余裕はなかったので，今はともかく
+&gt; &gt;「走る」というレベルでテストしています．TPS まで測定すると面白い
+&gt; &gt;のでしょうが，同時アクセスが集中するとサーバがハングアップして
+&gt; &gt;しまってプロセスの掃除が面倒なので，こちらはやってません．
+&gt; &gt;6.4 が安定しているようならば，やってみたいですね．
+&gt; 
+&gt; ハングアップする原因は file descriptor の不足ですか？だとすると、6.4 
+&gt; でもあまり改善されていないと思います。
+
+file descriptor の不足ではなかったと思います．
+
+実験を途中で中止したのは，ハングした postgres プロセスを
+殺してやるのが大変だったというのが一番の理由です．
+
+
+&gt; &gt;とりあえず走るかどうかという意味では，簡単な selection query
+&gt; &gt;を走らせる分には問題はありません．なのですが，二重否定演算
+&gt; &gt;(つまり割り算) を実行させると，現在の設定でも 40 くらいで shmem
+&gt; &gt; 不足に入ってしまうようです．shmem をもう少し増やすということも
+&gt; &gt;考えたのですが，結局時間がなくてやっていませんでした．
+&gt; 
+&gt; これも困りものですね。具体的にどのような query で shmem 不足になるのか
+&gt; 教えて頂けますか？
+
+非常に簡単なものです．具体的には，
+
+    SELECT DISTINCT s1.sno, s1.sname
+    FROM student s1, enrolls e1
+    WHERE s1.sno = e1.sno
+      AND NOT EXISTS (
+        SELECT * FROM student s2, enrolls e2, teaches a2, teacher t2
+        WHERE (s1.sno, s1.sname) = (s2.sno, s2.sname)
+          AND s2.sno = e2.sno
+          AND a2.tno = t2.tno AND t2.tname = '市川'
+          AND NOT EXISTS (
+            SELECT * FROM student s3, enrolls e3, teaches a3, teacher t3
+            WHERE (s2.sno, s2.sname, a2.cno) = (s3.sno, s3.sname, e3.cno)
+              AND s3.sno = e3.sno AND e3.cno = a3.cno
+              AND a3.tno = t3.tno AND t3.tname = '市川' ) )
+
+というような，二重否定問合せです．「'市川' 担当の授業を全て
+履修している学生」 という割り算ですから，これ以上教科書的な
+ものがあるか，というくらい教科書的な問合せですね．
+(exists を in にしてやると，ガクっとおそくなるところが，
+なんとも楽しいです :-) 
+
+索引がキーに張り付いているのと，データが数十件しかないような
+とてつもなく小さなものということで，単体で計算をさせる分にはすぐに
+答えが返ってきます．とはいっても，計算途中でメモリーをかなり食うらしく，
+これを 50 台の WS からほぼ同時に投げるてやると，shmem 不足で
+postgres プロセスがハングします．
+
+もっと簡単なものでも，初期設定では 50 ユーザはサポートで出来なかったので，
+そもそも shmem 不足なんだったんだろうというのが大雑把な結論です．
+
+
+&gt; &gt;ちょっと気になったのは，-B をあげたためか，プロセスが非常に大きく
+&gt; &gt;なってしまっており，現在の構成では，12MB と表示されます．
+&gt; &gt;プロセス単体で 12M なのかどうかは不明ですが，単純に計算すると
+&gt; &gt;600MB ですから，それだけで計算機の主記憶の 1/4 を食い潰すということに
+&gt; &gt;なります．もうちょっと必要資源が少なくないと，クリティカルな
+&gt; &gt;ところではきついかな，という感じがしています．
+&gt; 
+&gt; ps の表示に共有メモリが加算されるとは思えないですが... でも、そうでな
+&gt; いとしたら、-B に比例してヒープメモリを消費していることになりますね。
+&gt; なんでだろう。
+
+この辺りはどうも．あれこれ無計画にいじってしまったので，
+どうなっているのか，わからなくなっています．加えて，
+PostgreSQL は必要に応じてヒープを取りに行くので，単体の
+計算式が重いようなケースでは，プロセスがどんどん太って行きます．
+一筋縄では行かないですね．
+
+
+&gt; &gt;# ちなみに HD は Hard RAID で fiber channel x 2 (50MB/s) で
+&gt; &gt;# つなげてあります．むちゃくちゃ贅沢な構成で，なぜここで
+&gt; &gt;# PostgreSQL なんじゃ，と言われてしまいそうですね (^^;
+&gt; 
+&gt; 恵まれた教育環境で羨ましいです:-)
+
+いえいえ．これはセンターの計算機に postgres アカウントを
+持っているというだけのことで，いろいろと実験できるのも
+利用者がまだ少ないから，というだけのことなんです．
+
+# 目の前にあるのは，PP200 + Solris2.5.1 といういかにもな
+# Personal Unix です (^^; ...
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00240" HREF="msg00240.html">[pgsql-jp 5449] Re: performance tuning for many users</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00257.html">[pgsql-jp 5466] Re: sparc-sun-solaris2.5.1</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 5468] benchmark on Linux 2.0.35/PentiumII 450MHz/128MB</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00240.html">[pgsql-jp 5449] Re: performance tuning for many users</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00225.html">[pgsql-jp 5434] gnuplotからgifファイルの出力</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00258"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00258"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

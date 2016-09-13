@@ -1,0 +1,233 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14998] 検索時間を短縮するには? -->
+<!--X-From: "Asakawa" <asakawa@fjct.ts.fujitsu.co.jp> -->
+<!--X-Date: Fri, 2 Jun 2000 10:43:53 +0900 -->
+<!--X-Message-Id: 005b01bfcc34$02ab2700$97c11f0a@asakawa.oy.fjct.ts.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14998] 検索時間を短縮するには? </TITLE>
+<LINK REV="made" HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00040.html">Date Prev</A>][<A HREF="msg00042.html">Date Next</A>][<A HREF="msg00046.html">Thread Prev</A>][<A HREF="msg00040.html">Thread Next</A>][<A HREF="index.html#00041">Date Index</A>][<A HREF="threads.html#00041">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14998] 検索時間を短縮するには?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Asakawa" &lt;<A HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">asakawa@fjct.ts.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 2 Jun 2000 10:43:53 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+_______________________________________________________________/
+                                            2000/06/02 10:45:02
+はじめまして。
+浅川@中央工業と申します。
+
+本MLには[pgsql-jp 12300]位から参加させて頂いており大変お世話に
+なっておます。（投稿は今回が始めてです）
+よろしくお願い致します。
+
+現在、Browser&lt;-&gt;Servlet&lt;-&gt;PostgreSQLでWebデータベースを運用する為
+のテストを行っております。
+DBの構成としては、
+実績テーブル-+-マスタテーブルA
+　　　　　　 +-マスタテーブルB
+　　　　　　 +-マスタテーブルC
+で、実績テーブルのコードとマスタテーブルのコードが一致すればマスタ
+テーブルにある名称を取得すると言うものです。
+最終的に、実績テーブルの一覧を表示する事を目的としています。
+*実績テーブルデータ件数:30件
+*マスタテーブルデータ件数:2〜60件
+上記の構成で、添付したSQLを実行すると検索に30秒以上掛かってしまい、
+長い時は5分待っても検索が終了しない場合があり、一度だけ[backend
+closed the channel unexpectedly.]でPostgreSQLがDownする事もありました。
+データ件数も少なく、無理な条件を指定しているわけでもない(と思っている)
+のですが、index等を見直してみても一向に速度の改善が出来ません。
+(添付したSQLのindex構成が一番検索が速かった)
+また、Joinするテーブル数を減らして行くと検索速度が速くなります。
+
+目標としては5秒以内の返答を期待しているのですが、このSQLのどこが
+良くないのか、また、どのような構成(設定)を行えば検索が速くなるのか
+ご教授頂けないでしょうか?
+
+※実績テーブルに登録されているコード(マスタへJoinで使用)はマスタ
+テーブルに必ず存在しています。
+
+**環境
+PostgreSQL6.4.2(patch済)
+Server   :Solaris2.5.1(SunOS5.5.1:UltraSPARC-II 296 MHz)
+WebServer:Apache1.3.9
+JServ1.0
+JSDK2.0
+JDK1.1.8-09ja
+Browser : IE4.0
+
+**実行したSelect文
+select
+ jsk.doc_no, jsk.daicho_cd, jsk.edition_no, jsk.input_date
+ , jsk.release_flg, jsk.custody_cd, jsk.tanto_cd
+ , proj.project_name, prod.product_name, usr.user_name
+ , bmn.dept_name, hkn.custody_place, dai.daicho_name, soti.souti_name
+ from
+ trs_daichojisseki jsk
+ , mst_project proj, mst_product prod, mst_user usr
+ , mst_bumon bmn, mst_hokan hkn, mst_daicho dai, mst_souti soti
+ where
+ jsk.dept_cd = proj.dept_cd
+ and jsk.project_cd = proj.project_cd
+ and jsk.dept_cd = prod.dept_cd
+ and jsk.project_cd = prod.project_cd
+ and jsk.product_cd = prod.product_cd
+ and jsk.tanto_cd = usr.user_cd
+ and jsk.daicho_cd = dai.daicho_cd
+ and jsk.custody_cd = hkn.custody_cd
+ and jsk.dept_cd = bmn.dept_cd
+ and jsk.souti_cd = soti.souti_cd
+ and jsk.delete_flg = 0
+
+**テーブルフォーマット
+*実績テーブル
+CREATE TABLE trs_daichojisseki (
+ corp_cd  varchar(4) not null,
+ dept_cd  varchar(4) not null,
+ project_cd  varchar(1) not null,
+ product_cd  varchar(3) not null,
+ doc_kind  varchar(1) not null,
+ iso_kind  varchar(1) not null,
+ year   varchar(2) not null,
+ seq_no   int2       not null,
+ daicho_cd  varchar(10) not null,
+ souti_cd  varchar(10),
+ subtitle  text,
+ tanto_cd  varchar(8),
+ doc_no   varchar(25),
+ release_flg int2,
+ custody_cd  varchar(10),
+ doc_flg  int2,
+ edition_no  varchar(10),
+ delete_flg  int2,
+ input_date  date,
+ note   text,
+ primary key( doc_no ) );
+
+create index idx_daichojisseki1
+on trs_daichojisseki
+
+ dept_cd,
+ project_cd,
+ product_cd,
+ doc_no );
+
+*マスタテーブル
+構成は全てcode, nameがセットになったテーブルで
+codeは重複しません。
+(上記SQLではmst_〜にあたるテーブル)
+
+CREATE TABLE mst_〜(
+ code varchar(4) not null,
+ name varchar(100),
+ date date,
+ note text
+);
+create index idx_〜
+on mst_〜 ( code );
+
+**上記SQLを実行した時のexplainの結果
+  (explain verbose ~で実行すると[backend closed the channel
+   unexpectedly]でデータベースがDownしてしまいます)
+test=&gt; explain
+test-&gt; select
+test-&gt;  jsk.doc_no, jsk.daicho_cd, jsk.edition_no, jsk.input_date
+test-&gt;  , jsk.release_flg, jsk.custody_cd, jsk.tanto_cd
+test-&gt;  , proj.project_name, prod.product_name, usr.user_name
+test-&gt;  , bmn.dept_name, hkn.custody_place, dai.daicho_name, soti.souti_name
+test-&gt;  from
+test-&gt;  trs_daichojisseki jsk
+test-&gt;  , mst_project proj, mst_product prod, mst_user usr
+test-&gt;  , mst_bumon bmn, mst_hokan hkn, mst_daicho dai, mst_souti soti
+test-&gt;  where
+test-&gt;  jsk.dept_cd = proj.dept_cd
+test-&gt;  and jsk.project_cd = proj.project_cd
+test-&gt;  and jsk.dept_cd = prod.dept_cd
+test-&gt;  and jsk.project_cd = prod.project_cd
+test-&gt;  and jsk.product_cd = prod.product_cd
+test-&gt;  and jsk.tanto_cd = usr.user_cd
+test-&gt;  and jsk.daicho_cd = dai.daicho_cd
+test-&gt;  and jsk.custody_cd = hkn.custody_cd
+test-&gt;  and jsk.dept_cd = bmn.dept_cd
+test-&gt;  and jsk.souti_cd = soti.souti_cd
+test-&gt;  and jsk.delete_flg = 0;
+NOTICE:  QUERY PLAN:
+
+Nested Loop  (cost=12.05 size=3 width=318)
+-&gt;  Nested Loop  (cost=10.00 size=1 width=294)
+  -&gt;  Nested Loop  (cost=8.44 size=1 width=270)
+   -&gt;  Nested Loop  (cost=6.65 size=1 width=246)
+    -&gt;  Nested Loop  (cost=5.19 size=1 width=198)
+     -&gt;  Nested Loop  (cost=4.12 size=1 width=174)
+      -&gt;  Nested Loop  (cost=2.92 size=1 width=150)
+        -&gt;  Seq Scan on trs_daichojisseki jsk  (cost=1.79 size=1 width=114)
+        -&gt;  Seq Scan on mst_project proj  (cost=1.13 size=4 width=36)
+       -&gt;  Seq Scan on mst_hokan hkn  (cost=1.20 size=6 width=24)
+      -&gt;  Seq Scan on mst_bumon bmn  (cost=1.07 size=2 width=24)
+     -&gt;  Seq Scan on mst_product prod  (cost=1.46 size=14 width=48)
+    -&gt;  Seq Scan on mst_user usr  (cost=1.79 size=24 width=24)
+   -&gt;  Seq Scan on mst_souti soti  (cost=1.56 size=17 width=24)
+  -&gt;  Index Scan using mst_daicho_pkey on mst_daicho dai  (cost=2.05 size=62
+width=24)
+
+EXPLAIN
+
+__________________________________________________________Fin___
+from.
+ Asakawa: asakawa@fjct.ts.fujitsu.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 14997] manのSQL関数について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00042.html">[pgsql-jp 14999] Re: pgsql_perl5がmake testでエラーがでる</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 15003] Re: Oracleでのアクリケーションの移植</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 14997] manのSQL関数について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00041"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00041"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

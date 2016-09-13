@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26587] Re: PL/pgSQLで関数を作成したい -->
+<!--X-From: 羽生　章洋<habu@air&#45;beat.com> -->
+<!--X-Date: Fri, 5 Jul 2002 16:19:16 +0900 -->
+<!--X-Message-Id: JK20020705161916.24153961@air&#45;beat.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: JP20020705153005.21203549@air&#45;beat.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26587] Re: PL/pgSQLで関数を作成したい </TITLE>
+<LINK REV="made" HREF="mailto:habu@air-beat.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00037.html">Date Prev</A>][<A HREF="msg00039.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00039.html">Thread Next</A>][<A HREF="index.html#00038">Date Index</A>][<A HREF="threads.html#00038">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26587] Re: PL/pgSQLで関数を作成したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 羽生　章洋&lt;<A HREF="mailto:habu@air-beat.com">habu@air-beat.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 5 Jul 2002 16:19:16 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00037.html">JP20020705153005.21203549@air-beat.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+羽生です。
+
+&gt; UPされていたコードを元に作ってみました。適当に修正して
+&gt; 使ってください。
+
+[pgsql-jp: 26510] Re: 空きID の複数検索
+で杉田さんが書かれていたSQL関数をラップしてみました。
+一時テーブルを使わないので、こちらのほうがより
+便利だと思います。
+
+＃　こちらのほうが明らかにスマートですね(^^)
+
+■まずSQL関数をそのまま使わせていただきます。
+　（杉田さん、ありがとうございます）
+
+-- 7.2 用のダミー、7.3 では不用。
+CREATE OR REPLACE FUNCTION g(int4, int4) RETURNS SETOF integer AS '
+SELECT 0;
+' LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION g(int4, int4) RETURNS SETOF integer AS '
+SELECT g($1 - 1, $2) WHERE $1 &gt; $2 UNION SELECT $1;
+' language sql;
+
+■呼び出す関数を作るためにPL/pgSQLでラップします。
+
+create or replace function GetEmptyID2(int4,int4)
+returns REFCURSOR as '
+declare
+    ret REFCURSOR;
+begin
+    OPEN ret FOR
+    SELECT * FROM (SELECT g(e, b)
+              FROM (SELECT min(id) AS b, max(id) AS e FROM a) AS s)
+              AS g
+          EXCEPT SELECT id FROM a
+    ;
+    RETURN ret;
+end;
+' LANGUAGE 'PLpgSQL'
+;
+
+■実行確認
+
+iruka=# begin;
+BEGIN
+iruka=# select GetEmptyID2(1,10);
+    getemptyid2
+--------------------
+ &lt;unnamed cursor 1&gt;
+(1 row)
+
+iruka=# fetch all in "&lt;unnamed cursor 1&gt;";
+ g
+---
+ 2
+ 3
+ 6
+ 7
+ 9
+(5 rows)
+
+iruka=# end;
+
+以上です。
+
+先ほどはちゃんと過去ログ読まずに妙なサンプルを上げちゃいまして
+申し訳ございませんでした　＞　皆様
+
+
+================================================================
+★ワクワク音楽体験サイト　それが【エア・ビート・ドットコム】！★
+================================================================
+有限会社エア・ビート(<A HREF="http://www.air-beat.com/">http://www.air-beat.com/</A>)
+取締役兼CEO　羽生　章洋(<A HREF="mailto:habu@air-beat.com">mailto:habu@air-beat.com</A>)
+================================================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp: 26586] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> 羽生　章洋&lt;habu@air-beat.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00037.html">[pgsql-jp: 26586] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00039.html">[pgsql-jp: 26588] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp: 26586] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp: 26588] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00038"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00038"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

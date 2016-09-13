@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12408] Re: backend aborted on Solaris/SPARC -->
+<!--X-From: Toshimi Aoki <toshi@saluda.kinotrope.co.jp> -->
+<!--X-Date: Mon, 27 Dec 1999 14:24:54 +0900 -->
+<!--X-Message-Id: 19991227142454H.toshi@saluda.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991224124004Y.toshi@saluda.kinotrope.co.jp -->
+<!--X-Reference-Id: 19991225142857V.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 19991227130749G.toshi@saluda.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12408] Re: backend aborted on Solaris/SPARC </TITLE>
+<LINK REV="made" HREF="mailto:toshi@saluda.kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00412.html">Date Prev</A>][<A HREF="msg00414.html">Date Next</A>][<A HREF="msg00409.html">Thread Prev</A>][<A HREF="msg00381.html">Thread Next</A>][<A HREF="index.html#00413">Date Index</A>][<A HREF="threads.html#00413">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12408] Re: backend aborted on Solaris/SPARC</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@saluda.kinotrope.co.jp">toshi@saluda.kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 27 Dec 1999 14:24:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00382.html">19991224124004Y.toshi@saluda.kinotrope.co.jp</A>&gt;&lt;19991225142857V.t-ishii@sra.co.jp&gt;&lt;<A HREF="msg00409.html">19991227130749G.toshi@saluda.kinotrope.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木です。
+
+toshi&gt; t-ishii&gt; 多分これはあるバージョン以降のgcc or egcs + RISC マシンにおける known
+toshi&gt; t-ishii&gt; bug です。SPARC だけでなく、PowerPC なども同じ問題を抱えています。直接
+toshi&gt; t-ishii&gt; の原因はオプティマイズをかけたときのコードが変化したためですが、これは
+toshi&gt; t-ishii&gt; 別に gcc のバグではなく、PostgreSQL のコーディングが悪いのだということ
+toshi&gt; t-ishii&gt; になっています。次のバージョンで直る予定ですが、現時点では gcc のバー
+toshi&gt; t-ishii&gt; ジョンを落すか、-O0 とするしかないようです。
+toshi&gt; t-ishii&gt; ところで、落ちている場所はわかりますか?
+toshi&gt; 
+toshi&gt; このマシンにはデバッガ入れてないので追求してません。
+toshi&gt; 時間があれば試してみます。
+
+gcc 2.95.2 で -g -O2 でコンパイルして、落ちているところを見ました。
+とりあえず polygon だけですが、
+
+SELECT '' AS one, p.*
+   FROM POLYGON_TBL p
+   WHERE p.f1 ~ '(3.0,1.0),(3.0,3.0),(1.0,0.0)'::polygon;
+
+を実行したところ、下記のようになりました。
+# ソース追ってません。
+
+Program received signal SIGBUS, Bus error.
+0xeb3b4 in lseg_crossing (x=2, y=-NaN(0xfffffffffffff), px=0, py=0)
+    at geo_ops.c:4530
+
+(gdb) where
+#0  0xeb3b4 in lseg_crossing (x=2, y=-NaN(0xfffffffffffff), px=0, py=0)
+    at geo_ops.c:4530
+#1  0xe8e34 in poly_contain (polya=0xfefe4b70, polyb=0x2585f8)
+    at geo_ops.c:3105
+#2  0x103ca0 in fmgr_c (finfo=0x259120, values=0xffbea9f0, 
+    isNull=0xffbeab77 "") at fmgr.c:135
+#3  0x6edec in ExecMakeFunctionResult (node=0x258770, arguments=0x2587c0, 
+    econtext=0x258d98, isNull=0xffbeab77 "", isDone=0xffbeaa8f "\001")
+    at execQual.c:810
+#4  0x6ee44 in ExecEvalOper (opClause=0x2587c0, econtext=0x258d98, 
+    isNull=0xffbeab77 "") at execQual.c:870
+#5  0x6f244 in ExecEvalExpr (expression=0x258748, econtext=0x258d98, 
+    isNull=0xffbeab77 "", isDone=0xffbeab76 "\001") at execQual.c:1246
+#6  0x6f35c in ExecQualClause (clause=0x258748, econtext=0x258d98)
+    at execQual.c:1313
+#7  0x6f3d0 in ExecQual (qual=0x258848, econtext=0x258d98) at execQual.c:1373
+#8  0x6f7ac in ExecScan (node=0x258860, accessMtd=0x753a0 &lt;SeqNext&gt;)
+    at execScan.c:142
+#9  0x75570 in ExecSeqScan (node=0x258860) at nodeSeqscan.c:159
+#10 0x6d9c0 in ExecProcNode (node=0x258860, parent=0x258860)
+    at execProcnode.c:262
+#11 0x6c930 in ExecutePlan (estate=0x258978, plan=0x258860, 
+    operation=CMD_SELECT, offsetTuples=0, numberTuples=0, 
+    direction=ForwardScanDirection, destfunc=0x2590f0) at execMain.c:908
+#12 0x6bea8 in ExecutorRun (queryDesc=0x258960, estate=0x258978, feature=3, 
+    limoffset=0x0, limcount=0x0) at execMain.c:339
+#13 0xd0b38 in ProcessQueryDesc (queryDesc=0x258960, limoffset=0x0, 
+    limcount=0x0) at pquery.c:333
+#14 0xd0bcc in ProcessQuery (parsetree=0x2579d0, plan=0x258860, dest=Remote)
+    at pquery.c:376
+#15 0xcf2a0 in pg_exec_query_dest (
+    query_string=0xffbeb0a8 "SELECT '' AS one, p.*\n   FROM POLYGON_TBL p\n   WHERE p.f1 ~ '(3.0,1.0),(3.0,3.0),(1.0,0.0)'::polygon;", dest=Remote, 
+    aclOverride=1 '\001') at postgres.c:768
+#16 0xcf0f8 in pg_exec_query (
+    query_string=0xffbeb0a8 "SELECT '' AS one, p.*\n   FROM POLYGON_TBL p\n   WHERE p.f1 ~ '(3.0,1.0),(3.0,3.0),(1.0,0.0)'::polygon;") at postgres.c:656
+#17 0xd0318 in PostgresMain (argc=-4280152, argv=0x15d800, real_argc=1405952, 
+    real_argv=0xffffc000) at postgres.c:1647
+#18 0xb39d8 in DoBackend (port=0x1b1400) at postmaster.c:1628
+#19 0xb3448 in BackendStartup (port=0x211280) at postmaster.c:1373
+#20 0xb2918 in ServerLoop () at postmaster.c:823
+#21 0xb2300 in PostmasterMain (argc=0, argv=0xffbefdec) at postmaster.c:616
+#22 0x7f898 in main (argc=5, argv=0xffbefdec) at main.c:93
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00382" HREF="msg00382.html">[pgsql-jp 12376] backend aborted on Solaris/SPARC</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00409" HREF="msg00409.html">[pgsql-jp 12404] Re: backend aborted on Solaris/SPARC</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00412.html">[pgsql-jp 12407] Re: Solaris7へのインストール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00414.html">[pgsql-jp 12409] Re: Solaris7へのインストール</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 12404] Re: backend aborted on Solaris/SPARC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00381.html">[pgsql-jp 12375] MULTIBYTEの取り扱いについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00413"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00413"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

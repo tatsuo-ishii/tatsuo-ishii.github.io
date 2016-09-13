@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21606] Re: postmaster のバックエンドプロセスに対する制限について。 -->
+<!--X-From: Masashi Ohba <ohba@intelight.co.jp> -->
+<!--X-Date: Thu, 31 May 2001 16:24:22 +0900 -->
+<!--X-Message-Id: 200105310724.AA01120@titan.priv.digi&#45;netz.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 012d01c0e99d$76c25b40$6300a8c0@seta2000 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21606] Re: postmaster のバックエンドプロセスに対する制限につい </TITLE>
+<LINK REV="made" HREF="mailto:ohba@intelight.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00647.html">Date Prev</A>][<A HREF="msg00649.html">Date Next</A>][<A HREF="msg00649.html">Thread Prev</A>][<A HREF="msg00652.html">Thread Next</A>][<A HREF="index.html#00648">Date Index</A>][<A HREF="threads.html#00648">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21606] Re: postmaster のバックエンドプロセスに対する制限について。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masashi Ohba &lt;<A HREF="mailto:ohba@intelight.co.jp">ohba@intelight.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 May 2001 16:24:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00644.html">012d01c0e99d$76c25b40$6300a8c0@seta2000</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大場です。
+
+＃OSに依存しそうなことなのに、
+＃OSについて何にも書いてないのはなぜ？
+
+Seta wrote;
+
+&gt;シェアードメモリーが不適当と書いてあるような気がするんですが、
+&gt;解決の糸口がつかめず、行き詰まっている状態です。
+
+
+/usr/local/pgsql/doc/htmlで「grep -n "IPC" *」
+としてみたら、それっぽいのが
+「kernel-resources.html:137:    limits of the IPC resources then the postmaster will refuse 
+to」
+
+と引っかかったのでkernel-resources.htmlをw3mで見てみました。
+
+FreeBSD, OpenBSD
+
+    The options SYSVSHM and SYSVSEM need to be enabled when the kernel is compiled.
+    (They are by default.) The maximum size of shared memory is determined by the option
+    SHMMAXPGS (in pages). The following shows an example of how to set the various parameters:
+    options         SYSVSHM
+    options         SHMMAXPGS=4096
+    options         SHMSEG=256
+
+    options         SYSVSEM
+    options         SEMMNI=256
+    options         SEMMNS=512
+    options         SEMMNU=256
+    options         SEMMAP=256
+
+
+(中略)
+
+Linux
+
+    The default shared memory limit (both SHMMAX and SHMALL) is 32 MB in 2.2 kernels, 
+    but it can be changed in the proc file system (without reboot).
+　　For example, to allow 128 MB:
+    $ echo 134217728 &gt;/proc/sys/kernel/shmall
+    $ echo 134217728 &gt;/proc/sys/kernel/shmmax
+    You could put these commands into a script run at boot-time.
+
+    Alternatively, you can use sysctl, if available, to control these parameters.
+    Look for a file called /etc/sysctl.conf and add lines like the following to it:
+    kernel.shmall = 134217728
+    kernel.shmmax = 134217728
+    This file is usually processed at boot time, but sysctl can also be called
+　　explicitly later.
+
+    Other parameters are sufficiently sized for any application. If you want to see
+    for yourself look into /usr/src/linux/include/asm-xxx/shmparam.h and 
+    /usr/src/linux/include/linux/sem.h.
+
+(中略)
+
+Solaris
+
+    At least in version 2.6, the maximum size of a shared memory segment is 
+　　set too low for Postgres.
+    The relevant settings can be changed in /etc/system, for example:
+    set shmsys:shminfo_shmmax=0x2000000
+    set shmsys:shminfo_shmmin=1
+    set shmsys:shminfo_shmmni=256
+    set shmsys:shminfo_shmseg=256
+
+    set semsys:seminfo_semmap=256
+    set semsys:seminfo_semmni=512
+    set semsys:seminfo_semmns=512
+    set semsys:seminfo_semmsl=32
+    You need to reboot to make the changes effective.
+
+    See also <A HREF="http://www.sunworld.com/swol-09-1997/swol-09-insidesolaris.html">http://www.sunworld.com/swol-09-1997/swol-09-insidesolaris.html</A>
+    for information on shared memory under Solaris.
+
+
+なので、おそらくシェアードメモリ周りの設定を変えるには
+
+BSD系OSの場合はカーネルオプション変更してコンパイル
+Linuxの場合は/etc/sysctl.conf直して再起動かsysctlを使う
+Solarisの場合は/etc/system修正して再起動
+
+って感じなんではないでしょうか？
+
+&gt;-N 256 -B 128 だとうまく起動できます。それ以上だと上記と同じエラー
+&gt;が出ます。どなたかアドバイス頂けると幸いです。よろしくお願いします。
+
+-N 1024 -B 512で動かないのは共有メモリ不足でしょう、おそらく。
+サーバにどれだけメモリ積んでるかにも関係するんじゃないでしょうか？
+
+------------------------------------------------------------
+大場正志(Masashi Ohba)
+E-Mail  ohba@intelight.co.jp
+(株) インテライト
+<A HREF="http://www.intelight.co.jp">http://www.intelight.co.jp</A>
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00652" HREF="msg00652.html">[pgsql-jp 21610] Re: postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+<UL><LI><EM>From:</EM> M_Kakitani &lt;kakip@mars.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00644" HREF="msg00644.html">[pgsql-jp 21602] postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+<UL><LI><EM>From:</EM> "Seta" &lt;seta@de-net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00647.html">[pgsql-jp 21605] Re: postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00649.html">[pgsql-jp 21607] Re: postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00649.html">[pgsql-jp 21607] Re: postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00652.html">[pgsql-jp 21610] Re: postmaster のバックエンドプロセスに対する制限について。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00648"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00648"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

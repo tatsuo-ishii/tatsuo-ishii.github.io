@@ -1,0 +1,216 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6502] Re: please fix pgaccess patch problem. -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 08 Jan 1999 13:11:13 +0900 -->
+<!--X-Message-Id: 199901080411.NAA11496@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: Pine.LNX.3.96LJ1.1b7.990108111400.9192A&#45;100000@kestrel.astea.rccm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6502] Re: please fix pgaccess patch problem. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00088.html">Date Prev</A>][<A HREF="msg00090.html">Date Next</A>][<A HREF="msg00085.html">Thread Prev</A>][<A HREF="msg00090.html">Thread Next</A>][<A HREF="index.html#00089">Date Index</A>][<A HREF="threads.html#00089">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6502] Re: please fix pgaccess patch problem.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 08 Jan 1999 13:11:13 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;桑村です。
+&gt;
+&gt;  PostgreSQL-6.4.2に附属のpgaccess-0.93のkinputパッチがうまくできません。
+&gt;6.4(pgaccess-0.88) 用のパッチを修正して".mw.c"を "$wn.c" に変えて起動はで
+&gt;きたのですが、いざ変換変換モードにしようとしてもエラーとなります。
+&gt;kinput.tclの修正も必要のようですが、私にはよくわかりません。
+&gt;  どなたか、直された方はいますか？
+
+すっかり pgaccess のこと忘れてました:-)以下のパッチをお試し下さい。
+# 昼飯喰いながら作ったのであまりテストしてません。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+--------------------------------- cut here ----------------------------------
+*** postgresql-6.4.2/src/bin/pgaccess/pgaccess.tcl.orig	Sun Dec 13 06:23:21 1998
+--- postgresql-6.4.2/src/bin/pgaccess/pgaccess.tcl	Fri Jan  8 13:01:02 1999
+***************
+*** 1614,1619 ****
+--- 1614,1621 ----
+  mw_set_scrollbar $wn
+  if {$mw($wn,updatable)} then {
+  	$wn.c bind q &lt;Key&gt; "mw_edit_text $wn %A %K"
++         $wn.c bind q &lt;Control-backslash&gt; {pgaccess_kinput_start %W};
++         $wn.c bind q &lt;Control-Kanji&gt; {pg_access_kinput_start %W};
+  } else {
+  	$wn.c bind q &lt;Key&gt; {}
+  }
+***************
+*** 2824,2830 ****
+  if {[string toupper $tcl_platform(platform)]=="WINDOWS"} {
+  	load libpgtcl.dll
+  } else {
+! 	load libpgtcl.so
+  }
+  catch {draw_tabs}
+  set newusername {}
+--- 2826,2832 ----
+  if {[string toupper $tcl_platform(platform)]=="WINDOWS"} {
+  	load libpgtcl.dll
+  } else {
+! 	load /usr/local/pgsql/lib/libpgtcl.so
+  }
+  catch {draw_tabs}
+  set newusername {}
+***************
+*** 4946,4951 ****
+--- 4948,5030 ----
+          -x 45 -y 185 -anchor nw -width 70 -height 25 -bordermode ignore 
+      place $base.b2 \
+          -x 140 -y 185 -anchor nw -width 70 -height 25 -bordermode ignore 
++ }
++ 
++ #
++ # NOTE: following two procedures _kinput_trace_root and _kinput_trace_over 
++ # were originaly part of kinput.tcl.
++ # -- Tatuso Ishii 1997/11/27
++ 
++ # kinput.tcl --
++ #
++ # This file contains Tcl procedures used to input Japanese text.
++ #
++ # $Header: /mnt1/local/src/repository/pgaccess/pgaccess.tcl,v 1.1.1.1.2.1 1997/11/27 03:24:17 t-ishii Exp $
++ #
++ # Copyright (c) 1993  Software Research Associates, Inc.
++ #
++ # Permission to use, copy, modify, and distribute this software and its
++ # documentation for any purpose and without fee is hereby granted, provided
++ # that the above copyright notice appear in all copies and that both that
++ # copyright notice and this permission notice appear in supporting
++ # documentation, and that the name of Software Research Associates not be
++ # used in advertising or publicity pertaining to distribution of the
++ # software without specific, written prior permission.  Software Research
++ # Associates makes no representations about the suitability of this software
++ # for any purpose.  It is provided "as is" without express or implied
++ # warranty.
++ #
++ 
++ # The procedure below is invoked in order to start Japanese text input
++ # for the specified widget.  It sends a request to the input server to
++ # start conversion on that widget.
++ # Second argument specifies input style.  Valid values are "over" (for
++ # over-the-spot style) and "root" (for root window style). See X11R5
++ # Xlib manual for the meaning of these styles). The default is root
++ # window style.
++ 
++ proc pgaccess_kinput_start {w {style root}} {
++     global _kinput_priv
++     catch {unset _kinput_priv($w)}
++     if {$style=="over"} then {
++ 	set spot [_kinput_spot $w]
++ 	if {"$spot" != ""} then {
++ 	    trace variable _kinput_priv($w) w _pgaccess_kinput_trace_$style
++ 	    kanjiInput start $w \
++ 		-variable _kinput_priv($w) \
++ 		-inputStyle over \
++ 		-foreground [_kinput_attr $w -foreground] \
++ 		-background [_kinput_attr $w -background] \
++ 		-fonts [list [_kinput_attr $w -font] \
++ 			    [_kinput_attr $w -kanjifont]] \
++ 		-clientArea [_kinput_area $w] \
++ 		-spot $spot
++ 	    return
++ 	}
++     }
++     trace variable _kinput_priv($w) w _pgaccess_kinput_trace_root
++     kanjiInput start $w -variable _kinput_priv($w) -inputStyle root
++ }
++ 
++ # for root style
++ proc _pgaccess_kinput_trace_root {name1 name2 op} {
++     global mw
++     set wn [string trimright $name2 ".c"]
++     upvar #0 $name1 trvar
++     $name2 insert $mw($wn,id_edited) insert $trvar($name2)
++     set mw($wn,dirtyrec) 1
++     unset $trvar($name2)
++ }
++ 
++ # for over-the-spot style
++ proc _pgaccess_kinput_trace_over {name1 name2 op} {
++     global mw
++     set wn [string trimright $name2 ".c"]
++     upvar #0 $name1 trvar
++     $name2 insert $mw($wn,id_edited) insert $trvar($name2)
++     set mw($wn,dirtyrec) 1
++     kinput_send_spot $name2
++     unset $trvar($name2)
+  }
+  
+  Window show .
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00091" HREF="msg00091.html">[pgsql-jp 6504] Re: please fix pgaccess patch problem.</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[pgsql-jp 6503] [Q] where is patched 6.4.2 source</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00085" HREF="msg00085.html">[pgsql-jp 6498] please fix pgaccess patch problem.</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00088.html">[pgsql-jp 6501] Re: AIX４．２でのコンパイルについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 6503] [Q] where is patched 6.4.2 source</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00085.html">[pgsql-jp 6498] please fix pgaccess patch problem.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 6503] [Q] where is patched 6.4.2 source</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00089"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00089"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

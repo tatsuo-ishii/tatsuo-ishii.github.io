@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5500] Re: ShmemCreate: cannot create region -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Tue, 29 Sep 1998 13:41:41 +0900 (JST) -->
+<!--X-Message-Id: 199809290441.NAA28317@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809280823.RAA07900@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5500] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00290.html">Date Prev</A>][<A HREF="msg00292.html">Date Next</A>][<A HREF="msg00282.html">Thread Prev</A>][<A HREF="msg00292.html">Thread Next</A>][<A HREF="index.html#00291">Date Index</A>][<A HREF="threads.html#00291">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5500] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 29 Sep 1998 13:41:41 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00282.html">199809280823.RAA07900@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Sep 28, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;
+&gt;ちょっとまずいです。以下、確実に現象を起こすqueryが分かっているものと
+&gt;して進めます。
+
+それが分かってないのが問題なんですよね。また、postmasterごと落ちるんです。
+そこで、以下のようにして、ひとまずback traceが取れました。
+何か参考になるとよいのですが(#7は何?)。
+
+========================================================================
+% gdb postmaster
+(gdb) break elog.c:105
+Breakpoint 1 at 0xd2750: file elog.c, line 105.
+(gdb) break elog.c:110
+Breakpoint 2 at 0xd2770: file elog.c, line 110.
+(gdb) run -D /usr/local/pgsql/data -B 7980 -o "-S 16384 -F"
+Starting program: /usr/local/pgsql/bin/postmaster -D /usr/local/pgsql/data -B 7980 -o "-S 16384 -F"
+(中略)
+Breakpoint 2, elog (lev=1, 
+    fmt=0x9d918 "AttachSLockMemory: could not attach segment") at elog.c:111
+111                             sprintf(line, "FATAL %d:  ", lev);
+(gdb) bt
+#0  elog (lev=1, fmt=0x9d918 "AttachSLockMemory: could not attach segment")
+    at elog.c:111
+#1  0x9d9ab in AttachSLockMemory (key=5432510) at ipc.c:721
+#2  0x9d8a3 in CreateAndInitSLockMemory (key=5432510) at ipc.c:693
+#3  0x9da67 in CreateSharedMemoryAndSemaphores (key=5432500) at ipci.c:67
+#4  0x8e22e in reset_shared (port=5432) at postmaster.c:987
+#5  0x8e69c in CleanupProc (pid=21575, exitstatus=5) at postmaster.c:1184
+#6  0x8e428 in reaper (postgres_signal_arg=20) at postmaster.c:1071
+#7  0xefbfdfdc in ?? ()
+#8  0x8d5df in PostmasterMain (argc=7, argv=0xefbfd460) at postmaster.c:563
+#9  0x4c8b7 in main (argc=7, argv=0xefbfd460) at main.c:93
+========================================================================
+
+また、この前にbreakpointを設定せずに走らせてしまったときは、postmasterが
+NOTICE:  LockRelease: locktable lookup failed, no lock
+ERROR:  MultiRelease: couldn't release after error
+というようなログを出していました。
+
+この問題は
+	激しくselect/update/insertするプロセスx5
+	1分おきにvacuumして少しselectするプロセスx1
+が動いていると起きます。
+上のプロセスは、例のabort transactionのメモリリーク問題のために、
+SQL文を128回発行するごとにresetしてます。
+下のプロセスも、vacuumする前に毎度resetしています。
+どうやらこのvacuumがとどめをさしているようなのですが、
+詳しくはまだ分かっていません。
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00282" HREF="msg00282.html">[pgsql-jp 5491] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 5499] Re: Tuples is not the same as heap.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00282.html">[pgsql-jp 5491] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00291"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00291"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5577] RE: Size of index file? -->
+<!--X-From: "MINOHATA Norio" <minohata@com&#45;net.co.jp> -->
+<!--X-Date: Thu, 8 Oct 1998 21:45:39 +0900 -->
+<!--X-Message-Id: 01bdf2b9$8d8de480$9754add2@station.com&#45;net.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5577] RE: Size of index file? </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00059.html">Date Prev</A>][<A HREF="msg00061.html">Date Next</A>][<A HREF="msg00079.html">Thread Prev</A>][<A HREF="msg00054.html">Thread Next</A>][<A HREF="index.html#00060">Date Index</A>][<A HREF="threads.html#00060">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5577] RE: Size of index file?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "MINOHATA Norio" &lt;<A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 8 Oct 1998 21:45:39 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+箕畑です。
+最近、前期試験と卒論準備にかまけて全然チェックしてませんでした。
+おまけに、ウチの実験サーバの /var が満タンになったのに気づかず、
+MLの配送サーバに余計な仕事をさせてしまったようです。
+以後、十分に気を付けますので平にご容赦を。＞石井様
+
+
+-----Original Message-----
+差出人 : Toshio Uchiyama &lt;uchiyama@wakeup.it.matsue-ct.ac.jp&gt;
+宛先 : pgsql-jp@sra.co.jp &lt;pgsql-jp@sra.co.jp&gt;
+日時 : 1998年 10月 3日 土曜日 9:18
+件名 : [pgsql-jp 5543] Size of index file?
+&gt;pgsql-jp ML の皆様お久しぶりです。
+&gt; 松江高専の内山です。
+(中略)
+&gt; 箕旗さんの ML の全文検索用の索引ファイルはどの程度の大きさで
+&gt;しょうか? 最初に作るときにどの程度の時間がかかったでしょうか。良かったら
+&gt;教えてください。
+
+
+ウチの全文検索もどきの場合、
+    seq  int4        文書の番号
+    word varchar(16) 単語(平均すると６バイト程度)
+    hit  int2        その単語のヒット率
+というふうにテーブルを定義していて、
+レコード数は13万程度、サイズは、
+    テーブル本体      14MB
+　  単語の索引(B木)   8MB
+です。
+所用時間は、テキストファイルからのcopy、索引のcreate、vacuumの
+全工程を合計しても10分〜20分程度だったように記憶しています。
+(pentium166Mhz , メモリ64MB , HDD:2GB , PostgreSQL6.2.1 使用)
+
+
+
+
+
+一般的なハッシュの場合、ハッシュテーブルを拡張する際に
+登録されたレコード全てを再配置し直す必要があります。
+特に、ディスク上にハッシュを作成する場合は、レコードの
+増加に伴ってディスクアクセスの回数が爆発的に増加し、
+多大な時間を要することになります。対して、B木では
+どんなに登録レコード数が増えても、全てを再配置すると
+いうことはありません。両者を比較してみると、
+
+ハッシュのファイル
+　作成時間 : レコード数が多ければベラボーに時間がかかる。
+　検索時間 : 1、2回程度のディスクアクセスで済むので高速。
+　サイズ : ベラボーに肥大する傾向がある。
+
+B木のファイル
+　作成時間 : レコード数にほぼ比例する。
+　検索時間 : O(logN)のディスクアクセス( ハッシュより多い )
+　サイズ : 理論的にはプレーンテキストにレコードを記録する場合の２倍以下。
+
+といった感じになります。また、理論的にはハッシュの方が
+B木よりも検索時間が早いはずですが、実際にPostgreSQLで
+索引を作って比較テストすると大して変わらなかったりします。
+(ハッシュの方がファイルサイズが大きいせいかな？)
+
+# 経験と聞きかじりの知識に基づいてます。
+# B木の説明がウソっぽい (^^; ので、詳しくはアルゴリズムの本を見てください。
+
+
+以上より強引に結論づけますと、
+GDBMはおそらくハッシュを使用しています。
+ディスクスペースに十分な空きがあり、かつ、一度索引を作ったら
+長期間更新しないのならば、そのままで構わないと思いますが、
+ディスクが足りなかったり、結構頻繁に更新する場合には、
+B木の使用をお勧めします。
+手っ取り早くB木を使えるツールで バークレイDB というのが
+ありまして、<A HREF="http://www.sleepycat.com/">http://www.sleepycat.com/</A> から入手可能です。
+# FreeBSDには最初から付属しているようです。
+
+あと、B木だと前方一致検索や辞書順アクセスが可能なので、
+使い方によっては、ハッシュより幸せになれそうな気がします。
+# 更に索引を一つ追加すると、後方一致検索も可能です。
+
+
+--
+箕畑典男
+minohata@com-net.co.jp
+<A HREF="http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html">http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 5576] Re: ＷＥＢからのアクセスができない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 5578] Re: 6.4βでlibpq.soができない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 5596] Re: stuck spinlock. Aborting.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 5572] 6.4βでlibpq.soができない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00060"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00060"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

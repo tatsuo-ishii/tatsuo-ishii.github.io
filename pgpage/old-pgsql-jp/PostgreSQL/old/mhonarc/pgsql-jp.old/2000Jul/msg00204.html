@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？ -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Mon, 10 Jul 2000 02:24:20 +0900 -->
+<!--X-Message-Id: 3968B54424E.F7DCJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在 </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00203.html">Date Prev</A>][<A HREF="msg00205.html">Date Next</A>][<A HREF="msg00203.html">Thread Prev</A>][<A HREF="msg00205.html">Thread Next</A>][<A HREF="index.html#00204">Date Index</A>][<A HREF="threads.html#00204">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 10 Jul 2000 02:24:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00203.html">3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。北村です。
+
+On Mon, 10 Jul 2000 00:55:08 +0900
+Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt; wrote:
+
+&gt; 
+&gt; こんにちは。北畠と申します。
+&gt; 
+&gt; Cobalt RaQ 3
+&gt; PostgreSQL 6.5.2 on i686-pc-linux-gnu, compiled by gcc egcs-2.91.66
+&gt; において、データベースをいじっています。
+&gt; 
+&gt; クライアントPCで、access2000でデータを作り、Exportしようとしています。
+&gt; （今回は、[State]というテーブルを、ODBCドライバ6.40.00.07
+&gt; を通じてExportしようとしました。ちなみに、Access2000にて、
+&gt; postgreSQL側のテーブルをリンクすると、きちんと動くことが
+&gt; わかっています）
+&gt; 
+&gt; ポート5583というものが予め使われているので（Cobalt Raq3なので？？
+&gt; ここらへんは、サーバーレンタル業者等じゃないとわからないことですが・・）
+&gt; 、/etc/rc.localファイルにて、
+&gt; su - postgres -c "postmaster -S -i -p 5432 -D/home/pgsql"
+&gt; として、5432のポートを開いています。
+&gt; 
+&gt; $ pgsql -n -p 5432 hogehoge
+&gt; &lt;&lt;略&gt;&gt;
+&gt; admin=&gt; \d
+&gt; Database    = hogehoge
+&gt;  +------------------+----------------------------------+----------+
+&gt;  |  Owner           |             Relation             |   Type   |
+&gt;  +------------------+----------------------------------+----------+
+&gt;  | admin            | State                            | table    |
+&gt;  +------------------+----------------------------------+----------+
+&gt; admin=&gt;select * from state;
+&gt; ERROR:  state: Table does not exist.
+&gt; 
+&gt; と出てしまいます。\dにて、Relationが確認されているのに、
+&gt; 存在しない、と出るというのは、どういうことなのでしょうか？
+&gt; ＃勿論、この状態で、同じaccess2000のテーブルを名前同じにして
+&gt; ＃エクスポートしようとすると、エラーになります。
+&gt; 
+PostgreSQLでは、Relationの値が全て小文字になるはずです。psqlで create
+table を使ってテーブルを作成した場合、テーブル名に大文字を指定して
+も小文字に変換されてしまいます。
+これが大文字になっているということは、ODBC経由のExportでは、そういう仕様
+なのでしょう。内部的にどういうことをしているのかは解りませんが、psqlをつ
+かって、大文字テーブルも作れます。
+create table "State" (a as int2);
+と、""でくくってやればＯＫです。これを考えると、ODBC経由でExportをする時
+に、ODBCが生成するSQLのテーブル名に""が付いている・・・という事でしょう。
+「select * from "State"」と""を付けてやると、機能しますが・・。
+
+&gt; --
+&gt; 
+&gt; また、これ以外にも、同じRelation(Typeも同じ)のものが
+&gt; 存在してしまうことがあります。
+&gt; 例：
+&gt; Database    = hogehoge
+&gt;  +------------------+----------------------------------+----------+
+&gt;  |  Owner           |             Relation             |   Type   |
+&gt;  +------------------+----------------------------------+----------+
+&gt;  | admin            | テーブル１                       | table    |
+&gt;  | admin            | テーブル１                       | table    |
+&gt;  | admin            | テーブル１                       | table    |
+&gt;  +------------------+----------------------------------+----------+
+&gt; 
+&gt; これは、どういうことなのでしょうか？drop tableしても、そのまま
+&gt; です。（更に悪いのは、Typeが[View?]のとき、drop viewしようとしても
+&gt; admin=&gt; drop view ビュー１;
+&gt; ERROR:  DeleteTypeTuple: ビュー１ type nonexistent
+&gt; などと出たりすること・・）こうなった場合、最悪、destroydbしてから
+&gt; 再びcreatedbしなければならないので、やっかいです。
+PostgreSQLでは、テーブル(だけじゃないですが)を、pg_classというシステムテー
+ブル(\dSで出ます)に持っています。テーブル名がRelationカラムに格納されます
+が、このカラム、インデックスは持っていますが重複可能です。ですから、同一
+の名前のビュー（テーブル）が存在してしまっても変では無いです。 pg_classは
+プライマリキーも持っていませんので、oidで管理されているのでしょう（たぶん）。
+また、viewはその内容を、pg_viewsというシステムテーブルに持っています。
+viewの名前はこのテーブルのviewnameカラムに格納されていますが、ここも重複
+可能です。インデックスすらありません。ですので、この部分でも、ビュー名が
+重複しても変ではない・・ということになります。pg_classと pg_viewsの両方に
+「ビュー１」があるか、確認してください。 pg_classにはあって pg_viewsに無
+い場合も考えられます。pg_classの中で、テーブルもビューも同じように扱われ
+ていて、その違いは、「 pg_class.rel_kindの値が'r'か's'のもの」かつ
+「 pg_rewrite.ev_type = '1' の行の pg_rewrite.oid が pg_class.oidと同一で
+無い行の pg_class.relname」がテーブル名・・のようです。
+同じ名前のテーブルが存在してしまう、また、Typeが[View?]の時というのは、そ
+れぞれ同じように ODBC経由で Exportした時に発生するのでしょうか？ 
+
+&gt; 
+&gt; --
+&gt; 
+&gt; 何か、対応策があれば、何卒宜しくお願いいたします。
+&gt; 1  \dにて表示されるテーブル/Viewをdropできない場合、残滓を消す方法
+&gt; 2  ODBCドライバを利用したエクスポートの同期を完全にする方法
+&gt; かと思いますが・・・。。。（他の方法があるかもしれません）
+&gt; 
+&gt; 
+&gt; ━━……‥・・・ ・ ・ ・ ・・‥……‥・・・ ・ ・ ・ ・・‥…━━━
+&gt; Name: 北畠徹也 (Tetsuya Kitahata)  -- Terra-International 代表 --
+&gt; E-mail: kitahata@bb.mbn.or.jp  terra-international@jp-t.ne.jp(緊急時)
+&gt; HomePage: <A HREF="http://plaza11.mbn.or.jp/~kitahata/">http://plaza11.mbn.or.jp/~kitahata/</A>
+&gt;           <A HREF="http://www.terra-intl.com/">http://www.terra-intl.com/</A>
+&gt; 
+&gt; 
+１．テーブル削除ですが、先にも書きましたが、大文字をきちんと入力して
+drop table "State";
+で出来ると思います。（""が要ります）
+出来なかったら、「delete from pg_class where relname = 'State'」で消える
+と思います・・・が、後のことがどうなるかわかりません。（識者の方で危険だ
+という事をご存じの方がいたら、情報をお願いします）
+viewの場合は、「delete from pg_class where relname = 'ビュー１'」と、「
+delete from pg_views where viewname = 'ビュー１'」で消えると思います。
+出来れば、システムテーブルなんていじらないほうが良いですね。汗
+
+２．ODBCドライバを利用した・・という件ですが、わかりません。
+Exportしない・・というのが、一番の解決策では・・。テーブルを作成するSQLを
+生成して、ODBC経由(ダイレクト)で実行させる(DAOなどのexecuteメソッドで）・
+・・というのが良いのでは。その後、「insert into テーブル(アタッチ(リンク)
+された) select * from テーブル(ローカル)」でデータをインサートさせる・・
+・と。
+あるいは、select文のテーブル指定には全て""を付けて処理する・・とか。（こ
+れなら、Export機能を利用できますが）。
+
+以上、試していない情報ですので、ご注意ください。
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00250" HREF="msg00250.html">[pgsql-jp 16017] grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00205" HREF="msg00205.html">[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00203" HREF="msg00203.html">[pgsql-jp 15970] テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 15970] テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 15970] テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00204"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00204"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

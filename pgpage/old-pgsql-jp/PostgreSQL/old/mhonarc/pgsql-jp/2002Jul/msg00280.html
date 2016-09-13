@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26829] Re: UNICODEカナソート -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 25 Jul 2002 22:29:07 +0900 (JST) -->
+<!--X-Message-Id: 20020725.222907.13026100.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001b01c233ba$cefcc1c0$5f64a8c0@bat -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26829] Re: UNICODEカナソート </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00279.html">Date Prev</A>][<A HREF="msg00281.html">Date Next</A>][<A HREF="msg00279.html">Thread Prev</A>][<A HREF="msg00272.html">Thread Next</A>][<A HREF="index.html#00280">Date Index</A>][<A HREF="threads.html#00280">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26829] Re: UNICODEカナソート</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 25 Jul 2002 22:29:07 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00279.html">001b01c233ba$cefcc1c0$5f64a8c0@bat</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; Redhat７．２のRPMのPostgresql7.1.3を使うと文字コードがUNICODEの場合、カ
+&gt; ナのソートができないようです。これを解決するため、--enable-localeを取っ
+&gt; てPostgresqlを再コンパイルしたらカナのソートができるようになりました。但
+&gt; しデータベースの再構築（initdb）が要求されました。
+
+それはまあ，そうでしょう．Red HatのPostgreSQLのRPMは日本語環境でテスト
+しているとはとても思えません．一度でもテストしていればこういう不具合に
+気が付き，--enable-localeを外すはずですが...
+
+# その点Vine LinuxのRPMは素晴らしい．
+
+&gt; 問題１、RPMのまま（つまり--enable-localeをつけてコンパイルした状態）で
+&gt; Unicodeのカナソートができるようにする方法がありますか。
+
+Red HatのRPMを使う限り無理でしょう．やったことはありませんが，Vine
+LinuxのSRPMをRed Hatでbuildして入れてみるとか?
+
+&gt; 問題２、問題１の答えがNOの場合、--enable-localeを取って再コンパイルする
+&gt; のは良いのですが、データバースの再構築はしたくありません。何か方法があり
+&gt; ますか。
+
+これも簡単な方法はありません．以下紹介する方法は検証もしてませんし，結
+果についても一切保証できませんが，それでもよければお試し下さい．なお，
+試すときはpostmasterを停止し，データベースクラスタをtarなどを使って物
+理的にバックアップを取っておくことを強くお勧めします．
+
+(1) データベースクラスタのディレクトリの下に，global/pg_controlという
+    ファイルがあります．この中にロケールに関するデータが格納されている
+    ので，それを"C"ロケールに書き換えれば理論的には良いはずです．ただ
+    し，このファイルはバイナリファイルなので，普通の方法では書き換えで
+    きません．emacsのバイナリ編集モードなどを使うか，適当なプログラム
+    を書く必要があります．contrib/pg_controldataが参考になります．
+
+(2) contrib/pg_resetxlogを使う．global/pg_controlをcp /dev/nullするな
+    どして破壊し，--enable-localeなしで作ったpg_resetxlogを使うと
+    pg_controlが"C"ロケールで初期化されます．
+
+いずれの方法も非常に危険なので，少しでも不安のある方には絶対にお勧めで
+きません．失敗すると簡単にpostmasterが立ち上がらなくなります．また，こ
+の方法でうまくpostmasterが立ち上がっても，ASCII以外のデータが含まれた
+Btreeインデックスはまともではない状態になっている可能性があります．必
+要ならばREINDEXなどを使ってインデックスを再構築してください．
+# ここまで脅したら，試す人など皆無だろうな:-)
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp: 26828] UNICODEカナソート</A></STRONG>
+<UL><LI><EM>From:</EM> "Dahao Huang" &lt;huang@e-cometrue.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00279.html">[pgsql-jp: 26828] UNICODEカナソート</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00281.html">[pgsql-jp: 26830] jdbc-odbc経由のlo型データ登録</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp: 26828] UNICODEカナソート</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00272.html">[pgsql-jp: 26821] WINDOWS２０００＋ＰＨＰ4.2.1＋Ａｐａｃｈｅ＋postgreSql</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00280"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00280"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

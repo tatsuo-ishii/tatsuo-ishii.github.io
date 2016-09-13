@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14060] RE: [Q]Rule のNEWSETって？ -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Thu, 20 Apr 2000 19:44:56 +0900 -->
+<!--X-Message-Id: NDBBIKCHILNJOAAPDPKMIENJCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OFCD9BB87E.B675F96D&#45;ON492568C7.000ED17B@nomura&#45;nms.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14060] RE: [Q]Rule のNEWSETって？ </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00356.html">Date Prev</A>][<A HREF="msg00358.html">Date Next</A>][<A HREF="msg00341.html">Thread Prev</A>][<A HREF="msg00362.html">Thread Next</A>][<A HREF="index.html#00357">Date Index</A>][<A HREF="threads.html#00357">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14060] RE: [Q]Rule のNEWSETって？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 20 Apr 2000 19:44:56 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt; 再び質問です。
+&gt;
+&gt; マニュアル中に、
+&gt; &gt;All new employees must make 5,000 or less
+&gt; &gt;
+&gt; &gt;CREATE RULE example_5 AS
+&gt; &gt;    ON INERT TO emp WHERE new.salary &gt; 5000
+&gt; &gt;    DO UPDATE NEWSET salary = 5000;
+&gt; が記載されています。
+&gt; <A HREF="http://www.remus.dti.ne.jp/~sim/postgres/man/manl/create_rule.l.html">http://www.remus.dti.ne.jp/~sim/postgres/man/manl/create_rule.l.html</A>
+&gt; にもありました。(as が is になって間違ってますが・・・)
+&gt; ここで、NEWSETなるものが出てきますが、これって、
+&gt; 「現在インサートされた行」を示すものではないので
+&gt; しょうか？
+
+  これは私にはわかりませんが、
+
+&gt; new と set が分離しているのかと思い、
+
+  上記意見を本命と見て、
+
+&gt; -&gt;  do update new set b = 10;
+&gt; NOTICE:  rule actions on NEW currently not supported
+&gt; ERROR:   use triggers instead
+
+  このメッセージから推測すると、今からINSERTする内容を事前に書き換える
+（UPDATE）する、というようにPostgreSQLはとらえているように見えます。
+  実際、トリガでならNEWの内容を書き換えられますから、エラーメッセージの言っ
+ていることのつじつまが合います。
+
+&gt; ヤケになって、
+&gt; -&gt;  do update t1 set b = 10 where t1.a = new.a;
+&gt; CREATE
+&gt; で、あら？できた？とも思いましたが、
+
+  ルールのアクションは、ルールを起動したSQL文の実行よりも先に実行されます。
+ですから上記のルールですと、これからINSERTされるタプルをテーブル上でUPDATEし
+ようとしているわけで、タイムマシンでもないかぎりできません（笑）。もちろん
+INSERTしようとしているaカラムの値が他の既存のタプルと重複しているなら、既存
+のタプルだけがUPDATEされるという事になります。
+
+&gt; =&gt; insert into t1 values(1,20);
+&gt; INSERT 667022 1
+&gt; =&gt; select * from t1;
+&gt; a| b
+&gt; -+--
+&gt; 1|20
+&gt; (1 row)
+&gt; ・・・ダメ。
+
+  上記の(1,20)のタプルがテーブルにINSERTされるより先に、ルールのアクションの
+UPDATEがテーブルに対して実行されてしまったわけです。つじつまは合っています。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00362" HREF="msg00362.html">[pgsql-jp 14065] Re: [Q]Rule のNEWSETって？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 14044] [Q]Rule のNEWSETって？</A></STRONG>
+<UL><LI><EM>From:</EM> ml05@nomura-nms.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 14059] RE: [Q]Rule のserial型へのnewインスタンス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00358.html">[pgsql-jp 14061] Re: copy</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00341.html">[pgsql-jp 14044] [Q]Rule のNEWSETって？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00362.html">[pgsql-jp 14065] Re: [Q]Rule のNEWSETって？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00357"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00357"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

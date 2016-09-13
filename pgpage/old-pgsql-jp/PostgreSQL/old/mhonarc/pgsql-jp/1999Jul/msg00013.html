@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9209] Re: select文でgroup	関数結果に対して副問い合わせをしたいのですが。 -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Thu, 01 Jul 1999 12:09:57 +0900 -->
+<!--X-Message-Id: 19990701120957Z.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 492567A1.000A5F63.00@pcsvr11.tsuneishi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9209] Re: select文でgroup	関数結果に対して副問い合わせをしたい </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00012.html">Date Prev</A>][<A HREF="msg00014.html">Date Next</A>][<A HREF="msg00011.html">Thread Prev</A>][<A HREF="msg00016.html">Thread Next</A>][<A HREF="index.html#00013">Date Index</A>][<A HREF="threads.html#00013">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9209] Re: select文でgroup	関数結果に対して副問い合わせをしたいのですが。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 01 Jul 1999 12:09:57 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00011.html">492567A1.000A5F63.00@pcsvr11.tsuneishi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+On Thu, 1 Jul 1999 10:56:59 +0900, takuma_ashida@ts.tsuneishi.co.jp wrote:
+&gt; test=&gt; select d,sum(m),avg(m) from milk group by d;
+&gt;          d|sum|avg
+&gt; ----------+---+---
+&gt; 06-28-1999|220|110
+&gt; 06-29-1999|170| 85
+&gt; 06-30-1999|180| 90
+&gt; (3 rows)
+&gt; 
+&gt; の結果から、
+&gt; select d, max(上記結果.sum) from 上記結果
+&gt; select d, min(上記結果.sum) from 上記結果
+&gt; select avg(上記結果.avg) from 上記結果
+&gt; 
+&gt; で、(上から)
+&gt; 06-28-1999|220
+&gt; 06-29-1999|170
+&gt; 95
+&gt; の解を得たいのですが、どうしてもうまくいきません。
+&gt; これらの値で一日にどれくらいミルクを飲むものなのか、どの程度の
+&gt; 量ミルクを作ればいいのかの目安にしています。
+&gt;
+&gt; ORACLE7では
+&gt; select d,max(summary) from (select d,sum(m) as summary,avg(m) as ave from
+&gt; milk group by d);で、
+&gt; 06-28-1999|220 の解を得ることが出来ます。
+
+Oracle7 の構文はそのままでは PostgreSQL では error になってしまいますね．
+having が使えるるのであれば，
+
+select d, sum(m) as s from milk
+group by d
+having s &gt;=all (select sum(m) as s from milk gropy by d)
+
+という手があります．同様に，max average でも計算が出来るはずです．
+
+&gt; そこで、viewを一旦作成すれば良いのかと考えました。
+&gt; 
+&gt; test=&gt; create view temp as select d,sum(m) as summary ,avg(m) as ave from
+&gt; milk
+&gt; group by d;
+
+view を使っても同様ですが，having に入っていたものが where に
+格上げされるだけです．
+
+select d, summary
+from temp
+where summary &gt;=all (select summary from temp)
+
+または，scalar subquery で
+
+select d, summary
+from temp
+where summary = (select max(summary) from temp)
+
+でしょうか．
+
+&gt; 過去のメーリングリストを見たりしたのですが、私の挑戦はここまで
+&gt; で、結局PHPで計算させています。
+&gt; 上記結果を得るために何か良い方法は無いでしょうか。
+&gt; select文を何度も発行するよりPHPのスクリプトで計算させた方が効
+&gt; 率が良いのでしょうか。
+
+どちらが良いかはわからないですが，SQL コマンド一つで済む話し
+ですので，そちらを使った方が簡単かな，位です．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00016" HREF="msg00016.html">[pgsql-jp 9212] Re: select文でgroup	関数結果に対して副問い合わせをしたいのですが。</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp 9207] Re: select文でgroup関数結果に対して副問い合わせをしたいのですが。</A></STRONG>
+<UL><LI><EM>From:</EM> takuma_ashida@ts.tsuneishi.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 9208] Re: Unrecognized variable client_encodig</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00014.html">[pgsql-jp 9210] Re: PostgreSQL CDROM</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 9207] Re: select文でgroup関数結果に対して副問い合わせをしたいのですが。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 9212] Re: select文でgroup	関数結果に対して副問い合わせをしたいのですが。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00013"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00013"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

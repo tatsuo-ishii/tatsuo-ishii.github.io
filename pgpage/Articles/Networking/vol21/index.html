@@ -1,0 +1,566 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html;charset=iso-2022-jp" />
+<link rev=made href="mailto:ishii@sraoss.co.jp" />
+<link href="icon.ico" rel="shorcut icon" />
+<title>PostgreSQL information page</title>
+<style type="text/css">
+<!--
+td {
+  background-image:url(midashi.png);
+  width: 1024;
+  font-weight: bold
+}
+
+-->
+</style>
+</head>
+<body bgcolor="#ffffff">
+<!-- hhmts start -->
+Last modified: Sun Aug 23 14:40:32 JST 2009
+<!-- hhmts end -->
+
+<h1>PostgreSQLとネットワークプログラミング(1/2)</h1>
+
+<h2>ネットワークプログラミング、サーバプログラミングの事例としてのpgpool-II</h2>
+<p>
+今回はネットワークプログラミング、サーバプログラミングの事例としてpgpool-IIを取り上げます。
+具体的には、ソケットの使い方やpre-forkテクニックの解説を行います。
+</p>
+<p>
+また、pgpool-IIはPostgreSQLのproxyサーバであるとも言えます。
+つまりPostgreSQLの通信プロトコルを実装しているわけで、そういった面からもpgpool-IIを解説したいと思います。
+</p>
+<p>
+今回解説の対象とするのは現時点で最新安定版である pgpool-II 2.2です。ソースコードは
+<a href="http://pgfoundry.org/projects/pgpool/">http://pgfoundry.org/projects/pgpool/</a>から入手できます。
+</p>
+
+<h2>pgpool-IIとは</h2>
+<p>
+<a href="pgpool-II-arch.png"><img src="pgpool-II-arch-small.png" align="right"></a>
+pgpool-IIとは、PostgreSQL専用のレプリケーションソフトです。
+pgpool-IIはPostgreSQLのクライアントとPostgreSQLサーバの間に割り込む形で使用します。
+<br clear="all">
+</p>
+
+<p>
+pgpool-IIはクライアントから見るとPostgreSQLサーバに見え、同時にPostgreSQLサーバから見るとPostgreSQLのクライアントに見えるようになっており、いわばPostgreSQLのproxyサーバとして動作します。
+PostgreSQLのアプリケーションからpgpoolを利用するためにアプリケーションプログラムの変更はほとんど必要ありません。
+PostgreSQLサーバの方は一切変更はいりません。
+</p>
+
+<h2>ネットワークアプリケーションの基礎</h2>
+<p>
+Linuxなどの近代的なOSでは、プログラムは独立した実行要素に分割されて管理されています。
+UNIXやLinuxでは、その単位は<b>プロセス</b>(process)と呼ばれています。
+プロセスはお互いに独立しており、それぞれ相手の動きに関係なく実行され、またメモリ空間もお互いに独立しています。これによって、あるプロセスがバグなどによって異常な状態になってもほかのプロセスには影響を与えないというメリットが生まれます。
+一方で、プロセス同士を連携させるためには何か特別な仕掛けが必要になります。
+</p>
+<p>
+プロセス同士を連携させるための仕掛けの代表的なものとしては、以下のようなものがあります。
+<ol>
+<li>シグナル
+<li>セマフォ
+<li>共有メモリ
+<li>パイプ
+<li>ネットワーク通信
+</ol>
+</p>
+
+<p>
+このうち1)から4)までは同じホスト上のプロセスの間の連携に用いられます。
+PostgreSQLやpgpool-IIは異なるホストの間での通信を行う必要があり、それが可能なのは5)だけです。ネットワーク通信を行うアプリケーションは一般に「ネットワークアプリケーション」と呼ばれます。
+</p>
+<p>
+<img src="2.png" align="right">
+ネットワークアプリケーションでは、<b>クライアント(client)/サーバ(server) モデル</b>が良く使われます。
+このモデルでは、通信を行う2つのプロセスは対等ではなく、サーバは一旦起動されたらクライアントからの通信要求を待ち続けます。
+クライアントは必要な時にサーバに接続し、処理を依頼します。
+サーバは処理を受け付けたら必要な仕事をしてその結果をクライアントに返します。
+クライアントは処理が終わったら「終わったよ」という応答をサーバに返し、通常この段階でクライアントとサーバの通信も終了します。
+</p>
+
+<p>
+<img src="3.png" align="right">
+クライアントサーバモデルには様々なバリエーションが考えられます。
+たとえばpsqlのようなpgpool-IIクライアントに対してはサーバとして振る舞い、一方でPostgreSQLに対してはクライアントとして振る舞います。
+<br clear="all">
+</p>
+
+<h2>ソケットインターフェイスとは</h2>
+<p>
+実際にクライアントとサーバが通信できるためには、そのためのハードウェアが必要です。
+すなわち、LANならばイーサネットや無線LAN装置、インターネット環境に接続するならば、DSLモデムやルータなどになります。
+当然のことながら、これらの異なるハードウェアを使うためのソフトウェアは異なってきます。
+こうした違いをアプリケーションで意識するのは極めて煩雑ですし、間違いも起きやすくなります。
+そこで<b>ソケットインターフェイス</b>(socket interface)が用いられます。
+ソケットインターフェイスを使えば、どの通信媒体であっても、アプリケーションプログラムを
+変更することなく通信が可能です。ハードウェアの詳細をOSが隠蔽しているか
+らです。しかもソケットインターフェイスでは、通信データの読み書きをファ
+イルディスクリプタを通じて行うので、普通のファイルに読み書きする要領で
+ネットワーク通信が行えます。
+</p>
+
+<h2>ソケットインターフェイスの使い方</h2>
+<p>
+ソケットインターフェイスにはいくつかのAPI(Application Program Interface)があり、サーバなのかクライアントなのかで使い方が違いますし、またそれぞれのAPIを呼び出す順番も決まっています。
+更に通信プロトコルによってパラメータや呼び出し方の詳細も異なってきます。
+ここでは、紙面の都合もありますので、信頼性が高くもっとも広く利用されており、PostgreSQLやpgpool-IIでも使われている<b>TCP/IP</b>を中心に説明します。
+</p>
+
+<h2>サーバ側でのソケットの使い方</h2>
+<p>
+すでに説明したように、サーバ側は受動的にクライアント側からのコネクションを待ち受けるような作りになっています。
+ソケットインターフェイスでは、概ね以下のような手順でAPIを呼び出し、このような動作を実現します。
+</p>
+
+<p>
+
+<ol>
+<li>ソケットの作成
+<p>
+   socket()を呼び出し、ソケットを作ります。この時作られたソケットはサーバが終了するまでずっと使い続けられます。
+</p>
+
+<li>バインド
+<p>
+   クライアントが接続先を特定できるように、bind()を呼び出して特定の<b>ポート番号</b>にソケットをバインドします。
+</p>
+
+<li>リスニング
+<p>
+   listen()を呼び出し、クライアントからの接続準備を行います。
+これでクライアントはサーバに接続できるようになります。
+</p>
+
+<li>クライアントからの接続受け入れ
+<p>
+   accept()を呼び出し、クライアントからの接続を受け入れます。
+成功すれば、accept()はファイルディスクリプタを返すので、それを使って普通のファイルに読み書きするようにしてサーバはクライアントと通信を行うことができます。
+</p>
+
+<li>クライアントとの接続の切断
+<p>
+   accept()が返したファイルディスクリプタをclose()で閉じることにより、クライアントとの接続を終了します。
+</p>
+</ol>
+</p>
+
+<h2>クライアント側でのソケットの使い方</h2>
+<p>
+クライアント側ではソケットを作った後connect()という関数を呼び出してサーバに接続します。
+このときサーバ側では3)の状態になっていることが必要です。
+</p>
+
+<p>
+<ol>
+<li>ソケットの作成
+<p>
+   socket()を呼び出し、ソケットを作ります。socket()はファイルディスクリプタを返します。
+</p>
+
+<li>コネクションの確立
+<p>
+   connect()を呼び出し、サーバと接続します。
+成功すれば1)で作ったファイルディスクリプタを使ってサーバと通信ができるようになります。
+</p>
+
+<li>サーバとの接続の切断
+<p>
+   sockett()が返したファイルディスクリプタをclose()で閉じることにより、サーバとの接続を終了します。
+</p>
+</ol>
+
+<h2>サーバ側のソケットの使い方の実例</h2>
+<p>
+では、pgpool-IIを例にとってサーバ側での実際のソケットの使い方を見てみましょう。
+pgpool-IIでは、main.cの中に定義されているcreate_unix_domain_socket()とcreate_inet_domain_socket()の中でsocket()
+を呼び出しています。
+create_unix_domain_socket()は後回しにして、create_inet_domain_socket()の方を先に見てみましょう。
+</p>
+
+<pre>
+リスト1: create_inet_domain_socket()
+
+-------------------------------------------------------------------
+/*
+* create inet domain socket
+*/
+static int create_inet_domain_socket(const char *hostname, const int port)
+{
+	struct sockaddr_in addr;
+	int fd;
+	int status;
+	int one = 1;
+	int len;
+
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd == -1)
+	{
+		pool_error("Failed to create INET domain socket. reason: %s", strerror(errno));
+		myexit(1);
+	}
+	if ((setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one,
+					sizeof(one))) == -1)
+	{
+		pool_error("setsockopt() failed. reason: %s", strerror(errno));
+		myexit(1);
+	}
+
+	memset((char *) &addr, 0, sizeof(addr));
+	((struct sockaddr *)&addr)->sa_family = AF_INET;
+
+	if (strcmp(hostname, "*")==0)
+	{
+		addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	}
+	else
+	{
+		struct hostent *hostinfo;
+
+		hostinfo = gethostbyname(hostname);
+		if (!hostinfo)
+		{
+			pool_error("could not resolve host name \"%s\": %s", hostname, hstrerror(h_errno));
+			myexit(1);
+		}
+		addr.sin_addr = *(struct in_addr *) hostinfo->h_addr;
+	}
+
+	addr.sin_port = htons(port);
+	len = sizeof(struct sockaddr_in);
+	status = bind(fd, (struct sockaddr *)&addr, len);
+	if (status == -1)
+	{
+		char *host = "", *serv = "";
+		char hostname[NI_MAXHOST], servname[NI_MAXSERV];
+		if (getnameinfo((struct sockaddr *) &addr, len, hostname, sizeof(hostname), servname, sizeof(servname), 0) == 0) {
+			host = hostname;
+			serv = servname;
+		}
+		pool_error("bind(%s:%s) failed. reason: %s", host, serv, strerror(errno));
+		myexit(1);
+	}
+
+	status = listen(fd, PGPOOLMAXLITSENQUEUELENGTH);
+	if (status < 0)
+	{
+		pool_error("listen() failed. reason: %s", strerror(errno));
+		myexit(1);
+	}
+	return fd;
+}
+-------------------------------------------------------------------
+</pre>
+
+<h2>socket()</h3>
+<p>
+socket()の引数を見ていきます。
+</p>
+<p>
+第1引数の"AF_INET"は、<b>アドレスファミリ</b>と呼ばれるもので、どのようなアドレス体系を使うかを指定します。
+ここではIPv4のインターネットプロトコルを扱うことを示しています。
+このほか、UNIXドメインソケット(後述)などを指定することができます。
+詳細はsocket()のマニュアルを見てください。
+</p>
+
+<p>
+第2引数の"SOCK_STREAM"は、<b>TCP/IP</b>、すなわちストリーム接続であることを示します。
+すなわち、最初に接続を確立させてから送信するタイプのプロトコルです。
+SOCK_STREAM 以外では、SOCK_DGRAMを使うこともあります。
+SOCK_DGRAMはTCP/IPよりも「低レベル」のプロトコルで、送信したデータが届く保証もなければ、届いたとしてもその順番も保証されません。
+にも関わらずSOCK_DGRAMが用意されているのは、少量のデータを送るようなときには効率が良いからです。
+TCP/IPは逆で、最初の接続処理などに時間がかかりますが、大量のデータを高い信頼性で送ることができます。
+</p>
+
+<p>
+第3引数はほとんど0のままでOKです。
+</p>
+
+<p>
+socket()が成功すると、ファイルディスクリプタが返ってきますが、これはまだ通信には使えません。
+</p>
+
+<h3>setsockopt()</h3>
+<p>
+作成したソケットにはsetsockopt()でオプションを与えることができます。
+ここでは、SO_REUSEADDRというオプションを指定しています。
+これについては後で説明しますので、今はとりあえずサーバにはこれが必要だということだけ覚えておいてください。
+</p>
+
+<h3>bind()</h3>
+<p>
+ソケットインターフェイスでたぶん一番使い方が面倒なのがbind()です。
+</p>
+<p>
+第1引数にはsocket()が返したファイルディスクリプタを渡します。
+</p>
+<p>
+問題は第2引数です。/usr/include/netinet/in.hで定義されているsockaddr_inという構造体を設定しなければなりません。
+ただし、bind()自体はANSI Cの規程により、sockaddr構造体を第2引数で受け付けるようになっています。
+そのために<b>struct sockaddr *</b>というキャストが必要になっています。
+ここで構造体に設定すべき情報は以下です。
+</p>
+
+<p>
+<ol>
+<li>アドレスファミリ
+<p>
+アドレスファミリはsockaddr構造体の方で指定します。そのためキャストを指定しています。
+</p>
+
+<li>コネクションを受け付けるアドレス
+<p>
+IPアドレスを複数持つサーバで、特定のアドレスのみコネクションを受け付ける場合はこれを指定します。
+pgpool-IIでは、すべてのIPアドレスを受け付ける設定も可能で、その場合は特別なキーワード"INADDR_ANY"を指定します。
+</p>
+<p>
+htonl()は、4バイトのアドレスを<b>ネットワークバイトオーダ</b>に変換する関数です。
+ネットワークを通信するマシンのアーキテクチャは同じとは限りません。
+たとえばインテル製のCPUを積んだPCとPowerPCを積んだPCでは整数の中のバイトの順序が異なります。
+そのため、ネットワークを流れる整数のバイト順の標準を規程したのがネットワークバイトオーダーです。
+ネットワークバイトオーダーを使うことによってどのようなマシン同士でも通信ができるようになります。
+なお、htonl()の逆を行うのがntohl()です。
+</p>
+
+<li>ポート番号
+<p>
+バインドするポート番号をネットワークバイトオーダーで指定します。
+ポート番号は2バイト整数(short)なので、htons()を使っています。
+</p>
+
+<li>listen()
+<p>
+これは簡単で、socket()が返したファイルディスクリプタを渡します。
+第2引数はリスニングキューの長さです。
+これは複数のクライアントが同時に接続に来たときに、待たせておくための待ち行列で、これは最近のOSでは適当に大き
+な数字を与えておけば、OSの方で適当な値を設定してくれます。
+</p>
+</ol>
+
+<p>
+ここまでの説明では複数のクライアントが接続に来たときのことを考慮していませんが、これについてはあとで説明します。
+</p>
+
+<h2>UNIXドメインソケット</h2>
+<p>
+UNIXやLinuxでは、同一ホストの中に通信が限定されたUNIXドメインソケットというものが使えます。
+もちろん同一ホストの中でもTCP/IPを使って通信することができますが、一般にUNIXドメインソケットの方が高速なので、同一ホストの中の通信にはUNIXドメインソケットが使われることが多いようです。
+</p>
+<p>
+なお、同じUNIXでもSolarisではTCP/IPの方が高速なようです。
+また、アプリケーションによってはそもそもUNIXドメインソケットがサポートされていないものもあります(たとえばJavaがそうです)。
+</p>
+
+<p>
+pgpool-IIでは、UNIXドメインソケットもサポートしています(リスト2)
+</p>
+
+<pre>
+リスト2: create_UNIX_domain_socket()
+-------------------------------------------------------------------
+/*
+* create UNIX domain socket
+*/
+static int create_unix_domain_socket(void)
+{
+	struct sockaddr_un addr;
+	int fd;
+	int status;
+	int len;
+
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1)
+	{
+		pool_error("Failed to create UNIX domain socket. reason: %s", strerror(errno));
+		myexit(1);
+	}
+	memset((char *) &addr, 0, sizeof(addr));
+	((struct sockaddr *)&addr)->sa_family = AF_UNIX;
+	snprintf(addr.sun_path, sizeof(addr.sun_path), un_addr.sun_path);
+	len = sizeof(struct sockaddr_un);
+	status = bind(fd, (struct sockaddr *)&addr, len);
+	if (status == -1)
+	{
+		pool_error("bind() failed. reason: %s", strerror(errno));
+		myexit(1);
+	}
+
+	if (chmod(un_addr.sun_path, 0777) == -1)
+	{
+		pool_error("chmod() failed. reason: %s", strerror(errno));
+		myexit(1);
+	}
+
+	status = listen(fd, PGPOOL-IIMAXLITSENQUEUELENGTH);
+	if (status < 0)
+	{
+		pool_error("listen() failed. reason: %s", strerror(errno));
+		myexit(1);
+	}
+	return fd;
+}
+-------------------------------------------------------------------
+</pre>
+
+<p>
+ご覧のようにリスト1とほとんど同じですがbind()の引数を作るのに使う構造体がsockaddr_inになっており、以下の点が異なります。
+</p>
+
+<p>
+<ol>
+<li>sa_familyにはAF_UNIXを指定します
+<li>ポート番号ではなく、UNIXドメインソケットへのパスを渡します
+</ol>
+</p>
+
+<h3>同時に複数クライアントを待ち受けるには？</h3>
+<p>
+この後は通常accept()を発行し、accept()の中でクライアントからの接続を待
+ち受けます。そしてaccept()から戻ってくるとすでにクライアントと接続され
+た状態になっているので、accept()が返したファイルディスクリプタを使って
+クライアントと通信を行います。
+</p>
+<p>
+<img src="4.png" align="right">
+しかし、このような使い方では、あるクライアントの処理をしている間は、他のクライアントから新たな接続要求があってもそれを受け付けることができません。
+これでは困るので、普通はaccept()までしておいて、以降は別プロセスにまかせるようにします。
+すなわち、親プロセスでsocket()、bind()、listen()、accept()まで行い、ここでfork()を使って子プロセスを生成します。
+子プロセスは親プロセスのファイルディスクリプタを受け継いでいるので、accept()の返したファイルディスクリプタを使ってクライアントと通信を行うことができます。
+一方、親プロセスはaccept()の返したファイルディスクリプタはもう不要なので、close()し、またaccept()の発行に戻ります。
+<br clear="all">
+</p>
+<p>
+この方式は処理が簡単なので多くのサーバプログラムに用いられています。
+PostgreSQLもこの方式です。
+</p>
+
+<h3>pre-fork方式</h3>
+<p>
+<img src="5.png" align="right">
+この方式は簡単ですが、accept()するたびにプロセスを新たに作らなければならないのであまりパフォーマンスがよくないという欠点があります。
+この問題を解決するのがpre-fork方式です。pre-fork方式では、事前にある程度の数の子プロセスを作っておき、クライアントからのコネクション要求があるとそれらの子プロセスが一斉に要求を受け取りに行きます。
+こう書くと子プロセス間の競合が心配になりますが。カーネルがうまく調整して要求を受け取るプロセスを1個だけにするので心配はありません。
+</p>
+<p>
+webサーバのApacheや、pgpool-IIはこの方式を採用しています。
+<br clear="all">
+</p>
+
+<h2>非ブロックソケットの利用</h2>
+<p>
+pre-fork方式では、多数の子プロセスが接続要求を取り合います。
+実際に要求を受け取ることができるのは一つのプロセスだけで、残りは空振りになります。
+そのため、空振りになった子プロセスは次にカーネルがaccept要求を割り当ててくれるまで待たされます。
+待ち受けるソケットが1つだけならそれでも問題ないのですが、pgpool-IIではUNIXドメインソケットとINETドメインソケットの両方を待ち受けたいので、これでは都合がよくありません。
+そこで、もし接続要求がなければすぐにaccpet()から戻れるようにしておく必要があります。
+このための仕掛けが非ブロックソケットとselect()です。
+</p>
+<p>
+非ブロックソケットを設定するには、fcntl()を使います。まず
+</p>
+<pre>
+	var = fcntl(fd, F_GETFL, 0);
+</pre>
+<p>
+のようにして現在のソケットを取り出し、
+</p>
+<pre>
+	fcntl(fd, F_SETFL, var | O_NONBLOCK);
+</pre>
+<p>
+非ブロック属性O_NONBLOCKのビットを立てます。これで非ブロックソケットになります。
+再度ブロックソケットに戻すには、
+</p>
+<pre>
+	fcntl(fd, F_SETFL, var & ~O_NONBLOCK);
+</pre>
+<p>
+としてビットを落します。このあたりは、child.cのset_nonblock()とunset_nonblock()を見てください。
+</p>
+<p>
+さて、非ブロック属性を設定しただけではまだ接続要求が届いていない場合にすぐにaccept()から復帰してしまいます。
+かと言って、何も要求がないときにすぐにaccept()に戻るようなことをするとbusy loopになって負荷が高くなります。
+busy loopを避けるためには、途中でsleep()を入れることもできますが、これでは最悪sleep()する秒数分だけレスポンスが遅れます。
+</p>
+<p>
+こうした問題を解決するのがselect()です。select()に監視したいファイルディスクリプタを指定しておくと、そこに何らかの入力があるまで待ち受けてくれます。
+</p>
+<p>
+リスト2はchild.cのdo_accept()からの抜粋です。
+</p>
+<pre>
+リスト2: select()の利用
+---------------------------------------------------------------------
+	FD_ZERO(&readmask);
+	FD_SET(unix_fd, &readmask);
+	if (inet_fd)
+		FD_SET(inet_fd, &readmask);
+
+	fds = select(Max(unix_fd, inet_fd)+1, &readmask, NULL, NULL, NULL);
+	if (fds == -1)
+	{
+		if (errno == EAGAIN || errno == EINTR)
+			return NULL;
+
+		pool_error("select() failed. reason %s", strerror(errno));
+		return NULL;
+	}
+
+	if (fds == 0)
+		return NULL;
+
+	if (FD_ISSET(unix_fd, &readmask))
+	{
+		fd = unix_fd;
+	}
+
+	if (FD_ISSET(inet_fd, &readmask))
+	{
+		fd = inet_fd;
+		inet++;
+	}
+
+	/*
+	 * Note that some SysV systems do not work here. For those
+	 * systems, we need some locking mechanism for the fd.
+	 */
+	addrlen = sizeof(addr);
+
+	afd = accept(fd, &addr, &addrlen);
+	if (afd < 0)
+	{
+		pool_error("accept() failed. reason: %s", strerror(errno));
+		return NULL;
+	}
+---------------------------------------------------------------------
+</pre>
+<p>
+select()の第1引数は監視するファイルディスクリプタ番号の最大+1です。
+第2、第3、第4引数は、それぞれ読み込み、書き込み、例外事象発生監視対象のファイルディスクリプタを表わすビットマップです。
+最後の引数はタイムアウトで、NULLを指定するとタイムアウトしません。
+</p>
+<p>
+ファイルディスクリプタ用のビットマップは、まずFD_ZERO()で0クリア、FD_SET() で該当ビットを立てることによって設定します。
+もしどれかのファイルディスクリプタに入力があるとselect()はそのファイルディスクリプタの数を返します。
+どのファイルディスクリプタが設定されたかはFD_ISSET()でわかります。
+後はそのファイルディスクリプタを使ってaccept()を呼び出せば、通信に使えるファイルディスクリプタが返ってきます。
+</p>
+<p>
+pgpool-IIはTCP/IPソケットとUNIXドメインソケットの両方をサポートしています。
+select()がこの両方を監視するようにすれば、TCP/IPソケットとUNIXドメインソケットのどちらから接続要求があっても対応できます。
+</p>
+
+<h2>次回はPostgreSQLの通信プロトコルの解説</h2>
+<p>
+今回、クライアントとサーバの通信が確立するところまで説明しました。
+<a href="../vol22/index.html">次回</a>はPostgreSQLの通信プロトコルについて解説します。
+</p>
+<p>
+参考文献:
+<br>
+UNIXネットワークプログラミング〈Vol.1/2>、W.Richard Stevens、 篠田 陽一訳、ピアソンエデュケーション
+</p>
+</html>

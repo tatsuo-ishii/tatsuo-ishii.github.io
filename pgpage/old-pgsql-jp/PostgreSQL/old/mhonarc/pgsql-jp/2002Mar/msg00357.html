@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25382] Re: Access2000&#45;>ODBC&#45;>Postgres7.13  接続での不具合 -->
+<!--X-From: "Eiji Tokuya" <e&#45;tokuya@sankyo&#45;unyu.jp> -->
+<!--X-Date: Fri, 22 Mar 2002 18:41:30 +0900 -->
+<!--X-Message-Id: NFBBJAIDILPHNLPMOAGCOEKCDMAA.e&#45;tokuya@sankyo&#45;unyu.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200203220740.QAA15135@mail.office.aptech.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25382] Re: Access2000-&gt;ODBC-&gt;Postgres7.13  接続での不具合 </TITLE>
+<LINK REV="made" HREF="mailto:e-tokuya@sankyo-unyu.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00356.html">Date Prev</A>][<A HREF="msg00358.html">Date Next</A>][<A HREF="msg00354.html">Thread Prev</A>][<A HREF="msg00360.html">Thread Next</A>][<A HREF="index.html#00357">Date Index</A>][<A HREF="threads.html#00357">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25382] Re: Access2000-&gt;ODBC-&gt;Postgres7.13  接続での不具合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Eiji Tokuya" &lt;<A HREF="mailto:e-tokuya@sankyo-unyu.jp">e-tokuya@sankyo-unyu.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Mar 2002 18:41:30 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>Importance</em>: Normal</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳家です。
+
+&gt; &gt;日本語版ODBCを使っていたということは、どこかしら文字化けを起こして
+&gt; &gt;ODBCから、データの編集が出来なってしまうのは仕方の無いことですよ。
+&gt;
+&gt; これまでは、データの読み込みだけでODBCを利用していました。
+&gt; 最近になって、データ更新もODBC経由で行おうと考えテストをしておりまし
+&gt; たら、この様な事態になってしまいました。
+&gt; 基本的には、PHPのスクリプトから書き出されるデータですので、ODBCが
+&gt; データを異常にしているとは、考えていませんでした。
+
+読み出しだけでは、データは変更されませんよ。
+
+それはいいとして、UnicodeのDBじゃないのですか？
+よくメールを読んでいなくてコメントしてました。ごめんなさい。(^^;)
+
+# 一つのDBに指定できるServerEncodingは一つです。
+# ClientEncodingもServerEncodingとの変換が対応している
+# エンコーディングでないと利用できません。
+# よって、多か国語のDBを作る場合create databaseでエンコーディング
+# をUNICODEかMULE_INTERNALでなくてはなりません。
+# ODBCやPHPはMULE_INTERNALは対応していないので、
+# 選択肢はUNICODE(UTF-8)しかありません。
+# 日本語ODBCをUNICODEのDBに対して使いたい場合は
+# SET CLIENT_ENCODING TO 'EUC_JP';
+# である程度使えなくもないのですが、ドライバとバックエンドの変換
+# マッピングか異なるので、多少不具合がおこると予測されます。
+# このように設定して利用しているのかなと思ってました。
+
+本題に戻ります。
+そもそものこの「データの更新ができない」という原因は、EUC_JPと
+欧米系エンコーディングの0x80以上のコードの文字を登録し、ODBC
+でSJISとして編集しているからです。
+
+ODBCでUPDATEを発行する場合primary key以外の文字列もwhereで
+抽出条件として扱われています。この条件が文字化けした文字列になっ
+ているので、データの更新が出来ないのです。
+エンコーディングを正しく理解していれば、EUC_JPのDBに海外の0x80
+以上のコードの文字は使わないと思いますが・・・・・。
+
+マルチリンガルなDBにするのでしたら、早いうちにDBをUnicodeにした
+ものにすることをすすめますよ。
+
+徳家
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00362" HREF="msg00362.html">[pgsql-jp: 25387] Re: Access2000-&gt;ODBC-&gt;Postgres7.13   接続での不具合</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00360" HREF="msg00360.html">[pgsql-jp: 25385] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+<UL><LI><EM>From:</EM> Sekiguchi &lt;pgsqlml@aptech.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00354" HREF="msg00354.html">[pgsql-jp: 25379] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+<UL><LI><EM>From:</EM> Sekiguchi &lt;pgsqlml@aptech.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp: 25381] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00358.html">[pgsql-jp: 25383] サーブレットからのmd5認証</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00354.html">[pgsql-jp: 25379] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00360.html">[pgsql-jp: 25385] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00357"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00357"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

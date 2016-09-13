@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15923] Re: limit で時間を短縮したい -->
+<!--X-From: Satoru Takahashi <takahasi@soc.sdl.melco.co.jp> -->
+<!--X-Date: Fri, 07 Jul 2000 11:49:55 +0900 -->
+<!--X-Message-Id: B58B7463.FA6%takahasi@soc.sdl.melco.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OF517709E8.A07055CF&#45;ON49256914.003F9BAA@nomura&#45;nms.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15923] Re: limit で時間を短縮したい </TITLE>
+<LINK REV="made" HREF="mailto:takahasi@soc.sdl.melco.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00154.html">Date Prev</A>][<A HREF="msg00158.html">Date Next</A>][<A HREF="msg00142.html">Thread Prev</A>][<A HREF="msg00170.html">Thread Next</A>][<A HREF="index.html#00156">Date Index</A>][<A HREF="threads.html#00156">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15923] Re: limit で時間を短縮したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoru Takahashi &lt;<A HREF="mailto:takahasi@soc.sdl.melco.co.jp">takahasi@soc.sdl.melco.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 07 Jul 2000 11:49:55 +0900</LI>
+<LI><em>User-Agent</em>: Microsoft Outlook Express Macintosh Edition - 5.01 (1513)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+高橋です。
+数々の返事をありがとうございました。
+
+&gt;&gt; select distinct *  from table1 where item1 = 'xxx'
+&gt;&gt; 　order by item2  limit 20 ;
+
+&gt;&gt; Unique (cost=666.67  rows=4501  width=612)
+&gt;&gt; ---&gt;  Sort (cost=666.67  rows=4501  width=612)
+&gt;&gt; ---&gt;  Seq Scan on table1 (cost=666.67  rows=4501  width=612)
+
+&gt; 最初の Unique は distinct が、 Sort は order by が、Seq Scan は where
+&gt; がそれぞれ実行されているのだと思います。内部的にどのようなプランでSQLが
+&gt; 処理されているか・・・です。下から見るのかな？
+&gt; where(Seq Scan)、order by(Sort)、Unique(distinct)という形で、プランが
+&gt; 設定され、実行されてる・・・と。
+
+なるほど。よく分かりました。
+
+&gt; あと、distinctを使うより、group byのが速くなるのでは・・・と思います。
+&gt; (ごめんなさい。PostgreSQLでためしていませんが、MS-SQL Server6.0では
+&gt; そうでした（過去の経験))
+
+group by に指定する適当な項目がなかったので試していませんが、
+データ登録時に重複データを排除するようにし、distinct / group by を使用せずに
+３段階の内部処理を２段に減らしました。
+
+&gt;&gt; ところで、この検索は CGI として実行しているのですが、ローカルホストでさえ、
+&gt;&gt; 検索開始ボタンを押してから結果が表示されるまでの時間が長くかかります。
+&gt;&gt; 最初の例の場合には１６秒（うち検索に６秒）、２番目の場合には１１秒（うち
+&gt;&gt; 検索に１秒）を要します。プロセスの fork やＤＢへの接続などがあったとしても
+&gt;&gt; 時間がかかりすぎている気がするのですが、こんなものなのでしょうか？
+
+試行錯誤の末に処理時間を短縮しました。
+上記の検索文では explain 出力にあるように１レコード 612 bytes あったため、
+612 bytes x 5000 records の中から order by 句によって上位 20 個を取り出して
+いました。これを、各レコードのＩＤに当たる部分（28 bytes）だけを取得する
+ようにした後、ＩＤを指定した select 文を２０回発行して詳細データを取るように
+しました。これにより、従来６秒かかっていた検索が１秒で済むようになりました。
+
+以上、なんとか使えるレベルになりました。
+ありがとうございました。
+
+
+追伸
+一連の質問の最初の記事を、別の記事にフォローする形で発行してしまい、
+スレッドを乱してしまったとご指摘を受けました。申し訳ありませんでした。
+スレッドの関係は Subject を見て判断しているのかと早合点していましたが、
+Reference や In-Reply-to を見ていたんですね。以後、気をつけます。
+
+-----
+ Satoru Takahashi 
+   takahasi@soc.sdl.melco.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp 15937] Re: limit で時間を短縮したい</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp 15908] Re: limitで時間を短縮したい</A></STRONG>
+<UL><LI><EM>From:</EM> j-kitamura@nomura-nms.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 15921] Re: ふりがなから○行だけ取り出す方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00158.html">[pgsql-jp 15925] Re: ふりがなから○行だけ取り出す方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 15909] unsubscribe</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00170.html">[pgsql-jp 15937] Re: limit で時間を短縮したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00156"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00156"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

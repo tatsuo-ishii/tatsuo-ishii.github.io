@@ -1,0 +1,3910 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3618] Re: libpgtcl BSD_SHLIB -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Mon, 16 Mar 1998 23:09:41 +0900 -->
+<!--X-Message-Id: 199803161409.XAA07136@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199803130200.LAA06370@freyja.tky.3web.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3618] Re: libpgtcl BSD_SHLIB </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00184.html">Date Prev</A>][<A HREF="msg00186.html">Date Next</A>][<A HREF="msg00132.html">Thread Prev</A>][<A HREF="msg00189.html">Thread Next</A>][<A HREF="index.html#00187">Date Index</A>][<A HREF="threads.html#00187">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3618] Re: libpgtcl BSD_SHLIB</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 16 Mar 1998 23:09:41 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;その際、libpgtcl の make で BSD系でも libpq をリンク
+&gt;するようにして、pgaccess が libpgtcl.so の load でこける
+&gt;のを回避してみたのですが、こんなんでよいのでしょうか。
+&gt;
+&gt;とりあえず、動いているようですが、
+&gt;これだと、他のBSD系で問題になるのかしら。
+
+先日本家の方に以下のようなパッチが投稿され、採用されたようです。
+どんなもんでしょう？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+-----------------------------------------------------------
+From: Randy Kunkee &lt;kunkee@pluto.ops.NeoSoft.com&gt;
+Message-Id: &lt;199803100551.XAA01029@pluto.ops.NeoSoft.com&gt;
+Subject: [PATCHES] libpgtcl patch (really a replacement)
+To: pgsql-patches@postgreSQL.org
+Date: Mon, 9 Mar 1998 23:51:55 -0600 (CST)
+X-Mailer: ELM [version 2.4ME+ PL31 (25)]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=US-ASCII
+Content-Transfer-Encoding: 7bit
+Sender: owner-pgsql-patches@hub.org
+Precedence: bulk
+
+It is my hope that the following "patches" to libpgtcl get included
+in the next release.
+
+See the update to the README file to get a full description of the changes.
+This version of libpgtcl is completely interpreter-safe, implements the
+database connection handle as a channel (no events yet, but will make it
+a lot easier to do fileevents on it in the future), and supports the SQL
+"copy table to stdout" and "copy table from stdin" commands, with the
+I/O being from and to the connection handle.  The connection and result
+handles are formatted in a way to make access to the tables more efficient.
+
+
+Index: NEOSOFT/libpgtcl6.3/Makefile.in
+diff -c NEOSOFT/libpgtcl6.3/Makefile.in:1.1.1.1 NEOSOFT/libpgtcl6.3/Makefile.in:1.2
+*** NEOSOFT/libpgtcl6.3/Makefile.in:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/Makefile.in	Mon Mar  9 17:26:21 1998
+***************
+*** 7,13 ****
+  #
+  #
+  # IDENTIFICATION
+! #    $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/Makefile.in,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+  #
+  #-------------------------------------------------------------------------
+  
+--- 7,13 ----
+  #
+  #
+  # IDENTIFICATION
+! #    $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/Makefile.in,v 1.2 1998/03/09 23:26:21 kunkee Exp $
+  #
+  #-------------------------------------------------------------------------
+  
+***************
+*** 37,43 ****
+      install-shlib-dep	:= install-shlib
+      shlib		:= libpgtcl.so.1
+      CFLAGS		+= $(CFLAGS_SL)
+!     LDFLAGS_SL		= -shared -L $(SRCDIR)/interfaces/libpq -lpq
+    endif
+  endif
+  
+--- 37,43 ----
+      install-shlib-dep	:= install-shlib
+      shlib		:= libpgtcl.so.1
+      CFLAGS		+= $(CFLAGS_SL)
+!     LDFLAGS_SL		= -shared -L$(SRCDIR)/interfaces/libpq -lpq
+    endif
+  endif
+  
+***************
+*** 53,59 ****
+  ifeq ($(PORTNAME), i386_solaris)
+    install-shlib-dep	:= install-shlib
+    shlib			:= libpgtcl.so.1
+!   LDFLAGS_SL		= -G -z text -L $(SRCDIR)/interfaces/libpq -lpq
+    CFLAGS		+= $(CFLAGS_SL)
+  endif
+  
+--- 53,59 ----
+  ifeq ($(PORTNAME), i386_solaris)
+    install-shlib-dep	:= install-shlib
+    shlib			:= libpgtcl.so.1
+!   LDFLAGS_SL		= -G -z text -L$(SRCDIR)/interfaces/libpq -lpq
+    CFLAGS		+= $(CFLAGS_SL)
+  endif
+  
+***************
+*** 60,66 ****
+  ifeq ($(PORTNAME), univel)
+    install-shlib-dep	:= install-shlib
+    shlib			:= libpgtcl.so.1
+!   LDFLAGS_SL		= -G -z text -L $(SRCDIR)/interfaces/libpq -lpq
+    CFLAGS		+= $(CFLAGS_SL)
+  endif
+  
+--- 60,66 ----
+  ifeq ($(PORTNAME), univel)
+    install-shlib-dep	:= install-shlib
+    shlib			:= libpgtcl.so.1
+!   LDFLAGS_SL		= -G -z text -L$(SRCDIR)/interfaces/libpq -lpq
+    CFLAGS		+= $(CFLAGS_SL)
+  endif
+  
+Index: NEOSOFT/libpgtcl6.3/README
+diff -c NEOSOFT/libpgtcl6.3/README:1.1.1.1 NEOSOFT/libpgtcl6.3/README:1.2
+*** NEOSOFT/libpgtcl6.3/README:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/README	Mon Mar  9 17:26:22 1998
+***************
+*** 1,7 ****
+  libpgtcl is a library that implements Tcl commands for front-end
+! clients to interact with the Postgres95 backend.  See libpgtcl.doc for
+! details.
+  
+  For an example of how to build a new tclsh to use libpgtcl, see the
+  directory ../bin/pgtclsh
+  
+--- 1,40 ----
+  libpgtcl is a library that implements Tcl commands for front-end
+! clients to interact with the Postgresql 6.3 (and perhaps later)
+! backends.  See libpgtcl.doc for details.
+  
+  For an example of how to build a new tclsh to use libpgtcl, see the
+  directory ../bin/pgtclsh
++ 
++ Note this version is modified by NeoSoft to have the following additional
++ features:
++ 
++ 1. Postgres connections are a valid Tcl channel, and can therefore
++    be manipulated by the interp command (ie. shared or transfered).
++    A connection handle's results are transfered/shared with it.
++    (Result handles are NOT channels, though it was tempting).  Note
++    that a "close $connection" is now functionally identical to a
++    "pg_disconnect $connection", although pg_connect must be used
++    to create a connection.
++    
++ 2. Result handles are changed in format: ${connection}.&lt;result#&gt;.
++    This just means for a connection 'pgtcl0', they look like pgtcl0.0,
++    pgtcl0.1, etc.  Enforcing this syntax makes it easy to look up
++    the real pointer by indexing into an array associated with the
++    connection.
++ 
++ 3. I/O routines are now defined for the connection handle.  I/O to/from
++    the connection is only valid under certain circumstances: following
++    the execution of the queries "copy &lt;table&gt; from stdin" or
++    "copy &lt;table&gt; to stdout".  In these cases, the result handle obtains
++    an intermediate status of "PGRES_COPY_IN" or "PGRES_COPY_OUT".  The
++    programmer is then expected to use Tcl gets or read commands on the
++    database connection (not the result handle) to extract the copy data.
++    For copy outs, read until the standard EOF indication is encountered.
++    For copy ins, puts a single terminator (\.).  The statement for this
++    would be
++ 	puts $conn "\\."      or       puts $conn {\.}
++    In either case (upon detecting the EOF or putting the `\.', the status
++    of the result handle will change to "PGRES_COMMAND_OK", and any further
++    I/O attempts will cause a Tcl error.
++    
+  
+Index: NEOSOFT/libpgtcl6.3/pgtcl.c
+diff -c NEOSOFT/libpgtcl6.3/pgtcl.c:1.1.1.1 NEOSOFT/libpgtcl6.3/pgtcl.c:1.3
+*** NEOSOFT/libpgtcl6.3/pgtcl.c:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/pgtcl.c	Mon Mar  9 23:05:20 1998
+***************
+*** 1,15 ****
+  /*-------------------------------------------------------------------------
+   *
+   * pgtcl.c--
+   *
+-  *	  libpgtcl is a tcl package for front-ends to interface with pglite
+-  *	 It's the tcl equivalent of the old libpq C interface.
+-  *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtcl.c,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+--- 1,15 ----
+  /*-------------------------------------------------------------------------
+   *
+   * pgtcl.c--
++  *    
++  *    libpgtcl is a tcl package for front-ends to interface with pglite
++  *   It's the tcl equivalent of the old libpq C interface.
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+   *
+   * IDENTIFICATION
+!  *    $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtcl.c,v 1.3 1998/03/10 05:05:20 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+***************
+*** 23,185 ****
+  #include "pgtclId.h"
+  
+  /*
+!  * Pgtcl_Init
+!  *	  initialization package for the PGLITE Tcl package
+   *
+   */
+  
+- /*
+-  * Tidy up forgotten postgres connection at Tcl_Exit
+-  */
+- static void
+- Pgtcl_AtExit(ClientData cData)
+- {
+- 	Pg_clientData *cd = (Pg_clientData *) cData;
+- 	Tcl_HashEntry *hent;
+- 	Tcl_HashSearch hsearch;
+- 	Pg_ConnectionId *connid;
+- 	PGconn	   *conn;
+- 
+- 	while ((hent = Tcl_FirstHashEntry(&amp;(cd-&gt;dbh_hash), &amp;hsearch)) != NULL)
+- 	{
+- 		connid = (Pg_ConnectionId *) Tcl_GetHashValue(hent);
+- 		conn = connid-&gt;conn;
+- 		PgDelConnectionId(cd, connid-&gt;id);
+- 		PQfinish(conn);
+- 	}
+- 
+- 	Tcl_DeleteHashTable(&amp;(cd-&gt;dbh_hash));
+- 	Tcl_DeleteHashTable(&amp;(cd-&gt;res_hash));
+- 	Tcl_DeleteHashTable(&amp;(cd-&gt;notify_hash));
+- 
+- 	Tcl_DeleteExitHandler(Pgtcl_AtExit, cData);
+- }
+- 
+- /*
+-  * Tidy up forgotten postgres connections on Interpreter deletion
+-  */
+- static void
+- Pgtcl_Shutdown(ClientData cData, Tcl_Interp * interp)
+- {
+- 	Pgtcl_AtExit(cData);
+- }
+- 
+  int
+! Pgtcl_Init(Tcl_Interp * interp)
+  {
+- 	Pg_clientData *cd;
+  
+! 	/* Create and initialize the client data area */
+! 	cd = (Pg_clientData *) ckalloc(sizeof(Pg_clientData));
+! 	Tcl_InitHashTable(&amp;(cd-&gt;dbh_hash), TCL_STRING_KEYS);
+! 	Tcl_InitHashTable(&amp;(cd-&gt;res_hash), TCL_STRING_KEYS);
+! 	Tcl_InitHashTable(&amp;(cd-&gt;notify_hash), TCL_STRING_KEYS);
+! 	cd-&gt;dbh_count = 0L;
+! 	cd-&gt;res_count = 0L;
+  
+! 	/* Arrange for tidy up when interpreter is deleted or Tcl exits */
+! 	Tcl_CallWhenDeleted(interp, Pgtcl_Shutdown, (ClientData) cd);
+! 	Tcl_CreateExitHandler(Pgtcl_AtExit, (ClientData) cd);
+  
+! 	/* register all pgtcl commands */
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_conndefaults",
+! 					  Pg_conndefaults,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_connect",
+! 					  Pg_connect,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_disconnect",
+! 					  Pg_disconnect,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_exec",
+! 					  Pg_exec,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_select",
+! 					  Pg_select,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_result",
+! 					  Pg_result,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_open",
+! 					  Pg_lo_open,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_close",
+! 					  Pg_lo_close,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_read",
+! 					  Pg_lo_read,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_write",
+! 					  Pg_lo_write,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_lseek",
+! 					  Pg_lo_lseek,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+  
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_creat",
+! 					  Pg_lo_creat,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_tell",
+! 					  Pg_lo_tell,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_unlink",
+! 					  Pg_lo_unlink,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_import",
+! 					  Pg_lo_import,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_lo_export",
+! 					  Pg_lo_export,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_listen",
+! 					  Pg_listen,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_CreateCommand(interp,
+! 					  "pg_notifies",
+! 					  Pg_notifies,
+! 					  (ClientData) cd, (Tcl_CmdDeleteProc *) NULL);
+! 
+! 	Tcl_PkgProvide(interp, "Pgtcl", "1.0");
+! 
+! 	return TCL_OK;
+  }
+  
+  
+  int
+! Pgtcl_SafeInit(Tcl_Interp * interp)
+  {
+! 	return Pgtcl_Init(interp);
+  }
+--- 23,144 ----
+  #include "pgtclId.h"
+  
+  /*
+!  * Pgtcl_Init 
+!  *    initialization package for the PGLITE Tcl package
+   *
+   */
+  
+  int
+! Pgtcl_Init (Tcl_Interp *interp)
+  {
+  
+!   /* finish off the ChannelType struct.  Much easier to do it here then
+!    * to guess where it might be by position in the struct.  This is needed
+!    * for Tcl7.6 and beyond, which have the getfileproc.
+!    */
+! #if (TCL_MAJOR_VERSION == 7 &amp;&amp; TCL_MINOR_VERSION == 6)
+!   Pg_ConnType.getFileProc = PgGetFileProc;
+! #endif
+  
+!   /* register all pgtcl commands */
+!   Tcl_CreateCommand(interp,
+! 		    "pg_conndefaults",
+! 		    Pg_conndefaults,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_connect",
+! 		    Pg_connect,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_disconnect",
+! 		    Pg_disconnect,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_exec",
+! 		    Pg_exec,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_select",
+! 		    Pg_select,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_result",
+! 		    Pg_result,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_open",
+! 		    Pg_lo_open,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_close",
+! 		    Pg_lo_close,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_read",
+! 		    Pg_lo_read,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_write",
+! 		    Pg_lo_write,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_lseek",
+! 		    Pg_lo_lseek,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_creat",
+! 		    Pg_lo_creat,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_tell",
+! 		    Pg_lo_tell,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_unlink",
+! 		    Pg_lo_unlink,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_import",
+! 		    Pg_lo_import,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_lo_export",
+! 		    Pg_lo_export,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+!   
+!   Tcl_CreateCommand(interp,
+! 		    "pg_listen",
+! 		    Pg_listen,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_CreateCommand(interp,
+! 		    "pg_notifies",
+! 		    Pg_notifies,
+! 		    (ClientData)NULL, (Tcl_CmdDeleteProc*)NULL);
+  
+!   Tcl_PkgProvide(interp, "Pgtcl", "1.1");
+  
+!   return TCL_OK;
+  }
+  
+  
+  int
+! Pgtcl_SafeInit (Tcl_Interp *interp)
+  {
+!     return Pgtcl_Init(interp);
+  }
+Index: NEOSOFT/libpgtcl6.3/pgtclCmds.c
+diff -c NEOSOFT/libpgtcl6.3/pgtclCmds.c:1.1.1.1 NEOSOFT/libpgtcl6.3/pgtclCmds.c:1.2
+*** NEOSOFT/libpgtcl6.3/pgtclCmds.c:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/pgtclCmds.c	Mon Mar  9 17:26:22 1998
+***************
+*** 1,13 ****
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclCmds.c--
+!  *	  C functions which implement pg_* tcl commands
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtclCmds.c,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+--- 1,13 ----
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclCmds.c--
+!  *    C functions which implement pg_* tcl commands
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+   *
+   * IDENTIFICATION
+!  *    $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtclCmds.c,v 1.2 1998/03/09 23:26:22 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+***************
+*** 240,393 ****
+  
+  /**********************************
+   * pg_conndefaults
+! 
+   syntax:
+   pg_conndefaults
+! 
+   the return result is a list describing the possible options and their
+   current default values for a call to pg_connect with the new -conninfo
+   syntax. Each entry in the list is a sublist of the format:
+  
+! 	 {optname label dispchar dispsize value}
+! 
+   **********************************/
+  
+  int
+! Pg_conndefaults(ClientData cData, Tcl_Interp * interp, int argc, char **argv)
+  {
+! 	PQconninfoOption *option;
+! 	char		buf[8192];
+  
+! 	Tcl_ResetResult(interp);
+! 	for (option = PQconndefaults(); option-&gt;keyword != NULL; option++)
+! 	{
+! 		if (option-&gt;val == NULL)
+! 		{
+! 			option-&gt;val = "";
+! 		}
+! 		sprintf(buf, "{%s} {%s} {%s} %d {%s}",
+! 				option-&gt;keyword,
+! 				option-&gt;label,
+! 				option-&gt;dispchar,
+! 				option-&gt;dispsize,
+! 				option-&gt;val);
+! 		Tcl_AppendElement(interp, buf);
+  	}
+  
+! 	return TCL_OK;
+  }
+  
+  
+  /**********************************
+   * pg_connect
+!  make a connection to a backend.
+! 
+   syntax:
+   pg_connect dbName [-host hostName] [-port portNumber] [-tty pqtty]]
+! 
+   the return result is either an error message or a handle for a database
+   connection.  Handles start with the prefix "pgp"
+! 
+   **********************************/
+  
+  int
+! Pg_connect(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	char	   *pghost = NULL;
+! 	char	   *pgtty = NULL;
+! 	char	   *pgport = NULL;
+! 	char	   *pgoptions = NULL;
+! 	char	   *dbName;
+! 	int			i;
+! 	PGconn	   *conn;
+  
+! 	if (argc == 1)
+! 	{
+! 		Tcl_AppendResult(interp, "pg_connect: database name missing\n", 0);
+! 		Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]\n", 0);
+! 		Tcl_AppendResult(interp, "pg_connect -conninfo &lt;conninfo-string&gt;", 0);
+! 		return TCL_ERROR;
+! 
+  	}
+! 
+! 	if (!strcmp("-conninfo", argv[1]))
+! 	{
+! 
+! 		/*
+! 		 * Establish a connection using the new PQconnectdb() interface
+! 		 */
+! 		if (argc != 3)
+! 		{
+! 			Tcl_AppendResult(interp, "pg_connect: syntax error\n", 0);
+! 			Tcl_AppendResult(interp, "pg_connect -conninfo &lt;conninfo-string&gt;", 0);
+! 			return TCL_ERROR;
+  		}
+! 		conn = PQconnectdb(argv[2]);
+! 	}
+! 	else
+! 	{
+! 
+! 		/*
+! 		 * Establish a connection using the old PQsetdb() interface
+! 		 */
+! 		if (argc &gt; 2)
+! 		{
+! 			/* parse for pg environment settings */
+! 			i = 2;
+! 			while (i + 1 &lt; argc)
+! 			{
+! 				if (strcmp(argv[i], "-host") == 0)
+! 				{
+! 					pghost = argv[i + 1];
+! 					i += 2;
+! 				}
+! 				else if (strcmp(argv[i], "-port") == 0)
+! 				{
+! 					pgport = argv[i + 1];
+! 					i += 2;
+! 				}
+! 				else if (strcmp(argv[i], "-tty") == 0)
+! 				{
+! 					pgtty = argv[i + 1];
+! 					i += 2;
+! 				}
+! 				else if (strcmp(argv[i], "-options") == 0)
+! 				{
+! 					pgoptions = argv[i + 1];
+! 					i += 2;
+! 				}
+! 				else
+! 				{
+! 					Tcl_AppendResult(interp, "Bad option to pg_connect : \n",
+! 									 argv[i], 0);
+! 					Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]", 0);
+! 					return TCL_ERROR;
+! 				}
+! 			}					/* while */
+! 			if ((i % 2 != 0) || i != argc)
+! 			{
+! 				Tcl_AppendResult(interp, "wrong # of arguments to pg_connect\n", argv[i], 0);
+! 				Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]", 0);
+! 				return TCL_ERROR;
+  			}
+! 		}
+! 		dbName = argv[1];
+! 		conn = PQsetdb(pghost, pgport, pgoptions, pgtty, dbName);
+! 	}
+! 
+! 	if (conn-&gt;status == CONNECTION_OK)
+! 	{
+! 		PgSetConnectionId(cd, interp-&gt;result, conn);
+! 		return TCL_OK;
+! 	}
+! 	else
+! 	{
+! 		Tcl_AppendResult(interp, "Connection to database failed\n", 0);
+! 		Tcl_AppendResult(interp, conn-&gt;errorMessage, 0);
+! 		PQfinish(conn);
+  		return TCL_ERROR;
+  	}
+  }
+  
+  
+--- 240,375 ----
+  
+  /**********************************
+   * pg_conndefaults
+!  
+   syntax:
+   pg_conndefaults
+!  
+   the return result is a list describing the possible options and their
+   current default values for a call to pg_connect with the new -conninfo
+   syntax. Each entry in the list is a sublist of the format:
+  
+!      {optname label dispchar dispsize value}
+!  
+   **********************************/
+  
+  int
+! Pg_conndefaults(ClientData cData, Tcl_Interp *interp, int argc, char **argv)
+  {
+!     PQconninfoOption *option;
+!     char	buf[8192];
+  
+!     Tcl_ResetResult(interp);
+!     for(option = PQconndefaults(); option-&gt;keyword != NULL; option++) {
+!         if(option-&gt;val == NULL) {
+! 	    option-&gt;val = "";
+  	}
++ 	sprintf(buf, "{%s} {%s} {%s} %d {%s}",
++ 		option-&gt;keyword,
++ 		option-&gt;label,
++ 		option-&gt;dispchar,
++ 		option-&gt;dispsize,
++ 		option-&gt;val);
++         Tcl_AppendElement(interp, buf);
++     }
+  
+!     return TCL_OK;
+  }
+  
+  
+  /**********************************
+   * pg_connect
+!  make a connection to a backend.  
+!  
+   syntax:
+   pg_connect dbName [-host hostName] [-port portNumber] [-tty pqtty]]
+!  
+   the return result is either an error message or a handle for a database
+   connection.  Handles start with the prefix "pgp"
+!  
+   **********************************/
+  
+  int
+! Pg_connect(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     char *pghost = NULL;
+!     char *pgtty = NULL;
+!     char *pgport = NULL;
+!     char *pgoptions = NULL;
+!     char *dbName; 
+!     int i;
+!     PGconn *conn;
+!   
+!     if (argc == 1) {
+! 	Tcl_AppendResult(interp, "pg_connect: database name missing\n", 0);
+! 	Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]\n", 0);
+! 	Tcl_AppendResult(interp, "pg_connect -conninfo &lt;conninfo-string&gt;", 0);
+! 	return TCL_ERROR;
+!     
+!     }
+  
+!     if (!strcmp("-conninfo", argv[1])) {
+! 	/*
+! 	 * Establish a connection using the new PQconnectdb() interface
+! 	 */
+!         if (argc != 3) {
+! 	    Tcl_AppendResult(interp, "pg_connect: syntax error\n", 0);
+! 	    Tcl_AppendResult(interp, "pg_connect -conninfo &lt;conninfo-string&gt;", 0);
+! 	    return TCL_ERROR;
+  	}
+! 	conn = PQconnectdb(argv[2]);
+!     } else {
+! 	/*
+! 	 * Establish a connection using the old PQsetdb() interface
+! 	 */
+! 	if (argc &gt; 2) { 
+! 	    /* parse for pg environment settings */
+! 	    i = 2;
+! 	    while (i+1 &lt; argc) {
+! 		if (strcmp(argv[i], "-host") == 0) {
+! 		    pghost = argv[i+1];
+! 		    i += 2;
+  		}
+! 		else
+! 		    if (strcmp(argv[i], "-port") == 0) {
+! 			pgport = argv[i+1];
+! 			i += 2;
+! 		    }
+! 		    else
+! 			if (strcmp(argv[i], "-tty") == 0) {
+! 			    pgtty = argv[i+1];
+! 			    i += 2;
+  			}
+! 			else if (strcmp(argv[i], "-options") == 0) {
+! 			    pgoptions = argv[i+1];
+! 			    i += 2;
+! 			}
+! 			else {
+! 			    Tcl_AppendResult(interp, "Bad option to pg_connect : \n",
+! 					     argv[i], 0);
+! 			    Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]",0);
+! 			    return TCL_ERROR;
+! 			}
+! 	    } /* while */
+! 	    if ((i % 2 != 0) || i != argc) {
+! 		Tcl_AppendResult(interp, "wrong # of arguments to pg_connect\n", argv[i],0);
+! 		Tcl_AppendResult(interp, "pg_connect databaseName [-host hostName] [-port portNumber] [-tty pgtty]]",0);
+  		return TCL_ERROR;
++ 	    }
+  	}
++ 	dbName = argv[1];
++         conn = PQsetdb(pghost, pgport, pgoptions, pgtty, dbName);
++     }
++ 
++     if (conn-&gt;status == CONNECTION_OK) {
++ 	PgSetConnectionId(interp, conn);
++ 	return TCL_OK;
++     }
++     else {
++ 	Tcl_AppendResult(interp, "Connection to database failed\n", 0);
++ 	Tcl_AppendResult(interp, conn-&gt;errorMessage, 0);
++ 	PQfinish(conn);
++ 	return TCL_ERROR;
++     }
+  }
+  
+  
+***************
+*** 394,497 ****
+  /**********************************
+   * pg_disconnect
+   close a backend connection
+! 
+   syntax:
+   pg_disconnect connection
+! 
+   The argument passed in must be a connection pointer.
+! 
+   **********************************/
+  
+  int
+! Pg_disconnect(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+  
+! 	if (argc != 2)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n", "pg_disconnect connection", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	PgDelConnectionId(cd, argv[1]);
+! 	PQfinish(conn);
+! 	return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_exec
+   send a query string to the backend connection
+! 
+   syntax:
+   pg_exec connection query
+! 
+   the return result is either an error message or a handle for a query
+   result.  Handles start with the prefix "pgp"
+   **********************************/
+  
+  int
+! Pg_exec(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	PGresult   *result;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_exec connection queryString", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	result = PQexec(conn, argv[2]);
+! 	if (result)
+! 	{
+! 		PgSetResultId(cd, interp-&gt;result, argv[1], result);
+! 		return TCL_OK;
+  	}
+- 	else
+- 	{
+- 		/* error occurred during the query */
+- 		Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+- 		return TCL_ERROR;
+- 	}
+- 	/* check return status of result */
+  	return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_result
+   get information about the results of a query
+! 
+   syntax:
+!  pg_result result ?option?
+! 
+   the options are:
+!  -status
+   the status of the result
+   -conn
+   the connection that produced the result
+   -assign arrayName
+   assign the results to an array
+!  -assignbyidx arrayName ?appendstr?
+   assign the results to an array using the first field as a key
+-  optional appendstr append that string to the key name. Usefull for
+-  creating pseudo-multi dimentional arrays in tcl.
+   -numTuples
+   the number of tuples in the query
+   -attributes
+--- 376,494 ----
+  /**********************************
+   * pg_disconnect
+   close a backend connection
+!  
+   syntax:
+   pg_disconnect connection
+!  
+   The argument passed in must be a connection pointer.
+!  
+   **********************************/
+  
+  int
+! Pg_disconnect(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     Tcl_Channel conn_chan;
+  
+!     if (argc != 2) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n", "pg_disconnect connection", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn_chan = Tcl_GetChannel(interp, argv[1], 0);
+!     if (conn_chan == NULL) {
+! 	Tcl_ResetResult(interp);
+! 	Tcl_AppendResult(interp, argv[1], " is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     return Tcl_UnregisterChannel(interp, conn_chan);
+  }
+  
+  /**********************************
+   * pg_exec
+   send a query string to the backend connection
+!  
+   syntax:
+   pg_exec connection query
+!  
+   the return result is either an error message or a handle for a query
+   result.  Handles start with the prefix "pgp"
+   **********************************/
+  
+  int
+! Pg_exec(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     Pg_ConnectionId *connid;
+!     PGconn *conn;
+!     PGresult *result;
+!     int connStatus;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_exec connection queryString", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], &amp;connid);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     if (connid-&gt;res_copyStatus != RES_COPY_NONE) {
+! 	Tcl_SetResult(interp, "Attempt to query while COPY in progress", TCL_STATIC);
+! 	return TCL_ERROR;
+!     }
+! 
+!     connStatus = conn-&gt;status;
+!     result = PQexec(conn, argv[2]);
+!     if (result) {
+! 	int rId = PgSetResultId(interp, argv[1], result);
+! 	if (result-&gt;resultStatus == PGRES_COPY_IN ||
+! 	    result-&gt;resultStatus == PGRES_COPY_OUT) {
+! 		connid-&gt;res_copyStatus = RES_COPY_INPROGRESS;
+! 		connid-&gt;res_copy = rId;
+  	}
+  	return TCL_OK;
++     }
++     else {
++ 	/* error occurred during the query */
++ 	Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
++ 	if (connStatus == CONNECTION_OK) {
++ 	    PQreset(conn);
++ 	    if (conn-&gt;status == CONNECTION_OK) {
++ 		result = PQexec(conn, argv[2]);
++ 		if (result) {
++ 		    int rId = PgSetResultId(interp, argv[1], result);
++ 		    if (result-&gt;resultStatus == PGRES_COPY_IN ||
++ 			result-&gt;resultStatus == PGRES_COPY_OUT) {
++ 			    connid-&gt;res_copyStatus = RES_COPY_INPROGRESS;
++ 			    connid-&gt;res_copy = rId;
++ 		    }
++ 		    return TCL_OK;
++ 		}
++ 	    }
++ 	}
++ 	return TCL_ERROR;
++     }
+  }
+  
+  /**********************************
+   * pg_result
+   get information about the results of a query
+!  
+   syntax:
+!  pg_result result ?option? 
+!  
+   the options are:
+!  -status  
+   the status of the result
+   -conn
+   the connection that produced the result
+   -assign arrayName
+   assign the results to an array
+!  -assignbyidx arrayName
+   assign the results to an array using the first field as a key
+   -numTuples
+   the number of tuples in the query
+   -attributes
+***************
+*** 502,834 ****
+   returns the number of attributes returned by the query
+   -getTuple tupleNumber
+   returns the values of the tuple in a list
+!  -clear
+   clear the result buffer. Do not reuse after this
+   **********************************/
+  int
+! Pg_result(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGresult   *result;
+! 	char	   *opt;
+! 	int			i;
+! 	int			tupno;
+! 	char		prearrayInd[MAX_MESSAGE_LEN];
+! 	char		arrayInd[MAX_MESSAGE_LEN];
+! 	char	   *appendstr;
+! 	char	   *arrVar;
+  
+! 	if (argc != 3 &amp;&amp; argc != 4 &amp;&amp; argc != 5)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n", 0);
+! 		goto Pg_result_errReturn;
+! 	}
+  
+! 	result = PgGetResultId(cd, argv[1]);
+! 	if (result == (PGresult *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid query result\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	opt = argv[2];
+  
+! 	if (strcmp(opt, "-status") == 0)
+! 	{
+! 		Tcl_AppendResult(interp, pgresStatus[PQresultStatus(result)], 0);
+! 		return TCL_OK;
+  	}
+! 	else if (strcmp(opt, "-oid") == 0)
+! 	{
+! 		Tcl_AppendResult(interp, PQoidStatus(result), 0);
+! 		return TCL_OK;
+! 	}
+! 	else if (strcmp(opt, "-conn") == 0)
+! 	{
+! 		PgGetConnByResultId(cd, interp-&gt;result, argv[1]);
+! 		return TCL_OK;
+! 	}
+! 	else if (strcmp(opt, "-clear") == 0)
+! 	{
+! 		PgDelResultId(cd, argv[1]);
+! 		PQclear(result);
+! 		return TCL_OK;
+! 	}
+! 	else if (strcmp(opt, "-numTuples") == 0)
+! 	{
+! 		sprintf(interp-&gt;result, "%d", PQntuples(result));
+! 		return TCL_OK;
+! 	}
+! 	else if (strcmp(opt, "-assign") == 0)
+! 	{
+! 		if (argc != 4)
+! 		{
+! 			Tcl_AppendResult(interp, "-assign option must be followed by a variable name", 0);
+! 			return TCL_ERROR;
+! 		}
+! 		arrVar = argv[3];
+! 
+! 		/*
+! 		 * this assignment assigns the table of result tuples into a giant
+! 		 * array with the name given in the argument, the indices of the
+! 		 * array or (tupno,attrName)
+! 		 */
+! 		for (tupno = 0; tupno &lt; PQntuples(result); tupno++)
+! 		{
+! 			for (i = 0; i &lt; PQnfields(result); i++)
+! 			{
+! 				sprintf(arrayInd, "%d,%s", tupno, PQfname(result, i));
+! 				Tcl_SetVar2(interp, arrVar, arrayInd,
+  #ifdef TCL_ARRAYS
+! 							tcl_value(PQgetvalue(result, tupno, i)),
+  #else
+! 							PQgetvalue(result, tupno, i),
+  #endif
+! 							TCL_LEAVE_ERR_MSG);
+! 			}
+! 		}
+! 		Tcl_AppendResult(interp, arrVar, 0);
+! 		return TCL_OK;
+  	}
+! 	else if (strcmp(opt, "-assignbyidx") == 0)
+! 	{
+! 		if (argc != 4 &amp;&amp; argc != 5)
+! 		{
+! 			Tcl_AppendResult(interp, "-assignbyidx requires the array name and takes one optional argument as an append string", 0);
+! 			return TCL_ERROR;
+! 		}
+! 		arrVar = argv[3];
+! 
+! 		/*
+! 		 * this assignment assigns the table of result tuples into a giant
+! 		 * array with the name given in the argument, the indices of the
+! 		 * array or (tupno,attrName)
+! 		 */
+! 		if (argc == 5)
+! 		{
+! 			appendstr = argv[4];
+! 		}
+! 		else
+! 		{
+! 			appendstr = "";
+! 		}
+! 		for (tupno = 0; tupno &lt; PQntuples(result); tupno++)
+! 		{
+! 			sprintf(prearrayInd, "%s", PQgetvalue(result, tupno, 0));
+! 			for (i = 1; i &lt; PQnfields(result); i++)
+! 			{
+! 				sprintf(arrayInd, "%s,%s%s", prearrayInd, PQfname(result, i),
+! 						appendstr);
+! 				Tcl_SetVar2(interp, arrVar, arrayInd,
+! 							PQgetvalue(result, tupno, i),
+! 							TCL_LEAVE_ERR_MSG);
+! 			}
+! 		}
+! 		Tcl_AppendResult(interp, arrVar, 0);
+! 		return TCL_OK;
+  	}
+! 	else if (strcmp(opt, "-getTuple") == 0)
+! 	{
+! 		if (argc != 4)
+! 		{
+! 			Tcl_AppendResult(interp, "-getTuple option must be followed by a tuple number", 0);
+! 			return TCL_ERROR;
+! 		}
+! 		tupno = atoi(argv[3]);
+  
+- 		if (tupno &gt;= PQntuples(result))
+- 		{
+- 			Tcl_AppendResult(interp, "argument to getTuple cannot exceed number of tuples - 1", 0);
+- 			return TCL_ERROR;
+- 		}
+- 
+  #ifdef TCL_ARRAYS
+! 		for (i = 0; i &lt; PQnfields(result); i++)
+! 		{
+! 			Tcl_AppendElement(interp, PQgetvalue(result, tupno, i));
+! 		}
+  #else
+! /*		Tcl_AppendResult(interp, PQgetvalue(result,tupno,0),NULL); */
+! 		Tcl_AppendElement(interp, PQgetvalue(result, tupno, 0));
+! 		for (i = 1; i &lt; PQnfields(result); i++)
+! 		{
+! /*		  Tcl_AppendResult(interp, " ", PQgetvalue(result,tupno,i),NULL);*/
+! 			Tcl_AppendElement(interp, PQgetvalue(result, tupno, i));
+! 		}
+  #endif
+  
+! 		return TCL_OK;
+  	}
+! 	else if (strcmp(opt, "-attributes") == 0)
+! 	{
+! 		Tcl_AppendResult(interp, PQfname(result, 0), NULL);
+! 		for (i = 1; i &lt; PQnfields(result); i++)
+! 		{
+! 			Tcl_AppendResult(interp, " ", PQfname(result, i), NULL);
+! 		}
+! 		return TCL_OK;
+  	}
+- 	else if (strcmp(opt, "-lAttributes") == 0)
+- 	{
+- 		char		buf[512];
+  
+! 		Tcl_ResetResult(interp);
+! 		for (i = 0; i &lt; PQnfields(result); i++)
+! 		{
+! 			sprintf(buf, "{%s} %ld %d", PQfname(result, i),
+! 					(long) PQftype(result, i),
+! 					PQfsize(result, i));
+! 			Tcl_AppendElement(interp, buf);
+! 		}
+! 		return TCL_OK;
+  	}
+! 	else if (strcmp(opt, "-numAttrs") == 0)
+! 	{
+! 		sprintf(interp-&gt;result, "%d", PQnfields(result));
+! 		return TCL_OK;
+! 	}
+! 	else
+! 	{
+! 		Tcl_AppendResult(interp, "Invalid option", 0);
+! 		goto Pg_result_errReturn;
+! 	}
+  
+  
+- Pg_result_errReturn:
+- 	Tcl_AppendResult(interp,
+- 					 "pg_result result ?option? where ?option is\n",
+- 					 "\t-status\n",
+- 					 "\t-conn\n",
+- 					 "\t-assign arrayVarName\n",
+- 					 "\t-assignbyidx arrayVarName ?appendstr?\n",
+- 					 "\t-numTuples\n",
+- 					 "\t-attributes\n"
+- 					 "\t-lAttributes\n"
+- 					 "\t-numAttrs\n"
+- 					 "\t-getTuple tupleNumber\n",
+- 					 "\t-clear\n",
+- 					 "\t-oid\n",
+- 					 0);
+- 	return TCL_ERROR;
+- 
+- 
+  }
+  
+  /**********************************
+   * pg_lo_open
+! 	 open a large object
+! 
+   syntax:
+!  pg_lo_open conn objOid mode
+  
+   where mode can be either 'r', 'w', or 'rw'
+  **********************/
+  
+  int
+! Pg_lo_open(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			lobjId;
+! 	int			mode;
+! 	int			fd;
+  
+! 	if (argc != 4)
+  	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_open connection lobjOid mode", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+! 
+! 	lobjId = atoi(argv[2]);
+! 	if (strlen(argv[3]) &lt; 1 ||
+! 		strlen(argv[3]) &gt; 2)
+! 	{
+! 		Tcl_AppendResult(interp, "mode argument must be 'r', 'w', or 'rw'", 0);
+! 		return TCL_ERROR;
+! 	}
+! 	switch (argv[3][0])
+! 	{
+! 		case 'r':
+! 		case 'R':
+! 			mode = INV_READ;
+! 			break;
+! 		case 'w':
+! 		case 'W':
+! 			mode = INV_WRITE;
+! 			break;
+! 		default:
+! 			Tcl_AppendResult(interp, "mode argument must be 'r', 'w', or 'rw'", 0);
+! 			return TCL_ERROR;
+! 	}
+! 	switch (argv[3][1])
+! 	{
+! 		case '\0':
+! 			break;
+! 		case 'r':
+! 		case 'R':
+! 			mode = mode &amp; INV_READ;
+! 			break;
+! 		case 'w':
+! 		case 'W':
+! 			mode = mode &amp; INV_WRITE;
+! 			break;
+! 		default:
+! 			Tcl_AppendResult(interp, "mode argument must be 'r', 'w', or 'rw'", 0);
+! 			return TCL_ERROR;
+! 	}
+! 
+! 	fd = lo_open(conn, lobjId, mode);
+! 	sprintf(interp-&gt;result, "%d", fd);
+! 	return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_lo_close
+! 	 close a large object
+! 
+   syntax:
+!  pg_lo_close conn fd
+  
+  **********************/
+  int
+! Pg_lo_close(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			fd;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_close connection fd", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+! 
+! 	fd = atoi(argv[2]);
+! 	sprintf(interp-&gt;result, "%d", lo_close(conn, fd));
+! 	return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_lo_read
+! 	 reads at most len bytes from a large object into a variable named
+   bufVar
+! 
+   syntax:
+   pg_lo_read conn fd bufVar len
+  
+--- 499,801 ----
+   returns the number of attributes returned by the query
+   -getTuple tupleNumber
+   returns the values of the tuple in a list
+!  -tupleArray tupleNumber arrayName
+!  stores the values of the tuple in array arrayName, indexed
+!  by the attributes returned
+!  -clear 
+   clear the result buffer. Do not reuse after this
+   **********************************/
+  int
+! Pg_result(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGresult *result;
+!     char *opt;
+!     int i;
+!     int tupno;
+!     char prearrayInd[MAX_MESSAGE_LEN];
+!     char arrayInd[MAX_MESSAGE_LEN];
+!     char *arrVar;
+  
+!     if (argc &lt; 3 || argc &gt; 5) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",0);
+! 	goto Pg_result_errReturn;
+!     }
+  
+!     result = PgGetResultId(interp, argv[1]);
+!     if (result == (PGresult *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid query result", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     opt = argv[2];
+  
+!     if (strcmp(opt, "-status") == 0) {
+! 	Tcl_AppendResult(interp, pgresStatus[PQresultStatus(result)], 0);
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-oid") == 0) {
+! 	Tcl_AppendResult(interp, PQoidStatus(result), 0);
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-conn") == 0) {
+! 	return PgGetConnByResultId(interp, argv[1]);
+!     }
+!     else if (strcmp(opt, "-clear") == 0) {
+! 	PgDelResultId(interp, argv[1]);
+! 	PQclear(result);
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-numTuples") == 0) {
+! 	sprintf(interp-&gt;result, "%d", PQntuples(result));
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-assign") == 0) {
+! 	if (argc != 4) {
+! 	    Tcl_AppendResult(interp, "-assign option must be followed by a variable name",0);
+! 	    return TCL_ERROR;
+  	}
+! 	arrVar = argv[3];
+! 	/* this assignment assigns the table of result tuples into a giant
+! 	   array with the name given in the argument,
+! 	   the indices of the array or (tupno,attrName)*/
+! 	for (tupno = 0; tupno&lt;PQntuples(result); tupno++) {
+! 	    for (i=0;i&lt;PQnfields(result);i++) {
+! 		sprintf(arrayInd, "%d,%s", tupno, PQfname(result,i));
+! 		Tcl_SetVar2(interp, arrVar, arrayInd, 
+  #ifdef TCL_ARRAYS
+! 			    tcl_value(PQgetvalue(result,tupno,i)),
+  #else
+! 			    PQgetvalue(result,tupno,i),
+  #endif
+! 			    TCL_LEAVE_ERR_MSG);
+! 	    }
+  	}
+! 	Tcl_AppendResult(interp, arrVar, 0);
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-assignbyidx") == 0) {
+!       if (argc != 4) {
+!           Tcl_AppendResult(interp, "-assignbyidx option must be followed by a variable name",0);
+!           return TCL_ERROR;
+!       }
+!       arrVar = argv[3];
+!       /* this assignment assigns the table of result tuples into a giant
+!          array with the name given in the argument,
+!          the indices of the array or (tupno,attrName)*/
+!       for (tupno = 0; tupno&lt;PQntuples(result); tupno++) {
+!           sprintf(prearrayInd,"%s",PQgetvalue(result,tupno,0));
+!           for (i=1;i&lt;PQnfields(result);i++) {
+!               sprintf(arrayInd, "%s,%s", prearrayInd, PQfname(result,i));
+!               Tcl_SetVar2(interp, arrVar, arrayInd,
+!                           PQgetvalue(result,tupno,i),
+!                           TCL_LEAVE_ERR_MSG);
+!           }
+!       }
+!       Tcl_AppendResult(interp, arrVar, 0);
+!       return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-getTuple") == 0) {
+! 	if (argc != 4) {
+! 	    Tcl_AppendResult(interp, "-getTuple option must be followed by a tuple number",0);
+! 	    return TCL_ERROR;
+  	}
+! 	tupno = atoi(argv[3]);
+! 	
+! 	if (tupno &gt;= PQntuples(result)) {
+! 	    Tcl_AppendResult(interp, "argument to getTuple cannot exceed number of tuples - 1",0);
+! 	    return TCL_ERROR;
+! 	}
+  
+  #ifdef TCL_ARRAYS
+! 	for (i=0; i&lt;PQnfields(result); i++) {
+! 	    Tcl_AppendElement(interp, tcl_value(PQgetvalue(result,tupno,i)));
+! 	}
+  #else
+! /*	Tcl_AppendResult(interp, PQgetvalue(result,tupno,0),NULL); */
+!         Tcl_AppendElement(interp, PQgetvalue(result,tupno,0));
+! 	for (i=1;i&lt;PQnfields(result);i++) {
+! /*	  Tcl_AppendResult(interp, " ", PQgetvalue(result,tupno,i),NULL);*/
+!          Tcl_AppendElement(interp, PQgetvalue(result,tupno,i));
+! 	}
+  #endif
+  
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-tupleArray") == 0) {
+! 	if (argc != 5) {
+! 	    Tcl_AppendResult(interp, "-tupleArray option must be followed by a tuple number and array name",0);
+! 	    return TCL_ERROR;
+  	}
+! 	tupno = atoi(argv[3]);
+! 	
+! 	if (tupno &gt;= PQntuples(result)) {
+! 	    Tcl_AppendResult(interp, "argument to tupleArray cannot exceed number of tuples - 1",0);
+! 	    return TCL_ERROR;
+  	}
+  
+! 	for ( i = 0; i &lt; PQnfields(result); i++) {
+! 	   if (Tcl_SetVar2(interp, argv[4], PQfname(result, i), PQgetvalue(result, tupno, i), TCL_LEAVE_ERR_MSG) == NULL) {
+! 	       return TCL_ERROR;
+! 	   }
+  	}
+! 	return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-attributes") == 0) {
+!       Tcl_AppendResult(interp, PQfname(result,0),NULL);
+!       for (i=1;i&lt;PQnfields(result);i++) {
+! 	Tcl_AppendResult(interp, " ", PQfname(result,i), NULL);
+!       }
+!       return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-lAttributes") == 0) {
+!       char buf[512];
+!       Tcl_ResetResult(interp);
+!       for (i = 0; i &lt; PQnfields(result); i++) {
+!           sprintf(buf, "{%s} %ld %d", PQfname(result, i),
+! 	  			      (long) PQftype(result, i),
+! 				      PQfsize(result, i));
+!           Tcl_AppendElement(interp, buf);
+!       }
+!       return TCL_OK;
+!     }
+!     else if (strcmp(opt, "-numAttrs") == 0) {
+!       sprintf(interp-&gt;result, "%d", PQnfields(result));
+!       return TCL_OK;
+!     }
+!     else   { 
+! 	Tcl_AppendResult(interp, "Invalid option",0);
+! 	goto Pg_result_errReturn;
+!     }
+!   
+  
++  Pg_result_errReturn:
++     Tcl_AppendResult(interp, 
++ 		     "pg_result result ?option? where ?option is\n", 
++ 		     "\t-status\n",
++ 		     "\t-conn\n",
++ 		     "\t-assign arrayVarName\n",
++ 		     "\t-assignbyidx arrayVarName\n",
++ 		     "\t-numTuples\n",
++ 		     "\t-attributes\n"
++ 		     "\t-lAttributes\n"
++ 		     "\t-numAttrs\n"
++ 		     "\t-getTuple tupleNumber\n",
++ 		     "\t-tupleArray tupleNumber arrayVarName\n",
++ 		     "\t-clear\n",
++ 		     "\t-oid\n",
++ 		     (char*)0);
++     return TCL_ERROR;
++   
+  
+  }
+  
+  /**********************************
+   * pg_lo_open
+!      open a large object
+!  
+   syntax:
+!  pg_lo_open conn objOid mode 
+  
+   where mode can be either 'r', 'w', or 'rw'
+  **********************/
+  
+  int
+! Pg_lo_open(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int lobjId;
+!     int mode;
+!     int fd;
+  
+!     if (argc != 4) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_open connection lobjOid mode", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     lobjId = atoi(argv[2]);
+!     if (strlen(argv[3]) &lt; 1 ||
+! 	strlen(argv[3]) &gt; 2)
+  	{
+! 	Tcl_AppendResult(interp,"mode argument must be 'r', 'w', or 'rw'",0);
+!         return TCL_ERROR;
+!     }
+!     switch (argv[3][0]) {
+!     case 'r':
+!     case 'R':
+! 	mode = INV_READ;
+! 	break;
+!     case 'w':
+!     case 'W':
+! 	mode = INV_WRITE;
+! 	break;
+!     default:
+! 	Tcl_AppendResult(interp,"mode argument must be 'r', 'w', or 'rw'",0);
+!         return TCL_ERROR;
+!    }
+!     switch (argv[3][1]) {
+!     case '\0':
+! 	break;
+!     case 'r':
+!     case 'R':
+! 	mode = mode &amp; INV_READ;
+! 	break;
+!     case 'w':
+!     case 'W':
+! 	mode = mode &amp; INV_WRITE;
+! 	break;
+!     default:
+! 	Tcl_AppendResult(interp,"mode argument must be 'r', 'w', or 'rw'",0);
+!         return TCL_ERROR;
+!     }
+  
+!     fd = lo_open(conn,lobjId,mode);
+!     sprintf(interp-&gt;result,"%d",fd);
+!     return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_lo_close
+!      close a large object
+!  
+   syntax:
+!  pg_lo_close conn fd 
+  
+  **********************/
+  int
+! Pg_lo_close(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int fd;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_close connection fd", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     fd = atoi(argv[2]);
+!     sprintf(interp-&gt;result,"%d",lo_close(conn,fd));
+!     return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_lo_read
+!      reads at most len bytes from a large object into a variable named
+   bufVar
+!  
+   syntax:
+   pg_lo_read conn fd bufVar len
+  
+***************
+*** 836,890 ****
+  
+  **********************/
+  int
+! Pg_lo_read(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			fd;
+! 	int			nbytes = 0;
+! 	char	   *buf;
+! 	char	   *bufVar;
+! 	int			len;
+  
+! 	if (argc != 5)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 " pg_lo_read conn fd bufVar len", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	fd = atoi(argv[2]);
+  
+! 	bufVar = argv[3];
+  
+! 	len = atoi(argv[4]);
+! 
+! 	if (len &lt;= 0)
+! 	{
+! 		sprintf(interp-&gt;result, "%d", nbytes);
+! 		return TCL_OK;
+! 	}
+! 	buf = malloc(sizeof(len + 1));
+! 
+! 	nbytes = lo_read(conn, fd, buf, len);
+! 
+! 	Tcl_SetVar(interp, bufVar, buf, TCL_LEAVE_ERR_MSG);
+! 	sprintf(interp-&gt;result, "%d", nbytes);
+! 	free(buf);
+  	return TCL_OK;
+  
+  }
+  
+  /***********************************
+  Pg_lo_write
+!    write at most len bytes to a large object
+  
+   syntax:
+   pg_lo_write conn fd buf len
+--- 803,853 ----
+  
+  **********************/
+  int
+! Pg_lo_read(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int fd;
+!     int nbytes = 0;
+!     char *buf;
+!     char *bufVar;
+!     int len;
+  
+!     if (argc != 5) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 " pg_lo_read conn fd bufVar len", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     fd = atoi(argv[2]);
+  
+!     bufVar = argv[3];
+  
+!     len = atoi(argv[4]);
+  
+!     if (len &lt;= 0) {
+! 	sprintf(interp-&gt;result,"%d",nbytes);
+  	return TCL_OK;
++     }
++     buf = ckalloc(sizeof(len+1));
+  
++     nbytes = lo_read(conn,fd,buf,len);
++ 
++     Tcl_SetVar(interp,bufVar,buf,TCL_LEAVE_ERR_MSG);
++     sprintf(interp-&gt;result,"%d",nbytes);
++     ckfree(buf);
++     return TCL_OK;
++     
+  }
+  
+  /***********************************
+  Pg_lo_write
+!    write at most len bytes to a large object 
+  
+   syntax:
+   pg_lo_write conn fd buf len
+***************
+*** 891,939 ****
+  
+  ***********************************/
+  int
+! Pg_lo_write(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	char	   *buf;
+! 	int			fd;
+! 	int			nbytes = 0;
+! 	int			len;
+  
+! 	if (argc != 5)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_write conn fd buf len", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	fd = atoi(argv[2]);
+  
+! 	buf = argv[3];
+  
+! 	len = atoi(argv[4]);
+! 
+! 	if (len &lt;= 0)
+! 	{
+! 		sprintf(interp-&gt;result, "%d", nbytes);
+! 		return TCL_OK;
+! 	}
+! 
+! 	nbytes = lo_write(conn, fd, buf, len);
+! 	sprintf(interp-&gt;result, "%d", nbytes);
+  	return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_lseek
+! 	seek to a certain position in a large object
+  
+  syntax
+    pg_lo_lseek conn fd offset whence
+--- 854,898 ----
+  
+  ***********************************/
+  int
+! Pg_lo_write(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     char *buf;
+!     int fd;
+!     int nbytes = 0;
+!     int len;
+  
+!     if (argc != 5) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_write conn fd buf len", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     fd = atoi(argv[2]);
+  
+!     buf = argv[3];
+  
+!     len = atoi(argv[4]);
+  
+!     if (len &lt;= 0) {
+! 	sprintf(interp-&gt;result,"%d",nbytes);
+  	return TCL_OK;
++     }
++ 
++     nbytes = lo_write(conn,fd,buf,len);
++     sprintf(interp-&gt;result,"%d",nbytes);
++     return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_lseek
+!     seek to a certain position in a large object
+  
+  syntax
+    pg_lo_lseek conn fd offset whence
+***************
+*** 942,995 ****
+  "SEEK_CUR", "SEEK_END", or "SEEK_SET"
+  ***********************************/
+  int
+! Pg_lo_lseek(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			fd;
+! 	char	   *whenceStr;
+! 	int			offset,
+! 				whence;
+  
+! 	if (argc != 5)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_lseek conn fd offset whence", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	fd = atoi(argv[2]);
+  
+! 	offset = atoi(argv[3]);
+! 
+! 	whenceStr = argv[4];
+! 	if (strcmp(whenceStr, "SEEK_SET") == 0)
+! 	{
+! 		whence = SEEK_SET;
+! 	}
+! 	else if (strcmp(whenceStr, "SEEK_CUR") == 0)
+! 	{
+! 		whence = SEEK_CUR;
+! 	}
+! 	else if (strcmp(whenceStr, "SEEK_END") == 0)
+! 	{
+! 		whence = SEEK_END;
+! 	}
+! 	else
+! 	{
+! 		Tcl_AppendResult(interp, "the whence argument to Pg_lo_lseek must be SEEK_SET, SEEK_CUR or SEEK_END", 0);
+! 		return TCL_ERROR;
+! 	}
+! 
+! 	sprintf(interp-&gt;result, "%d", lo_lseek(conn, fd, offset, whence));
+! 	return TCL_OK;
+  }
+  
+  
+--- 901,943 ----
+  "SEEK_CUR", "SEEK_END", or "SEEK_SET"
+  ***********************************/
+  int
+! Pg_lo_lseek(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int fd;
+!     char *whenceStr;
+!     int offset, whence;
+  
+!     if (argc != 5) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_lseek conn fd offset whence", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     fd = atoi(argv[2]);
+  
+!     offset = atoi(argv[3]);
+  
+!     whenceStr = argv[4];
+!     if (strcmp(whenceStr,"SEEK_SET") == 0) {
+! 	whence = SEEK_SET;
+!     } else if (strcmp(whenceStr,"SEEK_CUR") == 0) {
+! 	whence = SEEK_CUR;
+!     } else if (strcmp(whenceStr,"SEEK_END") == 0) {
+! 	whence = SEEK_END;
+!     } else {
+! 	Tcl_AppendResult(interp, "the whence argument to Pg_lo_lseek must be SEEK_SET, SEEK_CUR or SEEK_END",0);
+! 	return TCL_ERROR;
+!     }
+! 	
+!     sprintf(interp-&gt;result,"%d",lo_lseek(conn,fd,offset,whence));
+!     return TCL_OK;
+  }
+  
+  
+***************
+*** 1000,1076 ****
+   syntax:
+     pg_lo_creat conn mode
+  
+! mode can be any OR'ing together of INV_READ, INV_WRITE
+  for now, we don't support any additional storage managers.
+  
+  ***********************************/
+  int
+! Pg_lo_creat(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	char	   *modeStr;
+! 	char	   *modeWord;
+! 	int			mode;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_creat conn mode", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	modeStr = argv[2];
+  
+! 	modeWord = strtok(modeStr, "|");
+! 	if (strcmp(modeWord, "INV_READ") == 0)
+! 	{
+! 		mode = INV_READ;
+  	}
+! 	else if (strcmp(modeWord, "INV_WRITE") == 0)
+! 	{
+! 		mode = INV_WRITE;
+! 	}
+! 	else
+! 	{
+! 		Tcl_AppendResult(interp,
+! 						 "invalid mode argument to Pg_lo_creat\nmode argument must be some OR'd combination of INV_READ, and INV_WRITE",
+! 						 0);
+! 		return TCL_ERROR;
+! 	}
+! 
+! 	while ((modeWord = strtok((char *) NULL, "|")) != NULL)
+! 	{
+! 		if (strcmp(modeWord, "INV_READ") == 0)
+! 		{
+! 			mode |= INV_READ;
+! 		}
+! 		else if (strcmp(modeWord, "INV_WRITE") == 0)
+! 		{
+! 			mode |= INV_WRITE;
+! 		}
+! 		else
+! 		{
+! 			Tcl_AppendResult(interp,
+! 							 "invalid mode argument to Pg_lo_creat\nmode argument must be some OR'd combination of INV_READ, and INV_WRITE",
+! 							 0);
+! 			return TCL_ERROR;
+! 		}
+! 	}
+! 	sprintf(interp-&gt;result, "%d", lo_creat(conn, mode));
+! 	return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_tell
+! 	returns the current seek location of the large object
+  
+   syntax:
+     pg_lo_tell conn fd
+--- 948,1010 ----
+   syntax:
+     pg_lo_creat conn mode
+  
+! mode can be any OR'ing together of INV_READ, INV_WRITE,
+  for now, we don't support any additional storage managers.
+  
+  ***********************************/
+  int
+! Pg_lo_creat(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     char *modeStr;
+!     char *modeWord;
+!     int mode;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_creat conn mode", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     modeStr = argv[2];
+  
+!     modeWord = strtok(modeStr,"|");
+!     if (strcmp(modeWord,"INV_READ") == 0) {
+! 	mode = INV_READ;
+!     } else if (strcmp(modeWord,"INV_WRITE") == 0) {
+! 	mode = INV_WRITE;
+!     } else {
+! 	Tcl_AppendResult(interp,
+! 			 "invalid mode argument to Pg_lo_creat\nmode argument must be some OR'd combination of INV_READ, and INV_WRITE",
+! 			 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     while ( (modeWord = strtok((char*)NULL, "|")) != NULL) {
+! 	if (strcmp(modeWord,"INV_READ") == 0) {
+! 	    mode |= INV_READ;
+! 	} else if (strcmp(modeWord,"INV_WRITE") == 0) {
+! 	    mode |= INV_WRITE;
+! 	} else {
+! 	    Tcl_AppendResult(interp,
+! 			     "invalid mode argument to Pg_lo_creat\nmode argument must be some OR'd combination of INV_READ, INV_WRITE",
+! 			     0);
+! 	    return TCL_ERROR;
+  	}
+!     }
+!     sprintf(interp-&gt;result,"%d",lo_creat(conn,mode));
+!     return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_tell
+!     returns the current seek location of the large object
+  
+   syntax:
+     pg_lo_tell conn fd
+***************
+*** 1077,1112 ****
+  
+  ***********************************/
+  int
+! Pg_lo_tell(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			fd;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_tell conn fd", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	fd = atoi(argv[2]);
+  
+- 	sprintf(interp-&gt;result, "%d", lo_tell(conn, fd));
+- 	return TCL_OK;
+- 
+  }
+  
+  /***********************************
+  Pg_lo_unlink
+! 	unlink a file based on lobject id
+  
+   syntax:
+     pg_lo_unlink conn lobjId
+--- 1011,1043 ----
+  
+  ***********************************/
+  int
+! Pg_lo_tell(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int fd;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_tell conn fd", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     fd = atoi(argv[2]);
+  
+!     sprintf(interp-&gt;result,"%d",lo_tell(conn,fd));
+!     return TCL_OK;
+  
+  }
+  
+  /***********************************
+  Pg_lo_unlink
+!     unlink a file based on lobject id 
+  
+   syntax:
+     pg_lo_unlink conn lobjId
+***************
+*** 1114,1156 ****
+  
+  ***********************************/
+  int
+! Pg_lo_unlink(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	int			lobjId;
+! 	int			retval;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_tell conn fd", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	lobjId = atoi(argv[2]);
+! 
+! 	retval = lo_unlink(conn, lobjId);
+! 	if (retval == -1)
+! 	{
+! 		sprintf(interp-&gt;result, "Pg_lo_unlink of '%d' failed", lobjId);
+! 		return TCL_ERROR;
+! 	}
+! 
+! 	sprintf(interp-&gt;result, "%d", retval);
+! 	return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_import
+! 	import a Unix file into an (inversion) large objct
+   returns the oid of that object upon success
+   returns InvalidOid upon failure
+  
+--- 1045,1083 ----
+  
+  ***********************************/
+  int
+! Pg_lo_unlink(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     int lobjId;
+!     int retval;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_tell conn fd", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     lobjId = atoi(argv[2]);
+  
+!     retval = lo_unlink(conn,lobjId);
+!     if (retval == -1) {
+! 	sprintf(interp-&gt;result,"Pg_lo_unlink of '%d' failed",lobjId);
+! 	return TCL_ERROR;
+!     }
+! 	
+!     sprintf(interp-&gt;result,"%d",retval);
+!     return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_import
+!     import a Unix file into an (inversion) large objct
+   returns the oid of that object upon success
+   returns InvalidOid upon failure
+  
+***************
+*** 1160,1202 ****
+  ***********************************/
+  
+  int
+! Pg_lo_import(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	char	   *filename;
+! 	Oid			lobjId;
+  
+! 	if (argc != 3)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_import conn filename", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	filename = argv[2];
+! 
+! 	lobjId = lo_import(conn, filename);
+! 	if (lobjId == InvalidOid)
+! 	{
+! 		sprintf(interp-&gt;result, "Pg_lo_import of '%s' failed", filename);
+! 		return TCL_ERROR;
+! 	}
+! 	sprintf(interp-&gt;result, "%d", lobjId);
+! 	return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_export
+! 	export an Inversion large object to a Unix file
+! 
+   syntax:
+     pg_lo_export conn lobjId filename
+  
+--- 1087,1125 ----
+  ***********************************/
+  
+  int
+! Pg_lo_import(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     char* filename;
+!     Oid lobjId;
+  
+!     if (argc != 3) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_import conn filename", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     filename = argv[2];
+  
+!     lobjId = lo_import(conn,filename);
+!     if (lobjId == InvalidOid) {
+! 	sprintf(interp-&gt;result, "Pg_lo_import of '%s' failed",filename);
+! 	return TCL_ERROR;
+!     }
+!     sprintf(interp-&gt;result,"%d",lobjId);
+!     return TCL_OK;
+  }
+  
+  /***********************************
+  Pg_lo_export
+!     export an Inversion large object to a Unix file
+!     
+   syntax:
+     pg_lo_export conn lobjId filename
+  
+***************
+*** 1203,1246 ****
+  ***********************************/
+  
+  int
+! Pg_lo_export(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	char	   *filename;
+! 	Oid			lobjId;
+! 	int			retval;
+  
+! 	if (argc != 4)
+! 	{
+! 		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_lo_export conn lobjId filename", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	lobjId = atoi(argv[2]);
+! 	filename = argv[3];
+! 
+! 	retval = lo_export(conn, lobjId, filename);
+! 	if (retval == -1)
+! 	{
+! 		sprintf(interp-&gt;result, "Pg_lo_export %d %s failed", lobjId, filename);
+! 		return TCL_ERROR;
+! 	}
+! 	return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_select
+   send a select query string to the backend connection
+! 
+   syntax:
+   pg_select connection query var proc
+  
+--- 1126,1165 ----
+  ***********************************/
+  
+  int
+! Pg_lo_export(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     PGconn *conn;
+!     char* filename;
+!     Oid lobjId;
+!     int retval;
+  
+!     if (argc != 4) {
+! 	Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_lo_export conn lobjId filename", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!   
+!     lobjId = atoi(argv[2]);
+!     filename = argv[3];
+  
+!     retval = lo_export(conn,lobjId,filename);
+!     if (retval == -1) {
+! 	sprintf(interp-&gt;result, "Pg_lo_export %d %s failed",lobjId, filename);
+! 	return TCL_ERROR;
+!     }
+!     return TCL_OK;
+  }
+  
+  /**********************************
+   * pg_select
+   send a select query string to the backend connection
+!  
+   syntax:
+   pg_select connection query var proc
+  
+***************
+*** 1250,1256 ****
+  
+   Originally I was also going to update changes but that has turned out
+   to be not so simple.  Instead, the caller should get the OID of any
+!  table they want to update and update it themself in the loop.	I may
+   try to write a simplified table lookup and update function to make
+   that task a little easier.
+  
+--- 1169,1175 ----
+  
+   Originally I was also going to update changes but that has turned out
+   to be not so simple.  Instead, the caller should get the OID of any
+!  table they want to update and update it themself in the loop.  I may
+   try to write a simplified table lookup and update function to make
+   that task a little easier.
+  
+***************
+*** 1259,1303 ****
+   **********************************/
+  
+  int
+! Pg_select(ClientData cData, Tcl_Interp * interp, int argc, char **argv)
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	PGconn	   *conn;
+! 	PGresult   *result;
+! 	int			r;
+! 	size_t		tupno,
+! 				column,
+! 				ncols;
+  	Tcl_DString headers;
+! 	char		buffer[2048];
+! 	struct
+! 	{
+! 		char	   *cname;
+! 		int			change;
+! 	}		   *info;
+  
+  	if (argc != 5)
+  	{
+  		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 						 "pg_select connection queryString var proc", 0);
+  		return TCL_ERROR;
+  	}
+  
+! 	conn = PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+! 
+  	if ((result = PQexec(conn, argv[2])) == 0)
+! 	{
+  		/* error occurred during the query */
+  		Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+  		return TCL_ERROR;
+! 	}
+  
+! 	if ((info = malloc(sizeof(*info) * (ncols = PQnfields(result)))) == NULL)
+  	{
+  		Tcl_AppendResult(interp, "Not enough memory", 0);
+  		return TCL_ERROR;
+--- 1178,1216 ----
+   **********************************/
+  
+  int
+! Pg_select(ClientData cData, Tcl_Interp *interp, int argc, char **argv)
+  {
+! 	PGconn *conn;
+!    	PGresult *result;
+!     int r;
+!     size_t tupno, column, ncols;
+  	Tcl_DString headers;
+! 	char	buffer[2048];
+! 	struct info_s {
+! 		char    *cname;
+! 		int     change;
+! 	} *info;
+  
+  	if (argc != 5)
+  	{
+  		Tcl_AppendResult(interp, "Wrong # of arguments\n",
+! 			 "pg_select connection queryString var proc", 0);
+  		return TCL_ERROR;
+  	}
+  
+!     conn = PgGetConnectionId(interp, argv[1], (Pg_ConnectionId**)NULL);
+!     if (conn == (PGconn *)NULL) {
+! 	return TCL_ERROR;
+!     }
+!   
+  	if ((result = PQexec(conn, argv[2])) == 0)
+!     {
+  		/* error occurred during the query */
+  		Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+  		return TCL_ERROR;
+!     }
+  
+! 	if ((info = (struct info_s *)ckalloc(sizeof(*info) * (ncols =  PQnfields(result)))) == NULL)
+  	{
+  		Tcl_AppendResult(interp, "Not enough memory", 0);
+  		return TCL_ERROR;
+***************
+*** 1323,1330 ****
+  
+  		for (column = 0; column &lt; ncols; column++)
+  		{
+! 			Tcl_SetVar2(interp, argv[3], info[column].cname,
+! 						PQgetvalue(result, tupno, column), 0);
+  		}
+  
+  		Tcl_SetVar2(interp, argv[3], ".command", "update", 0);
+--- 1236,1243 ----
+  
+  		for (column = 0; column &lt; ncols; column++)
+  		{
+! 			strcpy(buffer, PQgetvalue(result, tupno, column));
+! 			Tcl_SetVar2(interp, argv[3], info[column].cname, buffer, 0);
+  		}
+  
+  		Tcl_SetVar2(interp, argv[3], ".command", "update", 0);
+***************
+*** 1332,1367 ****
+  		if ((r = Tcl_Eval(interp, argv[4])) != TCL_OK &amp;&amp; r != TCL_CONTINUE)
+  		{
+  			if (r == TCL_BREAK)
+- 			{
+- 
+- 				/*
+- 				 * I suppose that memory used by info and result must be
+- 				 * released
+- 				 */
+- 				free(info);
+- 				PQclear(result);
+- 				Tcl_UnsetVar(interp, argv[3], 0);
+  				return TCL_OK;
+! 			}
+  			if (r == TCL_ERROR)
+  			{
+! 				char		msg[60];
+  
+  				sprintf(msg, "\n    (\"pg_select\" body line %d)",
+! 						interp-&gt;errorLine);
+  				Tcl_AddErrorInfo(interp, msg);
+  			}
+! 			/* also, releasing memory used by info and result */
+! 			free(info);
+! 			PQclear(result);
+! 			Tcl_UnsetVar(interp, argv[3], 0);
+  			return r;
+  		}
+  	}
+  
+! 	free(info);
+! 	/* Release memory used by result */
+! 	PQclear(result);
+  	Tcl_UnsetVar(interp, argv[3], 0);
+  	Tcl_AppendResult(interp, "", 0);
+  	return TCL_OK;
+--- 1245,1266 ----
+  		if ((r = Tcl_Eval(interp, argv[4])) != TCL_OK &amp;&amp; r != TCL_CONTINUE)
+  		{
+  			if (r == TCL_BREAK)
+  				return TCL_OK;
+! 
+  			if (r == TCL_ERROR)
+  			{
+! 				char	msg[60];
+  
+  				sprintf(msg, "\n    (\"pg_select\" body line %d)",
+! 								interp-&gt;errorLine);
+  				Tcl_AddErrorInfo(interp, msg);
+  			}
+! 
+  			return r;
+  		}
+  	}
+  
+! 	ckfree((void*)info);
+  	Tcl_UnsetVar(interp, argv[3], 0);
+  	Tcl_AppendResult(interp, "", 0);
+  	return TCL_OK;
+***************
+*** 1368,1527 ****
+  }
+  
+  int
+! Pg_listen(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	int			new;
+! 	char	   *relname;
+! 	char	   *callback = NULL;
+! 	Tcl_HashEntry *entry;
+! 	PGconn	   *conn;
+! 	PGresult   *result;
+  
+! 	if ((argc &lt; 3) || (argc &gt; 4))
+! 	{
+! 		Tcl_AppendResult(interp, "wrong # args, should be \"",
+! 						 argv[0], " connection relname ?callback?\"", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	/*
+! 	 * Get the command arguments. Note that relname will copied by
+! 	 * Tcl_CreateHashEntry while callback must be allocated.
+! 	 */
+! 	conn = (PGconn *) PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+  		return TCL_ERROR;
+  	}
+! 	relname = argv[2];
+! 	if ((argc &gt; 3) &amp;&amp; *argv[3])
+! 	{
+! 		callback = (char *) ckalloc((unsigned) (strlen(argv[3]) + 1));
+! 		strcpy(callback, argv[3]);
+! 	}
+  
+! 	/*
+! 	 * Set or update a callback for a relation;
+! 	 */
+! 	if (callback)
+! 	{
+! 		entry = Tcl_CreateHashEntry(&amp;(cd-&gt;notify_hash), relname, &amp;new);
+! 		if (new)
+! 		{
+! 			/* New callback, execute a listen command on the relation */
+! 			char	   *cmd = (char *) ckalloc((unsigned) (strlen(argv[2]) + 8));
+! 
+! 			sprintf(cmd, "LISTEN %s", relname);
+! 			result = PQexec(conn, cmd);
+! 			ckfree(cmd);
+! 			if (!result || (result-&gt;resultStatus != PGRES_COMMAND_OK))
+! 			{
+! 				/* Error occurred during the execution of command */
+! 				if (result)
+! 					PQclear(result);
+! 				ckfree(callback);
+! 				Tcl_DeleteHashEntry(entry);
+! 				Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+! 				return TCL_ERROR;
+! 			}
+! 			PQclear(result);
+! 		}
+! 		else
+! 		{
+! 			/* Free the old callback string */
+! 			ckfree((char *) Tcl_GetHashValue(entry));
+! 		}
+! 		/* Store the new callback command */
+! 		Tcl_SetHashValue(entry, callback);
+  	}
+  
+! 	/*
+! 	 * Remove a callback for a relation.  There is no way to un-listen a
+! 	 * relation, simply remove the callback from the notify hash table.
+! 	 */
+! 	if (callback == NULL)
+! 	{
+! 		entry = Tcl_FindHashEntry(&amp;(cd-&gt;notify_hash), relname);
+! 		if (entry == NULL)
+! 		{
+! 			Tcl_AppendResult(interp, "not listening on ", relname, 0);
+! 			return TCL_ERROR;
+! 		}
+! 		ckfree((char *) Tcl_GetHashValue(entry));
+! 		Tcl_DeleteHashEntry(entry);
+! 	}
+! 
+! 	return TCL_OK;
+  }
+  
+  int
+! Pg_notifies(ClientData cData, Tcl_Interp * interp, int argc, char *argv[])
+  {
+! 	Pg_clientData *cd = (Pg_clientData *) cData;
+! 	int			count;
+! 	char		buff[12];
+! 	char	   *callback;
+! 	Tcl_HashEntry *entry;
+! 	PGconn	   *conn;
+! 	PGresult   *result;
+! 	PGnotify   *notify;
+  
+! 	if (argc != 2)
+! 	{
+! 		Tcl_AppendResult(interp, "wrong # args, should be \"",
+! 						 argv[0], " connection\"", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	/*
+! 	 * Get the connection argument.
+! 	 */
+! 	conn = (PGconn *) PgGetConnectionId(cd, argv[1]);
+! 	if (conn == (PGconn *) NULL)
+! 	{
+! 		Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 		return TCL_ERROR;
+! 	}
+  
+! 	/* Execute an empty command to retrieve asynchronous notifications */
+! 	result = PQexec(conn, " ");
+! 	if (result == NULL)
+! 	{
+! 		/* Error occurred during the execution of command */
+! 		Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+! 		return TCL_ERROR;
+! 	}
+! 	PQclear(result);
+  
+! 	/*
+! 	 * Loop while there are pending notifies.
+! 	 */
+! 	for (count = 0; count &lt; 999; count++)
+! 	{
+! 		/* See if there is a pending notification */
+! 		notify = PQnotifies(conn);
+! 		if (notify == NULL)
+! 		{
+! 			break;
+! 		}
+! 		entry = Tcl_FindHashEntry(&amp;(cd-&gt;notify_hash), notify-&gt;relname);
+! 		if (entry != NULL)
+! 		{
+! 			callback = Tcl_GetHashValue(entry);
+! 			if (callback)
+! 			{
+! 				Tcl_Eval(interp, callback);
+! 			}
+! 		}
+! 		free(notify);
+  	}
+  
+! 	/*
+! 	 * Return the number of notifications processed.
+! 	 */
+! 	sprintf(buff, "%d", count);
+! 	Tcl_SetResult(interp, buff, TCL_VOLATILE);
+! 	return TCL_OK;
+  }
+--- 1267,1410 ----
+  }
+  
+  int
+! Pg_listen(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     int new;
+!     char *relname;
+!     char *callback = NULL;
+!     Tcl_HashEntry *entry;
+!     Pg_ConnectionId *connid;
+!     PGconn *conn;
+!     PGresult *result;
+  
+!     if ((argc &lt; 3) || (argc &gt; 4)) {
+! 	Tcl_AppendResult(interp, "wrong # args, should be \"",
+! 			 argv[0], " connection relname ?callback?\"", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     /*
+!      * Get the command arguments. Note that relname will copied by
+!      * Tcl_CreateHashEntry while callback must be allocated.
+!      */
+!     conn = PgGetConnectionId(interp, argv[1], &amp;connid);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+!     relname = argv[2];
+!     if ((argc &gt; 3) &amp;&amp; *argv[3]) {
+! 	callback = (char *) ckalloc((unsigned) (strlen(argv[3])+1));
+! 	strcpy(callback, argv[3]);
+!     }
+! 
+!     /*
+!      * Set or update a callback for a relation;
+!      */
+!     if (callback) {
+! 	entry = Tcl_CreateHashEntry(&amp;(connid-&gt;notify_hash), relname, &amp;new);
+! 	if (new) {
+! 	    /* New callback, execute a listen command on the relation */
+! 	    char *cmd = (char *) ckalloc((unsigned) (strlen(argv[2])+8));
+! 	    sprintf(cmd, "LISTEN %s", relname);
+! 	    result = PQexec(conn, cmd);
+! 	    ckfree(cmd);
+! 	    if (!result || (result-&gt;resultStatus != PGRES_COMMAND_OK)) {
+! 		/* Error occurred during the execution of command */
+! 		if (result) PQclear(result);
+! 		ckfree(callback);
+! 		Tcl_DeleteHashEntry(entry);
+! 		Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+  		return TCL_ERROR;
++ 	    }
++ 	    PQclear(result);
++ 	} else {
++ 	    /* Free the old callback string */
++ 	    ckfree((char *) Tcl_GetHashValue(entry));
+  	}
+! 	/* Store the new callback command */
+! 	Tcl_SetHashValue(entry, callback);
+!     }
+  
+!     /*
+!      * Remove a callback for a relation.  There is no way to
+!      * un-listen a relation, simply remove the callback from
+!      * the notify hash table.
+!      */
+!     if (callback == NULL) {
+! 	entry = Tcl_FindHashEntry(&amp;(connid-&gt;notify_hash), relname);
+! 	if (entry == NULL) {
+! 	    Tcl_AppendResult(interp, "not listening on ", relname, 0);
+! 	    return TCL_ERROR;
+  	}
++ 	ckfree((char *) Tcl_GetHashValue(entry));
++ 	Tcl_DeleteHashEntry(entry);
++     }
+  
+!     return TCL_OK;
+  }
+  
+  int
+! Pg_notifies(ClientData cData, Tcl_Interp *interp, int argc, char* argv[])
+  {
+!     int count;
+!     char buff[12];
+!     char *callback;
+!     Tcl_HashEntry *entry;
+!     Pg_ConnectionId *connid;
+!     PGconn *conn;
+!     PGresult *result;
+!     PGnotify *notify;
+  
+!     if (argc != 2) {
+! 	Tcl_AppendResult(interp, "wrong # args, should be \"",
+! 			 argv[0], " connection\"", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     /*
+!      * Get the connection argument.
+!      */
+!     conn = (PGconn*)PgGetConnectionId(interp, argv[1], &amp;connid);
+!     if (conn == (PGconn *)NULL) {
+! 	Tcl_AppendResult(interp, "First argument is not a valid connection\n", 0);
+! 	return TCL_ERROR;
+!     }
+  
+!     /* Execute an empty command to retrieve asynchronous notifications */
+!     result = PQexec(conn, " ");
+!     if (result == NULL) {
+!       /* Error occurred during the execution of command */
+!       Tcl_SetResult(interp, conn-&gt;errorMessage, TCL_STATIC);
+!       return TCL_ERROR;
+!     }
+!     PQclear(result);
+  
+!     /*
+!      * Loop while there are pending notifies.
+!      */
+!     for (count=0; count &lt; 999; count++) {
+! 	/* See if there is a pending notification */
+! 	notify = PQnotifies(conn);
+! 	if (notify == NULL) {
+! 	    break;
+  	}
++ 	entry = Tcl_FindHashEntry(&amp;(connid-&gt;notify_hash), notify-&gt;relname);
++ 	if (entry != NULL) {
++ 	    callback = (char*)Tcl_GetHashValue(entry);
++ 	    if (callback) {
++ 		/* This should be a global eval, shouldn't it? */
++ 		Tcl_Eval(interp, callback);
++ 		/* And what if there's an error.  Bgerror should be called? */
++ 	    }
++ 	}
++ 	free(notify);
++     }
+  
+!     /*
+!      * Return the number of notifications processed.
+!      */
+!     sprintf(buff, "%d", count);
+!     Tcl_SetResult(interp, buff, TCL_VOLATILE);
+!     return TCL_OK;
+  }
+Index: NEOSOFT/libpgtcl6.3/pgtclCmds.h
+diff -c NEOSOFT/libpgtcl6.3/pgtclCmds.h:1.1.1.1 NEOSOFT/libpgtcl6.3/pgtclCmds.h:1.2
+*** NEOSOFT/libpgtcl6.3/pgtclCmds.h:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/pgtclCmds.h	Mon Mar  9 17:26:23 1998
+***************
+*** 1,11 ****
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclCmds.h--
+!  *	  declarations for the C functions which implement pg_* tcl commands
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+!  * $Id: pgtclCmds.h,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+--- 1,11 ----
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclCmds.h--
+!  *    declarations for the C functions which implement pg_* tcl commands
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+!  * $Id: pgtclCmds.h,v 1.2 1998/03/09 23:26:23 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+***************
+*** 18,106 ****
+  #include "libpq-fe.h"
+  #include "libpq/libpq-fs.h"
+  
+! typedef struct Pg_clientData_s
+! {
+! 	Tcl_HashTable dbh_hash;
+! 	Tcl_HashTable res_hash;
+! 	Tcl_HashTable notify_hash;
+! 	long		dbh_count;
+! 	long		res_count;
+! }			Pg_clientData;
+  
+  
+- typedef struct Pg_ConnectionId_s
+- {
+- 	char		id[32];
+- 	PGconn	   *conn;
+- 	Tcl_HashTable res_hash;
+- }			Pg_ConnectionId;
+  
+  
+- typedef struct Pg_ResultId_s
+- {
+- 	char		id[32];
+- 	PGresult   *result;
+- 	Pg_ConnectionId *connection;
+- }			Pg_ResultId;
+  
+- 
+  /* **************************/
+  /* registered Tcl functions */
+  /* **************************/
+! extern int
+! Pg_conndefaults(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_connect(
+! 		   ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_disconnect(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_exec(
+! 		ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_select(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_result(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_open(
+! 		   ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_close(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_read(
+! 		   ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_write(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_lseek(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_creat(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_tell(
+! 		   ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_unlink(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_import(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_lo_export(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_listen(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+! extern int
+! Pg_notifies(
+! 		  ClientData cData, Tcl_Interp * interp, int argc, char *argv[]);
+  
+  
+! #endif							/* PGTCLCMDS_H */
+--- 18,86 ----
+  #include "libpq-fe.h"
+  #include "libpq/libpq-fs.h"
+  
+! #define RES_HARD_MAX 128
+! #define RES_START 16
+  
++ typedef struct Pg_ConnectionId_s {
++     char		id[32];
++     PGconn		*conn;
++     int			res_max;	/* Max number of results allocated */
++     int			res_hardmax;	/* Absolute max to allow */
++     int			res_count;	/* Current count of active results */
++     int			res_last;	/* Optimize where to start looking */
++     int			res_copy;	/* Query result with active copy */
++     int			res_copyStatus; /* Copying status */
++     PGresult		**results;	/* The results */
++     
++     Tcl_HashTable	notify_hash;
++ } Pg_ConnectionId;
+  
+  
++ #define RES_COPY_NONE	0
++ #define RES_COPY_INPROGRESS	1
++ #define RES_COPY_FIN	2
+  
+  
+  /* **************************/
+  /* registered Tcl functions */
+  /* **************************/
+! extern int Pg_conndefaults(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_connect(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_disconnect(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_exec(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_select(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_result(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_open(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_close(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_read(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_write(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_lseek(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_creat(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_tell(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_unlink(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_import(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_lo_export(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_listen(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+! extern int Pg_notifies(
+!     ClientData cData, Tcl_Interp *interp, int argc, char* argv[]);
+  
+  
+! #endif /*PGTCLCMDS_H*/
+! 
+Index: NEOSOFT/libpgtcl6.3/pgtclId.c
+diff -c NEOSOFT/libpgtcl6.3/pgtclId.c:1.1.1.1 NEOSOFT/libpgtcl6.3/pgtclId.c:1.3
+*** NEOSOFT/libpgtcl6.3/pgtclId.c:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/pgtclId.c	Mon Mar  9 23:05:20 1998
+***************
+*** 1,11 ****
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclId.c--
+!  *	  useful routines to convert between strings and pointers
+!  *	Needed because everything in tcl is a string, but we want pointers
+!  *	to data structures
+   *
+!  *	ASSUMPTION:  sizeof(long) &gt;= sizeof(void*)
+   *
+   *
+   * Copyright (c) 1994, Regents of the University of California
+--- 1,11 ----
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclId.c--
+!  *    useful routines to convert between strings and pointers
+!  *  Needed because everything in tcl is a string, but we want pointers
+!  *  to data structures
+   *
+!  *  ASSUMPTION:  sizeof(long) &gt;= sizeof(void*)
+   *
+   *
+   * Copyright (c) 1994, Regents of the University of California
+***************
+*** 12,18 ****
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtclId.c,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+--- 12,18 ----
+   *
+   *
+   * IDENTIFICATION
+!  *    $Header: /bmf/usr/cvs/NEOSOFT/libpgtcl6.3/pgtclId.c,v 1.3 1998/03/10 05:05:20 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+***************
+*** 19,24 ****
+--- 19,25 ----
+  
+  #include &lt;stdlib.h&gt;
+  #include &lt;string.h&gt;
++ #include &lt;errno.h&gt;
+  #include &lt;tcl.h&gt;
+  
+  #include "postgres.h"
+***************
+*** 25,48 ****
+  #include "pgtclCmds.h"
+  #include "pgtclId.h"
+  
+  /*
+!  * Create the Id for a new connection and hash it
+   */
+  void
+! PgSetConnectionId(Pg_clientData * cd, char *id, PGconn *conn)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Pg_ConnectionId *connid;
+! 	int			hnew;
+  
+! 	connid = (Pg_ConnectionId *) ckalloc(sizeof(Pg_ConnectionId));
+! 	connid-&gt;conn = conn;
+! 	Tcl_InitHashTable(&amp;(connid-&gt;res_hash), TCL_STRING_KEYS);
+! 	sprintf(connid-&gt;id, "pgc%ld", cd-&gt;dbh_count++);
+! 	strcpy(id, connid-&gt;id);
+  
+! 	hent = Tcl_CreateHashEntry(&amp;(cd-&gt;dbh_hash), connid-&gt;id, &amp;hnew);
+! 	Tcl_SetHashValue(hent, (ClientData) connid);
+  }
+  
+  
+--- 26,173 ----
+  #include "pgtclCmds.h"
+  #include "pgtclId.h"
+  
++ int PgEndCopy(Pg_ConnectionId *connid, int *errorCodePtr)
++ {
++     connid-&gt;res_copyStatus = RES_COPY_NONE;
++     if (PQendcopy(connid-&gt;conn)) {
++ 	connid-&gt;results[connid-&gt;res_copy]-&gt;resultStatus = PGRES_BAD_RESPONSE;
++ 	connid-&gt;res_copy = -1;
++ 	*errorCodePtr = EIO;
++ 	return -1;
++     } else {
++ 	connid-&gt;results[connid-&gt;res_copy]-&gt;resultStatus = PGRES_COMMAND_OK;
++ 	connid-&gt;res_copy = -1;
++ 	return 0;
++     }
++ }
++ 
+  /*
+!  *  Called when reading data (via gets) for a copy &lt;rel&gt; to stdout
+   */
++ int PgInputProc(DRIVER_INPUT_PROTO)
++ {
++     Pg_ConnectionId	*connid;
++     PGconn		*conn;
++     int			c;
++     int			avail;
++ 
++     connid = (Pg_ConnectionId *)cData;
++     conn = connid-&gt;conn;
++ 
++     if (connid-&gt;res_copy &lt; 0 ||
++       connid-&gt;results[connid-&gt;res_copy]-&gt;resultStatus != PGRES_COPY_OUT) {
++ 	*errorCodePtr = EBUSY;
++ 	return -1;
++     }
++ 
++     if (connid-&gt;res_copyStatus == RES_COPY_FIN) {
++ 	return PgEndCopy(connid, errorCodePtr);
++     }
++ 
++     avail = bufSize;
++     while (avail &gt; 0 &amp;&amp;
++ 	    (c = pqGetc(conn-&gt;Pfin, conn-&gt;Pfdebug)) != EOF) {
++ 	/* fprintf(stderr, "%d: got char %c\n", bufSize-avail, c); */
++ 	*buf++ = c;
++ 	--avail;
++ 	if (c == '\n' &amp;&amp; bufSize-avail &gt; 3) {
++ 	    if ((bufSize-avail == 3 || buf[-4] == '\n') &amp;&amp;
++ 		    buf[-3] == '\\' &amp;&amp; buf[-2] == '.') {
++ 		avail += 3;
++ 		connid-&gt;res_copyStatus = RES_COPY_FIN;
++ 		break;
++ 	    }
++ 	}
++     }
++     /* fprintf(stderr, "returning %d chars\n", bufSize - avail); */
++     return bufSize - avail;
++ }
++ 
++ /*
++  *  Called when writing data (via puts) for a copy &lt;rel&gt; from stdin
++  */
++ int PgOutputProc(DRIVER_OUTPUT_PROTO)
++ {
++     Pg_ConnectionId	*connid;
++     PGconn		*conn;
++ 
++     connid = (Pg_ConnectionId *)cData;
++     conn = connid-&gt;conn;
++ 
++     if (connid-&gt;res_copy &lt; 0 ||
++       connid-&gt;results[connid-&gt;res_copy]-&gt;resultStatus != PGRES_COPY_IN) {
++ 	*errorCodePtr = EBUSY;
++ 	return -1;
++     }
++ 
++     /*
++     fprintf(stderr, "PgOutputProc called: bufSize=%d: atend:%d &lt;", bufSize,
++ 	strncmp(buf, "\\.\n", 3));
++     fwrite(buf, 1, bufSize, stderr);
++     fputs("&gt;\n", stderr);
++     */
++     fwrite(buf, 1, bufSize, conn-&gt;Pfout);
++     if (bufSize &gt; 2 &amp;&amp; strncmp(&amp;buf[bufSize-3], "\\.\n", 3) == 0) {
++ 	/* fprintf(stderr,"checking closure\n"); */
++ 	fflush(conn-&gt;Pfout);
++ 	if (PgEndCopy(connid, errorCodePtr) == -1)
++ 	    return -1;
++     }
++     return bufSize;
++ }
++ 
++ #if (TCL_MAJOR_VERSION == 7 &amp;&amp; TCL_MINOR_VERSION == 6)
++ Tcl_File
++ PgGetFileProc(ClientData cData, int direction)
++ {
++     return (Tcl_File)NULL;
++ }
++ #endif
++ 
++ Tcl_ChannelType Pg_ConnType = {
++     "pgsql",			/* channel type */
++     NULL,			/* blockmodeproc */
++     PgDelConnectionId,		/* closeproc */
++     PgInputProc,		/* inputproc */
++     PgOutputProc,		/* outputproc */
++     /*  Note the additional stuff can be left NULL,
++ 	or is initialized during a PgSetConnectionId */
++ };
++ 
++ /*
++  * Create and register a new channel for the connection
++  */
+  void
+! PgSetConnectionId(Tcl_Interp *interp, PGconn *conn)
+  {
+!     Tcl_Channel		conn_chan;
+!     Pg_ConnectionId	*connid;
+!     int			i;
+  
+!     connid = (Pg_ConnectionId *)ckalloc(sizeof(Pg_ConnectionId));
+!     connid-&gt;conn = conn;
+!     connid-&gt;res_count = 0;
+!     connid-&gt;res_last = -1;
+!     connid-&gt;res_max = RES_START;
+!     connid-&gt;res_hardmax = RES_HARD_MAX;
+!     connid-&gt;res_copy = -1;
+!     connid-&gt;res_copyStatus = RES_COPY_NONE;
+!     connid-&gt;results = (PGresult**)ckalloc(sizeof(PGresult*) * RES_START);
+!     for (i = 0; i &lt; RES_START; i++) connid-&gt;results[i] = NULL;
+!     Tcl_InitHashTable(&amp;connid-&gt;notify_hash, TCL_STRING_KEYS);
+  
+!     sprintf(connid-&gt;id, "pgsql%d", fileno(conn-&gt;Pfout));
+! 
+! #if TCL_MAJOR_VERSION == 7 &amp;&amp; TCL_MINOR_VERSION == 5
+!     conn_chan = Tcl_CreateChannel(&amp;Pg_ConnType, connid-&gt;id, conn-&gt;Pfin, conn-&gt;Pfout, (ClientData)connid);
+! #else
+!     conn_chan = Tcl_CreateChannel(&amp;Pg_ConnType, connid-&gt;id, (ClientData)connid,
+! 	TCL_READABLE | TCL_WRITABLE);
+! #endif
+! 
+!     Tcl_SetChannelOption(interp, conn_chan, "-buffering", "line");
+!     Tcl_SetResult(interp, connid-&gt;id, TCL_VOLATILE);
+!     Tcl_RegisterChannel(interp, conn_chan);
+  }
+  
+  
+***************
+*** 50,68 ****
+   * Get back the connection from the Id
+   */
+  PGconn *
+! PgGetConnectionId(Pg_clientData * cd, char *id)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Pg_ConnectionId *connid;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;dbh_hash), id);
+! 	if (hent == NULL)
+! 	{
+! 		return (PGconn *) NULL;
+! 	}
+  
+! 	connid = (Pg_ConnectionId *) Tcl_GetHashValue(hent);
+! 	return connid-&gt;conn;
+  }
+  
+  
+--- 175,196 ----
+   * Get back the connection from the Id
+   */
+  PGconn *
+! PgGetConnectionId(Tcl_Interp *interp, char *id, Pg_ConnectionId **connid_p)
+  {
+!     Tcl_Channel conn_chan;
+!     Pg_ConnectionId	*connid;
+  
+!     conn_chan = Tcl_GetChannel(interp, id, 0);
+!     if(conn_chan == NULL || Tcl_GetChannelType(conn_chan) != &amp;Pg_ConnType) {
+! 	Tcl_ResetResult(interp);
+! 	Tcl_AppendResult(interp, id, " is not a valid postgresql connection\n", 0);
+!         return (PGconn *)NULL;
+!     }
+  
+!     connid = (Pg_ConnectionId *)Tcl_GetChannelInstanceData(conn_chan);
+!     if (connid_p)
+! 	*connid_p = connid;
+!     return connid-&gt;conn;
+  }
+  
+  
+***************
+*** 70,147 ****
+   * Remove a connection Id from the hash table and
+   * close all portals the user forgot.
+   */
+! void
+! PgDelConnectionId(Pg_clientData * cd, char *id)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Tcl_HashEntry *hent2;
+! 	Tcl_HashEntry *hent3;
+! 	Tcl_HashSearch hsearch;
+! 	Pg_ConnectionId *connid;
+! 	Pg_ResultId *resid;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;dbh_hash), id);
+! 	if (hent == NULL)
+! 	{
+! 		return;
+! 	}
+  
+! 	connid = (Pg_ConnectionId *) Tcl_GetHashValue(hent);
+  
+! 	hent2 = Tcl_FirstHashEntry(&amp;(connid-&gt;res_hash), &amp;hsearch);
+! 	while (hent2 != NULL)
+! 	{
+! 		resid = (Pg_ResultId *) Tcl_GetHashValue(hent2);
+! 		PQclear(resid-&gt;result);
+! 		hent3 = Tcl_FindHashEntry(&amp;(cd-&gt;res_hash), resid-&gt;id);
+! 		if (hent3 != NULL)
+! 		{
+! 			Tcl_DeleteHashEntry(hent3);
+! 		}
+! 		ckfree(resid);
+! 		hent2 = Tcl_NextHashEntry(&amp;hsearch);
+! 	}
+! 	Tcl_DeleteHashTable(&amp;(connid-&gt;res_hash));
+! 	Tcl_DeleteHashEntry(hent);
+! 	ckfree(connid);
+  }
+  
+  
+  /*
+!  * Create a new result Id and hash it
+   */
+! void
+! PgSetResultId(Pg_clientData * cd, char *id, char *connid_c, PGresult *res)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Pg_ConnectionId *connid;
+! 	Pg_ResultId *resid;
+! 	int			hnew;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;dbh_hash), connid_c);
+! 	if (hent == NULL)
+  	{
+! 		connid = NULL;
+  	}
+! 	else
+! 	{
+! 		connid = (Pg_ConnectionId *) Tcl_GetHashValue(hent);
+  	}
+  
+! 	resid = (Pg_ResultId *) ckalloc(sizeof(Pg_ResultId));
+! 	resid-&gt;result = res;
+! 	resid-&gt;connection = connid;
+! 	sprintf(resid-&gt;id, "pgr%ld", cd-&gt;res_count++);
+! 	strcpy(id, resid-&gt;id);
+  
+! 	hent = Tcl_CreateHashEntry(&amp;(cd-&gt;res_hash), resid-&gt;id, &amp;hnew);
+! 	Tcl_SetHashValue(hent, (ClientData) resid);
+  
+! 	if (connid != NULL)
+! 	{
+! 		hent = Tcl_CreateHashEntry(&amp;(connid-&gt;res_hash), resid-&gt;id, &amp;hnew);
+! 		Tcl_SetHashValue(hent, (ClientData) resid);
+! 	}
+  }
+  
+  
+--- 198,318 ----
+   * Remove a connection Id from the hash table and
+   * close all portals the user forgot.
+   */
+! int PgDelConnectionId(DRIVER_DEL_PROTO)
+  {
+!     Tcl_HashEntry	*entry;
+!     char		*hval;
+!     Tcl_HashSearch	hsearch;
+!     Pg_ConnectionId	*connid;
+!     int			i;
+  
+!     connid = (Pg_ConnectionId *)cData;
+  
+!     for (i = 0; i &lt; connid-&gt;res_max; i++) {
+! 	if (connid-&gt;results[i])
+! 	    PQclear(connid-&gt;results[i]);
+!     }
+!     ckfree((void*)connid-&gt;results);
+  
+!     for (entry = Tcl_FirstHashEntry(&amp;(connid-&gt;notify_hash), &amp;hsearch);
+! 	entry != NULL;
+! 	entry = Tcl_NextHashEntry(&amp;hsearch))
+!     {
+! 	hval = (char*)Tcl_GetHashValue(entry);
+! 	ckfree(hval);
+!     }
+!     
+!     Tcl_DeleteHashTable(&amp;connid-&gt;notify_hash);
+!     PQfinish(connid-&gt;conn);
+!     ckfree((void*)connid);
+!     return 0;
+  }
+  
+  
+  /*
+!  * Find a slot for a new result id.  If the table is full, expand it by
+!  * a factor of 2.  However, do not expand past the hard max, as the client
+!  * is probably just not clearing result handles like they should.
+   */
+! int
+! PgSetResultId(Tcl_Interp *interp, char *connid_c, PGresult *res)
+  {
+!     Tcl_Channel		conn_chan;
+!     Pg_ConnectionId	*connid;
+!     int			resid, i;
+!     char		buf[32];
+  
+! 
+!     conn_chan = Tcl_GetChannel(interp, connid_c, 0);
+!     if(conn_chan == NULL)
+!         return TCL_ERROR;
+!     connid = (Pg_ConnectionId *)Tcl_GetChannelInstanceData(conn_chan);
+! 
+!     for (resid = connid-&gt;res_last+1; resid != connid-&gt;res_last; resid++) {
+! 	if (resid == connid-&gt;res_max)
+! 	    resid = 0;
+! 	if (!connid-&gt;results[resid])
+  	{
+! 	    connid-&gt;res_last = resid;
+! 	    break;
+  	}
+!     }
+! 
+!     if (connid-&gt;results[resid]) {
+! 	if (connid-&gt;res_max == connid-&gt;res_hardmax) {
+! 	    Tcl_SetResult(interp, "hard limit on result handles reached",
+! 		TCL_STATIC);
+! 	    return TCL_ERROR;
+  	}
++ 	connid-&gt;res_last = connid-&gt;res_max;
++ 	resid = connid-&gt;res_max;
++ 	connid-&gt;res_max *= 2;
++ 	if (connid-&gt;res_max &gt; connid-&gt;res_hardmax)
++ 	    connid-&gt;res_max = connid-&gt;res_hardmax;
++ 	connid-&gt;results = (PGresult**)ckrealloc((void*)connid-&gt;results,
++ 	    sizeof(PGresult*) * connid-&gt;res_max);
++ 	for (i = connid-&gt;res_last; i &lt; connid-&gt;res_max; i++)
++ 	    connid-&gt;results[i] = NULL;
++     }
+  
+!     connid-&gt;results[resid] = res;
+!     sprintf(buf, "%s.%d", connid_c, resid);
+!     Tcl_SetResult(interp, buf, TCL_VOLATILE);
+!     return resid;
+! }
+  
+! static int getresid(Tcl_Interp *interp, char *id, Pg_ConnectionId **connid_p)
+! {
+!     Tcl_Channel		conn_chan;
+!     char		*mark;
+!     int			resid;
+!     Pg_ConnectionId	*connid;
+  
+!     if (!(mark = strchr(id, '.')))
+! 	return -1;
+!     *mark = '\0';
+!     conn_chan = Tcl_GetChannel(interp, id, 0);
+!     *mark = '.';
+!     if(conn_chan == NULL || Tcl_GetChannelType(conn_chan) != &amp;Pg_ConnType) {
+! 	Tcl_SetResult(interp, "Invalid connection handle", TCL_STATIC);
+!         return -1;
+!     }
+! 
+!     if (Tcl_GetInt(interp, mark + 1, &amp;resid) == TCL_ERROR) {
+! 	Tcl_SetResult(interp, "Poorly formated result handle", TCL_STATIC);
+! 	return -1;
+!     }
+! 
+!     connid = (Pg_ConnectionId *)Tcl_GetChannelInstanceData(conn_chan);
+! 
+!     if (resid &lt; 0 || resid &gt; connid-&gt;res_max || connid-&gt;results[resid] == NULL) {
+! 	Tcl_SetResult(interp, "Invalid result handle", TCL_STATIC);
+! 	return -1;
+!     }
+! 
+!     *connid_p = connid;
+! 
+!     return resid;
+  }
+  
+  
+***************
+*** 148,167 ****
+  /*
+   * Get back the result pointer from the Id
+   */
+! PGresult   *
+! PgGetResultId(Pg_clientData * cd, char *id)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Pg_ResultId *resid;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;res_hash), id);
+! 	if (hent == NULL)
+! 	{
+! 		return (PGresult *) NULL;
+! 	}
+! 
+! 	resid = (Pg_ResultId *) Tcl_GetHashValue(hent);
+! 	return resid-&gt;result;
+  }
+  
+  
+--- 319,336 ----
+  /*
+   * Get back the result pointer from the Id
+   */
+! PGresult *
+! PgGetResultId(Tcl_Interp *interp, char *id)
+  {
+!     Pg_ConnectionId	*connid;
+!     int			resid;
+  
+!     if (!id)
+! 	return NULL;
+!     resid = getresid(interp, id, &amp;connid);
+!     if (resid == -1)
+! 	return NULL;
+!     return connid-&gt;results[resid];
+  }
+  
+  
+***************
+*** 169,198 ****
+   * Remove a result Id from the hash tables
+   */
+  void
+! PgDelResultId(Pg_clientData * cd, char *id)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Tcl_HashEntry *hent2;
+! 	Pg_ResultId *resid;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;res_hash), id);
+! 	if (hent == NULL)
+! 	{
+! 		return;
+! 	}
+! 
+! 	resid = (Pg_ResultId *) Tcl_GetHashValue(hent);
+! 	if (resid-&gt;connection != NULL)
+! 	{
+! 		hent2 = Tcl_FindHashEntry(&amp;(resid-&gt;connection-&gt;res_hash), id);
+! 		if (hent2 != NULL)
+! 		{
+! 			Tcl_DeleteHashEntry(hent2);
+! 		}
+! 	}
+! 
+! 	Tcl_DeleteHashEntry(hent);
+! 	ckfree(resid);
+  }
+  
+  
+--- 338,352 ----
+   * Remove a result Id from the hash tables
+   */
+  void
+! PgDelResultId(Tcl_Interp *interp, char *id)
+  {
+!     Pg_ConnectionId	*connid;
+!     int			resid;
+  
+!     resid = getresid(interp, id, &amp;connid);
+!     if (resid == -1)
+! 	return;
+!     connid-&gt;results[resid] = 0;
+  }
+  
+  
+***************
+*** 199,219 ****
+  /*
+   * Get the connection Id from the result Id
+   */
+! void
+! PgGetConnByResultId(Pg_clientData * cd, char *id, char *resid_c)
+  {
+! 	Tcl_HashEntry *hent;
+! 	Pg_ResultId *resid;
+  
+! 	hent = Tcl_FindHashEntry(&amp;(cd-&gt;res_hash), id);
+! 	if (hent == NULL)
+! 	{
+! 		return;
+! 	}
+  
+! 	resid = (Pg_ResultId *) Tcl_GetHashValue(hent);
+! 	if (resid-&gt;connection != NULL)
+! 	{
+! 		strcpy(id, resid-&gt;connection-&gt;id);
+! 	}
+  }
+--- 353,378 ----
+  /*
+   * Get the connection Id from the result Id
+   */
+! int
+! PgGetConnByResultId(Tcl_Interp *interp, char *resid_c)
+  {
+!     char		*mark;
+!     Tcl_Channel		conn_chan;
+  
+!     if (!(mark = strchr(resid_c, '.')))
+! 	goto error_out;
+!     *mark = '\0';
+!     conn_chan = Tcl_GetChannel(interp, resid_c, 0);
+!     *mark = '.';
+!     if(conn_chan &amp;&amp; Tcl_GetChannelType(conn_chan) != &amp;Pg_ConnType) {
+! 	Tcl_SetResult(interp, Tcl_GetChannelName(conn_chan), TCL_VOLATILE);
+! 	return TCL_OK;
+!     }
+  
+!   error_out:
+!     Tcl_ResetResult(interp);
+!     Tcl_AppendResult(interp, resid_c, " is not a valid connection\n", 0);
+!     return TCL_ERROR;
+  }
++ 
++ 
+Index: NEOSOFT/libpgtcl6.3/pgtclId.h
+diff -c NEOSOFT/libpgtcl6.3/pgtclId.h:1.1.1.1 NEOSOFT/libpgtcl6.3/pgtclId.h:1.3
+*** NEOSOFT/libpgtcl6.3/pgtclId.h:1.1.1.1	Mon Mar  9 15:49:27 1998
+--- NEOSOFT/libpgtcl6.3/pgtclId.h	Mon Mar  9 23:05:21 1998
+***************
+*** 1,22 ****
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclId.h--
+!  *	  useful routines to convert between strings and pointers
+!  *	Needed because everything in tcl is a string, but often, pointers
+!  *	to data structures are needed.
+   *
+-  *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+!  * $Id: pgtclId.h,v 1.1.1.1 1998/03/09 21:49:27 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+  
+! extern void PgSetConnectionId(Pg_clientData * cd, char *id, PGconn *conn);
+! extern PGconn *PgGetConnectionId(Pg_clientData * cd, char *id);
+! extern void PgDelConnectionId(Pg_clientData * cd, char *id);
+! extern void PgSetResultId(Pg_clientData * cd, char *id, char *connid, PGresult *res);
+! extern PGresult *PgGetResultId(Pg_clientData * cd, char *id);
+! extern void PgDelResultId(Pg_clientData * cd, char *id);
+! extern void PgGetConnByResultId(Pg_clientData * cd, char *id, char *resid);
+--- 1,42 ----
+  /*-------------------------------------------------------------------------
+   *
+   * pgtclId.h--
+!  *    useful routines to convert between strings and pointers
+!  *  Needed because everything in tcl is a string, but often, pointers
+!  *  to data structures are needed.
+!  *    
+   *
+   * Copyright (c) 1994, Regents of the University of California
+   *
+!  * $Id: pgtclId.h,v 1.3 1998/03/10 05:05:21 kunkee Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+  
+! extern void PgSetConnectionId(Tcl_Interp *interp, PGconn *conn);
+! #if (TCL_MAJOR_VERSION == 7 &amp;&amp; TCL_MINOR_VERSION == 5)
+! #define DRIVER_DEL_PROTO ClientData cData, Tcl_Interp *interp, \
+! 	Tcl_File inFile, Tcl_File outFile
+! #define DRIVER_OUTPUT_PROTO ClientData cData, Tcl_File outFile, char *buf, \
+! 	int bufSize, int *errorCodePtr
+! #define DRIVER_INPUT_PROTO ClientData cData, Tcl_File inFile, char *buf, \
+! 	int bufSize, int *errorCodePtr
+! #else
+! #define DRIVER_OUTPUT_PROTO ClientData cData, char *buf, int bufSize, \
+! 	int *errorCodePtr
+! #define DRIVER_INPUT_PROTO ClientData cData, char *buf, int bufSize, \
+! 	int *errorCodePtr
+! #define DRIVER_DEL_PROTO ClientData cData, Tcl_Interp *interp
+! #endif
+! extern PGconn *PgGetConnectionId(Tcl_Interp *interp, char *id, Pg_ConnectionId **);
+! extern PgDelConnectionId(DRIVER_DEL_PROTO);
+! extern int PgOutputProc(DRIVER_OUTPUT_PROTO);
+! extern PgInputProc(DRIVER_INPUT_PROTO);
+! extern int PgSetResultId(Tcl_Interp *interp, char *connid, PGresult *res);
+! extern PGresult *PgGetResultId(Tcl_Interp *interp, char *id);
+! extern void PgDelResultId(Tcl_Interp *interp, char *id);
+! extern int PgGetConnByResultId(Tcl_Interp *interp, char *resid);
+! #if (TCL_MAJOR_VERSION &lt; 8)
+! extern Tcl_File PgGetFileProc(ClientData cData, int direction);
+! #endif
+! extern Tcl_ChannelType Pg_ConnType;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00189" HREF="msg00189.html">[pgsql-jp 3621] Re: libpgtcl BSD_SHLIB</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00132" HREF="msg00132.html">[pgsql-jp 3564] libpgtcl BSD_SHLIB</A></STRONG>
+<UL><LI><EM>From:</EM> ASANO Takahiko &lt;takap@tky.3web.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00184.html">[pgsql-jp 3616] Re: Perl5インタフェースについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 3619] Re: Perl5インタフェースについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 3564] libpgtcl BSD_SHLIB</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 3621] Re: libpgtcl BSD_SHLIB</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00187"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00187"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8218] RE: port '5432'? -->
+<!--X-From: Ikuo Tanaka <ikuo_ml@sannet.ne.jp> -->
+<!--X-Date: Wed, 28 Apr 1999 02:17:23 +0900 -->
+<!--X-Message-Id: 01BE911D.57A0FD00@max1&#45;ppp25.nagaoka.sannet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8218] RE: port '5432'? </TITLE>
+<LINK REV="made" HREF="mailto:ikuo_ml@sannet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00408.html">Date Prev</A>][<A HREF="msg00410.html">Date Next</A>][<A HREF="msg00413.html">Thread Prev</A>][<A HREF="msg00415.html">Thread Next</A>][<A HREF="index.html#00409">Date Index</A>][<A HREF="threads.html#00409">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8218] RE: port '5432'?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ikuo Tanaka &lt;<A HREF="mailto:ikuo_ml@sannet.ne.jp">ikuo_ml@sannet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 Apr 1999 02:17:23 +0900</LI>
+<LI><em>Encoding</em>: 99 TEXT</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中活朗です。
+
+たぶん、今日のメールは化けていないと思います。(^^;;
+その節はお騒がせしました。
+
+さて、
+本題ですが、
+
+&gt; 志田@Sndaiですが、
+&gt; 最近まで問題無く使ってたんですが、
+&gt; 以下のようなエラーがでたんですが、なにがわるいんでしょう？
+&gt; Connection to database 'pgsql' failed.
+&gt; connectDB() failed: Is the postmaster running and accepting connections
+&gt; at 'UNIX
+&gt;  Socket' on port '5432'?
+&gt;
+&gt;Shoichi Kosuge wrote:
+&gt;&gt; 
+&gt;&gt; 　どういう環境で、どこにどういうコマンドを入力すると
+&gt;&gt; このメッセージがどこに出るとか、詳細は記述できますでしょうか。
+&gt;&gt; 
+&gt;&gt; 　あと、「Is the postmaster running (?)」とあるのですが、
+&gt;&gt; ポストマスタがおちてないという確認はされたでしょうか。
+&gt;&gt; 
+&gt;
+&gt; 環境ですが、
+&gt; Linux 2.0.0
+&gt; postgresql 6.4.2
+
+
+私も、志田@Sndaiさんと同じく、Linuxで使用しています。
+Linux 2.0.34と2.0.36で(ちなみにdist.はSlackware 3.1.0と3.4.0)
+postgresqlは6.3.2と6.4.2を使っています。
+私もpostgresqlを使い始めた頃はこの問題になやみました。
+
+次の点をご確認下さい。
+
+1.psコマンドを使用して、例えば、
+$ ps ax | grep postmaster
+と入力して、次のプロセスがリストアップされるかご確認下さい。
+
+/usr/local/pgsql/postmaster -D /usr/local/pgsql/data -S -i
+
+もし、何も表示されないか、
+grep postmaster
+しか表示されない場合は、バックエンドが落ちています。
+
+マニュアルで、
+$ /usr/local/pgsql/postmaster -D /usr/local/pgsql/data -S -i
+
+と、入力してバックエンドを起動して下さい。
+(パス名は、環境により置き換えて解釈下さい。)
+
+2. バックエンドを起動するときに
+FATAL: StreamServerPort: bind() failed: errno=98
+        Is another postmaster already running on that port?
+        If not, remove socket node (/tmp/.s.PGSQL.5432) and retry.
+のような、エラーメッセージが表示されていないかどうか、ご確認下さい。
+
+1.にて、バックエンドが“動いていない”事が確認できているにも
+かかわらず、このエラー場出る場合には、/tmpディレクトリに
+ソケットへのシンボリックリンクが残っていますので、これを
+
+$ rm /tmp/.s.PGSQL.5432
+
+にて削除してから、再度バックエンドを起動して下さい。
+
+原因) もし、上記対応で直る場合は．．．
+
+/tmp/.s.PGSQL.5432は、バックエンドが正常終了しなかった場合に
+残ります。
+(もちろん、バックエンド動作中は存在しているのが正常です)
+
+私の推測では、
+他のディストリビューションでは分かりませんが、(勉強不足なもので^^;)
+SlackWareの場合、マシンを立ち下げる場合、(shutdown -hコマンド)
+まず、SIGTERMが、全プロセスに送られ、数秒後に再度、今度は
+SIGKILLが送られ、残っているプロセスも強制終了されるようです。
+(現在勉強中ですが．．．)
+もし、その数秒以内にバックエンドが終了しなかった場合には、
+SIGKILLによりバックエンドが強制終了され、/tmp/.s.PGSQL.5432が
+残ってしまう．．． ということがあるようです。
+
+気になるようでしたら、マニュアルで
+$ kill -TERM {バックエンドのpid}
+で終了してからshutdownするようにしてはいかがでしょう。
+
+
+
+それから、psqlが使用するデフォルトのデータベースは
+ログインユーザ名みたいです。
+
+私は、xxpgsqlとtestdbの2つを使い分けていますが、
+xxpgsqlでログインして、xxpgsqlをアクセスするときのみ、
+psqlのデータベース名を省略できています。
+
+--------------------------------------------------
+田中活朗
+ikuo_ml@sannet.ne.jp
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00415" HREF="msg00415.html">[pgsql-jp 8224] Re: port '5432'?</A></STRONG>
+<UL><LI><EM>From:</EM> Ogawa &lt;k-shida@crc.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00408.html">[pgsql-jp 8217] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00410.html">[pgsql-jp 8219] initdbのエラー（postgreSQL6.4.2）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00413.html">[pgsql-jp 8222] Re:  Re: initdbのエラー（postgreSQL6.4.2）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 8224] Re: port '5432'?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00409"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00409"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

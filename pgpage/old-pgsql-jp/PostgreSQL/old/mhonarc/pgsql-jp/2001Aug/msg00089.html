@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22752] バイナリ型byteaについて -->
+<!--X-From: Naota Inamoto <inamoto@kt.rim.or.jp> -->
+<!--X-Date: Mon, 13 Aug 2001 03:15:55 +0900 -->
+<!--X-Message-Id: 20010813021429.EB3E.INAMOTO@kt.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22752] バイナリ型byteaについて </TITLE>
+<LINK REV="made" HREF="mailto:inamoto@kt.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00088.html">Date Prev</A>][<A HREF="msg00090.html">Date Next</A>][<A HREF="msg00092.html">Thread Prev</A>][<A HREF="msg00091.html">Thread Next</A>][<A HREF="index.html#00089">Date Index</A>][<A HREF="threads.html#00089">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22752] バイナリ型byteaについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naota Inamoto &lt;<A HREF="mailto:inamoto@kt.rim.or.jp">inamoto@kt.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 13 Aug 2001 03:15:55 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+稲本と申します。
+
+PostgresQLでバイナリデータを入れようとして
+create table &lt;table_name&gt; (... , data bytea , ...);
+でテーブルを作成したのですが、データの格納、取出しが
+うまくいっていません。
+分かる方ご教授お願いします。
+PostgresQLのバージョンは7.1.2です。
+
+問題点（１）ODBCドライバで格納して取出しをすると同じにならない。
+問題点（２）libpqを使ってバイナリデータを格納する書式が分からない。
+
+(1)
+   <A HREF="http://www.interwiz.koganei.tokyo.jp/software/PsqlODBC/">http://www.interwiz.koganei.tokyo.jp/software/PsqlODBC/</A>
+のODBCドライバを使ってバイナリデータを格納して取出すと
+ほぼ同じになるが、微妙に内容が異なっている。
+
+# ちなみにOracleではまったく同じソースで格納して取出したものは
+# まったく同じになります。
+# これはODBCドライバの問題かも知れません。
+
+ODBCを使った部分のソースはおおよそ以下です。
+  格納：
+        int r = ::SQLPrepare(hstmt, sql_statement, SQL_NTS);
+        ...
+        int r = SQLBindParameter(hstmt,
+             n, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARBINARY,
+             buffer_length, 0, buffer, 0, &amp;length);
+        ...
+        rcode = ::SQLExecute(hstmt);
+  取出し：
+        char sv[512]; int index = 0;
+        for (;;) {
+            r = ::SQLGetData(hstmt, n, SQL_C_BINARY,
+                sv, 512, &amp;length);
+            if (r == SQL_SUCCESS || r == SQL_SUCCESS_WITH_INFO) {
+                if (r == SQL_SUCCESS_WITH_INFO) len = 512;
+                unsigned char *buf = &amp;buffer[index];
+                int i;
+                for (i = 0; i &lt; len; i++) buf[i] = sv[i];
+                index += len;
+            }
+            if (r != SQL_SUCCESS_WITH_INFO) break;
+        }
+
+(2) 
+  (1)でレコードを挿入した後、select * from &lt;table_name&gt;で値を見てみると
+バイナリのところは以下のようなescape-characterの文字列になっています。
+
+GIF89a\243\000\270\000\304\377\000\377\377\377\234\234\234\300\300 ...
+
+libpqを使う場合、'?'を含むPrepareはできないと思われるのですが
+これは正しいでしょうか？
+
+バイナリデータを SQL文で挿入する場合は、
+バイナリデータのASCII文字でないところをescape-characterにして
+以下のようなINSERT文を発行すればよいかと思ったのですが、
+うまくいきません。
+
+INSERT INTO &lt;table_name&gt; VALUES(... , 'GIF89a\243\000\270 ... ' , ...);
+
+\000 が終端記号とみなされてここで途切れてしまいます。
+
+バイナリデータをSQL文で挿入することはできるのでしょうか？
+それとも別のやり方を使わなければならないのでしょうか？
+
+psql のコマンドラインで \000 を含むバイナリを入れることができるなら
+同じSQL文を発行すればできると思うのですが、書式が分かりません。
+もしやり方が分かる方がいらっしゃいましたらご教授お願いします。
+
+以上
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00093" HREF="msg00093.html">[pgsql-jp 22756] Re: バイナリ型byteaについて</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroki Kataoka &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00091" HREF="msg00091.html">[pgsql-jp 22754] Re: バイナリ型byteaについて</A></STRONG>
+<UL><LI><EM>From:</EM> Takahiro Kaneko &lt;kaneko@cybersign.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00088.html">[pgsql-jp 22751] initdb の実行 解決</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 22753] カラムの桁数やNOT-NULL属性の取得について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00092.html">[pgsql-jp 22755] Re: カラムの桁数やNOT-NULL属性の取得について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 22754] Re: バイナリ型byteaについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00089"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00089"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

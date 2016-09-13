@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26959] Re: 日本語文字化けについて -->
+<!--X-From: rio&#45;t@presen.to -->
+<!--X-Date: Fri, 09 Aug 2002 02:00:27 +0900 (JST) -->
+<!--X-Message-Id: 20020809.020026.91278684.rio&#45;t@presen.to -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000701c23ea8$42d1f8c0$2215a8c0@galaxy.starweb.ne.jp -->
+<!--X-Reference-Id: 20020808184214.DB7F.TITOH@xware.co.jp -->
+<!--X-Reference-Id: 003401c23ec3$36ba9ea0$2215a8c0@galaxy.starweb.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26959] Re: 日本語文字化けについて </TITLE>
+<LINK REV="made" HREF="mailto:rio-t@presen.to">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00090.html">Date Prev</A>][<A HREF="msg00092.html">Date Next</A>][<A HREF="msg00090.html">Thread Prev</A>][<A HREF="msg00080.html">Thread Next</A>][<A HREF="index.html#00091">Date Index</A>][<A HREF="threads.html#00091">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26959] Re: 日本語文字化けについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:rio-t@presen.to">rio-t@presen.to</A></LI>
+<LI><em>Date</em>: Fri, 09 Aug 2002 02:00:27 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00081.html">000701c23ea8$42d1f8c0$2215a8c0@galaxy.starweb.ne.jp</A>&gt;&lt;<A HREF="msg00086.html">20020808184214.DB7F.TITOH@xware.co.jp</A>&gt;&lt;<A HREF="msg00087.html">003401c23ec3$36ba9ea0$2215a8c0@galaxy.starweb.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、高石です。
+
+From: "bankeumryang" &lt;bankr@starweb.ne.jp&gt;
+Subject: [pgsql-jp: 26955] Re: 日本語文字化けについて
+
+&gt; &gt; 1.initdb -E EUC_JP　を実行
+&gt; この部分はただinitdbだけ実行したんですがデータベース作成後文字環境をEUC_JPに
+&gt; してあげたんですがためですか？必ず1番のようにしなければいけないでしょうか？
+
+psql -l
+
+として、Encoding が EUC_JP と表示されれば DB の方のエンコー
+ディングは問題ありません。
+もしここで SQL_ASCII などと表示されるようなら、
+
+createdb -E EUC_JP dbname
+
+のように、DB 作成時にエンコーディングを指定して作成する必要
+があります。
+# initdb -E EUC_JP としてあれば、createdb で エンコーディン
+# グを指定しなかった時に標準で EUC_JP となります。
+
+ですが、おそらく問題があるのは DB のエンコーディングではなく
+クライアント側のエンコーディングの設定でしょう。
+
+psqlで、
+
+show client_encoding;
+
+としてみて下さい。
+
+NOTICE:  Current client encoding is 'EUC_JP'
+
+と表示されませんか？
+この場合、そのpsql上から、SQLを発行して日本語をインサートし
+た場合、入力された文字列が EUC_JP であるものとして扱われます。
+また、同じくそのpsql上で select してレコードを表示した場合に
+出力される文字列も EUC_JP で返ってきます。
+
+# 例えば、client_encoding が SJIS だった場合、文字列をインサー
+# トした時に、SJIS -&gt; EUC_JP の変換が自動的に行われて DB に
+# 格納され、select した時には、EUC_JP -&gt; SJIS の変換が自動的
+# に行われてから出力されます。
+
+Ret HatのマシンからpsqlでSQLを発行した場合に文字化けしなかっ
+たというのは、Red Hat(というかLinux)では日本語は普通 EUC_JP
+を使うので、たまたまそれが client_encoding の設定と一致して
+いたということでしょう。
+
+解決方法としては、文字化けするクライアントで使用する文字コー
+ドを client_encoding に合わせてやるか、あるいは逆に、使う文
+字コードに合わせて client_encoding を設定してやる必要があり
+ます。
+
+具体的な方法については、私はJDBCを使っていないので、詳しいこ
+とはわかりませんが、JDBC client_encoding postgresql あたりを
+キーワードに検索してみれば、いろいろみつかるでしょう。
+あと、<A HREF="http://java-house.jp/ml/topics/">http://java-house.jp/ml/topics/</A> の「JDBC」の項目も参考
+になるかもしれません。
+/--------------------------------------------------------/
+  高石 勇人 &lt; rio-t@presen.to &gt;
+  PGP Key(RSA): <A HREF="http://rio-t.presen.to/pgp/mykey.asc">http://rio-t.presen.to/pgp/mykey.asc</A>
+         (DSS): <A HREF="http://rio-t.presen.to/pgp/mykey-dss.asc">http://rio-t.presen.to/pgp/mykey-dss.asc</A>
+/--------------------------------------------------------/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[pgsql-jp: 26949] 日本語文字化けについて</A></STRONG>
+<UL><LI><EM>From:</EM> "bankeumryang" &lt;bankr@starweb.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp: 26954] Re: 日本語文字化けについて</A></STRONG>
+<UL><LI><EM>From:</EM> itoh &lt;titoh@xware.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00087" HREF="msg00087.html">[pgsql-jp: 26955] Re: 日本語文字化けについて</A></STRONG>
+<UL><LI><EM>From:</EM> "bankeumryang" &lt;bankr@starweb.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp: 26958] Re: 日本語文字化けについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00092.html">[pgsql-jp: 26960] Re: TABLEを削除できない場合がある</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00090.html">[pgsql-jp: 26958] Re: 日本語文字化けについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00080.html">[pgsql-jp: 26948] Re: TABLEを削除できない場合がある</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00091"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00091"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

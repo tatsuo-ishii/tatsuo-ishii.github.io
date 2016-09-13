@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12981] Re:テーブルのDeadlock -->
+<!--X-From: Shinichi Fukuda <shinf@ma.mailbank.ne.jp> -->
+<!--X-Date: Tue, 01 Feb 2000 15:01:20 +0900 -->
+<!--X-Message-Id: 200002010604.PAA02335@smtpb.mailbank.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000901bf6c75$37311440$2801007e@tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12981] Re:テーブルのDeadlock </TITLE>
+<LINK REV="made" HREF="mailto:shinf@ma.mailbank.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00022.html">Date Prev</A>][<A HREF="msg00023.html">Date Next</A>][<A HREF="msg00031.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12981] Re:テーブルのDeadlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shinichi Fukuda &lt;<A HREF="mailto:shinf@ma.mailbank.ne.jp">shinf@ma.mailbank.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Feb 2000 15:01:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+どうもこんにちは。
+福田です。
+
+&gt;SELECTからINSERT or UPDATE までをbegin~endでかこっておら
+&gt;れるのでしょうか ？ この場合最初から排他LOCKをかけないとまずい
+&gt;ですね。SELECTによって獲得した共有LOCKがINSERT/UPDATEに
+&gt;よって排他LOCKに切り替わる時にたった一つのテーブルでも簡単に
+&gt;deadlockが発生します。MVCC以前のLOCKコマンドはdeadlockを防ぐ
+&gt;という意味しか持たないコマンドです。 6.5にすればこのようなこと気に
+&gt;せずにすむのですが。
+
+やはりbegin〜endの中にSELECT文まで入れているのが原因なんでしょうか？
+同じユーザのデータ群があればUPDATE、
+なければINSERTという処理なのですが。
+
+テストバージョンの時にはLOCKを使っていたのですが、
+プログラム処理中にブラウザを切ってしまうと
+(もしくは送信中のクリック連打による2重送信)、
+LOCKがいつまでも切れない、というような状況が出てきました。
+なので恐くなって外してしまいました。
+この時も、begin〜endの中でLockしてSELECT文を入れていたのですが、
+やはりSELECT文はbegin〜endの外に出しておくべきなのでしょうか？
+
+
+&gt;前回のメールでは INSERT と UPDATE とのことでしたので
+&gt;言及しませんでしたが、PostgreSQL 6.4.2 では SELECT でも
+&gt;BGIN 〜 END の中ではロックしてしまします。（6.4.2 より新しい
+&gt;バージョンではそのようなことはありませんが。）そのパターン
+&gt;は次のようなものです。
+&gt;
+&gt;Process1            |      Process2
+&gt;------------------------------
+&gt;BEGIN                |   BIGIN
+&gt;LOCK TableA      |   LOCK TableB
+&gt;SELECT TableB   |   SELECT TableA
+&gt;UPDATE TableA   |   UPDATE TableB
+&gt;END                   |   END
+&gt;
+&gt;Process1 は TableA を UPDATE するために TableA を LOCK
+&gt;しているが、UPDATE するまでの過程で TableB からデータを
+&gt;取ってくる必要があり SELECT しようとしたら、Process2 によって
+&gt;TableB が LOCK されているために SELECT が待ち状態に
+&gt;なってしまうというものです。デッドロックする理由は前のメールと
+&gt;同じですね。
+
+INSERTとUPDATEは、このプログラムからしか行われません。
+が、SELECTは他からも行われます。
+これでDeadlockがかかってしまったのでしょうか。
+
+
+ところでDeadlockしてしまったプロセスは、
+いちいちプロセスをkillしていかないといけないのでしょうか？
+いつまでも(何日でも)Deadlockしたまま(?)です。
+
+それと、一度Deadlockしてしまったら、その後そのテーブルは、
+毎回Deadlockしてしまうのでしょうか？
+
+まったく同じシステムを複数走らせているのですが、
+現在一つのシステムだけでこれが起こっています。
+他のシステムでもDeadlockは起こりますが、
+時間が経てばプロセスは消えました。
+
+テーブルが、Deadlockの連発が原因で壊れてしまっている、
+ということは考えられるのでしょうか？
+なにせVACUUMもpg_dumpもできません。
+
+実は同じシステムをLinux＋6.5で行ったのですが、
+その時はこんなDeadlockなど起こりませんでした。
+やはり6.4.2はダメですね。
+
+要はたとえDeadlockが起こったとしても、
+暫くしてプロセスがなくなってくれればいいのですが。
+
+
+===================================
+◆SHINICHI FUKUDA◆
+・bz3s-fkd@asahi-net.or.jp
+・shinf@ma.mailbank.ne.jp
+===================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 12985] Re: Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp 12984] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Ogiso" &lt;ogiso@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 12977] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 12979] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 12980] Re: [pgsql-jp 12978] testlibpq3.cコンパイルエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 12989] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 12984] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

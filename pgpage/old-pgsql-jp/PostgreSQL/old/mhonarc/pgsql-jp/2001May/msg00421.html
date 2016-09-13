@@ -1,0 +1,205 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21376] Re: コピーコマンドについて -->
+<!--X-From: Fumikatu_Saitoh@hq.digi.co.jp -->
+<!--X-Date: Mon, 21 May 2001 18:03:06 +0900 -->
+<!--X-Message-Id: 49256A53.00320073.00@notesmailgw -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21376] Re: コピーコマンドについて </TITLE>
+<LINK REV="made" HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00420.html">Date Prev</A>][<A HREF="msg00422.html">Date Next</A>][<A HREF="msg00424.html">Thread Prev</A>][<A HREF="msg00425.html">Thread Next</A>][<A HREF="index.html#00421">Date Index</A>][<A HREF="threads.html#00421">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21376] Re: コピーコマンドについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">Fumikatu_Saitoh@hq.digi.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 21 May 2001 18:03:06 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+齋藤＠寺岡精工です。
+
+ 石井様、早速のお返事ありがとうございます。
+&gt; stdin ではなく，ファイル経由でcopyするようにすれば動くような気がします．
+&gt;  いかがでしょう?
+早速行ってみました。が、だめでした(~_~;
+HOSTからファイルに落し、そのファイルからLOCALにPQputline()してだめだったので
+（sleep()を間にいれると相変わらずOK）それならばと、HOSTからファイルに落とす部分
+は
+はずし、ファイルをただ単に読み込みLOCALにPQputline()するようにしてみたのですが
+（プログラムを載せました）それでもだめでした。
+データもしくはプログラムになにか問題があるのでしょうか？（間にsleep()を入れると
+OKですが．．．）
+お知恵をお貸しください。
+宜しくお願いいたします。
+
+−−−テーブルです−−−
+CREATE TABLE test (
+  a         numeric(6),
+  b         smallint,
+  c         smallint,
+  d         smallint,
+  e         smallint,
+  f         char(13),
+  g         numeric(6),
+  h         smallint,
+  i         smallint,
+  j         varchar(68),
+  PRIMARY KEY (a,b,c)
+);
+
+−−−データです−−−
+(See attached file: test_data.txt)
+
+−−−プログラムです−−−
+#include "postgres.h"
+#include "libpq-fe.h"
+#include &lt;stdio.h&gt;
+#include &lt;time.h&gt;
+
+void
+exit_func(PGconn* conn)
+{
+   if(conn)
+      PQfinish(conn);
+}
+
+int
+main()
+{
+   PGconn *con;
+   PGresult *res;
+   time_t start,finish;
+   int i = 0;
+   int j;
+   int k = 0;
+   char sql[10000];
+   FILE *fp;
+
+   con = PQsetdb(0,0,0,0,"test");
+   if(PQstatus(con) == CONNECTION_BAD)
+   {
+      printf("Connection to database failed\n");
+      printf("%s",PQerrorMessage(con));
+      exit_func(con);
+      exit(1);
+   }
+   printf("Connection to database!!\n");
+   time(&amp;start);
+   res = PQexec(con,"copy test from stdin");
+   if(PQresultStatus(res) != PGRES_COPY_IN)
+   {
+      printf("%s",PQerrorMessage(con));
+      exit_func(con);
+      fclose(fp);
+      exit(1);
+   }
+   PQclear(res);
+   fp = fopen("test_data.txt", "r");
+   if(!fp) {
+      printf("fopen() error\n");
+      exit_func(con);
+      exit(1);
+   }
+   while(1) {
+     memset(sql, 0x0, sizeof(sql));
+     if(fgets(sql, sizeof(sql), fp) == NULL) {
+        if(ferror(fp)) {
+           printf("fgets() error\n");
+           exit_func(con);
+           fclose(fp);
+           exit(1);
+        }
+        break;
+     }
+//     i++;              // この先頭５行のコメントを入れるとOKとなる
+//     if(i &gt; 1000) {
+//        i = 0;
+//        sleep(1);
+//     }
+     if(PQputline(con, sql)) {
+       printf("PQputline failed\n");
+       exit_func(con);
+       fclose(fp);
+       exit(1);
+     }
+   }
+   if(PQputline(con,"\\.\n")) {
+      printf("very last PQputline failed\n");
+      exit_func(con);
+      fclose(fp);
+      exit(1);
+   }
+   if(PQendcopy(con)) {
+      printf("PQendcopy failed\n");
+      exit_func(con);
+      fclose(fp);
+      exit(1);
+   }
+   time(&amp;finish);
+   printf("time : %6.2f\n",difftime(finish,start));
+   exit_func(con);
+   fclose(fp);
+   exit(0);
+}
+</PRE>
+<P><A HREF="bin00004.bin"> Text - character set unknown</A></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00432" HREF="msg00432.html">[pgsql-jp 21387] Re: コピーコマンドについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00430" HREF="msg00430.html">[pgsql-jp 21385] Re: コピーコマンドについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00425" HREF="msg00425.html">[pgsql-jp 21380] Re: コピーコマンドについて</A></STRONG>
+<UL><LI><EM>From:</EM> naoki kishida &lt;kishida@fk.urban.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00420.html">[pgsql-jp 21375] RE: UNICODE の'\'記号の取り扱いについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00422.html">[pgsql-jp 21377] Re: 異なるディストリビューション間でのバイナリ互換性について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00424.html">[pgsql-jp 21379] RE: postmaster の自動起動</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00425.html">[pgsql-jp 21380] Re: コピーコマンドについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00421"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00421"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

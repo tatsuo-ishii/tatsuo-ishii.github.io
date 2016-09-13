@@ -1,0 +1,217 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11813] Re: ibpqを用いたプログラミング -->
+<!--X-From: 木村 勝人<kimura@axio.co.jp> -->
+<!--X-Date: Wed, 17 Nov 1999 11:34:42 +0900 -->
+<!--X-Message-Id: 009301bf30a4$4dbc2950$57b6f6ca@axio.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 00e701bf2f3a$6a156960$57b6f6ca@axio.co.jp -->
+<!--X-Reference-Id: 008401bf2f5e$07b384e0$0200a8c0@bluewrs -->
+<!--X-Reference-Id: 199911151147.UAA27806@ns.iij.ad.jp -->
+<!--X-Reference-Id: 199911151218.VAA14115@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 004301bf2fd6$fc7de880$57b6f6ca@axio.co.jp -->
+<!--X-Reference-Id: 199911160336.MAA24659@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 199911160725.QAA10208@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11813] Re: ibpqを用いたプログラミング </TITLE>
+<LINK REV="made" HREF="mailto:kimura@axio.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00380.html">Date Prev</A>][<A HREF="msg00382.html">Date Next</A>][<A HREF="msg00366.html">Thread Prev</A>][<A HREF="msg00369.html">Thread Next</A>][<A HREF="index.html#00383">Date Index</A>][<A HREF="threads.html#00383">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11813] Re: ibpqを用いたプログラミング</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 木村 勝人&lt;<A HREF="mailto:kimura@axio.co.jp">kimura@axio.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 17 Nov 1999 11:34:42 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00350.html">00e701bf2f3a$6a156960$57b6f6ca@axio.co.jp</A>&gt;&lt;<A HREF="msg00353.html">008401bf2f5e$07b384e0$0200a8c0@bluewrs</A>&gt;&lt;<A HREF="msg00354.html">199911151147.UAA27806@ns.iij.ad.jp</A>&gt;&lt;<A HREF="msg00356.html">199911151218.VAA14115@sraigw.sra.co.jp</A>&gt;&lt;<A HREF="msg00357.html">004301bf2fd6$fc7de880$57b6f6ca@axio.co.jp</A>&gt;&lt;<A HREF="msg00360.html">199911160336.MAA24659@sraigw.sra.co.jp</A>&gt; &lt;<A HREF="msg00366.html">199911160725.QAA10208@sraigw.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+本当にいつもお世話になっております。
+木村＠アクシオです。
+パッチの方、おかげさまで当てられました。
+しかし、PostgreSQLのバージョンをあげようとしたところ、
+動作が不安定になり、大変なことに、、（笑）
+pg_dumpもできないありさまです、、、。
+
+
+
+以下は以前のループでプラグラムが止まってしまう補足です。
+
+/* 存在したファイル数だけデータベースに様々な処理を施す */
+for( i = 0; i &lt; j; i++ ) {
+    /* トランザクションの開始 */
+    res = PQexec( conn, "BEGIN" );
+    if( PQresultStatus( res ) != PGRES_COMMAND_OK ) {
+         printf( "BEGIN command failed\n" );
+         FiniDataBase( conn, res );
+         exit( 4 );
+    }
+    /* 実行結果が不要になったので、メモリの開放 */
+    PQclear( res );
+
+    /* ＳＱＬ文を発行し、テキストデータをＤＢに格納するところ */
+    if( CreateDbData( conn, res, achFileName[i] ) == FALSE ) exit( 5 );
+
+    /* トランザクションの終了 */
+    PQclear( res = PQexec( conn, "END" ) );
+}
+
+/* データベースとの接続を切断する */
+FiniDataBase( conn, res );
+
+
+
+CreateDbDataの中、一部抜粋下記参照
+/* SQL命令(データの存在チェックのためSelect文)の生成 */
+if( InitSqlOrder( 0, lpInfo ) != TRUE ) {
+　　FiniDataBase( conn, res );
+　　return FALSE;
+}
+
+/* PostgreSQL命令の実行 */
+res = PQexec( conn, achSqlBuff );
+/* 既にデータが存在した場合 */
+if( PQresultStatus( res ) == PGRES_TUPLES_OK ) {
+     /* 該当したデータ件数をチェック */
+     if( PQntuples( res ) &gt; 0 ) {
+　      printf( "Data:%s have already existed.\n", achWrkBuff[0] );
+　      printf( "The above data are replaced.\n");
+　      /* データがあるためSQL命令(Update)の生成 */
+　      if( InitSqlOrder( 2, lpInfo ) != TRUE ) {
+　　　　   FiniDataBase( conn, res );
+   　　　　return FALSE;
+        }
+     }
+  　else {
+　      /* データがないためSQL命令(Insart)の生成 */
+          if( InitSqlOrder( 1, lpInfo ) != TRUE ) {
+          　　FiniDataBase( conn, res );
+  　　        return FALSE;
+　　      }
+    }
+}
+/* タプルがない場合 */
+else {
+     /* データがないためSQL命令(Insart)の生成 */
+     if( InitSqlOrder( 1, lpInfo ) != TRUE ) {
+         FiniDataBase( conn, res );
+    　　return FALSE;
+　  }
+}
+/* 実行結果が不要になったので、メモリの開放 */
+PQclear( res );
+
+/* 定義部分の吐き出し */
+FindDebugInfo( lpInfo, 0 );
+FindDebugInfo( lpInfo, 1 );
+getchar( );
+
+/* PostgreSQL命令の実行 */
+res = PQexec( conn, achSqlBuff );
+/* エラーチェック */
+if( res == NULL || PQresultStatus( res ) != PGRES_COMMAND_OK ) {
+     printf( "PostgreSQL Command failed\n");
+     FiniDataBase( conn, res );
+　  return FALSE;
+}
+/* 実行結果が不要になったので、メモリの開放 */
+PQclear( res );
+
+
+
+
+実行結果Ａ
+１０件以上過ぎると、、
+PQresultStatus() -- pointer to PQresult is null
+PostgreSQL Command failed
+
+
+実行結果Ｂ
+途中で急に、、、。
+Broken pipe
+
+
+やはりSelect文を毎回実行しているからなのでしょうか？
+だれか、いい方法わかりませんか？
+今、ps -axでチェックしたところ、途中で止まってしまう処理は
+Ctrl + Cで抜けているのですが、
+
+1833  ?? R  3:18.75 /usr/local/pgsql/:bin/postgres -p -Q -P5 -v 65536 実行
+ファイル名
+1857  ?? S  3:18.75 /usr/local/pgsql/:bin/postgres -p -Q -P5 -v 65536 実行
+ファイル名
+1886  ?? S  3:18.75 /usr/local/pgsql/:bin/postgres -p -Q -P5 -v 65536 実行
+ファイル名
+
+などという怪しいものを見つけました。
+これが何か関係しているのでしょうか？
+
+分かる方、アドバイスの方お願いします。
+（長いメールでご迷惑をおかけします、、、、）
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00350" HREF="msg00350.html">[pgsql-jp 11778] libpqを用いたプログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> 木村 勝人&lt;kimura@axio.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00353" HREF="msg00353.html">[pgsql-jp 11781] Re: ibpqを用いたプログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Iwamura" &lt;iwamura@bluesystems.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00354" HREF="msg00354.html">[pgsql-jp 11782] Re: ibpqを用いたプログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> Yu Ooasa &lt;you@iij.ad.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00356" HREF="msg00356.html">[pgsql-jp 11784] Re: ibpqを用いた プログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00357" HREF="msg00357.html">[pgsql-jp 11785] Re: ibpqを用いたプログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> 木村 勝人&lt;kimura@axio.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00360" HREF="msg00360.html">[pgsql-jp 11788] Re: ibpqを用いた プログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00366" HREF="msg00366.html">[pgsql-jp 11794] Re: ibpqを用いた プログラミング</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 11809] Re: レコードロックの方法について２</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00382.html">[pgsql-jp 11812] シーラカンス本ｐ１９６デモ実行できず</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00366.html">[pgsql-jp 11794] Re: ibpqを用いた プログラミング</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00369.html">[pgsql-jp 11797] Re: ibpqを用いたプログラミング</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00383"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00383"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

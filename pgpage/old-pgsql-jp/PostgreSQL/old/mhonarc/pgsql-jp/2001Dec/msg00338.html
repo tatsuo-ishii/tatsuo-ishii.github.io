@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24230] Re: Like に関して -->
+<!--X-From: "ALIHALA Hiroshi" <arihara@tokyo.se.fujitsu.co.jp> -->
+<!--X-Date: Fri, 21 Dec 2001 18:16:30 +0900 -->
+<!--X-Message-Id: 00d301c18a00$2d7240a0$6921490a@tsc.tokyo.se.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011221102443.A0C6.ISHIKAWA&#45;T@comtecc.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24230] Re: Like に関して </TITLE>
+<LINK REV="made" HREF="mailto:arihara@tokyo.se.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00337.html">Date Prev</A>][<A HREF="msg00339.html">Date Next</A>][<A HREF="msg00323.html">Thread Prev</A>][<A HREF="msg00405.html">Thread Next</A>][<A HREF="index.html#00338">Date Index</A>][<A HREF="threads.html#00338">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24230] Re: Like に関して</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "ALIHALA Hiroshi" &lt;<A HREF="mailto:arihara@tokyo.se.fujitsu.co.jp">arihara@tokyo.se.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 Dec 2001 18:16:30 +0900</LI>
+<LI><em>Organization</em>: FUJITSU LIMITED</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00319.html">20011221102443.A0C6.ISHIKAWA-T@comtecc.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは
+
+----- Original Message -----
+From: "Tatsuro Ishikawa" &lt;ishikawa-t@comtecc.net&gt;
+Sent: Friday, December 21, 2001 10:32 AM
+Subject: [pgsql-jp 24211] Like に関して
+
+| 現在 7.1.3を使用してDB上の項目をLikeで検索（部分一致検索）するシステムを
+| 検討しています。
+| ユーザの使い勝手を考えると　どうしても部分一致検索を使用しなければならな
+| いのですが　一般的にLikeを使うと遅いと認識しています。しかし　Oracleでは
+| インデックスを作成するとLike検索でも高速になると言う話を聞きました。
+|
+| そこで　質問ですが、PostgreSQLでLike検索をする場合　インデックスは有効な
+| のでしょうか？　実際の数値が有れば　助かります。
+
+　Oracle での事は、専門家が近くにいないので判りませんでしたが、PostgreSQL で
+テストしてみました。
+
+0. 七つの varchar 項目を持つ t1(仮名) というテーブルで試してみました：
+# SELECT COUNT(*) FROM t1;
+ count
+--------
+ 101033
+(1 row)
+
+1. 項目 f1 に like で部分一致検索したときの explain です。この項目にインデッ
+クスはありません：
+# explain
+# SELECT * FROM t1 WHERE f1 like '%(検索内容)%';
+NOTICE:  QUERY PLAN:
+Seq Scan on t1  (cost=0.00..2441.91 rows=1 width=84)
+
+2. 項目 f1 にインデックスを作成：
+# CREATE INDEX i_t1_f1 on t1 (f1);
+
+2.1 1.と同様に部分一致で explain にかけると、全く同じ結果(インデックスは使わ
+れない)
+※結果は略
+
+3. 前方一致検索したときの explainです。今度はインデックスが使われています：
+# explain
+# SELECT * FROM t1 WHERE f1 like '(検索内容)%';
+NOTICE:  QUERY PLAN:
+Index Scan using i_t1_f1 on t1  (cost=0.00..3.32 rows=1 width=84)
+
+4. ついでに後方一致も試しましたが、1.と結果が同じ
+※結果は略
+
+　ということで、他の方の書かれたとおり、前方一致のみインデックスが有効という
+実証結果です。
+
+
+| 又、Like以外に部分一致検索を高速でする方法が有れば　ご教授ください。
+
+　POSIX 正規表現(演算子 ~ ~* !~ !~*)も部分一致に使えますが、同じようにテスト
+した結果、全てのパターンでインデックスは使われませんでした。
+
+
+　残念ながら、わたしには否定的な結果しか示せませんでしたが、他に手があるかど
+うかは…。
+--
+__________________________________________________________________________
+ ALIHALA Hiroshi [ arihara@tokyo.se.fujitsu.co.jp ]
+ 富士通(株) システムサポート本部 カスタマリレーション統括部 サービス品質部
+_ Don't quote a signature, when you reply a message. __________________..|
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00319" HREF="msg00319.html">[pgsql-jp 24211] Like に関して</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuro Ishikawa  &lt;ishikawa-t@comtecc.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00337.html">[pgsql-jp 24229] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00339.html">[pgsql-jp 24231] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00323.html">[pgsql-jp 24215] Re: Like に関して</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00405.html">[pgsql-jp 24298] Re: Like に関して</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00338"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00338"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

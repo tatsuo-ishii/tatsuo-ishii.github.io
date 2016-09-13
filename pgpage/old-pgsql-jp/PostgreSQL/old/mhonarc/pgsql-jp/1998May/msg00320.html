@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4258] Re: postmaster is dead -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Fri, 29 May 1998 02:48:17 +0900 -->
+<!--X-Message-Id: 199805281748.CAA13523@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805270416.NAA22894@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4258] Re: postmaster is dead </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00318.html">Date Prev</A>][<A HREF="msg00321.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00279.html">Thread Next</A>][<A HREF="index.html#00320">Date Index</A>][<A HREF="threads.html#00320">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4258] Re: postmaster is dead</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 29 May 1998 02:48:17 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00298.html">199805270416.NAA22894@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+# ようやく出張から帰ってきたら結構投稿があって...
+# 活発なのはよいことです :-)
+
+さておき、興味のある話題が目を引きまして、
+
+&gt; &gt;&gt; ちなみに、SQL92 ではカーソルを伴わない select は結果を高々1件しか返せ
+&gt; &gt;&gt; ないことになっているので、その意味では PostgreSQL の select は「オーバー
+&gt; &gt;&gt; スペック」かもしれないですね。
+&gt; &gt;
+&gt; &gt;1件しか返せない仕様の方が、使いにくくパフォーマンスもあがらない
+&gt; &gt;と思いますが、今回のようなライブラリにとって好ましくない使われ方
+&gt; &gt;では、堅実だと思います。
+&gt; 
+&gt; まあ、1件というのはあんまりですが、かといって PostgreSQL の様に無条件
+&gt; に全部返して来るのも困る場合があるのは事実です。「高々 n 件まで結果を
+&gt; 返してね」というようなオプションがあると良かったかも知れません。SQL92 
+&gt; のスタンダードからは外れますが。
+
+実は PostgreSQL ではこの「高々 N 件の結果を返す」指定ができます :-)
+昔 Postgres95 の ML で流れていたパッチが取り込まれているようです。
+
+やり方としては C の関数をモジュールとして準備してそれを実行するという
+あまりカッコいい方法ではありません ;-)
+# 「SET QUERYLIMIT TO 100」などという変数にしてくれればよいものを... ;p
+
+1. 一応 .../src/include/config.h で
+	line: 322
+		#define QUERY_LIMIT
+   となっているところを確認しておきます。
+   # configure などでもいじっていないようなので、関係ないかな ;P
+
+2. 内部関数の ExecutorLimit(int limit) を呼び出すだけなのですが、
+   PostgreSQL での SQL 文では大小文字を区別しないので、
+   うまく呼び出せませんから、ユーザモジュールとして準備します。
+   # たった 6行のファイル ;-)
+
+	extern int ExecutorLimit(int);
+	int
+	querylimit(int limit)
+	{
+		return ExecutorLimit(limit);
+	}
+
+
+3. マニュアルやドキュメントを読んで、使っている OS で使える
+   オブジェクトファイル形式にコンパイルします。
+   # ここでは、上のファイルを utils.c 、オブジェクトファイルを
+   # utils.so、プラットフォームは Linux の場合です。
+
+	% gcc -shared -fpic utils.c -o utils.so
+
+4. これを CREATE FUNCTION で登録します。
+
+	test=&gt; CREATE FUNCTION QueryLimit(int4)
+	test-&gt; RETURNS int4
+	test-&gt; AS '/home/mitsu/test/pgsql/utils.so'
+	test-&gt; LANGUAGE 'C';
+	CREATE
+
+5. 使い方は、
+
+	SELECT QueryLimit(制限したい数);
+
+   となります。
+
+
+結果を試してみます。
+	test=&gt; SELECT * FROM a;
+	      日付
+	----------
+	01-01-1995
+	... snip... 
+	12-09-1997
+	(324 rows)
+
+	test=&gt; SELECT QueryLimit(10);
+	querylimit
+	----------
+	        10
+	(1 row)
+
+	test=&gt; SELECT * FROM a;
+	      日付
+	----------
+	01-01-1995
+	... snip...
+	02-01-1995
+	(10 rows)
+
+
+という感じになります :-)
+
+これを使うことがよいかどうかはわかりません。
+マニュアルにもドキュメントにもソースにも
+何も情報がありませんでした...
+
+とりあえず動いているみたいですので参考までに。
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00298" HREF="msg00298.html">[pgsql-jp 4236] Re: postmaster is dead</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00318.html">[pgsql-jp 4256] Benchmark registered (Re: RE: パフォーマンス)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00321.html">[pgsql-jp 4259] Benchmark result on E/4000 (Solaris2.6)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 4254] Re: postmaster is dead</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 4217] Re:postmaster is dead</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00320"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00320"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

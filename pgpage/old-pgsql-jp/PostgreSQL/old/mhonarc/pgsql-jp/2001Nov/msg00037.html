@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23620] Apache::DBI とApache::Session::postgres -->
+<!--X-From: "dodo" <dodo@o&#45;su.com.au> -->
+<!--X-Date: Wed, 7 Nov 2001 16:09:17 +1100 -->
+<!--X-Message-Id: 00df01c1674a$5adda300$7401a8c0@osu.com.au -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23620] Apache::DBI とApache::Session::postgres </TITLE>
+<LINK REV="made" HREF="mailto:dodo@o-su.com.au">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00040.html">Thread Prev</A>][<A HREF="msg00052.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23620] Apache::DBI とApache::Session::postgres</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "dodo" &lt;<A HREF="mailto:dodo@o-su.com.au">dodo@o-su.com.au</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 7 Nov 2001 16:09:17 +1100</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ＴＣＭＳ　百々です。
+
+Apache::Session::postgresを利用しておりますが、
+Apache::DBIを入れても接続が遅く、ベンチマーク（ApacheBench）の
+結果が変わりません。
+現在まで調べた部分を申し上げます。
+
+環境
+apache1.3.14 + mod_perl-1.24-01 + ApacheDBI-0.88 + postgres7.0.3
+
+ベンチマークは
+ab -c 10 -n 100 <A HREF="http://localhost/cg-bin/test.cgi">http://localhost/cg-bin/test.cgi</A>
+を１０回行った平均をとっています。
+
+$dbh = DBI-&gt;connect
+を使うデータベース接続はちゃんとレスポンスも速く
+なっているようです。ベンチマーク結果は平均８倍程度でした。
+
+しかし、Apache::Session::Postgresを使用していると速くなっていない
+ことが分かりました。
+--------------------------------------
+(test.cgi)
+#!/usr/bin/perl -w
+use test_sesson.pm;
+use strict;
+
+my $session_obj = test_session-&gt;new( undef );
+$session_obj-&gt;die;
+--------------------------------------
+( test_session.pm )
+sub new {
+ my $class = shift;
+ my $session_id = shift;
+
+ my $self = bless {
+      session=&gt; {}
+     },$class;
+
+eval{
+   tie %{$self-&gt;{session}}, 'Apache::Session::Postgres', $session_id,
+    {
+       DataSource =&gt; 'dbi:Pg:dbname=AUS',
+       UserName   =&gt; 'postgres',
+       Password   =&gt; '',
+       Commit     =&gt; 1
+    };
+ }
+
+ if($@) {
+  die "create db22 session: $@"
+ }
+
+ $self;
+}
+------------------------------------------
+ApacheBenchの結果
+■Apache::DBI導入前
+Requests per second: 1.32
+Transfer rate: 6.98kb/s
+
+■Apache::DBI導入後
+Requests per second: 1.40
+Transfer rate: 6.53kb/s
+
+
+そこで、
+tie %{$self-&gt;{session}}, 'Apache::Session::Postgres', $session_id,
+    {
+       DataSource =&gt; 'dbi:Pg:dbname=AUS',
+       UserName   =&gt; 'postgres',
+       Password   =&gt; '',
+       Commit     =&gt; 1
+    };
+の部分だけを抜き出し、すぐにuntieするだけのテストスクリプトを
+用意して、それをベンチマークしてみますと、見事に速くなっている
+ではないですか。
+
+つまり、
+「インスタンスデータにtieするとApache::DBIを使っていてもセッションへの接続が遅くなる」
+と言えそうですが、ただ、まだ証拠が不充分なため、現在調査中です。
+
+ちなみにmod_perl + Apache::DBIの設定は以下の通りです。
+ーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+mod_perl + Apache::DBIの設定は、httpd.confの中で
+以下のように設定しております。
+    &lt;Directory "/usr/local/httpd/cgi-bin/"&gt;
+        SetHandler perl-script
+        PerlHandler Apache::Registry
+        PerlModule Apache::DBI
+        AllowOverride None
+        Options +ExecCGI
+        Order allow,deny
+        Allow from all
+       PerlSendHeader On
+    &lt;/Directory&gt;
+
+ps | aux で見たことろ、postgresが複数常駐しておりますので
+Apache::DBIは有効になっていると判断しました。
+
+
+もし原因に心当たりのおありの方がいらっしゃいましたら、
+解決方法をご教授ください。よろしくお願いいたします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00052" HREF="msg00052.html">[pgsql-jp 23635] Re: Apache::DBI とApache::Session::postgres</A></STRONG>
+<UL><LI><EM>From:</EM> "dodo" &lt;dodo@o-su.com.au&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 23619] Re: 検索順変更可能なDBの構築方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp 23621] Re: 検索順変更可能なDBの構築方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 23623] phpPgAdmin でUPDATEとDELETEができません。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00052.html">[pgsql-jp 23635] Re: Apache::DBI とApache::Session::postgres</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,269 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10527] Re: geometric のgeometric_size について -->
+<!--X-From: Kenji Sugita <sugita@sra.co.jp> -->
+<!--X-Date: Thu, 02 Sep 1999 01:08:42 +0900 -->
+<!--X-Message-Id: 199909011608.QAA14623@sran362.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NDBBKLBKJJMLDCBMIODFKEAMCBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10527] Re: geometric のgeometric_size について </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00023.html">Date Prev</A>][<A HREF="msg00026.html">Date Next</A>][<A HREF="msg00022.html">Thread Prev</A>][<A HREF="msg00026.html">Thread Next</A>][<A HREF="index.html#00025">Date Index</A>][<A HREF="threads.html#00025">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10527] Re: geometric のgeometric_size について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kenji Sugita &lt;<A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 02 Sep 1999 01:08:42 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00022.html">NDBBKLBKJJMLDCBMIODFKEAMCBAA.kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+;;; From: "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;
+;;; 
+;;; 片岡＠インターウィズです。
+
+  Web page の「星系」見ました。うちには逃げて来たボタンインコがいます。張り紙
+したけれど飼い主現れず。
+
+;;;   覚悟してお待ちしております。
+
+  こうなるともう追いかける力がありません。よろしくお願いします。    
+
+;;;   すいません、バグです。geometric 0.1の公開直前に、geometric_size関数を内部
+;;; 関数から公開関数に慌てて昇格させたのですが、急いでやったので間違えておりまし
+;;; た。すいません。
+;;; 
+;;;   次のパッチを当ててください。
+
+  うまく行きました。ありがとうございます。
+
+    sugita=&gt; select * from geotbl2 where geometric_size(geotbl2.p) &gt; 500000000;
+    p                         
+    --------------------------
+    (959,864,849)[](26,162,43)
+    (942,316,999)[](12,967,90)
+    (2 rows)
+
+    sugita=&gt; select * from geotbl2 where geometric_size(geotbl2.p) = 0;
+    p                           
+    ----------------------------
+    (490,525,839)[](528,525,892)
+    (628,760,78)[](126,137,78)  
+    (311,838,174)[](311,625,911)
+    (532,923,412)[](570,923,856)
+    (59,348,129)[](821,348,164) 
+    (442,614,118)[](237,614,142)
+    (762,943,483)[](249,192,483)
+    (17,271,327)[](17,263,573)  
+    (969,90,373)[](969,818,73)  
+    (141,499,88)[](109,173,88)  
+    (449,693,700)[](349,15,700) 
+    (775,257,996)[](980,457,996)
+    (59,82,688)[](750,651,688)  
+    (730,882,124)[](919,12,124) 
+    (902,322,126)[](902,729,150)
+    (91,104,895)[](516,104,233) 
+    (964,119,109)[](964,192,183)
+    (310,782,447)[](310,266,875)
+    (980,811,456)[](980,178,578)
+    (19 rows)
+
+    sugita=&gt; 
+
+  いいですね、こういう風にできるのって。
+
+  2 個所 fold されていたのを戻して patch をしました。以下の ^^^^^ です。
+
+;;; −−−−ここから−−−−
+;;; *** geometric-0.1/geometric/geo_ifs.h	Sun Jun 27 22:49:25 1999
+;;; --- geometric-0.1.1/geometric/geo_ifs.h	Wed Sep  1 22:24:19 1999
+;;; ***************
+;;; *** 42,48 ****
+;;; 
+;;;   geometric *geometric_union(geometric *var1, geometric *var2);
+;;;   geometric *geometric_intersect(geometric *var1, geometric *var2);
+;;; ! double geometric_size(geometric *var);
+;;; 
+;;;   geometric *rt_geometric_union(geometric *var1, geometric *var2);
+;;;   geometric *rt_geometric_intersect(geometric *var1, geometric *var2);
+;;; --- 42,48 ----
+;;; 
+;;;   geometric *geometric_union(geometric *var1, geometric *var2);
+;;;   geometric *geometric_intersect(geometric *var1, geometric *var2);
+;;; ! double *geometric_size(geometric *var);
+;;; 
+;;;   geometric *rt_geometric_union(geometric *var1, geometric *var2);
+;;;   geometric *rt_geometric_intersect(geometric *var1, geometric *var2);
+;;; *** geometric-0.1/geometric/geo_ifs.c	Sun Jun 27 22:44:24 1999
+;;; --- geometric-0.1.1/geometric/geo_ifs.c	Wed Sep  1 22:44:59 1999
+;;; ***************
+;;; *** 813,848 ****
+;;;   /*
+;;;    *  geometric_size - calculate area size of geometric object.
+;;;    */
+;;; ! double geometric_size(geometric *var)
+;;;   {
+;;;       if (!var)
+;;; ! 	return 0.0;
+;;; 
+;;;       switch (geo_type(var))
+;;;       {
+;;;       case GEO_POINT:
+;;;       {
+;;; ! 	return 0.0;
+;;;       }
+;;;       case GEO_BOX:
+;;;       {
+;;;   	geo_box *tvar = (geo_box *)var;
+;;;   	int ndim;
+;;; - 	double r;
+;;;   	int i;
+;;; 
+;;;   	ndim = geo_ndim(tvar);
+;;; 
+;;; ! 	r = 1.0;
+;;; 
+;;;   	for (i = 0; i &lt; ndim; i++)
+;;; ! 	    r *= fabs(geo_box_start_implicit_value(tvar, i) -
+;;; geo_box_end_implicit_value(tvar, i));
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+;;; 
+;;;   	return r;
+;;;       }
+;;;       default:
+;;;   	elog(ERROR, "geometric_size: Bad object type '%d'", geo_type(var));
+;;; ! 	return 0.0; /* don't reached */
+;;;       }
+;;;   }
+;;; 
+;;; --- 813,856 ----
+;;;   /*
+;;;    *  geometric_size - calculate area size of geometric object.
+;;;    */
+;;; ! double *geometric_size(geometric *var)
+;;;   {
+;;; +     double *r;
+;;; +
+;;; +     r = (double *)palloc(sizeof(double));
+;;; +
+;;;       if (!var)
+;;; !     {
+;;; ! 	*r = 0.0;
+;;; ! 	return r;
+;;; !     }
+;;; 
+;;;       switch (geo_type(var))
+;;;       {
+;;;       case GEO_POINT:
+;;;       {
+;;; ! 	*r = 0.0;
+;;; ! 	return r;
+;;;       }
+;;;       case GEO_BOX:
+;;;       {
+;;;   	geo_box *tvar = (geo_box *)var;
+;;;   	int ndim;
+;;;   	int i;
+;;; 
+;;;   	ndim = geo_ndim(tvar);
+;;; 
+;;; ! 	*r = 1.0;
+;;; 
+;;;   	for (i = 0; i &lt; ndim; i++)
+;;; ! 	    *r *= fabs(geo_box_start_implicit_value(tvar, i) -
+;;; geo_box_end_implicit_value(tvar, i));
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+;;; 
+;;;   	return r;
+;;;       }
+;;;       default:
+;;;   	elog(ERROR, "geometric_size: Bad object type '%d'", geo_type(var));
+;;; ! 	*r = 0.0;
+;;; ! 	return r; /* don't reached */
+;;;       }
+;;;   }
+;;; 
+;;; ***************
+;;; *** 876,880 ****
+;;;    */
+;;;   void rt_geometric_size(geometric *var, float *r)
+;;;   {
+;;; !     *r = (float)geometric_size(var);
+;;;   }
+;;; --- 884,892 ----
+;;;    */
+;;;   void rt_geometric_size(geometric *var, float *r)
+;;;   {
+;;; !     double *size;
+;;; !
+;;; !     size = geometric_size(var);
+;;; !     *r = (float)*size;
+;;; !     pfree(size);
+;;;   }
+;;; −−−−ここまで−−−−
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00026" HREF="msg00026.html">[pgsql-jp 10528] Re: geometric の  geometric_size について</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00022" HREF="msg00022.html">[pgsql-jp 10524] RE: geometric の  geometric_size について</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 10525] Re: geometric でのnrtree の使用</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 10528] Re: geometric の  geometric_size について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 10524] RE: geometric の  geometric_size について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 10528] Re: geometric の  geometric_size について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00025"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00025"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

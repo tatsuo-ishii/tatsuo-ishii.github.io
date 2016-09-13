@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16017] grantを2回やると、重複テーブルに見える？//drop table ERROR -->
+<!--X-From: Tetsuya Kitahata <tetsuya.kitahata@nifty.ne.jp> -->
+<!--X-Date: Tue, 11 Jul 2000 12:10:35 +0900 -->
+<!--X-Message-Id: 396A902B21C.5116TETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-Reference-Id: 3968B54424E.F7DCJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16017] grantを2回やると、重複テーブルに見える？//drop table ER </TITLE>
+<LINK REV="made" HREF="mailto:tetsuya.kitahata@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00249.html">Date Prev</A>][<A HREF="msg00251.html">Date Next</A>][<A HREF="msg00205.html">Thread Prev</A>][<A HREF="msg00255.html">Thread Next</A>][<A HREF="index.html#00250">Date Index</A>][<A HREF="threads.html#00250">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16017] grantを2回やると、重複テーブルに見える？//drop table ERROR</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tetsuya Kitahata &lt;<A HREF="mailto:tetsuya.kitahata@nifty.ne.jp">tetsuya.kitahata@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 11 Jul 2000 12:10:35 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00203.html">3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp</A>&gt; &lt;<A HREF="msg00204.html">3968B54424E.F7DCJUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+こんにちは。北畠です。
+
+On Mon, 10 Jul 2000 02:24:20 +0900
+Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt; wrote:
+
+&gt; こんばんは。北村です。
+＜略＞
+&gt; &gt; また、これ以外にも、同じRelation(Typeも同じ)のものが
+&gt; &gt; 存在してしまうことがあります。
+&gt; &gt; 例：
+&gt; &gt; Database    = hogehoge
+&gt; &gt;  +------------------+----------------------------------+----------+
+&gt; &gt;  |  Owner           |             Relation             |   Type   |
+&gt; &gt;  +------------------+----------------------------------+----------+
+&gt; &gt;  | admin            | テーブル１                       | table    |
+&gt; &gt;  | admin            | テーブル１                       | table    |
+&gt; &gt;  | admin            | テーブル１                       | table    |
+&gt; &gt;  +------------------+----------------------------------+----------+
+
+これなのですが、ちょっと、pg_classを見た際、次のようなことに
+気づきました。
+
+&gt;select * from pg_class where relname='gakubu';
+&gt;&lt;&lt;result&gt;&gt;
+&gt;relname                        |reltype|relowner|relam|relpages|reltuples|relhasindex|relisshared|relkind|relnatts|relchecks|reltriggers|relukeys|relfkeys|relrefs|relhaspkey|relhasrules|relacl   
+&gt;-------------------------------+-------+--------+-----+--------+---------+-----------+-----------+-------+--------+---------+-----------+--------+--------+-------+----------+-----------+---------------------------------------------
+&gt;gakubu                         |      0|     110|    0|      10|     1000|f          |f          |r      |       2|        0|          0|       0|       0|      0|f         |f          |{"=","nobody=arwR","admin=arwR"}             
+&gt;gakubu                         |      0|     110|    0|      10|     1000|f          |f          |r      |       2|        0|          0|       0|       0|      0|f         |f          |{"=","nobody=arwR"}                          
+
+つまり、relac(権限？)の個所のみが違う、同じrelnameのデータが入っていた、
+というわけです。
+確かに、
+grant all on gakubu to nobody;
+grant all on gakubu to admin;
+grant all on gakubu to nobody;
+などのように、nobodyに二回権限を与える作業をしたりしてましたから（これは、
+単に、以前、grantを実行してもnobodyに権限が与えられないケースがあった
+ため、念のため２回やるようにしていた、ということです。深い意味があるわけ
+ではないです）、このようになるのは、ある程度納得できます。
+
+これであれば、pg_classの中で、relnameが同じもののうち片方を削除
+する（そのあと、vacuum pg_class...）作業をすれば、少なくとも、
+\d
+ででてくるtable, view?の重複は、免れるのかな、という気がしました。
+（システム上、問題がありそうであれば、ご指摘いただければ幸いです＞識者の方）
+
+--------------------------------------------------------
+
+さて。テーブルの重複も確かに問題なのですが、もっと今深刻なのは、
+テーブルをDROPできないものが(多数)あることです。
+
+admin=&gt; drop table "hoge";
+ERROR:  DeleteTypeTuple: hoge type nonexistent
+admin=&gt; drop table "hoge2";
+ERROR:  mdopen: couldn't open hoge2: No such file or directory
+admin=&gt; drop table "hoge3";
+ERROR:  cannot find attribute 1 of relation hoge3
+
+このような、「３種類の」エラーが帰ってくることが
+わかりました。２番目については、$POSTGRESHOME/base/DBNAME/
+に、ファイルが無い、ということを指していると思いますが、
+これって、ファイルをダイレクトに消去してしまって構わないので
+しょうか？
+１番目については・・・「typeがない」ということを言っている
+ようですが、この、「typeがない」に対して、どう処理をすれば
+よいものなのでしょう？また、create tableしたときには、必ず
+新しい「type」が設定されるものなのでしょうか？
+３番は、多分、pg_attributeテーブルに、該当するtupleがない、
+ということを指しているのだろうと思いますが、どう対処すれ
+ばよいのでしょうか？
+
+以上、ご存知の方、宜しくお願いいたします。
+
+
+--以上--
+
+━━……‥・・・ ・ ・ ・ ・・‥……‥・・・ ・ ・ ・ ・・‥…━━━
+Name: 北畠徹也 (Tetsuya Kitahata)  -- Terra-International 代表 --
+E-mail: kitahata@bb.mbn.or.jp  terra-international@jp-t.ne.jp(緊急時)
+HomePage: <A HREF="http://plaza11.mbn.or.jp/~kitahata/">http://plaza11.mbn.or.jp/~kitahata/</A>
+          <A HREF="http://www.terra-intl.com/">http://www.terra-intl.com/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00273" HREF="msg00273.html">[pgsql-jp 16040] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00255" HREF="msg00255.html">[pgsql-jp 16022] RE: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00203" HREF="msg00203.html">[pgsql-jp 15970] テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00204" HREF="msg00204.html">[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 16016] PostgreSQLのリレーションについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 16018] Re: limit で時間を短縮したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00255.html">[pgsql-jp 16022] RE: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00250"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00250"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

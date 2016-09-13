@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20166] Re:  perl とラージオブジェクト -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Fri, 2 Mar 2001 15:43:47 +0900 -->
+<!--X-Message-Id: 01f101c0a2e4$4a23fe90$0a00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 1161943670.983496209455.JavaMail.javamailuser@localhost -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20166] Re:  perl とラージオブジェクト </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00031.html">Date Prev</A>][<A HREF="msg00033.html">Date Next</A>][<A HREF="msg00027.html">Thread Prev</A>][<A HREF="msg00016.html">Thread Next</A>][<A HREF="index.html#00032">Date Index</A>][<A HREF="threads.html#00032">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20166] Re:  perl とラージオブジェクト</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 2 Mar 2001 15:43:47 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00021.html">1161943670.983496209455.JavaMail.javamailuser@localhost</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message ----- 
+From: "website004" &lt;website004@yo-mail.co.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Friday, March 02, 2001 10:23 AM
+Subject: [pgsql-jp 20155] perl とラージオブジェクト
+
+
+&gt; はじめまして、ビーンズネットワークの吉田孝雄です。
+（中略）
+&gt; ERROR:  lo_read: large obj descriptor (572131) out of range
+&gt; というエラーがかえってきました、
+（以下略）
+どれくらい詳しいかといえば、このメールを見てからまじめに
+とりくんだくらいにしか詳しくないですが...
+
+直接的な原因は岡崎＠シンノバシステムさんが書かれている通り
+lo_openの戻りであるディスクリプタを渡していないからでしょう。
+あと
+&gt; $conn-&gt;('end');
+これもエラーになるはず。
+ちゃんとしたエラー対応はしていませんが、こんな感じかなと
+上のブロックはPgによるもの、下がDBIを使ったものです。
+
+use strict;
+use DBI;
+use Pg;
+{
+    my $oConn = Pg::connectdb("dbname=gotdate user=postgres");
+    die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+    my $result = $oConn-&gt;exec("SELECT * FROM stimg");
+    my $oid = $result-&gt;getvalue(0, 0);
+    $oConn-&gt;exec('begin');
+    my $lFd = $oConn-&gt;lo_open($oid, PGRES_INV_READ);
+    open(OUT, "&gt;out/2");
+    binmode(OUT);
+    my $sBuff;
+    while($oConn-&gt;lo_read($lFd, $sBuff, 2048)) {
+        print OUT $sBuff;
+    }
+    close OUT;
+    die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+    $oConn-&gt;lo_close($lFd);
+    $oConn-&gt;exec('end');
+}
+{
+    my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;0, RaiseError=&gt;1});
+    $hDb-&gt;commit;
+    my $hSt = $hDb-&gt;prepare('SELECT * FROM STIMG');
+    $hSt-&gt;execute();
+    my $iRow = 0;
+    while(my $raRow = $hSt-&gt;fetchrow_arrayref()){
+        my $oFd = $hDb-&gt;func($raRow-&gt;[0],
+                            $hDb-&gt;{pg_INV_READ}, 'lo_open');
+        open OUT, "&gt;out/$iRow";
+        binmode OUT;
+        my $sBuff;
+        while($hDb-&gt;func($oFd, $sBuff, 4096, 'lo_read')) {
+            print OUT $sBuff;
+        }
+        close OUT;
+        $hDb-&gt;func($oFd, 'lo_close');
+    }
+    $hDb-&gt;commit;
+    $hSt-&gt;finish;
+    $hDb-&gt;disconnect;
+}
+
+==============================================
+川合 孝典(Hippo2000)
+  日本ラッド　オープンシステム事業部
+  GCD00051@nifty.ne.jp kwitknr@cpan.org
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 20155] perl とラージオブジェクト</A></STRONG>
+<UL><LI><EM>From:</EM> website004 &lt;website004@yo-mail.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 20165] Re: VIEW やPROCEDUREの作り直し</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00033.html">[pgsql-jp 20167] Re: VIEW やPROCEDUREの作り直し</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 20161] Re: perl とラージオブジェクト</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 20150] 効果的なINDEXの貼り方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00032"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00032"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

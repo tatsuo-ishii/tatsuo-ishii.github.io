@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18860] Re: date 型に１ヶ月プラスしたい -->
+<!--X-From: ISHIDA Akio <iakio@pjam.jpweb.net> -->
+<!--X-Date: Wed, 29 Nov 2000 02:44:58 +0900 -->
+<!--X-Message-Id: 200011281745.LAA29993@morpheus.host4u.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200011281438.XAA06044@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18860] Re: date 型に１ヶ月プラスしたい </TITLE>
+<LINK REV="made" HREF="mailto:iakio@pjam.jpweb.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00378.html">Date Prev</A>][<A HREF="msg00380.html">Date Next</A>][<A HREF="msg00378.html">Thread Prev</A>][<A HREF="msg00394.html">Thread Next</A>][<A HREF="index.html#00379">Date Index</A>][<A HREF="threads.html#00379">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18860] Re: date 型に１ヶ月プラスしたい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: ISHIDA Akio &lt;<A HREF="mailto:iakio@pjam.jpweb.net">iakio@pjam.jpweb.net</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 Nov 2000 02:44:58 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00376.html">200011281438.XAA06044@sraigw.sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mutt/1.3.10i-ja0</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。石田＠苫小牧市です。
+
+Tue, Nov 28, 2000 at 11:38:32PM +0900 において
+Go Tamura さん曰く:
+
+&gt; '$today'::timestamp + '1 month' - '1 day'
+&gt; 
+&gt; ではダメです。どうすればいいでしょうか？
+
+'1 day'::timespan としてやれば OK です。
+
+ishida=&gt; select '2000-11-1'::timestamp + '1 month' - '1 day';
+ERROR:  Bad timestamp external representation '1 day'
+ishida=&gt; select '2000-11-1'::timestamp + '1 month' - '1 day'::timespan;
+        ?column?        
+------------------------
+ 2000-11-30 00:00:00+09
+(1 row)
+
+ところで、
+ishida=&gt; select '2000-11-1'::timestamp + '1 month';
+        ?column?        
+------------------------
+ 2000-12-01 00:00:00+09
+(1 row)
+
+は、なぜキャストしなくても大丈夫なのか、というのが気になりません？
+私は気になりました (^^;;
+で、調べてみたら、 '+' なら大丈夫なんです。
+
+ishida=&gt; select '2000-11-1'::timestamp + '1 month' + '1 day'::timespan;
+        ?column?        
+------------------------
+ 2000-12-02 00:00:00+09
+(1 row)
+
+なぜかというと、
+
+ishida=&gt; select oprname, a.typname as left, b.typname as right, 
+c.typname as result , oprcode from pg_type a, pg_type b, pg_type c, 
+pg_operator where oprleft = a.oid and oprright = b.oid and
+oprresult = c.oid and a.typname = 'timestamp';
+ oprname |   left    |   right   |  result   |      oprcode      
+---------+-----------+-----------+-----------+-------------------
+ =       | timestamp | timestamp | bool      | timestamp_eq
+ &gt;=      | timestamp | timestamp | bool      | timestamp_ge
+ &gt;       | timestamp | timestamp | bool      | timestamp_gt
+ &lt;=      | timestamp | timestamp | bool      | timestamp_le
+ &lt;       | timestamp | timestamp | bool      | timestamp_lt
+ &lt;&gt;      | timestamp | timestamp | bool      | timestamp_ne
+ +       | timestamp | interval  | timestamp | timestamp_pl_span
+ -       | timestamp | interval  | timestamp | timestamp_mi_span
+ -       | timestamp | timestamp | interval  | timestamp_mi
+(9 rows)
+
+'+' という演算子は 1 つしか定義されていませんが,
+'-' という演算子は 2 つ定義されていますね.
+
+timestamp - timestamp = interval は定義されていますが、
+timestamp + timestamp = interval というのは定義されていません。
+そんな演算は普通しませんもんね。
+
+うーむ。ナットク。
+
+-- 
+---------+---------+---------+---------+---------+---------+---------+
+ISHIDA Akio
+<A HREF="http://www.pjam.jpweb.net/ishida/">http://www.pjam.jpweb.net/ishida/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00376" HREF="msg00376.html">[pgsql-jp 18857] date 型に１ヶ月プラスしたい</A></STRONG>
+<UL><LI><EM>From:</EM> Go Tamura &lt;t-go@geocities.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00378.html">[pgsql-jp 18859] Re: date 型に１ヶ月プラスしたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 18861] Re: the difference between equal and between</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00378.html">[pgsql-jp 18859] Re: date 型に１ヶ月プラスしたい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00394.html">[pgsql-jp 18875] Re: date 型に１ヶ月プラスしたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00379"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00379"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,267 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2131] Re: endian -->
+<!--X-From: kjm@rins.ryukoku.ac.jp (KOJIMA Hajime/小島肇) -->
+<!--X-Date: Tue, 08 Jul 1997 12:05:14 +0900 -->
+<!--X-Message-Id: 16424.868331114@hyperion.st.ryukoku.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199707080204.LAA15250@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2131] Re: endian </TITLE>
+<LINK REV="made" HREF="mailto:kjm@rins.ryukoku.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00053.html">Date Prev</A>][<A HREF="msg00055.html">Date Next</A>][<A HREF="msg00058.html">Thread Prev</A>][<A HREF="msg00063.html">Thread Next</A>][<A HREF="index.html#00054">Date Index</A>][<A HREF="threads.html#00054">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2131] Re: endian</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kjm@rins.ryukoku.ac.jp">kjm@rins.ryukoku.ac.jp</A> (KOJIMA Hajime/小島肇)</LI>
+<LI><em>Date</em>: Tue, 08 Jul 1997 12:05:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00050.html">199707080204.LAA15250@srashd.sra.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  小島です。
+
+&lt;<A HREF="msg00050.html">199707080204.LAA15250@srashd.sra.co.jp</A>&gt;において
+Tatsuo Ishii さんがおっしゃるには:
+| o Linux 系は endian.h を持っている
+| o Solaris2.5.x/gcc では、gnu/lib/gcc-lib/*/sys/byteorder.h に 
+| __BIG_ENDIAN__ などが値とともに定義されている
+| o Solaris2.5.x/cc には類似の定義はない
+| o SunOS 4.1.x では、cc/gcc ともに類似の定義はない
+| o HP UX 9.x では、/usr/include/aprpa/nameser.h に BIG/LITTLE_ENDIAN の
+| 定義がある
+| 
+| という結果でした。また、本家の ML によると、AIX はまた別な場所に定義し
+| ているようです。
+| 
+| そこで皆さんにお伺いしたいのですがexit、これ以外のプラットフォームで 
+| BIG/LITTLE_ENDIAN の定義がどうなっているか情報を頂けないでしょうか？特
+| に、FreeBSD に関して知りたいです。情報には、OS のバージョン、コンパイ
+| ラのバージョン、また BIG/LITTLE_ENDIAN をどう定義しているか(値をセット
+| しているか、単に @define だけなのか)を明記して下さると有難いです。
+
+  以下は全て OS 附属の cc, include file の話です。
+
+bind 4.9.6 (Internet nameserver)
+--------------------------------
+
+  少なくない数のサイトでは bind を入れ換えていると思います。
+
+* &lt;arpa/nameser.h&gt;
+
+  #ifndef BYTE_ORDER
+  #if (BSD &gt;= 199103)
+  # include &lt;machine/endian.h&gt;
+  #else
+  #ifdef linux
+  # include &lt;endian.h&gt;
+  #else
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax, pc) */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net) */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp)*/
+  
+  #if defined(vax) || defined(ns32000) || defined(sun386) || defined(i386) || \
+      defined(MIPSEL) || defined(_MIPSEL) || defined(BIT_ZERO_ON_RIGHT) || \
+      defined(__alpha__) || defined(__alpha)
+  #define BYTE_ORDER      LITTLE_ENDIAN
+  #endif
+  
+  #if defined(sel) || defined(pyr) || defined(mc68000) || defined(sparc) || \
+      defined(is68k) || defined(tahoe) || defined(ibm032) || defined(ibm370) || \
+      defined(MIPSEB) || defined(_MIPSEB) || defined(_IBMR2) || defined(DGUX) ||\
+      defined(apollo) || defined(__convex__) || defined(_CRAY) || \
+      defined(__hppa) || defined(__hp9000) || \
+      defined(__hp9000s300) || defined(__hp9000s700) || \
+      defined (BIT_ZERO_ON_LEFT) || defined(m68k)
+  #define BYTE_ORDER      BIG_ENDIAN
+  #endif
+  #endif /* linux */
+  #endif /* BSD */
+  #endif /* BYTE_ORDER */
+  
+  #if !defined(BYTE_ORDER) || \
+      (BYTE_ORDER != BIG_ENDIAN &amp;&amp; BYTE_ORDER != LITTLE_ENDIAN &amp;&amp; \
+      BYTE_ORDER != PDP_ENDIAN)
+          /* you must determine what the correct bit order is for
+           * your compiler - the next line is an intentional error
+           * which will force your compiles to bomb until you fix
+           * the above macros.
+           */
+    error "Undefined or invalid BYTE_ORDER";
+  #endif
+   
+FreeBSD(98) 2.1.0-RELASE
+------------------------
+
+* &lt;machine/endian.h&gt;
+
+  #define LITTLE_ENDIAN   1234    /* LSB first: i386, vax */
+  #define BIG_ENDIAN      4321    /* MSB first: 68000, ibm, net */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long */
+
+  #define BYTE_ORDER      LITTLE_ENDIAN
+
+NEWS-OS 6.1.2
+-------------
+
+* &lt;sys/byteorder.h&gt;
+
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax) */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net) */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp) */
+
+  #define BYTE_ORDER      BIG_ENDIAN      /* byte order on tahoe */
+
+NEWS-OS 4.2.1a+R
+----------------
+
+* &lt;machine/endian.h&gt;
+
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax) */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net) */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp) */
+
+  #define BYTE_ORDER      BIG_ENDIAN      /* byte order on tahoe */
+
+AIX 3.2.5
+---------
+
+* &lt;sys/machine.h&gt;
+
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax)         */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net)     */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp) */
+
+  #define BYTE_ORDER      BIG_ENDIAN
+
+NEC EWS-UX/V Release7.1 Rev.K
+-----------------------------
+
+* &lt;sys/byteorder.h&gt;
+
+  #ifndef BYTE_ORDER
+  /*
+   * Definitions for byte order,
+   * according to byte significance from low address to high.
+   */
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax) */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net) */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp) */
+  
+  #define BYTE_ORDER      BIG_ENDIAN
+  
+  /*
+   * If we were M68K, SPARC, etc., byteorder would be BIG_ENDIAN
+   * #define      BYTE_ORDER      BIG_ENDIAN
+   */
+  #endif /* !BYTE_ORDER */
+  
+  
+SunOS 4.1.3_U1 with JLE 1.1.3
+-----------------------------
+
+* &lt;arpa/nameser.h&gt;
+
+  #ifndef BYTE_ORDER
+  #define LITTLE_ENDIAN   1234    /* least-significant byte first (vax) */
+  #define BIG_ENDIAN      4321    /* most-significant byte first (IBM, net) */
+  #define PDP_ENDIAN      3412    /* LSB first in word, MSW first in long (pdp) */
+  
+  #if defined(vax) || defined(ns32000) || defined(sun386) || defined(MIPSEL) || \
+      defined(BIT_ZERO_ON_RIGHT)
+  #define BYTE_ORDER      LITTLE_ENDIAN
+  
+  #endif
+  #if defined(sel) || defined(pyr) || defined(mc68000) || defined(sparc) || \
+      defined(is68k) || defined(tahoe) || defined(ibm032) || defined(ibm370) || \
+      defined(MIPSEB) || defined (BIT_ZERO_ON_LEFT)
+  #define BYTE_ORDER      BIG_ENDIAN
+  #endif
+  #endif /* BYTE_ORDER */
+  #ifndef BYTE_ORDER
+          /* you must determine what the correct bit order is for your compiler */
+          UNDEFINED_BIT_ORDER;
+  #endif
+
+Solaris 2.5.1/sparc
+-------------------
+
+* &lt;sys/isa_defs.h&gt;
+
+  #if defined(__i386) || defined(i386)
+  #define _LITTLE_ENDIAN
+
+  #elif defined(__ppc)
+  #define _LITTLE_ENDIAN
+
+  #elif defined(__sparc) || defined(sparc)
+  #define _BIG_ENDIAN
+  
+  #else
+  #error ISA not supported
+  #endif
+  
+----
+// 木下是雄「理科系の作文技術」中公新書 624 を読もう!!
+
+小島 肇 - KOJIMA Hajime
+[Office] kjm@rins.ryukoku.ac.jp, <A HREF="http://tethys.st.ryukoku.ac.jp/~kjm/">http://tethys.st.ryukoku.ac.jp/~kjm/</A>
+         Phone: 0775-43-7414  Fax: 0775-43-0706
+[Home]   sgl02543@niftyserve.or.jp
+         wr9h-kjm@asahi-net.or.jp (home page 準備中、しかしメド立たず ^^;)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 2127] Re: endian</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 2130] Re: endian</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 2132] Re: endian</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 2135] Re: endian</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 2140] Re: endian</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00054"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00054"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

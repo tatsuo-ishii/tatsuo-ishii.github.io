@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24283] 大量データ取得時間の短縮について -->
+<!--X-From: tatsuya.kozono@glb.toshiba.co.jp -->
+<!--X-Date: Wed, 26 Dec 2001 11:50:25 +0900 -->
+<!--X-Message-Id: 200112260250.LAA00427@toshiba.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24283] 大量データ取得時間の短縮について </TITLE>
+<LINK REV="made" HREF="mailto:tatsuya.kozono@glb.toshiba.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00390.html">Date Prev</A>][<A HREF="msg00392.html">Date Next</A>][<A HREF="msg00400.html">Thread Prev</A>][<A HREF="msg00395.html">Thread Next</A>][<A HREF="index.html#00391">Date Index</A>][<A HREF="threads.html#00391">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24283] 大量データ取得時間の短縮について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:tatsuya.kozono@glb.toshiba.co.jp">tatsuya.kozono@glb.toshiba.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 26 Dec 2001 11:50:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+&gt; 	&gt; はじめまして小園と申します。
+		大量データの取得時間の短縮について悩んでいます。
+
+&gt; 	ecpgを使ってデータを取得するサンプルプログラムを作成してみたところ
+&gt; 	60件で0.06s、全件で3分近くかかってしまう結果となってしまいました。
+&gt; 	取得時間をもっと（画期的に）短くしたいと思って、過去ログも探して
+&gt; 	みたのですが、なかなか思う内容が見つかりませんでした。
+&gt; 	何かやり方がありましたら教えてください。
+&gt; 	よろしくお願いします。
+&gt; 
+		環境は
+		OS：Solaris8
+		postgres version: 7.1.2
+		です。
+
+		以下にpostmaster起動オプション、DBexplain結果、ecpgソース、
+		実行結果を添付します。 
+&gt; 	####################################################
+&gt; 	#postmaster起動オプション
+&gt; 	####################################################
+&gt; 	postmaster -D posgredb -B 256 -o "-S 10280" &amp;
+&gt; 
+&gt; 	####################################################
+&gt; 	#全（約30万件）検索時の解析結果
+&gt; 	####################################################
+&gt; 	explain select scd from pt_kotei;
+&gt; 	NOTICE:  QUERY PLAN:
+&gt; 	Seq Scan on pt_kotei  (cost=0.00..6759.13 rows=302413 width=12)
+&gt; 	EXPLAIN
+&gt; 	####################################################
+&gt; 	#62件検索時の解析結果
+&gt; 	####################################################
+&gt; 	explain select scd from pt_kotei where scd like '144461%';
+&gt; 	NOTICE:  QUERY PLAN:
+&gt; 	Index Scan using pt_kotei_idx1 on pt_kotei  (cost=0.00..4.48 rows=1 width=12)
+&gt; 	EXPLAIN
+&gt; 	####################################################
+&gt; 	#ecpgソース
+&gt; 	####################################################
+&gt; 	#include &lt;stdio.h&gt;
+&gt; 	exec sql include sqlca;
+&gt; 
+&gt; 	#define DPRINT printf("point(%d)Time1 = %d\n",__LINE__,times(&amp;dt));
+&gt; 	long dt;
+&gt; 
+&gt; 	main ()
+&gt; 	{
+&gt; 	        exec sql begin declare section;
+&gt; 	        char v1[256];
+&gt; 	        short h1;
+&gt; 	        char *sql_query = "select scd from pt_kotei";
+&gt; 	        char *sql_query2 = "select scd from pt_kotei where scd like '144461%'";
+&gt; 	        exec sql end declare section;
+&gt; 
+&gt; 	        exec sql connect to posgredb as main;
+&gt; 
+&gt; 	puts("62件取得");
+&gt; 	DPRINT;(18行目）
+&gt; 	        exec sql prepare S1 from :sql_query2;
+&gt; 	        exec sql declare P1 cursor for S1;
+&gt; 	        exec sql open P1;
+&gt; 	        exec sql whenever not found do break;
+&gt; 	DPRINT;(23行目）
+&gt; 	        while(1){
+&gt; 	          exec sql fetch in P1 into
+&gt; 	               :v1:h1;
+&gt; 	        }
+&gt; 	DPRINT;(29行目）
+&gt; 
+&gt; 	puts("全件取得");
+&gt; 	DPRINT;(32行目）
+&gt; 	        exec sql prepare S0 from :sql_query;
+&gt; 	        exec sql declare P0 cursor for S0;
+&gt; 	        exec sql open P0;
+&gt; 	        exec sql whenever not found do break;
+&gt; 	DPRINT;(37行目）
+&gt; 	        while(1){
+&gt; 	          exec sql fetch in P0 into
+&gt; 	               :v1:h1;
+&gt; 	        }
+&gt; 	DPRINT;(43行目）
+&gt; 	        exec sql disconnect main;
+&gt; 	        return (0);
+&gt; 	}
+&gt; 	####################################################
+&gt; 	#実行結果
+&gt; 	####################################################
+&gt; 	62件取得
+&gt; 	point(18)Time1 = 7854233
+&gt; 	point(23)Time1 = 7854236
+&gt; 	point(29)Time1 = 7854239  →0.06
+&gt; 	全件取得
+&gt; 	point(32)Time1 = 7854239
+&gt; 	point(37)Time1 = 7854239
+&gt; 	point(43)Time1 = 7868043  →138.1
+&gt; 
+&gt; 
+&gt; 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00397" HREF="msg00397.html">[pgsql-jp 24289] Re: 大量データ取得時間の短縮について</A></STRONG>
+<UL><LI><EM>From:</EM> "Nao J. Yasuda" &lt;nao@dit.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00396" HREF="msg00396.html">[pgsql-jp 24288] Re: 大量データ取得時間の短縮について</A></STRONG>
+<UL><LI><EM>From:</EM> minematu@aimcom.co.jp (Hiroki Minematu)</LI></UL></LI>
+<LI><STRONG><A NAME="00395" HREF="msg00395.html">[pgsql-jp 24287] Re: 大量データ取得時間の短縮について</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00390.html">[pgsql-jp 24282] Re: postmaster が起動しない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 24284] Re: postmaster が起動しない【解決】</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00400.html">[pgsql-jp 24292] Re: timestamp 関数</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00395.html">[pgsql-jp 24287] Re: 大量データ取得時間の短縮について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00391"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00391"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

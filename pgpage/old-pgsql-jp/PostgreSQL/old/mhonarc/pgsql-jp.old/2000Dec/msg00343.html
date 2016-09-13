@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19221] Re: Re: 7.0 で日本語ソートがうまくいかない -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 24 Dec 2000 18:45:55 +0900 -->
+<!--X-Message-Id: 20001224184555C.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3A42C058288.E24CWATANABE@ms.fortune.co.jp -->
+<!--X-Reference-Id: 10012220439.AA09515@okazaki.okazaki.fuji.co.jp -->
+<!--X-Reference-Id: 3A42E4922F2.E24EWATANABE@ms.fortune.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19221] Re: Re: 7.0 で日本語ソートがうまくいかない </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00342.html">Date Prev</A>][<A HREF="msg00344.html">Date Next</A>][<A HREF="msg00313.html">Thread Prev</A>][<A HREF="msg00360.html">Thread Next</A>][<A HREF="index.html#00343">Date Index</A>][<A HREF="threads.html#00343">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19221] Re: Re: 7.0 で日本語ソートがうまくいかない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 24 Dec 2000 18:45:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00302.html">3A42C058288.E24CWATANABE@ms.fortune.co.jp</A>&gt;&lt;<A HREF="msg00307.html">10012220439.AA09515@okazaki.okazaki.fuji.co.jp</A>&gt;&lt;<A HREF="msg00310.html">3A42E4922F2.E24EWATANABE@ms.fortune.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; &gt; PostgreSQLあるいはデータベースがマルチバイト対応で無い。
+
+無関係です．
+
+&gt; TESTDB3=# select * from test order by a;
+&gt;  a
+&gt; ----
+&gt;  え
+&gt;  い
+&gt;  あ
+&gt;  う
+&gt;  お
+&gt; (5 rows)
+&gt; 
+&gt; 何度やっても、こうなってしまう...
+&gt; 
+&gt; export LC_CTYPE=ja_JP.EUC
+&gt; export LC_COLLATE=ja_JP.EUC
+&gt; や
+&gt; export LC_COLLATE=C
+&gt; export LC_CTYPE=C
+&gt; などでpostmasterを再起動してみても変わりません。
+
+PostgreSQLが--enable-localeされている場合の固有の問題です．
+
+これは，RedHat系のLinux(ColbaltもVineもそう．たぶんTurboLinuxも...)で
+は，PostgreSQLのパッケージは--enable-localeで作成されています．
+
+ところが，RedHatでは，PostgreSQLがlocale文字比較を行うために呼び出して
+いるstrcollというUnix のライブラリ関数がまともに動かないバグがあるため，
+こういう結果になってしまうのです．
+
+以下のサンプルプロラムを見てください．
+
+--------------------------------------
+#include &lt;string.h&gt;
+#include &lt;locale.h&gt;
+main()
+{
+  static char *s1 = "あ";
+  static char *s2 = "お";
+
+  setlocale(LC_ALL,"");
+
+  printf("%d\n",strcoll(s1,s2));
+  printf("%d\n",strcoll(s2,s1));
+}
+--------------------------------------
+
+本来ならば，
+
+-8
+8
+
+と結果が表示されるはずですが，LC_ALL=ja_JP.eucJPのときには，
+
+0
+0
+
+と表示されてしまいます．つまり，"あ" も "お" も同じだとPostgreSQLは思っ
+ちゃうわけですね．
+
+回避策としては，--enable-localeを外してパッケージを作り直すか，
+postmasterを起動するときに，
+
+export LC_ALL=C
+
+のようにして環境変数LC_ALLをCに設定してください．
+
+なお，すでに LC_ALL=C 以外でpostmasterを起動していて，作成済のインデッ
+クスがある場合は，そのインデックスは使い物になりませんので，export
+LC_ALL=C でpostmasterを起動した後，インデックスの作り直しが必要になり
+ます．
+
+前から何度も言ってますが，日本語の場合，OS付属のlocaleはほとんど役に立
+たないので，PostgreSQLを --enable-locale 付で作るのは有害無益だと思い
+ます．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00360" HREF="msg00360.html">[pgsql-jp 19238] Re: 7.0  で日本語ソートがうまくいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Hidetaka Kamiya &lt;hkamiya@catvmics.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp 19180] 7.0 で日本語ソートがうまくいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Keiji Watanabe &lt;watanabe@fortune.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00307" HREF="msg00307.html">[pgsql-jp 19185] Re: 7.0  で日本語ソートがうまくいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Hidetaka Kamiya &lt;hi.kamiya@fuji.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp 19188] Re: Re: 7.0 で日本語ソートがうまくいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Keiji Watanabe &lt;watanabe@fortune.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 19220] Re: JDBC patch</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00344.html">[pgsql-jp 19222] アンケート集計について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00313.html">[pgsql-jp 19191] Re: Re: 7.0  で日本語ソートがうまくいかない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00360.html">[pgsql-jp 19238] Re: 7.0  で日本語ソートがうまくいかない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00343"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00343"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,129 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26122] Re: 7.2 の vacuum -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Fri, 24 May 2002 17:35:38 +0900 -->
+<!--X-Message-Id: 200205241704.00369@digitune.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205220752.17279@digitune.org -->
+<!--X-Reference-Id: 20020522.165023.78704092.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200205221738.4199@digitune.org -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26122] Re: 7.2 の vacuum </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00356.html">Date Prev</A>][<A HREF="msg00358.html">Date Next</A>][<A HREF="msg00315.html">Thread Prev</A>][<A HREF="msg00301.html">Thread Next</A>][<A HREF="index.html#00357">Date Index</A>][<A HREF="threads.html#00357">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26122] Re: 7.2 の vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 24 May 2002 17:35:38 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: SONS,. Ltd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00302.html">200205220752.17279@digitune.org</A>&gt; &lt;<A HREF="msg00311.html">20020522.165023.78704092.t-ishii@sra.co.jp</A>&gt; &lt;<A HREF="msg00312.html">200205221738.4199@digitune.org</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤です。
+
+I wrote:
+&gt; とりあえず max_fsm_pages の値を 2621440 (切りのいいところで :-D) と
+&gt; して backend を restart し、しばらく様子を見てみたいと思います。
+
+昨日の未明に上記のとおり設定を変更して backend を restart し、直後に
+vacuum、それから１日半様子を見てみました (今朝にももう一度 vacuum が
+走っています)。
+
+効果は劇的でした。DB 全体の disk 占有サイズ増加率も激減しましたし、懸
+案だった毎日数百Mbytes づつ大きくなってしまっていた table (まだ vacuum
+full していない方) にいたっては 1bytes も増加しませんでした。ファイル
+の実体のタイムスタンプは盛んに更新されていることから、きちんとゴミ領域
+が再利用されているらしいことが分かります。
+
+副作用としては、postgres が使う共有メモリ量が 17〜18Mbytes 程度増えた
+ことと、ちょっと気になるのが、今朝の vacuum で例の 7Gbytes 以上に肥大
+化してしまった table を処理している時に、7.1 までの vacuum 時に table
+lock がかかった時のように、アプリケーション側で Connection timeout が
+発生していたことくらいです。
+
+＃アプリ側で timeout が発生する条件は、ConnectionPool (120 本) を使
+＃い切ってしまい、Connection 待ちの thread が 30 秒以上待たされた時、
+＃です。通常は一切発生しません。
+
+ただ後者についてはまだちょっと原因がはっきりしないため、もうしばらく様
+子を見たいと思います。前日に途中まで vacuum full を行っていたのを中断
+したことや、その現象が発生した時の CPU 使用率、IO 使用率 (単に overload
+だったのかもしれない) などを疑っています。
+
+それでは。
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp: 26067] 7.2 の vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00311" HREF="msg00311.html">[pgsql-jp: 26076] Re: 7.2 のvacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00312" HREF="msg00312.html">[pgsql-jp: 26077] Re: 7.2 の vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp: 26121] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00358.html">[pgsql-jp: 26123] トランザクション内でのレコードの削除</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00315.html">[pgsql-jp: 26080] Re: 7.2 のvacuum</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00301.html">[pgsql-jp: 26066] イベント発生時にプログラムを走らせたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00357"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00357"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

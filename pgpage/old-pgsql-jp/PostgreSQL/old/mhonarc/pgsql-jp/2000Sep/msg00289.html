@@ -1,0 +1,273 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17620] JavaServlet とPostgreSQLの接続について -->
+<!--X-From: 山田 裕樹<yamada@cdc.co.jp> -->
+<!--X-Date: Wed, 13 Sep 2000 21:09:17 +0900 -->
+<!--X-Message-Id: 39BF6E6D.1E6CB225@cdc.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17620] JavaServlet とPostgreSQLの接続について </TITLE>
+<LINK REV="made" HREF="mailto:yamada@cdc.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00288.html">Date Prev</A>][<A HREF="msg00290.html">Date Next</A>][<A HREF="msg00301.html">Thread Prev</A>][<A HREF="msg00292.html">Thread Next</A>][<A HREF="index.html#00289">Date Index</A>][<A HREF="threads.html#00289">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17620] JavaServlet とPostgreSQLの接続について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 山田 裕樹&lt;<A HREF="mailto:yamada@cdc.co.jp">yamada@cdc.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 13 Sep 2000 21:09:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+おひさしぶりです。山田です。
+前回は、たくさんの意見を頂きありがとうございました。
+
+たびたび、すいませんが、ご協力下さい。
+
+Java Servlet から、PostgreSQLに接続したいのですが、
+うまく、いきません。。。。
+
+サーバの環境は、
+Apache1-3-12
+PostgreSQL6-5-3
+Jserv1.0
+JDK1.3
+
+プルグラムとHTMLは添付しておきます。
+プログラムの間違いはないと思います。
+何かサーバの方で、設定をすることは、あるのでしょうか？
+詳しく教えてください。宜しくお願いします。
+
+初心者なので、変な質問ばかりしてすいません。
+</PRE>
+<ADDRESS>Title: <STRONG>Who are you?</STRONG></ADDRESS>
+
+<CENTER>
+<BR><BR>
+<H1>Who are you?</H1>
+</CENTER>
+
+<ADDRESS>Title: <STRONG>You are user!</STRONG></ADDRESS>
+
+<CENTER>
+<BR><BR>
+<H1>You are user!</H1>
+</CENTER>
+
+
+<ADDRESS>Title: <STRONG>UserCheck Servlet</STRONG></ADDRESS>
+
+
+
+
+<CENTER>
+<H1> User Check Servlet! </H1>
+<BR>
+<TABLE>
+  <TR>
+    <TD align="center">
+    <FORM action="http://192.168.1.251/servlets/UserCheck" method="POST">
+<INPUT name="username" size="20" maxlength="20">
+<INPUT type="submit" name="submit" value="User Check">
+<INPUT type="reset" name="reset" value="Clear">
+    </FORM>
+</TD></TR>
+</TABLE>
+
+</CENTER>
+
+
+<PRE>
+
+import java.io.*;
+import java.util.*;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+public class Param extends HttpServlet
+{
+    public String GetParam(HttpServletRequest req, String paramname)
+	throws ServletException, IOException
+    {
+        String retvalue = null;
+        Enumeration values = req.getParameterNames();
+
+        while(values.hasMoreElements()) {
+            String name = (String)values.nextElement();
+	    String value = req.getParameterValues(name)[0];
+            if(name.compareTo(paramname) == 0 ) {
+	        retvalue = value;
+	    }
+        }
+        return retvalue;
+    }
+}
+</PRE>
+<PRE>
+
+import java.io.*;
+import java.util.*;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+import java.sql.*;
+
+public class UserCheck extends HttpServlet
+{
+    public void doPost(HttpServletRequest req, HttpServletResponse res)
+	throws ServletException, IOException
+    {
+        String  username = "no user";
+        String  userchk = null;
+	String	YouAreUser = "/home/httpd/servlets/YouAreUser.html";
+	String	WhoAreYou  = "/home/httpd/servlets/WhoAreYou.html";
+
+	HTMLReader htmlread = new HTMLReader();
+	Param prm = new Param();
+
+	res.setContentType("text/html");
+
+        PrintWriter toClient = res.getWriter();
+
+        try {
+	    username = prm.GetParam(req,"username");
+
+            Class.forName("postgresql.Driver");
+            String url = "jdbc:postgresql:webdb?user=pgsql&amp;password=pgsql";
+            Connection con = DriverManager.getConnection(url);
+
+            Statement st = con.createStatement();
+            String  query = "select * from webusers";
+
+            ResultSet rs = st.executeQuery(query + " where username='"
+					   + username + "'");
+
+            while(rs.next()) {
+                userchk = rs.getString("username");
+            }
+
+            rs.close();
+            st.close();
+            con.close();
+
+	    if ( userchk != null ) {
+	        htmlread.ReadHtml(YouAreUser,toClient);
+	    }
+	    else {
+	        htmlread.ReadHtml(WhoAreYou,toClient);
+	    }
+
+        } catch(Exception e) {
+	    e.printStackTrace();
+                toClient.println("&lt;HTML&gt;&lt;HEAD&gt;&lt;TITLE&gt;");
+                toClient.println("A problem occurred.");
+                toClient.println("&lt;/TITLE&gt;&lt;/HEAD&gt;&lt;BODY BGCOLOR=\"#FFFFFF\"&gt;");
+                toClient.println("&lt;H1&gt;A problem occurred.&lt;BR&gt;"
+                          + "Please try again.&lt;/H1&gt;");
+                toClient.println("&lt;/BODY&gt;&lt;/HTML&gt;");
+                toClient.close();
+        }
+
+	toClient.close();
+    }
+}
+</PRE>
+<PRE>
+
+import java.io.*;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+
+public class HTMLReader extends HttpServlet
+{
+    public void ReadHtml (String filename, PrintWriter toClient) throws ServletException, IOException
+    {
+	String			title = "File read error";
+	String			buf;	// read line buffer
+	FileInputStream		fis = null;
+
+	try {
+	    fis = new FileInputStream (filename);
+	    BufferedReader br = new BufferedReader(new InputStreamReader(fis));
+
+	    while( true ) {
+		buf = br.readLine();
+		if (buf == null ) break;
+		toClient.println(buf);
+	    }
+
+	    fis.close();
+
+	} catch (Exception e) {
+        	toClient.println("&lt;HTML&gt;&lt;HEAD&gt;&lt;TITLE&gt;");
+		toClient.println(title);
+		toClient.println("&lt;/TITLE&gt;&lt;/HEAD&gt;&lt;BODY BGCOLOR=\"#FFFFFF\"&gt;");
+		toClient.println("&lt;H1&gt;" + title + "&lt;/H1&gt;");
+		toClient.println("&lt;/BODY&gt;&lt;/HTML&gt;");
+		toClient.close();
+	}
+    }
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00305" HREF="msg00305.html">[pgsql-jp 17636] Re: JavaServlet とPostgreSQLの接続について</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroyuki Ohba" &lt;ohba@sun.email.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00298" HREF="msg00298.html">[pgsql-jp 17629] Re: JavaServlet とPostgreSQLの接続について</A></STRONG>
+<UL><LI><EM>From:</EM> Naohito Taga &lt;te04849@educ.cc.keio.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 17623] Re: JavaServlet とPostgreSQLの接続について</A></STRONG>
+<UL><LI><EM>From:</EM> naoki kishida &lt;kishida@fk.urban.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 17619] Re: copy について。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 17621] Ｗｉｎｄｏｗｓ上で・・・</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 17632] Re: Ｗｉｎｄｏｗｓ上で・・・</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 17623] Re: JavaServlet とPostgreSQLの接続について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00289"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00289"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

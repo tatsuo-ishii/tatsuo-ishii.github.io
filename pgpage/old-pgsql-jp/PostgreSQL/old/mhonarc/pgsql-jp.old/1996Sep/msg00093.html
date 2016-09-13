@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 723] Re: Large object -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 20 Sep 1996 16:29:14 +0900 -->
+<!--X-Message-Id: 199609200729.QAA12173@srashc.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199602270858.RAA17988@dragon.osaka.ish.cae.ntt.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 723] Re: Large object </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00092.html">Date Prev</A>][<A HREF="msg00095.html">Date Next</A>][<A HREF="msg00095.html">Thread Prev</A>][<A HREF="msg00092.html">Thread Next</A>][<A HREF="index.html#00093">Date Index</A>][<A HREF="threads.html#00093">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 723] Re: Large object</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 20 Sep 1996 16:29:14 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。あまりに遅いフォローで恐縮ですが、
+
+&gt;ＮＴＴの金升です。
+&gt;
+&gt;先日、本ＭＬに加入してから、メールのアーカイブやらＦＡＱやら
+&gt;読みふけっていました。けっこう大変でした。
+&gt;
+&gt;いきなり質問ですが、ＦＡＱには「ラージオブジェクトは危険を覚悟の上で
+&gt;使用して下さい」みたいに書いてありますが、
+&gt;
+&gt;どなたか、私はラージオブジェクトを問題なく使用しているよ！！という
+&gt;方がおられましたら、どのように使用しているか教えて下さい。
+&gt;
+&gt;実は、私も以前トライしたのですが、pgtclshでラージオブジェクトをリード
+&gt;したらcore を吐いてしまうのです。
+
+pgtclsh では試していませんが、large object によるテキストデータベース
+を作ろうとして模索しているところです。
+
+template1=&gt; create table big (
+template1=&gt; name text,
+template1=&gt; id oid
+template1=&gt; );
+
+name はテキストの名前で、id は実際に large object を格納している 
+object へのポインタになっています。
+
+template1=&gt; insert into big (name,id)
+template1=&gt; values ('/etc/printcap',lo_import('/etc/printcap'));
+
+このようにしてテキストファイルを格納することができますが、このままでは 
+name からしか検索できません。実際にやりたいことは、id が指すテキストの
+内容を検索することです。そこで、oid と検索文字列を引数にとり、oid が指
+す内容を読み出して検索するような関数を定義してあげます。
+
+	bigtextregexeq(Oid obj, struct varlena *pattern)
+
+この関数を create function で登録すれば、
+
+	select * from big where bigtextregeq(big.id,'ほげほげ');
+
+で文字列「ほげほげ」を含むオブジェクトを検索できます。このままだといち
+いち関数名を入力するのが不便なので、
+
+template1=&gt; create operator ~ (
+template1=&gt; leftarg = oid,
+template1=&gt; rightarg = text,
+template1=&gt; procedure = bigtextregexeq
+template1=&gt; );
+CREATE
+
+のようにして operator を登録すれば、上記の select 文は
+
+	select * from big where big.id ~ 'ほげほげ';
+
+のように書けるようになります。
+
+************** 問題点 ********************
+large object を使うと
+
+	データ量が大きくなる
+
+という欠点があります。たとえば、この ML のデータを全件登録してみたら、
+（約800件）約 30MB にもなり、元データの 4MB と比べると8倍近くになって
+います。なんでこうなるかというと、large object を１個作る度に１個 テー
+ブルとインデックスができてしまうからのようです。したがって、上の例だと、
+data/base/template1 の 下に山ほど XInv なんとかというファイルができま
+す。こういう実装だと、何十万件も large object を作ったりしたら目も当て
+られないくらい遅くなりますね。
+
+というわけで、正直なところ現在の large object の実装は「使えないな」と
+いう印象を受けています。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00092.html">[postgres95 722] Re: template1</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00095.html">[postgres95 725] Postgres95 FAQ(Sep.16)-j</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00095.html">[postgres95 725] Postgres95 FAQ(Sep.16)-j</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00092.html">[postgres95 722] Re: template1</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00093"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00093"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

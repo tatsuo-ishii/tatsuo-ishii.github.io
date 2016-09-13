@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21902] Re: 同一テーブルの複数列の表示 -->
+<!--X-From: kato <kato@mb.infosnow.ne.jp> -->
+<!--X-Date: Wed, 20 Jun 2001 11:24:21 +0900 -->
+<!--X-Message-Id: 3B300955.90A5B939@mb.infosnow.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010620093346S.yoshihiro.katayama@tekelec.co.jp -->
+<!--X-Reference-Id: 3B2FF914.8E93E07B@mb.infosnow.ne.jp -->
+<!--X-Reference-Id: 20010620110230A.yoshihiro.katayama@tekelec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21902] Re: 同一テーブルの複数列の表示 </TITLE>
+<LINK REV="made" HREF="mailto:kato@mb.infosnow.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00278.html">Date Prev</A>][<A HREF="msg00279.html">Date Next</A>][<A HREF="msg00278.html">Thread Prev</A>][<A HREF="msg00284.html">Thread Next</A>][<A HREF="index.html#00280">Date Index</A>][<A HREF="threads.html#00280">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21902] Re: 同一テーブルの複数列の表示</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: kato &lt;<A HREF="mailto:kato@mb.infosnow.ne.jp">kato@mb.infosnow.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 20 Jun 2001 11:24:21 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00272.html">20010620093346S.yoshihiro.katayama@tekelec.co.jp</A>&gt;	&lt;<A HREF="msg00276.html">3B2FF914.8E93E07B@mb.infosnow.ne.jp</A>&gt; &lt;<A HREF="msg00278.html">20010620110230A.yoshihiro.katayama@tekelec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片山さん、こんにちは。
+
+&gt; PsotgreSQLのバージョンは7.0.2です。
+&gt; FreeBSDのportsではja-postgresql-7.0.2.20001025です。
+
+こちらは PostgreSQL 7.0.3 を LASER5 Linux6.2(FTP版)で使用しています。
+どちらも外部結合が未サポートなのでほぼ同じですね。
+以前に、副問合せが駄目だったというのを見かけたので 7.0.2で実行できるか
+どうかわかりませんけど..
+
+&gt; id | 受注先 | 部署 　　　　| 納入 | 部署 　　　　　　　　　　　　　| user | 部署
+&gt;  1 |NEC     |移動体通信本部|NEC   |モバイルコミュニケーション事業部|NEC   |ソフトウェア部
+&gt; となるようにしたいのです。
+
+例という事で、元の定義から不要と思われる列を削除したり、結合の都合から
+型の変更、及び表名/列名を短くしています。適当に応用して下さい。
+他にも前提条件等、色々な都合が有るでしょうし...
+
+例えば、こんなデータが有ったとして
+=&gt; select * from mst;
+ mid
+-----
+   1
+   2
+(2 rows)
+
+=&gt; select * from dat;
+ did | mid | syu | dname1 |     dname2
+-----+-----+-----+--------+----------------
+   1 |   1 |   1 | NEC    | モバイル事業部
+   2 |   1 |   2 | NEC    | 通信事業部
+   3 |   1 |   3 | NEC    | ソフト部
+   4 |   2 |   1 | IBM    | IBMの受注先
+   5 |   2 |   2 | IBM    | IBMの納入先
+   6 |   2 |   3 | IBM    | IBMのユーザ
+(6 rows)
+
+こんな結果を得たいとしたら
+ id | 受注先 |      部署      | 納入 |    部署     | user |    部署
+----+--------+----------------+------+-------------+------+-------------
+  1 | NEC    | モバイル事業部 | NEC  | 通信事業部  | NEC  | ソフト部
+  2 | IBM    | IBMの受注先    | IBM  | IBMの納入先 | IBM  | IBMのユーザ
+
+確認しやすいように、CREATE文から全てまとめると下記のような感じです。
+
+CREATE TABLE mst (
+ mID int primary key
+);
+CREATE TABLE dat (
+ dID int primary key,
+ mID int,
+ syu int,
+ dName1 text,
+ dName2 text
+);
+insert into mst values (1);
+insert into mst values (2);
+insert into dat values (1,1,1,'NEC','モバイル事業部');
+insert into dat values (2,1,2,'NEC','通信事業部');
+insert into dat values (3,1,3,'NEC','ソフト部');
+insert into dat values (4,2,1,'IBM','IBMの受注先');
+insert into dat values (5,2,2,'IBM','IBMの納入先');
+insert into dat values (6,2,3,'IBM','IBMのユーザ');
+select * from mst;
+select * from dat;
+select
+ m.mID as ID,
+ d.dName1 as 受注先,
+ d.dName2 as 部署,
+ (select dName1 from dat where(mID=m.mID)and(syu=2)) as 納入,
+ (select dName2 from dat where(mID=m.mID)and(syu=2)) as 部署,
+ (select dName1 from dat where(mID=m.mID)and(syu=3)) as USER,
+ (select dName2 from dat where(mID=m.mID)and(syu=3)) as 部署
+ from
+  mst m,
+  dat d
+ where(m.mID=d.mID)
+   and(d.syu=1);
+
+# 加藤
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00290" HREF="msg00290.html">[pgsql-jp 21912] Re: 同一テーブルの複数列の表示</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiro Katayama &lt;yoshihiro.katayama@tekelec.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00284" HREF="msg00284.html">[pgsql-jp 21906] Re: 同一テーブルの複数列の表示</A></STRONG>
+<UL><LI><EM>From:</EM> "Kawai,Takanori" &lt;GCD00051@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00272" HREF="msg00272.html">[pgsql-jp 21894] 同一テーブルの複数列の表示</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiro Katayama &lt;yoshihiro.katayama@tekelec.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00276" HREF="msg00276.html">[pgsql-jp 21898] Re: 同一テーブルの複数列の表示</A></STRONG>
+<UL><LI><EM>From:</EM> kato &lt;kato@mb.infosnow.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00278" HREF="msg00278.html">[pgsql-jp 21900] Re: 同一テーブルの複数列の表示</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiro Katayama &lt;yoshihiro.katayama@tekelec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 21900] Re: 同一テーブルの複数列の表示</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 21901] Re: インデックスとメモリの関係</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 21900] Re: 同一テーブルの複数列の表示</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 21906] Re: 同一テーブルの複数列の表示</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00280"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00280"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

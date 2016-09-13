@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3250] Re: Too Large Allocation Request -->
+<!--X-From: takehi&#45;s@ascii.co.jp (SHIOZAKI Takehiko) -->
+<!--X-Date: Thu, 8 Jan 1998 19:27:44 +0900 -->
+<!--X-Message-Id: 199801081027.TAA20285@libsvr00.lab.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199801071442.XAA22279@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3250] Re: Too Large Allocation Request </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00026.html">Thread Prev</A>][<A HREF="msg00019.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3250] Re: Too Large Allocation Request</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A> (SHIOZAKI Takehiko)</LI>
+<LI><em>Date</em>: Thu, 8 Jan 1998 19:27:44 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00026.html">199801071442.XAA22279@meshsv26.tk.mesh.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+本家の方まで調べていただいて恐縮です。
+
+[On Jan  7, t-ishii@sra.co.jp (Tatsuo Ishii) writes:]
+&gt;
+&gt;どんなSQL文を使っているのか分かりませんが、いつも同じテーブルで
+
+すみません。それは重々分かっているんですが、いろいろ事情があるもので。
+最後にいろいろと載せますが、奥を余り深く考えないでください。 &gt; みなさま
+
+&gt;エラーが出るのでしょうか？であれば、そのテーブルが壊れているのかも
+&gt;しれません。可能ならばinitdbからやり直してみてはどうでしょう？
+
+やってみましたが、駄目(同じ)でした。
+試行錯誤の結果、postmasterの起動時に「-o '-S 1024'」オプションをつけて
+sortmemを増やしてやればよいことが分かりました。
+しかし、sortmemは高速化のためにディスク使用を減らすのに使われるのではな
+いのでしょうか? これが少なくても遅くなるだけで、エラーになるのは変な気が
+します。
+
+では、実際のSQL文で状況を説明します。
+
+(1) 元のSQL文
+select cmp.jname as cmp_jname, cmp.name as company, mag.name as magazine, sum(adv.volume * asiz.page / adv.share) as page from adv_size asiz, advertisement adv, company cmp, magazine mag where adv.sell &lt;= 199711 and adv.sell &gt;= 199710 and adv.company = cmp.code and adv.magazine = mag.code and adv.size = asiz.code group by cmp_jname, company, magazine order by cmp_jname, company, magazine;
+	標準ではNG
+	「-o '-S 1024'」でOK
+
+(2) 「order by」を取り除いたもの
+select cmp.jname as cmp_jname, cmp.name as company, mag.name as magazine, sum(adv.volume * asiz.page / adv.share) as page from adv_size asiz, advertisement adv, company cmp, magazine mag where adv.sell &lt;= 199711 and adv.sell &gt;= 199710 and adv.company = cmp.code and adv.magazine = mag.code and adv.size = asiz.code group by cmp_jname, company, magazine;
+	標準でOK
+	「order by」の対象になっているのはすべてtext型なので、
+	たしかにsortmemを食いそうではある。
+
+(3) 表の絞り込みをなくしたもの
+select cmp.jname as cmp_jname, cmp.name as company, mag.name as magazine, sum(adv.volume * asiz.page / adv.share) as page from adv_size asiz, advertisement adv, company cmp, magazine mag where adv.company = cmp.code and adv.magazine = mag.code and adv.size = asiz.code group by cmp_jname, company, magazine order by cmp_jname, company, magazine;
+	標準でOK
+	sortの対象となる行が増えそうなのになぜかOK
+
+(4) 選択される列を1つだけtextからchar4にかえたもの
+select cmp.jname as cmp_jname, cmp.name as company, adv.magazine as magazine, sum(adv.volume * asiz.page / adv.share) as page from adv_size asiz, advertisement adv, company cmp, magazine mag where adv.sell &lt;= 199711 and adv.sell &gt;= 199710 and adv.company = cmp.code and adv.magazine = mag.code and adv.size = asiz.code group by cmp_jname, company, magazine order by cmp_jname, company, magazine;
+	標準でOK
+
+ということで、(3)はちょっと謎ですが、基本的にtext型でsortするとメモリを
+食いすぎて駄目なようです。intやchar*で「group by」したものを一時表にでも
+しまってから、別の(マスタ)表と結合した方がよいのでしょうか。
+それでも「order by」の問題は残るので、sort用にint型の列でも増やすべきな
+んでしょうか。
+# どうもtext型はうさん臭い気がする。「[pgsql-jp 3088]」の問題も、
+# text型に対するindexをつけないようにしたらなくなったし。
+
+-- 
+いいんだ いわせて おけよ	私はモグリで 金ばかり取って 評判が悪い
+だが インターネットはできるんだぜ	(「執念」より)
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Ascii Library,	ASCII LABORATORIES INC.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00026" HREF="msg00026.html">[pgsql-jp 3239] Re: Too Large Allocation Request</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 3249] はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp 3251] self-introduction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 3239] Re: Too Large Allocation Request</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 3232] Q) psqlで日本語入力ができない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

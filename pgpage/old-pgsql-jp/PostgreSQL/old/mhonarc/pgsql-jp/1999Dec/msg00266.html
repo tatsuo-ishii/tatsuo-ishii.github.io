@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12257] Re: dmlの取消しについて -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Wed, 15 Dec 1999 16:38:54 +0900 -->
+<!--X-Message-Id: 3857458E212.950BSAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991206180055L.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 385738EC2ED.426FSAKAI@debian -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12257] Re: dmlの取消しについて </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00264.html">Date Prev</A>][<A HREF="msg00267.html">Date Next</A>][<A HREF="msg00261.html">Thread Prev</A>][<A HREF="msg00087.html">Thread Next</A>][<A HREF="index.html#00266">Date Index</A>][<A HREF="threads.html#00266">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12257] Re: dmlの取消しについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 15 Dec 1999 16:38:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00090.html">19991206180055L.t-ishii@sra.co.jp</A>&gt; &lt;<A HREF="msg00261.html">385738EC2ED.426FSAKAI@debian</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+Katsuhiko Sakai &lt;sakai@esm.co.jp&gt; さん wrote:
+&gt; 坂井です。
+&gt; 
+&gt; &gt; 石井です。
+&gt; &gt; src/interfaces/psql/psql.c を見ると早いのですが、別にSELECTでもINSERT
+&gt; &gt; でも関係無しに PQrequestCancel()をシグナルハンドラの中から出しています。
+&gt; &gt; シグナルが使えるアプリケーションなら、同じようにすれば良いと思います。
+&gt; &gt; 
+&gt; &gt; ただし、実際にDMLがキャンセルできるかどうかは、バックエンド側の都合に
+&gt; &gt; よりますが...
+&gt; 
+&gt; 石井さんが言われたsrc/interfaces/psql/psql.cをみたのですが、
+&gt; 私の力量不足でいまいち理解することができませんでした。
+&gt; (ちなみにシグナルハンドラの意味もわかりません)
+
+　まず、「Unixシステムプログラミング」みたいなタイトルの本で
+シグナルの意味を理解しておいてください。
+
+  それで、psqlのエッセンスを抜き出しますと...
+
+1.ヘッダーファイルの指定
+
+#include &lt;signal.h&gt;
+#include "pqsignal.h"
+
+
+2. PostgreSQL用のシグナル関数pqsignal()を呼ぶ。
+　
+　シグナル処理を開始したい箇所に次を記述します。
+  pqsignal(SIGINT, handle_sigint);
+
+
+3. handle_sigint()関数の定義
+
+static void
+handle_sigint(SIGNAL_ARGS)
+{
+    if( !PQrequestCancel(Conn) )
+    {
+        printf(stderr,"Cannot send cancel request:\n");
+        printf(stderr,"%s\n",PQerrorMessage(Conn));
+    }
+}
+
+  ここで、Connはデータベース接続時の Pgconn *Conn です。
+
+　大量のselectなどを行っている最中に ctrl+C を押すとキャン
+セル処理が行われ、その後プログラムは続行します。プログラム
+を停止したい場合は、handle_sigint()の最後で exit(1); とし
+ます。
+
+# 少量のselectは、キャンセル処理される前に正常終了してしま
+　いますから、キャンセルが効かないと錯覚をするかもしれませ
+　ん。
+
+--
+境田雅明
+Personal Software, Inc.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[pgsql-jp 12078] Re: dmlの取消しについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00261" HREF="msg00261.html">[pgsql-jp 12252] Re: dmlの取消しについて</A></STRONG>
+<UL><LI><EM>From:</EM> Katsuhiko Sakai &lt;sakai@esm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 12255] Re: [Q}How to get postgreSQL user List</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00267.html">[pgsql-jp 12258] Re: [Q}How to get postgreSQL user List</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 12252] Re: dmlの取消しについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00087.html">[pgsql-jp 12075] RE: Postgreユーザ登録の方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00266"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00266"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

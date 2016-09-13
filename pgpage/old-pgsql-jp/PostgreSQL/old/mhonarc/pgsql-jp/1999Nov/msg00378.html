@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11807] octal escaping in pg_dump -->
+<!--X-From: Yasuharu_Nakagawa@yokogawa.co.jp -->
+<!--X-Date: Wed, 17 Nov 1999 10:44:05 +0900 -->
+<!--X-Message-Id: 4925682C.00098458.00@NCSNMX00009.mitaka.yokogawa.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11807] octal escaping in pg_dump </TITLE>
+<LINK REV="made" HREF="mailto:Yasuharu_Nakagawa@yokogawa.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00377.html">Date Prev</A>][<A HREF="msg00379.html">Date Next</A>][<A HREF="msg00392.html">Thread Prev</A>][<A HREF="msg00375.html">Thread Next</A>][<A HREF="index.html#00378">Date Index</A>][<A HREF="threads.html#00378">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11807] octal escaping in pg_dump</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:Yasuharu_Nakagawa@yokogawa.co.jp">Yasuharu_Nakagawa@yokogawa.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 17 Nov 1999 10:44:05 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+中川＠横河電機です
+
+MB(multi-byte) regression testのeuc_jpを
+pg_dump -dで出力したところ下記のように
+漢字コードが８進表現になりました。
+
+データは合っているので問題は無いのですが、
+せっかくならば ‘-d’ オプション無しの時のように
+そのままで出て欲しいと思うのです。
+
+pg_dump.cを見てみても、\040未満のコントロールコードで
+８進表現にしているだけなので、不思議なのですが
+違う場所で出力しているということなのでしょうか？
+
+----postgresql-6.5.3/src/bin/pg_dump/pg_dump.c----
+    306 static void
+    307 dumpClasses_dumpData(FILE *fout, const char *classname,
+    .
+    . 省略
+    .
+    368   expsrc = PQgetvalue(res, tuple,field);
+    369   while (*expsrc)
+    370   {
+    371     char            ch = *expsrc++;
+    372
+    373     if (ch == '\\' || ch =='\'')
+    374     {
+    375            putc(ch, fout);                /* double these */
+    376            putc(ch, fout);
+    377     }
+    378     else if (ch &lt; '\040')
+    379     {
+    380            /* generate octal escape for control chars */
+    381            putc('\\', fout);
+    382            putc(((ch &gt;&gt; 6)&amp; 3) + '0', fout);
+    383            putc(((ch &gt;&gt; 3)&amp; 7) + '0', fout);
+    384            putc((ch &amp; 7) +'0', fout);
+    385     }
+    386     else
+    387            putc(ch, fout);
+    388   }
+----postgres-6.5.2で実行  -d オプション付き----
+$pg_dump -d euc_jp
+\connect - pgsql
+CREATE TABLE "計算機用語" (
+        "用語" text,
+        "分類コード" character varying,
+        "備考1aだよ" character(16));
+INSERT INTO "計算機用語" VALUES
+('\245\263\245\363\245\324\245\345\241\274\245\277\245\307\245\243\245\271\245\327\245\354\245\244','\265\241A01\276\345',NULL);
+
+INSERT INTO "計算機用語" VALUES
+('\245\263\245\363\245\324\245\345\241\274\245\277\245\260\245\351\245\325\245\243\245\303\245\257\245\271','\312\254B10\303\346',NULL);
+
+INSERT INTO "計算機用語" VALUES
+('\245\263\245\363\245\324\245\345\241\274\245\277\245\327\245\355\245\260\245\351\245\336\241\274','\277\315Z01\262\274',NULL);
+
+CREATE  INDEX "計算機用語index1" on "計算機用語" using btree ( "用語" "text_ops"
+ );
+CREATE  INDEX "計算機用語index2" on "計算機用語" using hash ( "分類コード"
+"varchar_ops" );
+
+----postgres-6.5.2で実行 -d オプション無し----"
+$pg_dump euc_jp
+CREATE TABLE "計算機用語" (
+        "用語" text,
+        "分類コード" character varying,
+        "備考1aだよ" character(16));
+COPY "計算機用語" FROM stdin;
+コンピュータディスプレイ        機A01上 \N
+コンピュータグラフィックス      分B10中 \N
+コンピュータプログラマー        人Z01下 \N
+\.
+CREATE  INDEX "計算機用語index1" on "計算機用語" using btree ( "用語" "text_ops"
+ );
+CREATE  INDEX "計算機用語index2" on "計算機用語" using hash ( "分類コード"
+"varchar_ops" );
+
+$
+----
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 11806] Re: インデックスによるアクセスについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00379.html">[pgsql-jp 11808] Re: 自己紹介＋pg_Connectの質問</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 11822] Re: apacheにおけるユーザー認証について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00375.html">[pgsql-jp 11804] インデックスによるアクセスについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00378"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00378"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

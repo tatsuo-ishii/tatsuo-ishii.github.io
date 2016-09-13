@@ -1,0 +1,500 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8070] cross compile patch for v6.5beta1 -->
+<!--X-From: MOCHIDA Shuji <mochid@tpj.co.jp> -->
+<!--X-Date: Fri, 16 Apr 1999 14:15:03 +0900 -->
+<!--X-Message-Id: 19990416141503O.mochid@tpj.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8070] cross compile patch for v6.5beta1 </TITLE>
+<LINK REV="made" HREF="mailto:mochid@tpj.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00262.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00266.html">Thread Prev</A>][<A HREF="msg00262.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8070] cross compile patch for v6.5beta1</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: MOCHIDA Shuji &lt;<A HREF="mailto:mochid@tpj.co.jp">mochid@tpj.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 16 Apr 1999 14:15:03 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+持田です。どのくらい需要があるかわかりませんが..
+
+ configure --target=..  で、クロスコンパイルできるようにしてみました。
+主に configure.in の変更です。下のパッチを当てた後、autoconf を
+かけて下さい。autoconf は、2.12 ではダメみたいです。2.13 で OK でした。
+
+ 6.4 の時と違って、C プログラムをコンパイル、実行してチェックしている
+部分があって、そこはクロス環境では（当然）動かないので、
+include/config.h に #define が定義されないように変更しています。
+それで、include/os.h で手動で定義することにして、
+ALIGN_OF_xx と INT64_FORMAT について include/utils/memutils.h と 
+include/utils/int8.h で未定義の場合は #error でコンパイルエラーに
+なるようにしてあります。
+
+ 要するに、include/os.h （include/port/xx.h）にアーキテクチャ毎に
+ALIGN_OF_xx と INT64_FORMAT を定義してやらないといけないのですが、
+m68k--netbsd のものを別メールに付けます。
+
+
+# This is a shell archive.  Save it in a file, remove anything before
+# this line, and then unpack it by entering "sh file".  Note, it may
+# create directories; files and directories will be owned by you and
+# have default permissions.
+#
+# This archive contains:
+#
+#	v6.5beta1-cross.patch
+#
+echo x - v6.5beta1-cross.patch
+sed 's/^X//' &gt;v6.5beta1-cross.patch &lt;&lt; 'END-of-v6.5beta1-cross.patch'
+X--- postgresql-v6.5beta1/pgsql/src/bin/pg_version/Makefile.in.ORIG	Sun Jan 17 15:19:14 1999
+X+++ postgresql-v6.5beta1/pgsql/src/bin/pg_version/Makefile.in	Mon Apr 12 11:52:17 1999
+X@@ -18,9 +18,9 @@
+X 
+X CFLAGS+= -I$(SRCDIR)/include
+X 
+X-all: pg_version
+X+all: submake pg_version
+X 
+X-pg_version: submake $(OBJS)
+X+pg_version: $(OBJS)
+X 	$(CC) -o pg_version $(OBJS) $(LDFLAGS)
+X 
+X .PHONY: submake
+X--- postgresql-v6.5beta1/pgsql/src/include/utils/memutils.h.ORIG	Fri Mar 26 17:00:54 1999
+X+++ postgresql-v6.5beta1/pgsql/src/include/utils/memutils.h	Fri Apr 16 13:44:16 1999
+X@@ -38,6 +38,11 @@
+X  * ----------------
+X  */
+X 
+X+#if !defined(ALIGNOF_SHORT)
+X+#error ALIGNOF_{SHORT,INT,LONG,DOUBLE} and MAXIMUM_ALIGNOF\
+X+ should be defined in "os.h" on cross-compiling
+X+#endif
+X+
+X #define _ALIGN(ALIGNVAL,LEN)	(((long)(LEN) + (ALIGNVAL-1)) &amp; ~(ALIGNVAL-1))
+X 
+X #define SHORTALIGN(LEN)			_ALIGN(ALIGNOF_SHORT, (LEN))
+X--- postgresql-v6.5beta1/pgsql/src/include/utils/int8.h.ORIG	Mon Mar 15 10:43:05 1999
+X+++ postgresql-v6.5beta1/pgsql/src/include/utils/int8.h	Fri Apr 16 12:57:45 1999
+X@@ -42,7 +42,7 @@
+X 
+X /* this should be set in config.h: */
+X #ifndef INT64_FORMAT
+X-#define INT64_FORMAT "%ld"
+X+#error INT64_FORMAT should be defined in "os.h" on cross-compiling
+X #endif
+X 
+X 
+X--- postgresql-v6.5beta1/pgsql/src/lextest/Makefile.ORIG	Sun Jan 17 15:19:49 1999
+X+++ postgresql-v6.5beta1/pgsql/src/lextest/Makefile	Mon Apr 12 10:08:41 1999
+X@@ -13,9 +13,9 @@
+X 
+X lextest: lextest.c scan.l
+X 	$(LEX) scan.l
+X-	$(CC) -c lex.yy.c
+X-	$(CC) -c lextest.c
+X-	$(CC) -o lextest lex.yy.o lextest.o
+X+	$(CC_FOR_HOST) -c lex.yy.c
+X+	$(CC_FOR_HOST) -c lextest.c
+X+	$(CC_FOR_HOST) -o lextest lex.yy.o lextest.o
+X 	@echo "If this fails, flex is broken" | ./lextest || rm -f lextest
+X 
+X clean:
+X--- postgresql-v6.5beta1/pgsql/src/makefiles/Makefile.bsd.ORIG	Mon Mar 15 01:03:26 1999
+X+++ postgresql-v6.5beta1/pgsql/src/makefiles/Makefile.bsd	Mon Apr 12 10:08:42 1999
+X@@ -8,7 +8,7 @@
+X 	$(LD) -x -r -o $&lt;.obj $&lt;
+X 	@echo building shared object $@
+X 	@rm -f $@.pic
+X-	@${AR} cq $@.pic `lorder $&lt;.obj | tsort`
+X+	@${AR} cq $@.pic `$(LORDER) $&lt;.obj | tsort`
+X 	${RANLIB} $@.pic
+X 	@rm -f $@
+X 	$(LD) -x -Bshareable -Bforcearchive \
+X--- postgresql-v6.5beta1/pgsql/src/makefiles/Makefile.freebsd.ORIG	Mon Nov  2 14:30:04 1998
+X+++ postgresql-v6.5beta1/pgsql/src/makefiles/Makefile.freebsd	Mon Apr 12 10:08:42 1999
+X@@ -2,7 +2,7 @@
+X 	$(LD) -x -r -o $&lt;.obj $&lt;
+X 	@echo building shared object $@
+X 	@rm -f $@.pic
+X-	@${AR} cq $@.pic `lorder $&lt;.obj | tsort`
+X+	@${AR} cq $@.pic `$(LORDER) $&lt;.obj | tsort`
+X 	${RANLIB} $@.pic
+X 	@rm -f $@
+X ifdef ELF_SYSTEM
+X--- postgresql-v6.5beta1/pgsql/src/Makefile.shlib.ORIG	Mon Mar 15 01:02:57 1999
+X+++ postgresql-v6.5beta1/pgsql/src/Makefile.shlib	Mon Apr 12 10:08:42 1999
+X@@ -176,7 +176,7 @@
+X ifdef MK_NO_LORDER
+X 	$(AR) $(AROPT) $@ $(OBJS) 
+X else
+X-	$(AR) $(AROPT) $@ `lorder $(OBJS) | tsort`
+X+	$(AR) $(AROPT) $@ `$(LORDER) $(OBJS) | tsort`
+X endif
+X 	$(RANLIB) $@
+X endif
+X--- postgresql-v6.5beta1/pgsql/src/configure.in.ORIG	Fri Apr  2 17:01:52 1999
+X+++ postgresql-v6.5beta1/pgsql/src/configure.in	Fri Apr 16 12:50:17 1999
+X@@ -7,12 +7,12 @@
+X dnl unless we do this.
+X AC_CONFIG_AUX_DIR(`pwd`)
+X 
+X-AC_CANONICAL_HOST
+X+AC_CANONICAL_SYSTEM
+X 
+X tas_file=dummy.s
+X-case "$host_os" in
+X+case "$target_os" in
+X  solaris*)
+X-	case "$host_cpu" in
+X+	case "$target_cpu" in
+X 	  sparc) os=solaris_sparc need_tas=yes tas_file=solaris_sparc.s ;;
+X 	   i386) os=solaris_i386 need_tas=yes tas_file=solaris_i386.s ;;
+X 	esac ;;
+X@@ -24,7 +24,7 @@
+X  freebsd1*|freebsd2*) os=freebsd need_tas=no ;;
+X   netbsd*)
+X 	os=bsd need_tas=no
+X-	case "$host_cpu" in
+X+	case "$target_cpu" in
+X 	  powerpc) elf=yes ;;
+X 	esac ;;
+X   openbsd*) os=bsd need_tas=no ;;
+X@@ -39,7 +39,7 @@
+X  machten*) os=machten need_tas=no ;;
+X   cygwin*) os=win need_tas=no ;;
+X  sysv4.2*)
+X-       case "$host_vendor" in
+X+       case "$target_vendor" in
+X 	       univel) os=univel need_tas=no ;;
+X 		    *) os=unknown need_tas=no ;;
+X        esac ;;
+X@@ -49,7 +49,7 @@
+X    echo "*************************************************************"
+X    echo "configure does not currently recognize your operating system,"
+X    echo "therefore you must do a manual configuration of:"
+X-   echo "$host_os"
+X+   echo "$target_os"
+X    echo "Please contact scrappy@hub.org to see about rectifying this, "
+X    echo "including the above 'checking host system type...' line "
+X    echo "*************************************************************"
+X@@ -96,23 +96,23 @@
+X                               see template directory],
+X     [  TEMPLATE=$withval ],
+X     [
+X-# First, try for a template exactly matching $host
+X-if test -f "template/$host"
+X-then TEMPLATE="$host"
+X+# First, try for a template exactly matching $target
+X+if test -f "template/$target"
+X+then TEMPLATE="$target"
+X else
+X     # Next try for an exact match to a .similar entry.
+X     # There shouldn't be multiple matches, but take the last if there are.
+X-    GUESS=`grep "^$host=" template/.similar | sed 's/^.*=//' | tail -1`
+X+    GUESS=`grep "^$target=" template/.similar | sed 's/^.*=//' | tail -1`
+X     if test "$GUESS"
+X     then TEMPLATE="$GUESS"
+X     else
+X-	# Next look for a .similar entry that is a prefix of $host.
+X+	# Next look for a .similar entry that is a prefix of $target.
+X 	# If there are multiple matches, take the last one.
+X 	exec 4&lt;template/.similar
+X 	while read LINE &lt;&amp;4
+X 	do
+X 	    SIMHOST=`expr "$LINE" : '\(.*\)='`
+X-	    MATCH=`expr "$host" : "$SIMHOST"`
+X+	    MATCH=`expr "$target" : "$SIMHOST"`
+X 	    if test "$MATCH" != 0
+X 	    then GUESS=`echo "$LINE" | sed 's/^.*=//'`
+X 	    fi
+X@@ -396,13 +396,20 @@
+X     ])
+X 
+X dnl Find a compiler if CC is not already set.
+X+AC_CHECK_PROGS(CC_FOR_HOST,cc gcc)
+X+AC_SUBST(CC_FOR_HOST)
+X+
+X+if test "$target" != "$host" -a -z "$CC"; then
+X+	CC="${target}-gcc"
+X+fi
+X AC_PROG_CC
+X+
+X dnl Find CPP, then check traditional.
+X dnl Caution: these macros must be called in this order...
+X AC_PROG_CPP
+X AC_PROG_GCC_TRADITIONAL
+X 
+X-if test "$CC" = "gcc"
+X+if test "$CC" = "gcc" -o "$CC" = "${target}-gcc"
+X then
+X 	CC_VERSION=`${CC} --version`
+X else
+X@@ -448,7 +455,12 @@
+X 	esac
+X 	CXX="$withval"
+X     ],
+X-    [   AC_PROG_CXX])
+X+    [
+X+	if test "$target" != "$host" -a -z "$CXX"; then
+X+	    CXX="${target}-c++"
+X+	fi
+X+	AC_PROG_CXX
+X+    ])
+X AC_SUBST(HAVECXX)
+X 
+X dnl Figure out how to invoke "install" and what install options to use.
+X@@ -461,7 +473,7 @@
+X INSTL_SHLIB_OPTS="-m 644"
+X 
+X dnl HPUX wants shared libs to be mode 555.
+X-case "$host_os" in
+X+case "$target_os" in
+X  hpux*)
+X 	INSTL_SHLIB_OPTS="-m 555" ;;
+X esac
+X@@ -492,7 +504,48 @@
+X AC_PROG_LEX
+X AC_PROG_LN_S
+X AC_PROG_MAKE_SET
+X+if test "$target" != "$host" -a -z "$RANLIB"; then
+X+	RANLIB=${target}-ranlib
+X+fi
+X AC_PROG_RANLIB
+X+if test -z "$AR"; then
+X+	if test "$target" = "$host"; then
+X+		AR=ar
+X+	else
+X+		AR=${target}-ar
+X+	fi
+X+fi
+X+AC_CHECK_PROGS(AR,$AR)
+X+AC_SUBST(AR)
+X+if test -z "$NM"; then
+X+	if test "$target" = "$host"; then
+X+		NM=nm
+X+	else
+X+		NM=${target}-nm
+X+	fi
+X+fi
+X+AC_CHECK_PROGS(NM,$NM)
+X+AC_SUBST(NM)
+X+AC_CHECK_PROGS(MK_NO_LORDER,lorder,true)
+X+AC_SUBST(MK_NO_LORDER)
+X+if test "$MK_NO_LORDER" != "true"; then
+X+	AC_CHECK_PROGS(NM,$NM)
+X+	if test "$NM" != nm; then
+X+		LORDER="env NM=$NM lorder"
+X+	else
+X+		LORDER=lorder
+X+	fi
+X+fi
+X+AC_SUBST(LORDER)
+X+if test -z "$LD"; then
+X+	if test "$target" = "$host"; then
+X+		LD=ld
+X+	else
+X+		LD=${target}-ld
+X+	fi
+X+fi
+X+AC_CHECK_PROGS(LD,$LD)
+X+AC_SUBST(LD)
+X AC_PATH_PROG(find, find)
+X AC_PATH_PROG(tar, tar)
+X AC_PATH_PROG(split, split)
+X@@ -749,7 +802,6 @@
+X dnl we force our own version of snprintf() to be used instead.
+X dnl Note this test must be run after our initial check for snprintf/vsnprintf.
+X 
+X-HAVE_LONG_INT_64=0
+X AC_MSG_CHECKING(whether 'long int' is 64 bits)
+X AC_TRY_RUN([typedef long int int64;
+X 
+X@@ -779,11 +831,11 @@
+X 	[HAVE_LONG_INT_64=1
+X 	 AC_DEFINE(HAVE_LONG_INT_64)
+X 	 AC_MSG_RESULT(yes)],
+X-	AC_MSG_RESULT(no),
+X+	[HAVE_LONG_INT_64=0
+X+	 AC_MSG_RESULT(no)],
+X 	AC_MSG_RESULT(assuming not on target machine))
+X 
+X-HAVE_LONG_LONG_INT_64=0
+X-if [[ $HAVE_LONG_INT_64 -eq 0 ]] ; then
+X+if [[ "$HAVE_LONG_INT_64" != 1 ]] ; then
+X AC_MSG_CHECKING(whether 'long long int' is 64 bits)
+X AC_TRY_RUN([typedef long long int int64;
+X 
+X@@ -813,7 +865,8 @@
+X 	[HAVE_LONG_LONG_INT_64=1
+X 	 AC_DEFINE(HAVE_LONG_LONG_INT_64)
+X 	 AC_MSG_RESULT(yes)],
+X-	AC_MSG_RESULT(no),
+X+	[HAVE_LONG_LONG_INT_64=0
+X+	 AC_MSG_RESULT(no)],
+X 	AC_MSG_RESULT(assuming not on target machine))
+X fi
+X 
+X@@ -823,7 +876,7 @@
+X dnl If neither works, fall back to our own snprintf emulation (which we
+X dnl know uses %lld).
+X 
+X-if [[ $HAVE_LONG_LONG_INT_64 -eq 1 ]] ; then
+X+if [[ "$HAVE_LONG_LONG_INT_64" -eq 1 ]] ; then
+X   if [[ x$SNPRINTF = x ]] ; then
+X     AC_MSG_CHECKING(whether snprintf handles 'long long int' as %lld)
+X     AC_TRY_RUN([#include &lt;stdio.h&gt;
+X@@ -901,12 +954,15 @@
+X     # here if we previously decided we needed to use our own snprintf
+X     INT64_FORMAT='"%lld"'
+X   fi
+X-else
+X+fi
+X+if [[ "$HAVE_LONG_LONG_INT_64" = 0 ]] ; then
+X   # Here if we are not using 'long long int' at all
+X   INT64_FORMAT='"%ld"'
+X fi
+X 
+X-AC_DEFINE_UNQUOTED(INT64_FORMAT, $INT64_FORMAT)
+X+if [[ -n "$INT64_FORMAT" ]] ; then
+X+  AC_DEFINE_UNQUOTED(INT64_FORMAT, $INT64_FORMAT)
+X+fi
+X 
+X 
+X dnl Determine memory alignment requirements for the basic C datatypes.
+X@@ -936,10 +992,14 @@
+X   fprintf(f, "%d\n", ((char*) &amp; mystruct.field) - ((char*) &amp; mystruct));
+X   exit(0);
+X }], AC_CV_NAME=`cat conftestval`,
+X-AC_CV_NAME='sizeof($1)',
+X-AC_CV_NAME='sizeof($1)')])dnl
+X-AC_MSG_RESULT($AC_CV_NAME)
+X-AC_DEFINE_UNQUOTED(AC_TYPE_NAME, $AC_CV_NAME)
+X+AC_CV_NAME=,
+X+AC_CV_NAME=)])dnl
+X+if test -n "$AC_CV_NAME"; then
+X+  AC_MSG_RESULT($AC_CV_NAME)
+X+  AC_DEFINE_UNQUOTED(AC_TYPE_NAME, $AC_CV_NAME)
+X+else
+X+  AC_MSG_RESULT(assuming not on target machine)
+X+fi
+X undefine([AC_TYPE_NAME])dnl
+X undefine([AC_CV_NAME])dnl
+X ])
+X@@ -947,7 +1007,7 @@
+X CHECK_ALIGNOF(short)
+X CHECK_ALIGNOF(int)
+X CHECK_ALIGNOF(long)
+X-if [[ $HAVE_LONG_LONG_INT_64 -eq 1 ]] ; then
+X+if [[ "$HAVE_LONG_LONG_INT_64" -eq 1 ]] ; then
+X   CHECK_ALIGNOF(long long int)
+X fi
+X CHECK_ALIGNOF(double)
+X@@ -956,21 +1016,20 @@
+X dnl We assume long's alignment is at least as strong as char, short, or int;
+X dnl but we must check long long (if it exists) and double.
+X 
+X-if [[ $ac_cv_alignof_double != 'sizeof(double)' ]] ; then
+X+if [[ -n "$ac_cv_alignof_double" ]] ; then
+X   MAX_ALIGNOF="$ac_cv_alignof_long"
+X   if [[ $MAX_ALIGNOF -lt $ac_cv_alignof_double ]] ; then
+X     MAX_ALIGNOF="$ac_cv_alignof_double"
+X   fi
+X-  if [[ $HAVE_LONG_LONG_INT_64 -eq 1 ]] ; then
+X+  if [[ "$HAVE_LONG_LONG_INT_64" -eq 1 ]] ; then
+X     if [[ $MAX_ALIGNOF -lt $ac_cv_alignof_long_long_int ]] ; then
+X       MAX_ALIGNOF="$ac_cv_alignof_long_long_int"
+X     fi
+X   fi
+X+  AC_DEFINE_UNQUOTED(MAXIMUM_ALIGNOF, $MAX_ALIGNOF)
+X else
+X-  dnl cross-compiling: assume that double's alignment is worst case
+X-  MAX_ALIGNOF="$ac_cv_alignof_double"
+X+  dnl cross-compiling: do not define MAXIMUM_ALIGNOF
+X fi
+X-AC_DEFINE_UNQUOTED(MAXIMUM_ALIGNOF, $MAX_ALIGNOF)
+X 
+X 
+X dnl Check to see if platform has POSIX signal interface.
+X--- postgresql-v6.5beta1/pgsql/src/Makefile.global.in.ORIG	Tue Feb  2 12:43:56 1999
+X+++ postgresql-v6.5beta1/pgsql/src/Makefile.global.in	Mon Apr 12 10:08:42 1999
+X@@ -198,8 +198,13 @@
+X #-------------------------------------------------------------
+X # See the subdirectory template for default settings for these
+X #-------------------------------------------------------------
+X+CC_FOR_HOST= @CC_FOR_HOST@
+X CC= @CC@
+X CPP= @CPP@
+X+LD= @LD@
+X+AR= @AR@
+X+NM= @NM@
+X+LORDER= @LORDER@
+X YFLAGS= @YFLAGS@
+X YACC= @YACC@
+X LEX= @LEX@
+X@@ -280,6 +285,10 @@
+X endif
+X 
+X ifeq ($(CC), gcc)
+X+CFLAGS+= -Wall -Wmissing-prototypes
+X+endif
+X+
+X+ifeq ($(CC), @target@-gcc)
+X CFLAGS+= -Wall -Wmissing-prototypes
+X endif
+X 
+END-of-v6.5beta1-cross.patch
+exit
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 8069] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 8071] cross compile patch for v6.5beta1 (m68k--netbsd part)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 8075] Re: cross compile patch for v6.5beta1 (m68k--netbsd part)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 8069] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

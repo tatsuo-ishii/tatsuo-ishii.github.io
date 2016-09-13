@@ -1,0 +1,250 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1430] Re: [HELP] can't compile pgSQl 6.0 on SunOS -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Sat, 22 Feb 1997 15:42:41 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.91LJ1.0.4.970222153335.7531A&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9702220559.AA06656@void.lib.tokushima&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1430] Re: [HELP] can't compile pgSQl 6.0 on SunOS </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00141.html">Date Prev</A>][<A HREF="msg00144.html">Date Next</A>][<A HREF="msg00140.html">Thread Prev</A>][<A HREF="msg00144.html">Thread Next</A>][<A HREF="index.html#00142">Date Index</A>][<A HREF="threads.html#00142">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1430] Re: [HELP] can't compile pgSQl 6.0 on SunOS</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 22 Feb 1997 15:42:41 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  sunos4 はすでに sparc となっているらしいのですが、僕も sunos4 でメイ
+クしました。やはり、最初はうまく行かず以下のような手順でなんとかできま
+した。また、regression てすとはほぼ DEC/OSF1 でやったときと同じような
+違いがありました。(ただし、まだ jp.patch はあててません。)
+  なお、 lib44bsd.a は、多分 BIND をインストールした時に同時にインストー
+ルされたものだと思います。
+
+(1) Make symlink.
+
+ln -s  src/backend/port/sparc src/backend/port/sunos4
+
+
+(2) Patches.
+
+(2.1) src/include&gt; diff -c c.h.org c.h
+*** c.h.org	Fri Dec 27 08:01:57 1996
+--- c.h	Tue Feb  4 19:25:35 1997
+***************
+*** 739,744 ****
+--- 739,745 ----
+  
+  #if defined(sunos4)
+  #define	memmove(d, s, l)	bcopy(s, d, l)
++ #include &lt;unistd.h&gt;
+  #endif
+  
+  /* These are for things that are one way on Unix and another on NT */
+
+
+(2.2) src/include&gt; diff -c config.h.org config.h
+*** config.h.org	Fri Jan 31 02:01:16 1997
+--- config.h	Tue Feb  4 16:32:20 1997
+***************
+*** 209,214 ****
+--- 209,215 ----
+  #if defined(sunos4)
+  #  define USE_POSIX_TIME
+  #  undef HAVE_MEMMOVE
++ #  undef HAVE_SYS_SELECT_H
+  #endif
+  
+  #if defined(svr4) 
+
+
+(2.3) src/backend/port&gt; diff -c Makefile.org Makefile
+*** Makefile.org	Fri Jan 24 02:00:35 1997
+--- Makefile	Wed Feb 19 18:38:00 1997
+***************
+*** 31,38 ****
+  
+  OBJS = $(PORTNAME)/SUBSYS.o
+  
+! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sparc_solaris/ultrix4/nextstep/svr4))
+  # Other ports get the inet_aton() function from their standard C libraries.
+  OBJS += inet_aton.o
+  endif
+  
+--- 31,39 ----
+  
+  OBJS = $(PORTNAME)/SUBSYS.o
+  
+! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sunos4/sparc_solaris/ultrix4/nextstep/svr4))
+  # Other ports get the inet_aton() function from their standard C libraries.
++ CC=gcc
+  OBJS += inet_aton.o
+  endif
+  
+
+(2.4) src&gt; diff -c Makefile.global.org Makefile.global
+*** Makefile.global.org	Wed Jan 29 02:00:13 1997
+--- Makefile.global	Wed Feb 19 18:26:00 1997
+***************
+*** 627,633 ****
+  else
+  CFLAGS_SL= -fPIC
+  endif
+! LDADD_BE= -lln -ldl
+  
+  %.so: %.o
+  	$(LD) -dc -dp -Bdynamic -o $@ $&lt;
+--- 627,633 ----
+  else
+  CFLAGS_SL= -fPIC
+  endif
+! LDADD_BE= -lln -ldl -l44bsd
+  
+  %.so: %.o
+  	$(LD) -dc -dp -Bdynamic -o $@ $&lt;
+
+
+(3) Output from customize
+src&gt; cat Makefile.custom
+PORTNAME= sunos4
+USE_READLINE= true
+READLINE_INC+= -DHAVE_LIBREADLINE
+# Remove the following line if you don't have &lt;readline.h&gt;
+READLINE_INC+= -DHAVE_READLINE_H
+# Remove the following line if you don't have &lt;history.h&gt;
+#READLINE_INC+= -DHAVE_HISTORY
+READLINE_INC+= -I/usr/local/include/readline
+READLINE_LIB+= -L/usr/local/lib -lreadline
+CURSES_LIB= -L/usr/lib -lcurses -ltermcap
+CUSTOM_CC= gcc
+
+
+
+&gt; 庫元＠徳島大学附属図書館です。
+&gt; 
+&gt; postgres95 MLの皆様へ
+&gt; 
+&gt; いつも皆様のメールを参考にさせていただいております。
+&gt; ありがとうございます。
+&gt; 
+&gt; 早速ですが、一つお教え願いたいことがあります。
+&gt; どうも、SunOSでのコンパイがうまくいきません。皆様の中でうまく
+&gt; コンパイルできたという方がおられましたら、アドバイスいただけ
+&gt; ないでしょうか。
+&gt; 
+&gt; &lt;&lt;環境&gt;&gt;
+&gt; SunOS4.1.4
+&gt; gcc 2.7.2.1
+&gt; gmake 3.75
+&gt; flex 2.5.4
+&gt; 
+&gt; postgreSQL6.0 + jp.patch
+&gt; 
+&gt; &lt;&lt;状況&gt;&gt;
+&gt; Makefile.global、Makefile.customは石井様のインストールのヒントを
+&gt; 参考にした。(Makefile.globalにSRCDIR= /home/pgsql/archives/srcを
+&gt; 付け加えた。)
+&gt; 
+&gt; ------
+&gt; In file included from nbtutils.c:25:
+&gt; ../../../include/regex/utils.h:57: warning: `memmove' redefined
+&gt; ../../../include/c.h:741: warning: this is the location of the previous definition
+&gt; nbtutils.c: In function `_bt_orderkeys':
+&gt; nbtutils.c:100: warning: implicit declaration of function `memset'
+&gt; nbtutils.c:138: warning: implicit declaration of function `bcopy'
+&gt; gcc -DJP -Wall -Wmissing-prototypes -O2  -Dsunos4  -I../.. -I../../port/sunos4
+&gt; -I../../../inc
+&gt; lude   -c nbtsort.c -o nbtsort.o
+&gt; In file included from nbtsort.c:61:
+&gt; ../../../include/regex/utils.h:57: warning: `memmove' redefined
+&gt; ../../../include/c.h:741: warning: this is the location of the previous definition
+&gt; nbtsort.c: In function `_bt_taperewind':
+&gt; nbtsort.c:272: `SEEK_SET' undeclared (first use this function)
+&gt; nbtsort.c:272: (Each undeclared identifier is reported only once
+&gt; nbtsort.c:272: for each function it appears in.)
+&gt; nbtsort.c: In function `_bt_spoolinit':
+&gt; nbtsort.c:457: warning: implicit declaration of function `memset'
+&gt; gmake[3]: *** [nbtsort.o] Error 1
+&gt; gmake[3]: Leaving directory `/home/pgsql/archives/src/backend/access/nbtree'
+&gt; gmake[2]: *** [submake] Error 2
+&gt; gmake[2]: Leaving directory `/home/pgsql/archives/src/backend/access'
+&gt; gmake[1]: *** [postgres_group1] Error 2
+&gt; gmake[1]: Leaving directory `/home/pgsql/archives/src/backend'
+&gt; gmake: *** [all] Error 2
+&gt; ------
+&gt; warning: `memmove' redefined
+&gt; warning: implicit declaration of function `bcopy
+&gt; などのwarningを多く出しながら上記の箇所でerrorになります。
+&gt; 私の力量ではどうしてよいか全然わかりません。どなたかアドバイス
+&gt; よろしくお願いします。
+&gt; 
+&gt; --------------------------------------------------------------------
+&gt; kuramoto@lib.tokushima-u.ac.jp
+&gt; 
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00140" HREF="msg00140.html">[postgres95 1428] [HELP] can't compile pgSQl 6.0 on SunOS</A></STRONG>
+<UL><LI><EM>From:</EM> Kuramoto Takafumi &lt;kuramoto@lib.tokushima-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00141.html">[postgres95 1429] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00144.html">[postgres95 1432] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00140.html">[postgres95 1428] [HELP] can't compile pgSQl 6.0 on SunOS</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00144.html">[postgres95 1432] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00142"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00142"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25468] Re: deleteにすごく時間がかかる現象について -->
+<!--X-From: Mashiki <mashiki@yanah.com> -->
+<!--X-Date: Thu, 28 Mar 2002 20:21:59 +0900 -->
+<!--X-Message-Id: 59C1D64AC6E262mashiki@yanah.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020328183117.CE55.KIYOSHI.YOSHIDA@mail.toyota&#45;shokki.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25468] Re: deleteにすごく時間がかかる現象について </TITLE>
+<LINK REV="made" HREF="mailto:mashiki@yanah.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00441.html">Date Prev</A>][<A HREF="msg00444.html">Date Next</A>][<A HREF="msg00438.html">Thread Prev</A>][<A HREF="msg00444.html">Thread Next</A>][<A HREF="index.html#00443">Date Index</A>][<A HREF="threads.html#00443">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25468] Re: deleteにすごく時間がかかる現象について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mashiki &lt;<A HREF="mailto:mashiki@yanah.com">mashiki@yanah.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 28 Mar 2002 20:21:59 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00438.html">20020328183117.CE55.KIYOSHI.YOSHIDA@mail.toyota-shokki.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　Mashikiです。
+
+&gt;&gt; どうでしょ？
+&gt;ヒントを元に
+&gt; delete from history
+&gt;  where time &lt; (
+&gt;  	select time from history order by
+&gt; 	time desc limit 1 offset 200000-1
+&gt; )
+&gt; ;
+&gt;を実行したところ、実行時間は10秒ほどで処理できました。
+&gt;当初の目標は10分以内でしたので達成することができました。有り難うございま
+&gt;した。
+&gt;しかし何でこんなに所要時間が変わってくるのでしょうか。
+
+<A HREF="http://www.linux.or.jp/JF/JFdocs/PostgreSQL-FAQ.html">http://www.linux.or.jp/JF/JFdocs/PostgreSQL-FAQ.html</A>
+
+に
+
+&gt;&gt;&gt; 外部問い合わせの各行について副問い合わせの結果を順番に
+&gt;&gt;&gt; スキャンすることにより、副問い合わせを外部問い合わせに結合しています
+
+とあります。わかりにくい日本語ですが書いてあるとおりだとすると、
+削除前のhistory表の件数が400,000件だとすれば、in句の中のSQLの結果が
+出た後、さらに削除対象レコード特定のため平均 200,000×400,000÷2回の
+キーの比較が必要になります。
+
+それが、今回の修正で400,000回の日付の比較ですむようになりました。
+timeにインデクスが張ってあれば比較の回数はさらに減りますし、
+in句の中のSQLの実行の際の比較にも使えるので、さらにスピードが上がると
+思います。
+
+
+件数の多いテーブルのwhere句の中で件数の多い結果を返すin句は使うな！
+ってことで。
+
+
+#でも
+&gt;  where time &lt; (
+&gt;  	select time from history order by
+&gt; 	time desc limit 1 offset 200000-1
+&gt; )
+#こんなテクニックが使えるのはPostgresだけですね。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00444" HREF="msg00444.html">[pgsql-jp: 25469] Re: deleteにすごく時間がかかる現象について</A></STRONG>
+<UL><LI><EM>From:</EM> SUGIMURA Takashi 杉村貴士&lt;sugimura@infoscience.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00438" HREF="msg00438.html">[pgsql-jp: 25463] Re: deleteにすごく時間がかかる現象について</A></STRONG>
+<UL><LI><EM>From:</EM> "kiyoshi.yoshida" &lt;kiyoshi.yoshida@mail.toyota-shokki.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00441.html">[pgsql-jp: 25466] Re: PL/pgSQLで一時テーブルの作成、挿入、削除の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00444.html">[pgsql-jp: 25469] Re: deleteにすごく時間がかかる現象について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00438.html">[pgsql-jp: 25463] Re: deleteにすごく時間がかかる現象について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00444.html">[pgsql-jp: 25469] Re: deleteにすごく時間がかかる現象について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00443"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00443"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

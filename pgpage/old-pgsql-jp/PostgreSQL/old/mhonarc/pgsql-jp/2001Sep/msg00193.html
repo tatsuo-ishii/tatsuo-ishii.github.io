@@ -1,0 +1,205 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23153] Re: VARCHAR(n)のn -->
+<!--X-From: Hiro Yoshioka <hyoshiok@miraclelinux.com> -->
+<!--X-Date: Tue, 18 Sep 2001 13:34:22 +0900 -->
+<!--X-Message-Id: 20010918133422L.hyoshiok@miraclelinux.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010918100058L.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 3BA6B041.772ACFC@shonan.ne.jp -->
+<!--X-Reference-Id: 20010918122510.08D8.SAKAIDA@psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23153] Re: VARCHAR(n)のn </TITLE>
+<LINK REV="made" HREF="mailto:hyoshiok@miraclelinux.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00192.html">Date Prev</A>][<A HREF="msg00194.html">Date Next</A>][<A HREF="msg00191.html">Thread Prev</A>][<A HREF="msg00195.html">Thread Next</A>][<A HREF="index.html#00193">Date Index</A>][<A HREF="threads.html#00193">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23153] Re: VARCHAR(n)のn</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiro Yoshioka &lt;<A HREF="mailto:hyoshiok@miraclelinux.com">hyoshiok@miraclelinux.com</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 18 Sep 2001 13:34:22 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:hyoshiok@miraclelinux.com">hyoshiok@miraclelinux.com</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00185.html">20010918100058L.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00186.html">3BA6B041.772ACFC@shonan.ne.jp</A>&gt;&lt;<A HREF="msg00191.html">20010918122510.08D8.SAKAIDA@psn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしおかです。
+
+テストの合間につれづれなるままに記します。
+長いしたいした内容もない、しかも結論もない
+のでお急ぎの方はどーぞとばしてください。
+
+&gt; 境田です。
+
+こんにちは、
+
+&gt; SELECT, INSERTなどのDMLにおいては、ほぼ互換性は維持できる
+&gt; とは思いますが、文字データが非常に大きなデータベースや、
+&gt; 処理スピードをシビアに要求するアプリケーションにおいては、
+&gt; おそらく互換性に問題がでてくるでしょう。
+
+文字数というのはいったいなにかという問題は
+実は簡単なようでいて結構面倒な話です。
+
+日本語、中国語なんかは、まだいいのですが、
+複数の文字コードが組み合わさって一つの文字
+を構成する、アラビア語、ヘブライ語、タイ語
+における一文字をどう定義するかは簡単なようでいて
+結構なやましい問題です。
+
+Unicodeといっても世界各国の文字(スクリプト)が
+まざりあっているので何をもって一文字とするかと
+いうのにコンセンサスを得ることは難しいです。
+
+結局、一つのUnicodeコードポイントをCHAR(1)
+にするとかいう妥協とかを実装者は、いつかは
+決定しないといけないわけですね。
+
+そこまで話を広げなくても、EUCやSJISだったら
+どーだこーだというのは半角カナはどーするとか
+JIS X0213/X0212はどーする、ユーザー定義文字は
+ベンダー定義文字は？？とか、それなりに面倒な
+話になります。
+
+半角カナ＋濁点って何文字なんですか？
+２文字、一文字？？
+
+でもって、本当にCHAR(N)をN文字と解釈するんだ
+という実装を目指そうとすると上述したような
+やっかいな問題を背負いこむハメになります。
+
+どっかでわりきらないといけないですね。
+
+さらに近藤さんの指摘する既存のデータとアプリケーション
+との互換性をどうするんだという大問題にもおりあいを
+つけないといけません。
+
+うまい解決方法をおもいつかないものだから
+安易な互換性にはしっちゃたりします。(懺悔)
+
+((妥協策として個人的には、文字と解釈するかバイトと解釈するかは
+データベースの属性でいいとは思いますが。))
+
+&gt; &gt; また、NATINAL CHARACTER という規格がせっかくあるのに、
+&gt; &gt; これを無視してしまうのも解せません。
+&gt; &gt; 
+&gt; &gt; CHAR/VARCHAR の文字集合は従来とおりとして、互換性を確保して、
+&gt; &gt; NCHAR/NVARCHAR の文字集合を、マルチバイト文字の特定の指定
+&gt; &gt; された集合とすれば、SQL の規格の理念というか設定のいきさつ
+&gt; &gt; にも合致したものになると考えます。
+&gt; 
+&gt; SQL標準でいいますと、NCHAR は、CHARの特定のキャラクタセット
+&gt; を表すデータタイプです。例えば、InterBaseの create table 文
+&gt; では、
+&gt; 
+&gt;    xxx NCHAR(10)   ..........................(1)
+&gt;    xxx CHAR(10) character set ISO8859_1  ....(2)
+&gt; 
+&gt; (1)と(2)は同じ意味になります。つまり、CHAR が NCHAR を包含し
+&gt; ているのです。
+
+これは厳密に言えば、NCHARのキャラクタセットは
+ISO8859-1に固定ではなく実装者定義のキャラクタセットです。
+ですから、CHAR(10) character set is UCS-2とかでも
+標準的には問題ないです。
+
+&gt; # ISO8859_1は、ヨーロッパ言語をサポートする文字集合です。
+&gt;  (InterBaseの NATIONAL とはヨーロッパを意味する??)
+
+InterBaseは、そーゆー実装になっているんですか？
+
+&gt; Create table文において、character set を記述しない場合は、
+&gt; Default の character set が使用されることになりますが、そ
+&gt; の点において、今まで PostgreSQL には矛盾があったのです。
+&gt; 
+&gt; つまり、EUC_JPで作成したデータベースのdefaultの character
+&gt; set は、当然、EUC_JPにならなければならないのですが、1文字
+&gt; 1バイト系の character set かのような振る舞いをしていたので
+&gt; す。
+&gt; 
+&gt; それで、この際、default の状態を、SQL標準に合わせようとい
+&gt; うことだと思います。標準化の流れには逆らえない(^^;;
+&gt; 
+&gt; 
+&gt; # できれば、１列ごとに character set が定義できればもっと
+&gt; 　良いですが..
+
+アプリケーションが使いこなせるとは思えないので
+over kill な仕様だと思います。
+
+いまは亡きDEC Rdb(Oracle Rdbという製品になって
+健在ですが)で、さきばしって実装してしまいましたが
+誰も利用しませんでした。;_;
+
+よ＠あ、テストがおわった。
+--
+Hiro Yoshioka/CTO, Miracle Linux
+<A HREF="mailto:hyoshiok@miraclelinux.com">mailto:hyoshiok@miraclelinux.com</A>
+<A HREF="http://www.miraclelinux.com">http://www.miraclelinux.com</A>
+カーネルプログラマ募集中
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00197" HREF="msg00197.html">[pgsql-jp 23157] Re: VARCHAR(n)のn</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00195" HREF="msg00195.html">[pgsql-jp 23155] Re: VARCHAR(n)のn</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00185" HREF="msg00185.html">[pgsql-jp 23144] Re: VARCHAR(n)のn</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 23145] Re: VARCHAR(n)のn</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 23150] Re: VARCHAR(n)のn</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 23151] Re: psql のコピーコマンドのような機能をhttp経由で使う方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 23154] Re: VARCHAR(n)のn</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 23150] Re: VARCHAR(n)のn</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00195.html">[pgsql-jp 23155] Re: VARCHAR(n)のn</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00193"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00193"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

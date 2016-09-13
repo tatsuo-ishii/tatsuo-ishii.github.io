@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23850] Re: [Q]Access(ODBC)のTransaction 中のSELECT -->
+<!--X-From: Jun YOSHIZAWA <juney@be.mbn.or.jp> -->
+<!--X-Date: Sat, 24 Nov 2001 11:30:11 +0900 -->
+<!--X-Message-Id: 200111240225.LAA12024@thales.ic.daito.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200111220723.QAA26867@thales.ic.daito.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23850] Re: [Q]Access(ODBC)のTransaction 中のSELECT </TITLE>
+<LINK REV="made" HREF="mailto:juney@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00265.html">Date Prev</A>][<A HREF="msg00267.html">Date Next</A>][<A HREF="msg00249.html">Thread Prev</A>][<A HREF="msg00247.html">Thread Next</A>][<A HREF="index.html#00266">Date Index</A>][<A HREF="threads.html#00266">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23850] Re: [Q]Access(ODBC)のTransaction 中のSELECT</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun YOSHIZAWA &lt;<A HREF="mailto:juney@be.mbn.or.jp">juney@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 24 Nov 2001 11:30:11 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00249.html">200111220723.QAA26867@thales.ic.daito.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+ 吉澤です。
+
+ 自己フォローです。
+
+ Access2000のオンラインマニュアルを参考にして以下のように修正し
+ましたら、新しいODBCドライバの方でも動くようになりました。
+
+ この方法が正しい方法かどうかはわかりませんが、とりあえず動作
+しました。(ちゃんとロールバックもしました)
+
+Sub test2()
+
+    Dim wrk As Workspace
+    Dim dbs As Database
+    Dim qdf As QueryDef
+    Dim qdf2 As QueryDef
+
+    Set wrk = DBEngine.Workspaces(0)
+    Set dbs = CurrentDb()
+    Set qdf = dbs.CreateQueryDef("")
+    Set qdf2 = dbs.CreateQueryDef("")
+
+    qdf.Connect = dbs.TableDefs("t_test").Connect
+    qdf.ReturnsRecords = False
+
+    qdf2.Connect = dbs.TableDefs("t_test2").Connect
+    qdf2.ReturnsRecords = True
+
+    On Error GoTo Error
+
+    wrk.BeginTrans
+
+    qdf.SQL = "DELETE FROM T_TEST;"
+    qdf.Execute dbFailOnError
+
+    qdf2.SQL = "SELECT * FROM T_TEST2;"
+    Dim rst As Recordset
+    Set rst = qdf2.OpenRecordset()
+
+    rst.MoveLast
+    rst.MoveFirst
+
+    Dim ii As Integer
+    For ii = 1 To rst.RecordCount
+
+        If IsNull(rst.Fields(0)) = False Then
+
+            qdf.SQL = "INSERT INTO T_TEST (コード,名称) VALUES (" &amp; ii &amp; _
+                                        ",'" &amp; rst.Fields(1) &amp; "');"
+            qdf.Execute dbFailOnError
+
+            rst.MoveNext
+
+        End If
+
+    Next ii
+
+    rst.Close
+
+    wrk.CommitTrans
+
+    qdf.Close
+    qdf2.Close
+    dbs.Close
+    wrk.Close
+
+    MsgBox "end"
+
+    Exit Sub
+
+Error:
+
+    wrk.Rollback
+    qdf.Close
+    qdf2.Close
+    dbs.Close
+    wrk.Close
+
+    MsgBox "error"
+
+End Sub
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00249" HREF="msg00249.html">[pgsql-jp 23833] [Q}Access(ODBC)のTransaction 中のSELECT</A></STRONG>
+<UL><LI><EM>From:</EM> Jun YOSHIZAWA &lt;juney@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00265.html">[pgsql-jp 23849] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00267.html">[pgsql-jp 23851] JPUG 理事長石井さん来阪記念宴会の件</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 23833] [Q}Access(ODBC)のTransaction 中のSELECT</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 23831] unsubscribe pgsql-jp</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00266"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00266"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

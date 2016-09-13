@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13225] postgresql&#45;7.0beta1 -->
+<!--X-From: Youichi Iwakiri <iwakiri@jkk.hitachi.co.jp> -->
+<!--X-Date: Wed, 23 Feb 2000 15:18:04 +0900 -->
+<!--X-Message-Id: 200002230618.PAA18129@mailgw.jkk.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13225] postgresql-7.0beta1 </TITLE>
+<LINK REV="made" HREF="mailto:iwakiri@jkk.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00264.html">Date Prev</A>][<A HREF="msg00266.html">Date Next</A>][<A HREF="msg00301.html">Thread Prev</A>][<A HREF="msg00268.html">Thread Next</A>][<A HREF="index.html#00265">Date Index</A>][<A HREF="threads.html#00265">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13225] postgresql-7.0beta1</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:iwakiri@jkk.hitachi.co.jp">iwakiri@jkk.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Feb 2000 15:18:04 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです。
+
+PostgreSQL7.0beta1が公開されていたのでちょっとだけ試して見ました。
+
+環境は下記の通り
+OS:         FreeBSD 3.2-RELASE
+C compiler: gcc 2.7.2.1
+C++:        同上
+make:       GNU Make version 3.77
+flex:       2.5.4
+Bison:      GNU Bison version 1.25
+perl:       5.005_03
+
+./configureのオプションは
+
+  % ./configure --enable-multibyte=EUC_JP --with-perl \
+       --with-pgport=5433 --prefix=/usr/local/pgsql7.0 --enable-debug
+
+makeでエラーになるので、以下の修正を実施。
+src/include/miscadmin.hに一行追加。
+
+ +  #include &lt;fcntl.h&gt;
+    #include "postgres.h"
+
+パッチにするまでも無い修正です。
+
+これで、makeが通ったのでmake installしました。
+initdbでエラーが出るので調べてみると、
+データベースの配置パス($PGDATA)に "."が含まれていると
+Segmentation faultとなりcore dumpします。
+6.5.3までは、パスのチェックが甘かったのですが、7.0beta1では、
+
+backend/utils/misc/database.c
+の中で
+        char illegal_dbpath_chars[] =
+            "\001\002\003\004\005\006\007\010"
+            "\011\012\013\014\015\016\017\020"
+            "\021\022\023\024\025\026\027\030"
+            "\031\032\033\034\035\036\037"
+            "'.";
+
+使用できない文字を定義してます。
+
+configureからやり直す事になりました。
+
+  % ./configure --enable-multibyte=EUC_JP --with-perl \
+       --with-pgport=5433 --prefix=/usr/local/pgsql7_0 --enable-debug
+
+以降、make; make install でinitdbも無事通過。
+regression testの結果は、
+int2 .. failed
+int4 .. failed
+float8 .. failed
+geometry .. failed
+他はOK
+
+wisconsion benchmarkの結果は、
+
+query  0:   0.002 real   0.001 user   0.001 sys
+query  1:   0.904 real  -1.863 user  -1.890 sys
+query  2:   1.001 real   0.191 user  -1.907 sys
+query  3:   0.919 real   0.169 user   0.054 sys
+query  4:   1.005 real  -1.803 user  -3.887 sys
+query  5:   1.011 real   0.116 user  -1.889 sys
+query  6:   1.155 real  -1.791 user  -1.900 sys
+query  7:   0.007 real   0.004 user   0.002 sys
+query  8:   0.329 real   0.195 user   0.065 sys
+query  9:   1.821 real   0.338 user  -3.875 sys
+query 10:   1.088 real  -1.748 user   0.067 sys
+query 11:   1.974 real   0.661 user  -1.776 sys
+query 12:   1.462 real   0.413 user  -1.928 sys
+query 13:   1.049 real   0.232 user   0.070 sys
+query 14:   2.081 real   0.613 user  -3.739 sys
+query 15:   1.701 real  -1.530 user   0.270 sys
+query 16:   5.723 real  -0.507 user   1.929 sys
+query 17:   1.981 real   0.636 user  -3.724 sys
+query 18:   1.867 real  -1.607 user   0.098 sys
+query 19:   0.252 real   0.061 user   0.019 sys
+query 20:   0.879 real   0.198 user   0.075 sys
+query 21:   0.000 real   0.000 user   0.000 sys
+query 22:   0.000 real   0.000 user   0.000 sys
+query 23:   0.959 real   0.210 user  -1.931 sys
+query 24:   0.000 real   0.000 user   0.000 sys
+query 25:   0.000 real   0.000 user   0.000 sys
+query 26:   0.008 real   0.008 user  -1.998 sys
+query 27:   0.005 real   0.006 user  -1.998 sys
+query 28:   0.008 real   0.008 user  -1.997 sys
+query 29:   0.004 real   0.006 user  -1.998 sys
+query 30:   0.003 real   0.001 user   0.001 sys
+query 31:   0.007 real   0.011 user  -3.995 sys
+query 32:   0.008 real   0.004 user   0.002 sys
+
+で、6.5.3より遅くなったもの多数 (^^;
+
+とりあえずは、6.5.3から一部を移行して試用して見ます。
+
+# pg_ctl っていうコマンドが追加されてますね。
+# 幸せになれそうです。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00268" HREF="msg00268.html">[pgsql-jp 13228] Re: postgresql-7.0beta1</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 13224] Re: select文のwhere句にてデータの一部分を条件判断につかいたいのですが・・・</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 13226] Re: select文のwhere句にてデータの一部分を条件判断につかいたいのですが・・・</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 13261] Re: LockRelease/LockReplaceのエラーが出ます</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00268.html">[pgsql-jp 13228] Re: postgresql-7.0beta1</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00265"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00265"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,186 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8749] ecpgのバグ？ -->
+<!--X-From: Norio Kasahara <kasa@ab.mbn.or.jp> -->
+<!--X-Date: Wed, 09 Jun 1999 14:03:36 +0900 -->
+<!--X-Message-Id: 19990609140336V.kasa@ab.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8749] ecpgのバグ？ </TITLE>
+<LINK REV="made" HREF="mailto:kasa@ab.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00184.html">Date Prev</A>][<A HREF="msg00185.html">Date Next</A>][<A HREF="msg00211.html">Thread Prev</A>][<A HREF="msg00186.html">Thread Next</A>][<A HREF="index.html#00183">Date Index</A>][<A HREF="threads.html#00183">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8749] ecpgのバグ？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Norio Kasahara &lt;<A HREF="mailto:kasa@ab.mbn.or.jp">kasa@ab.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 09 Jun 1999 14:03:36 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+笠原と言います．初めまして．
+
+この度，Linux Japan 誌にデータベース関連の連載を持つことに
+なりまして，１回目は，PostgreSQLを題材として取り上げること
+にしました．今月末発売の号からスタートします（入稿済みです）．
+
+このMLは，ROMさせていただくだけでしたが，いつも貴重な情報を
+提供していただき，感謝しています．記事中に情報リソースとし
+ても紹介させていただきましたので，遅ればせながら，ご挨拶させ
+ていただきました．
+
+で，それだけでは何ですので，ecpgのバグかもしれないものを
+レポートいたします．
+（PostgreSQL 6.4.2 で i386 の環境です．）
+
+(1) エラーハンドラ関数名に大文字が使えない
+「exec sql exec sql whenever sqlerror do XXXX();」
+とエラーハンドラを指定したときに，XXXXの関数名が英大文字を
+含んでいるとコンパイルエラーになってしまうという問題に遭遇
+しました．
+具体例とコンパイルエラーのメッセージを末尾に付けます．
+要するに，ecpgのプリプロセッサが，関数名を勝手に小文字に変換
+してしまうのが原因のようですが，これは，ecpgの仕様なのでしょ
+うか？ バグなのでしょうか？
+SQLでは，大文字小文字を区別しないのが原則ですから，仕様と言
+われるとそれまでなのですが，OracleのPro*Cでは問題ないので
+余計なことするなよ，って感じです．
+
+(2) ホスト変数にshortを使用すると負値が使えない
+  添付したプログラムは，ErrorExit → error_exit のように
+関数名を変更するとコンパイルは通るようになりますが，実行する
+と末尾のようなエラーが出ます．ホスト変数としてshortを使用し
+ている場合，マイナスの値を設定すると実行時エラーになってしま
+うようです．
+  吐き出された.cのソースを見ると，パラメタの設定はおかしくな
+いようですので，ecpgのライブラリ関数で型変換がバグっているよ
+うに思われます（short → int2 なので本来，変換は要らないはず
+なんですけど）
+
+ecpgを使ってみたは良いものの，参考にできるドキュメントが
+「PostgreSQL Programmer's Guide」しかなく，しかも，ecpgの章
+は，内容が貧弱でかなり厳しいものがあります．
+問題に当たっても，バグなのか仕様なのかを判断するのもおぼつか
+ない状況です．
+他に参考にできるような情報がありましたら，ご教示ください．
+
+# ソースを追い掛けても，仕様かどうかは判断できませんので．
+
+┏──────────────────
+│∇      Норио Касахара 
+│￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣
+│  笠原 規男   kasa@ab.mbn.or.jp　　 
+
+
+--- プログラムソース ------------------------------------------------
+#include &lt;stdio.h&gt;
+#include &lt;limits.h&gt;
+exec sql include sqlca;
+
+void ErrorExit(void);
+
+int main(int argc, char *argv[])
+{
+  exec sql begin declare section;
+  short     a;
+  exec sql end declare section;
+
+  exec sql whenever sqlerror do ErrorExit();
+
+  exec sql connect to bookmark user dbuser;
+  exec sql create table test (col_a int2);
+
+  a = -1;
+  exec sql insert into test (col_a) values (:a);
+
+  exec sql commit;
+  exec sql disconnect;
+
+  return 0;
+}
+
+void ErrorExit(void)
+{
+  fprintf(stderr, "sqlcode:%d\nsqlerrm:%.*s\n",
+	  sqlca.sqlcode, sqlca.sqlerrm.sqlerrml, sqlca.sqlerrm.sqlerrmc);
+
+  exec sql whenever sqlerror continue;
+  exec sql rollback; 
+  exec sql disconnect;
+
+  exit(1);
+}
+
+--- コンパイルエラー ------------------------------------------------
+make -k 
+ecpg -I /usr/include/pgsql test.pgc
+cc -g -c test.c -I /usr/include/pgsql
+cc -o test test.o -lpq -lecpg -lcrypt
+test.o: In function `main':
+/home/kasa/test/test.pgc:16: undefined reference to `errorexit'
+/home/kasa/test/test.pgc:17: undefined reference to `errorexit'
+/home/kasa/test/test.pgc:20: undefined reference to `errorexit'
+/home/kasa/test/test.pgc:22: undefined reference to `errorexit'
+/home/kasa/test/test.pgc:23: undefined reference to `errorexit'
+make: *** [test] Error 1
+make: Target `all' not remade because of errors.
+
+--- 実行時エラー ---------------------------------------------------
+sqlcode:-400
+sqlerrm:Error: ERROR:  i4toi2: '65535' causes int2 overflow
+ line 19.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 8752] Re: ecpgのバグ？</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00184.html">[pgsql-jp 8750] OS2側での加工</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 8751] 32ビットODBCを日本語に戻す</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 8777] Re: pgsql6.5 X-day?! (Re: pgsql6.5b3)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 8752] Re: ecpgのバグ？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00183"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00183"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

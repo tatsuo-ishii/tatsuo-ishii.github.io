@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9633] Re: pgbash -->
+<!--X-From: KUBO Takehiro <kubo&#45;t@cx.airnet.ne.jp> -->
+<!--X-Date: 24 Jul 1999 21:31:30 +0900 -->
+<!--X-Message-Id: 199907241234.VAA16716@mail.cx.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 379829E43B6.39D8SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199907240742.QAA18220@mail.cx.airnet.ne.jp -->
+<!--X-Reference-Id: 37997EEB28A.902ESAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9633] Re: pgbash </TITLE>
+<LINK REV="made" HREF="mailto:kubo-t@cx.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00435.html">Date Prev</A>][<A HREF="msg00437.html">Date Next</A>][<A HREF="msg00435.html">Thread Prev</A>][<A HREF="msg00438.html">Thread Next</A>][<A HREF="index.html#00436">Date Index</A>][<A HREF="threads.html#00436">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9633] Re: pgbash</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: KUBO Takehiro &lt;<A HREF="mailto:kubo-t@cx.airnet.ne.jp">kubo-t@cx.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: 24 Jul 1999 21:31:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00421.html">379829E43B6.39D8SAKAIDA@mail.psn.ne.jp</A>&gt;&lt;<A HREF="msg00434.html">199907240742.QAA18220@mail.cx.airnet.ne.jp</A>&gt;&lt;<A HREF="msg00435.html">37997EEB28A.902ESAKAIDA@mail.psn.ne.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: SEMI/1.8.6 (Fukuoka) FLIM/1.9.2 (Shin-Tanabe) Emacs/20.2 MULE/3.0 (MOMIJINOGA)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+久保＠伊勢原市(引越し予定)です。
+
+SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt; writes:
+
+&gt; 境田です。
+&gt; 
+&gt; On 24 Jul 1999 16:40:03 +0900
+&gt; KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt; さん wrote:
+&gt; &gt; 
+&gt; &gt; psql(というか、PostgreSQL)はあまり使ってないのですが、fetch 関係は
+&gt; &gt; psqlにありませんよね。
+
+&gt; 　いえ、あります。次のように使用します。
+&gt;   begin;
+&gt;   declare cur cursor for select id, tx from test ;
+&gt;   fetch in cur;
+&gt;   end;
+&gt; 
+&gt; 　このSQLは、そのまま backendに送信されます。ちなみに、fetchの
+&gt; 正確な文法は次です。
+&gt;   FETCH [FORWARD|BACKWARD] [number|ALL] [IN cursorname];
+
+うむ。
+
+&gt; &gt;     exec_sql "declare cur cursor for select r1, r2 from test .."
+&gt; &gt;     exec_sql "fetch in cur into :ROW1, :ROW2"
+&gt; &gt; は pgbash 側で構文解析して、backend に送信するデータを工夫しないといけ
+&gt; &gt; ないだろうな。
+&gt; 
+&gt; 　いえ、
+&gt; 
+&gt; 　"declare cur cursor for select r1, r2 from test .." 
+&gt;   "fetch in cur" 
+&gt; 
+&gt; 　は、backend にそのまま送信されますので、構文解析しなければな
+&gt; らないのは、fetch 文の into以降です。
+&gt; 
+&gt; # 埋め込みSQL構文では、fetch文の into以降は、":ホスト変数"並び
+&gt;   ですから、簡単に構文解析できます。このホスト変数をシェル変数
+&gt;   とすることになります。
+
+なるほど。それなら大丈夫ですね。
+標準の組み込み SQL の構文とははずれますが、fetch が複数行返すときは、
+シェル変数は配列変数としてあつかって、
+   ROW1[0], ROW2[0]
+   ROW1[1], ROW2[1]
+ですか？
+あとは、fetch で返された tuple の数をどこで管理するか。
+fetch したら、$PGBASH_FETCH_NUM に値セットかな。
+
+&gt; # pgbashのインターフェイスを(直接/埋込)SQLレベルにするか、libpq
+&gt;   レベルにするかという問題は、私の中では、SQLレベルに傾いてしま
+&gt; 　いました(^^)。
+
+了解。
+
+&gt; # 直接SQLだけだと、処理スピードの違いはあるにせよ、機能的にはpsql
+&gt; 　とあまり変わらないと思っていましたが、埋め込みSQL構文も使用でき
+&gt; 　れば、ecpg もどきのプログラミングが可能ということになります。し
+&gt; 　かも、プロコンパイル無しで。
+
+私は、埋め込み SQL はオラクルの Pro*C しか知らないんだけど、
+   exec_sql whenever sqlerror do pgerrormessage
+   exec_sql whenever not found continue
+をデフォルトにして、ユーザが、
+   exec_sql whenever sqlerror do 任意のコマンド
+と変更できるようにするとか。
+# 可能かどうかは検証してない。
+
+では、再見
+-- 
+神奈川県伊勢原市在住
+久保 健洋
+kubo-t@cx.airnet.ne.jp
+<A HREF="http://terry.nikkeibp.co.jp/~kubo/">http://terry.nikkeibp.co.jp/~kubo/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00438" HREF="msg00438.html">[pgsql-jp 9635] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00421" HREF="msg00421.html">[pgsql-jp 9618] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00434" HREF="msg00434.html">[pgsql-jp 9631] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00435" HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00437.html">[pgsql-jp 9634] Re: "postgres is dead" の問題 について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00438.html">[pgsql-jp 9635] Re: pgbash</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00436"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00436"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

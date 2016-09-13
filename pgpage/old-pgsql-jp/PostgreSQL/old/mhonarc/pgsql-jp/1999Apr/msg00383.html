@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8192] Re: 曜日を判定するには？ -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Sun, 25 Apr 1999 21:01:24 +0900 -->
+<!--X-Message-Id: v04010104b348b494af60@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990329151000U.rok@itc.keio.ac.jp -->
+<!--X-Reference-Id: 008d01be79a7$153ef760$1500a8c0@katomai2.map.illcorp.co.jp -->
+<!--X-Reference-Id: v0401011cb324d0ae988d@str.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8192] Re: 曜日を判定するには？ </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00382.html">Date Prev</A>][<A HREF="msg00384.html">Date Next</A>][<A HREF="msg00398.html">Thread Prev</A>][<A HREF="msg00382.html">Thread Next</A>][<A HREF="index.html#00383">Date Index</A>][<A HREF="threads.html#00383">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8192] Re: 曜日を判定するには？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 25 Apr 1999 21:01:24 +0900</LI>
+<LI><em>References</em>: &lt;19990329151000U.rok@itc.keio.ac.jp&gt; Your message of "Mon, 29Mar 1999 14:36:17 +0900"&lt;008d01be79a7$153ef760$1500a8c0@katomai2.map.illcorp.co.jp&gt;&lt;008d01be79a7$153ef760$1500a8c0@katomai2.map.illcorp.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。
+
+　かなり前の話で、date_part() 関数についてです。
+
+At 15:39 +0900 99.3.29, Shoichi Kosuge wrote:
+&gt; 小菅です。
+&gt; 　で、こういうのを見ると試したくなるのが1752年9月です。
+&gt; Solaris なんかだと、ちゃんと対応していて、こんなふうに出力
+&gt; されます。3日から13日までは、ないのです。他のOS はどうで
+&gt; しょう？　Minix は対応してたと思いました。
+&gt; 
+&gt; % cal 9 1752
+&gt;      1752年  9月
+&gt; 日 月 火 水 木 金 土
+&gt;        1  2 14 15 16
+&gt; 17 18 19 20 21 22 23
+&gt; 24 25 26 27 28 29 30
+&gt; 
+&gt; 　2日と14日をselect してみたところ、下記のようになりました。
+&gt; 
+&gt; postgres=&gt; select date_part('dow', '1752/09/02'::date);
+&gt; date_part
+&gt; ---------
+&gt;         6
+&gt; (1 row)
+&gt; 
+&gt; postgres=&gt; select date_part('dow', '1752/09/14'::date);
+&gt; date_part
+&gt; ---------
+&gt;         4
+&gt; (1 row)
+&gt; 
+&gt; 　つまり、1752/09/02 は土曜日、1752/09/14 は木曜日という
+&gt; 結果が出ました。(1752/09/02 はSolaris だと水曜日)
+&gt; 　この1752年9月問題には対応していないみたいです。ちなみに
+&gt; Zeller の公式もこの問題には対応していません。
+
+　この日付けのギャップについて、いろいろ調べてみました。
+・暦には、ユリウス暦とグレゴリオ暦がある。(他にもいろいろある)
+　ユリウス暦は、４年に１回うるう年があるタイプで、紀元前４６年からある。
+　グレゴリオ暦はユリウス暦を修正したもので、１００で割り切れて４００で
+　割り切れない年をうるう年にしない。１５８２年１０月１５日に制定し、
+　その前日は１０月４日となっている。（１４日ではない。）
+・イギリスでグレゴリオ暦を採用したのは１７５２年。そのため
+　イギリスの１７００年はうるう年になっている。
+
+
+　というわけで、date_time() の曜日算出は、1752 年9月の
+ギャップがないところをみると、グレゴリオ暦を
+１５８２年１０月１５日以降に適用したもののようなので、
+これを使う場合はその国がその年にグレゴリオ暦を適用した
+かどうかを調べる必要があり、単純に「何年何月何日だから
+何曜日」というふうにはいかなそうです。特に、日本では
+明治６年にユリウス暦が導入され、その後明治３６年にグレ
+ゴリオ暦を採用したそうなので、家族のDB とかを作って、
+明治３５年くらいのおじいちゃんの誕生日なんか入れている
+人は、date_time() で曜日を求めても正しくないので要注意
+です。そんな人いないか(^_^;;
+　結論としては、最近の年月日にdate_time() を用いるならと
+もかく、大昔(日本なら明治以前、諸外国なら1752年以前)
+の曜日を求めるにあたっては注意が必要です。
+
+参考URL:
+<A HREF="http://www.mars.dti.ne.jp/~k-makoto/gregorian_calendar.htm">http://www.mars.dti.ne.jp/~k-makoto/gregorian_calendar.htm</A>
+<A HREF="http://alfin.mine.utsunomiya-u.ac.jp/~niy/algo/d/dayOfWeek.html">http://alfin.mine.utsunomiya-u.ac.jp/~niy/algo/d/dayOfWeek.html</A>
+<A HREF="http://www.asahi-net.or.jp/~hi5k-stu/compt/calendar.htm">http://www.asahi-net.or.jp/~hi5k-stu/compt/calendar.htm</A>
+その他、「グレゴリオ暦 ユリウス暦」をキーワードに
+検索エンジン使えばいろいろ出てきます。
+
+--
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　小田原市中里322-2　日立システムプラザ　ソ技セ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00382.html">[pgsql-jp 8191] Self-introduction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 8193] select top</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00398.html">[pgsql-jp 8207] Re: select top</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00382.html">[pgsql-jp 8191] Self-introduction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00383"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00383"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

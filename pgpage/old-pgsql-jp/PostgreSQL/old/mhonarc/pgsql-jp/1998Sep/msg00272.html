@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5481] Re: ShmemCreate: cannot create region -->
+<!--X-From: t&#45;ishii@sra.co.jp (Tatsuo Ishii) -->
+<!--X-Date: Sun, 27 Sep 1998 13:04:31 +0900 -->
+<!--X-Message-Id: 199809270406.NAA28598@meshsv26.tk.mesh.ad.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809221106.UAA05223@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5481] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00271.html">Date Prev</A>][<A HREF="msg00273.html">Date Next</A>][<A HREF="msg00262.html">Thread Prev</A>][<A HREF="msg00279.html">Thread Next</A>][<A HREF="index.html#00272">Date Index</A>][<A HREF="threads.html#00272">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5481] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A> (Tatsuo Ishii)</LI>
+<LI><em>Date</em>: Sun, 27 Sep 1998 13:04:31 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+At 8:06 PM 98.9.22 +0900, SHIOZAKI Takehiko wrote:
+&gt;塩崎です。その後の展開を少し。
+&gt;
+&gt;[On Sep 22, SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt; writes:]
+&gt;&gt;
+&gt;&gt;改めてサーバを立ち上げ直してvacuumしようとすると、その途中で
+&gt;&gt;========================================================================
+&gt;&gt;PQexec() -- Request was sent to backend, but backend closed the channel
+&gt;&gt;before responding.
+&gt;&gt;	This probably means the backend terminated abnormally before or while
+&gt;&gt;processing the request.
+&gt;&gt;========================================================================
+&gt;&gt;となって終わってしまいます。psqlを立ち上げ直して何度試しても同じです。
+&gt;
+&gt;pg_dump-&gt;destroydb-&gt;createdb-&gt;再読み込みという手順ですっきり出直したら、
+&gt;vacuumできるようになりました。
+&gt;また、他のクライアントと非同期でvacuumするのを恐れていたんですが、このま
+&gt;まではどうしようもないということで、
+&gt;
+&gt;&gt;webの巡回ロボットにPostgreSQLを組み合わせて、
+&gt;&gt;	すべてのページの参照関係(リンク元とリンク先との組み合わせ)
+&gt;&gt;	今後巡回すべきすべてのURL
+&gt;&gt;	すべてのページのレスポンスヘッダ
+&gt;&gt;などを並行してぐりぐりinsertやupdateやselectしてたら、サーバが
+&gt;
+&gt;こういうのを並列に起動するスクリプトの中で、まめにvacuumするようにしました。
+&gt;すると、うまく進んでいるように見えたんですが、いつの間にか
+&gt;NOTICE:  AbortTransaction and not in in-progress state 
+&gt;というのを連発して、その中に
+&gt;NOTICE:  CreatePortal: portal &lt;vacuum&gt; already exists
+&gt;というのをはさみつつ、うまく引けなくなりました(検索結果が0件になったよう
+&gt;に見える)。
+&gt;そのとき、サーバのログには、
+&gt;ERROR:  cannot write block 962 of テーブル名 [データベース名] blind
+&gt;ERROR:  cannot write block 736 of インデックス名 [データベース名] blind
+&gt;NOTICE:  AbortTransaction and not in in-progress state 
+&gt;というようなのが次々と吐かれていました。
+&gt;元のメールにも書いたように、明示的なtransactionは使っていませんが、
+&gt;smgrwrite()の説明の
+&gt; *                                This routine returns SM_SUCCESS or aborts
+&gt; *              the current transaction.
+&gt;というのが臭いんでしょうか。OSのバグ?
+&gt;
+&gt;同時に起動しているpostgresプロセスは、
+&gt;	並列に起動するために動き続けているのが1つ
+&gt;	それから起動されているのが5-6つ
+&gt;程度です。ただし、どれも結構な頻度で読み書きします。
+&gt;また、クライアントとサーバとは同じホストで動かしています。
+
+もしかしたら（いや、おそらく）この問題とは別かも知れませんが、
+6.3.2で複数のクライアントから同時に update をかけているうちに
+テーブルがおかしくなる（同じoidを持つレコードが複数できてしまう）
+という現象が本家のMLで報告されていました。
+
+ちなみに、この問題は9/26時点の6.4の current では起きないそうです。
+
+# "current" とは、開発中の6.4のソースのことです。anonymous CVS
+# を使えば誰でも取得できます。6.4-BETA1ではどうなのかは確認されて
+# いません。
+
+参考のために本家のMLを引用しておきます。
+
+
+Subject: [HACKERS] NOTIFY interlock broken (was Yipes, I'm getting bit by
+duplicate tuples)
+In-reply-to: Your message of Wed, 23 Sep 1998 18:21:44 -0400 (EDT) 
+&lt;199809232221.SAA22315@candle.pha.pa.us&gt; 
+Date: Sat, 26 Sep 1998 17:18:07 -0400
+Message-ID: &lt;2192.906844687@sss.pgh.pa.us&gt;
+From: Tom Lane &lt;tgl@sss.pgh.pa.us&gt;
+Sender: owner-pgsql-hackers@postgreSQL.org
+Precedence: bulk
+X-UIDL: 6c10c4055ba6186f10ac1829b1f7a112
+
+The good news: after much pain, I was able to develop a semi-repeatable
+test for that duplicate-tuple problem.  (It's a script of about 6300 SQL
+commands for five concurrent backends, which takes about 10 minutes to
+run and produces a corrupted table about one run out of two...)  And
+this test indicates that the current CVS sources don't have the bug.
+So, rather than expending a lot of effort trying to figure out just
+what the bug is in 6.3.2, we are going to cross our fingers and put our
+production application on 6.4beta.
+
+The bad news: this same script exposes a different bug in the current
+sources (and perhaps older releases too).  *Very* rarely, like less
+than one run out of ten, the test driver gets wedged or fails with an
+"out of memory" error.  I just traced this to its cause, and the cause
+is that a SELECT reply coming from the backend is corrupt.  In fact,
+what I see in libpq's input buffer is that a "NOTIFY" message has been
+inserted into the middle of the tuple data :-(.  So the interlock that
+supposedly prevents Async_NotifyFrontEnd() from being invoked during
+another command does not work reliably.
+
+I will look into this, but I could use advice from anyone who
+understands how that stuff is supposed to work.
+
+			regards, tom lane
+
+
+--
+Tatsuo Ishii
+t-ishii@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 5488] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00253" HREF="msg00253.html">[pgsql-jp 5462] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 5480] はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00273.html">[pgsql-jp 5482] platform</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 5471] Re: postgres proccess size (Re: ShmemCreate: cannot create region)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 5488] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00272"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00272"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

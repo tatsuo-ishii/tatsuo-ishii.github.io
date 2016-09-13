@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23190] Re: max 関数が最大値を返さない -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 25 Sep 2001 22:18:54 +0900 -->
+<!--X-Message-Id: 3BB0843E.8B9CF9DC@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OJEEKIJNKMMGJJOEDNICCEJOCJAA.tanaka&#45;tec@masecon.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23190] Re: max 関数が最大値を返さない </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00229.html">Date Prev</A>][<A HREF="msg00231.html">Date Next</A>][<A HREF="msg00229.html">Thread Prev</A>][<A HREF="msg00233.html">Thread Next</A>][<A HREF="index.html#00230">Date Index</A>][<A HREF="threads.html#00230">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23190] Re: max 関数が最大値を返さない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Sep 2001 22:18:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00228.html">OJEEKIJNKMMGJJOEDNICCEJOCJAA.tanaka-tec@masecon.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Kiyohito Tanaka wrote:
+
+...snip....
+
+&gt; serial型のフィールドには他の問題もあり躊躇していたのですが、
+&gt; とりあえず行ってみることにしました。
+
+どういう問題でしょうか。
+
+&gt; idというフィールドをserial型に設定してみました。
+&gt; ところが、insertを(telnetで)実行すると、
+&gt; ERROR:  Cannot insert a duplicate key into unique index comp_qa_id_key
+&gt; というメッセージが出てinsertできません。
+&gt; また、comp_qa_id_keyというインデックスを削除すると追加はできるのですが、
+&gt; id番号が重複してしまいます。
+&gt; 何が間違っているのでしょうか？
+
+SERIAL型(SEQUENCE)について誤解しているようですね。
+
+何回も書いていますが、PostgreSQL の SERIAL 型は、
+DEFAULT nextval( ＳＥＱＵＥＮＣＥ ) に置換される
+だけです。また、SEQUENCE は、単なる連番発生の機能
+があるだけで、その表に UNIQ な ID を保証するもの
+ではありません。
+
+SEQUENCE の開始値を正しく設定し、かつ DEFAULT句が
+働くように ID 値を省略して INSERT するか、明示的に
+nextval で SEQUENCEを取得して INSERT した場合にのみ、
+UNIQ な ID になります。
+
+# Informix の SERIAL 型のような UNIQ ID を保証する
+# ものとは機能が違うので注意が必要です。
+
+Tanaka さんの場合は、既存データーがあるので、
+setval などで、既存の ID の最大値より大きな
+値に SEQUENCE の開始値を設定してやる必要があります。
+
+SERIAL 型を設定した時の DDL 文を書かれていないので
+わかりませんが、開始値と最小値を省略した場合は、
+開始値が 1 になりますので、1 以上の id が既存ならば
+当然 DUPE KEY になります。
+
+詳しくは、マニュアルの CREATE SEQUENCE と、setval 
+を見てください。
+
+(参考)
+setval の使い方の例: (hoge id は適当に読み替えて下さい)。
+
+select setval('"hoge_id_seq"', (select max(id) from hoge));
+
+select nextval('hoge_id_seq');
+
+# 外部からデーターをインポートした場合などでも、
+# setval で重複しないように SEQUENCE の開始値を
+# 設定しなければならない場合があります。
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00233" HREF="msg00233.html">[pgsql-jp 23193] RE: max 関数が最大値を返さない←ありがとうございました</A></STRONG>
+<UL><LI><EM>From:</EM> "Kiyohito Tanaka" &lt;tanaka-tec@masecon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00228" HREF="msg00228.html">[pgsql-jp 23188] RE: max 関数が最大値を返さない</A></STRONG>
+<UL><LI><EM>From:</EM> "Kiyohito Tanaka" &lt;tanaka-tec@masecon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00229.html">[pgsql-jp 23189] Re: max 関数が最大値を返さない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00231.html">[pgsql-jp 23191] Re: max 関数が最大値を返さない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00229.html">[pgsql-jp 23189] Re: max 関数が最大値を返さない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00233.html">[pgsql-jp 23193] RE: max 関数が最大値を返さない←ありがとうございました</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00230"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00230"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

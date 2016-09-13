@@ -1,0 +1,200 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10539] Re: pgbench -->
+<!--X-From: harada goichi <goichi@mb.kcom.ne.jp> -->
+<!--X-Date: Thu, 02 Sep 1999 23:59:51 +0900 -->
+<!--X-Message-Id: 37CE90E7.FB214BF4@mb.kcom.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199909010935.SAA28957@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10539] Re: pgbench </TITLE>
+<LINK REV="made" HREF="mailto:goichi@mb.kcom.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00020.html">Thread Prev</A>][<A HREF="msg00039.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10539] Re: pgbench</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: harada goichi &lt;<A HREF="mailto:goichi@mb.kcom.ne.jp">goichi@mb.kcom.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 02 Sep 1999 23:59:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00020.html">199909010935.SAA28957@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+吾一です、こんばんは。
+
+ベータ４の機能は使いませんでしたが、色々と実験してみました。
+ベンチマークが欲しいと思っていたので重宝しております。
+
+
+以下、気が付いた事です。
+
+(1)configure を実行したままのMakefileではダミーの/usr/ucb/ccを読みに
+行ってしまいエラーになるのでMakefileに、
+CC=gcc
+の一行を加える必要がありました。
+solaris2.6です。
+
+
+(2)データベースとの接続に失敗した場合、
+Connection to database 'セグメント例外 (core dumped);
+コアダンプしてしまいました。
+確認した所、私の環境では、環境変数USERが設定されていませんでした。
+GNU bash, version 2.03.0(2)-release (sparc-sun-solaris2.6)
+
+pgbash 導入準備のためにbashを使いはじめたので、普通は設定されているはず
+なのかは知りません。:-)
+
+
+(3) ソラリスではディフォルトで１プロセス６４ファイルディスクリプタの制限
+が
+あるらしく、ある程度沢山同時接続しようとするとエラーになりますので、
+リミットを増やす必要がありました。
+(shellによって異なるようなので、man limit)
+
+
+
+以下、実行結果です。
+
+Postgresが動作しているサーバと、ベンチマークを実行しているサーバは別で
+す。
+
+PostgreSQL 6.5.1 on sparc-sun-solaris2.6, compiled by gcc 2.8.1
+UltraSPARC 200MHZ  128MB
+
+postmaster -B 1024 -S -i -N 130 -o '-S 1024 -F' &gt;
+/usr/local/pgsql/data/PG_LOG_DATA 2&gt;&amp;1
+
+
+一回目
+&gt;pgbench -h mydb -c 100
+
+number of clients: 100
+number of transactions per client: 10
+number of transactions actually processed: 1000/1000
+tps = 15.124007(including connections establishing)
+tps = 16.103967(excluding connections establishing)
+
+二回目
+tps = 11.321105(including connections establishing)
+tps = 11.809340(excluding connections establishing)
+
+三回目
+tps = 8.979532(including connections establishing)
+tps = 9.279851(excluding connections establishing)
+
+四回目
+tps = 7.693887(including connections establishing)
+tps = 7.914950(excluding connections establishing)
+
+五回目
+tps = 6.624029(including connections establishing)
+tps = 6.790346(excluding connections establishing)
+
+
+どんどん数値が悪くなってくるので、もしやと思い、
+&gt;psql -h mydb -c 'vacuum;'
+
+六回目
+tps = 14.722881(including connections establishing)
+tps = 15.568016(excluding connections establishing)
+
+
+ベンチマークとして考えると、計測終了後に自動的にvacuumをした方が良いので
+は
+ないでしょうか？
+
+又は、-vオプションでバキュームを実行する機能を付加すると言うのは如何でし
+ょうか？
+
+
+参考１
+indexを削除した場合
+
+$pgbench -h mydb -c 30
+number of clients: 30
+number of transactions per client: 10
+number of transactions actually processed: 300/300
+tps = 0.291040(including connections establishing)
+tps = 0.291340(excluding connections establishing)
+
+-c 100 にする気力はありませんでした。
+
+
+参考２
+-o' -F 'なし。
+
+$pgbench -h mydb -c 100;
+number of clients: 100
+number of transactions per client: 10
+number of transactions actually processed: 1000/1000
+tps = 5.608614(including connections establishing)
+tps = 5.721326(excluding connections establishing)
+
+
+
+-- 
+
+---------------------------------------
+Goichi Harada
+E-mail  goichi@mb.kcom.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00039" HREF="msg00039.html">[pgsql-jp 10541] Re: pgbench</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 10522] Re: pgbench</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 10537] Re: pg_class_relname_index のエラーを解消したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp 10540] Re: pg_class_relname_index のエラーを解消したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 10522] Re: pgbench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 10541] Re: pgbench</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,229 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8289] VBとODBCを使ったPostgreSQLへの接続と操作 -->
+<!--X-From: "Hidekazu MURATA" <icbm@aba.ne.jp> -->
+<!--X-Date: Sun, 2 May 1999 01:18:12 +0900 -->
+<!--X-Message-Id: 013e01be93ee$36551e00$04c8a8c0@aba.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8289] VBとODBCを使ったPostgreSQLへの接続と操作 </TITLE>
+<LINK REV="made" HREF="mailto:icbm@aba.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00016.html">Date Prev</A>][<A HREF="msg00002.html">Date Next</A>][<A HREF="msg00013.html">Thread Prev</A>][<A HREF="msg00030.html">Thread Next</A>][<A HREF="index.html#00017">Date Index</A>][<A HREF="threads.html#00017">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8289] VBとODBCを使ったPostgreSQLへの接続と操作</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hidekazu MURATA" &lt;<A HREF="mailto:icbm@aba.ne.jp">icbm@aba.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 2 May 1999 01:18:12 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+村田＠名城大です。
+
+はじめまして、このMLにはじめて発言させていただきます。
+
+現在、PostgreSQL6.4.2 + PostgreSQL ODBC Driver 日本語版（1998/12/07） 
+      + VisualBasic6.0でデータベースを作っています。
+
+その作成しているデータベースは、データベース名は「hostdb」で、
+以下のようなテーブル「oht」が１つあるだけのごく単純なものです。
+-------
+create table oht(
+        lngksno                 int4 not null, primary key(lngksno),
+        txtname                 varchar(50),
+        txtaddress              varchar(100),
+        txtdate                 varchar(8),
+        dateregistration        datetime,
+        daterenewal             datetime
+        );
+-------
+しかし、未熟なもので大きな壁に当たって前に進めなくなってしまいました。
+
+それは、ODBCでPostgreSQLのデータベースをオープンし、
+レコードの追加(INSERT INTO)および選択(SELECT * FROM)はできるものの、
+レコードの更新(UPDATE)と削除(DELETE)が全く動作してくれません。
+VB側から返されるエラーは、更新(UPDATE)も、削除(DELETE)も
+「実行時エラー'3073': 更新可能なクエリーでなければなりません。」
+と言うものです。このエラーのヘルプを見ると、
+
+原因は以下に理由があると言われます。
+
+１．更新できないフィールドを更新するクエリーを実行しようとしました。
+一対多リレーションシップの "一" 側のフィールドを更新しようとした場合などに、
+このエラーが発生します。
+
+２．読み取り専用で開いているデータベースのクエリーで、
+以前のバージョンの OpenQueryDef メソッドを指定しようとしました。
+
+３．クエリーのデータを変更する権限がありません。
+システム管理者、またはクエリーの作成者に依頼して、
+権限の割り当てを変更してもらってください。
+
+しかし、GRANTで権限も以下のように
+Database    = hostdb
+ +----------+--------------------------+
+ | Relation | Grant/Revoke Permissions |
+ +----------+--------------------------+
+ | oht      | {"=","murata=arwR"}      |
+ | oht_pkey |                          |
+ +----------+--------------------------+
+すべてOKですし、
+PostgreSQL ODBCドライバの設定も、以下のように
+--------
+[Driver]
+■Disabre Genetic Optimizer □CommLog
+■KSQO □ReadOnly
+□Recognize Unique □Parse Statements
+□Use Declare/Fetch
+●Maximum
+■Text as LongVarChar
+■Bools as Char
+Chache 100 / Varchar 254 / LongVarChar 4094
+SysTablePrefixes dd_;
+
+[DataSource]
+□ReadOnly □Rou Versioning
+□Show System Tables
+●6.4
+□Show Column
+--------
+見たところReadOnlyにはなっていません。
+
+肝心のVBのプログラムはと言うと、まず、
+--------
+Public gb_HostWorkspace As Workspace
+Public gb_HostDatabase As Database
+
+Set gb_HostWorkspace = Workspaces(0)
+Set gb_HostDatabase = gb_HostWorkspace.OpenDatabase("", False, False, _
+"ODBC;DATABASE=hostdb;UID=murata;PWD=********;DSN=hostdb;")
+--------
+で、ODBCを使ってデータベースをオープンします。
+これは、一応うまくいっているみたいです。
+
+そして、追加(INSERT)の方は、以下のような
+---------
+Dim strSql As String
+
+strSql = "insert into oht ( lngksno, txtname, txtaddress, txtdate, dateregistration, daterenewal ) "
+strSql = strSql + "values ( 1, '村田', '名古屋市中川区', '19990501', " 
+strSql = strSql + "#" + Format$(Now, "yyyy/mm/dd hh:mm:ss") + "#, "
+strSql = strSql + "#" + Format$(Now, "yyyy/mm/dd hh:mm:ss") + "# )"
+
+gb_HostDatabase.Execute strSql, dbFailOnError
+---------
+Executeメソッドを使ったアクションクエリーでうまく動作します。
+
+選択(SELECT)も以下のようにして、
+----------
+Dim strSql As String
+Dim rcdRecord As Recordset
+
+strSql = "select * from oht where lngksno=1"
+
+Set rcdRecord = gb_HostDatabase.OpenRecordset(strSsql, dbOpenSnapshot)
+----------
+全く問題なく動きます。
+
+しかし、更新(UPDATE)や削除(DELETE)は、
+----------
+Dim strSql As String
+
+strSql = "update oht set txtname='山田' where lngksno=1"
+
+gb_HostDatabase.Execute strSql, dbFailOnError
+----------
+----------
+Dim strSql As String
+
+strSql = "delete from oht where lngksno=1"
+
+gb_HostDatabase.Execute strSql, dbFailOnError
+----------
+追加(INSERT)と同じアクションクエリーのExecuteメソッドを使っているのに、
+前述したエラー'3073'が発生してしまい全く動いてくれません。
+
+それに対して、
+ODBCでMS-Access97にリンクしたテーブルは問題なく
+追加、更新、削除、選択が実行できます。
+
+また、PostgreSQLサーバー側で、直接、
+インタラクティブモードでSQLを書いた場合も
+追加、更新、削除、選択すべて問題なく動作します。
+
+ただ、VBだけが更新、削除に限り、実行できません。
+
+いろいろヘルプや書籍、もちろんここの過去ログもある程度まで見ましたが、
+私の力ではどうすることも出来ませんでした。
+もう八方塞です。万策尽きたと言う感じです。
+
+よろしければ、皆さんのアドバイスをお願いします。
+
+PostgreSQLと言うよりVBにかなり足を突っ込んだ発言となってしまい、
+このMLのコンセプトから少しずれているかもしてませんが、
+どうかよろしくお願いします。
+
+長文になってしまい申し訳ありませんでした。
+**************************************************
+村田英一
+Hidekazu MURATA
+名城大学 大学院 理工学研究科 電気電子工学専攻
+電子応用研究室所属
+e-mail: icbm@aba.ne.jp (自宅)
+e-mail: d3962004@meijo-u.ac.jp (大学)
+**************************************************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00030" HREF="msg00030.html">[pgsql-jp 8303] Re: [pgsql-jp 8289] VBとODBCを使ったPostgreSQLへの接続と操作</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 8288] Re: varchar or text</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 8274] Re: [Q] \copy command when adding data with numelic type serial.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 8286] Re: [Q] \copy command when adding data with numelictype serial.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 8303] Re: [pgsql-jp 8289] VBとODBCを使ったPostgreSQLへの接続と操作</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00017"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00017"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

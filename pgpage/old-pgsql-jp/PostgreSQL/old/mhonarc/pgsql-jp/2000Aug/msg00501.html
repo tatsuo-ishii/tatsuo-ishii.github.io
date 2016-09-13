@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16888] Re: pg_dump &#45;oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 23 Aug 2000 15:56:09 +0900 -->
+<!--X-Message-Id: 20000823155609W.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000823151730.27202614@zaqcad091da.zaq.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16888] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00500.html">Date Prev</A>][<A HREF="msg00503.html">Date Next</A>][<A HREF="msg00498.html">Thread Prev</A>][<A HREF="msg00502.html">Thread Next</A>][<A HREF="index.html#00501">Date Index</A>][<A HREF="threads.html#00501">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16888] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 15:56:09 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00498.html">20000823151730.27202614@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; &gt;このへんのドキュメントはソースしかありません:-)
+&gt; 上手な石井さまの「いざない」で、天眼鏡をちらかった机の書類の山から見つけ出し
+&gt; やれやれ、ソースを見てみることにいたしました。
+
+なかなか味のある表現ですね:-)
+
+私などは徳田さんよりもさらに年を重ねていますが、いまだにプログラムソー
+スをいじる仕事から足を洗えません:-)
+
+&gt; src/bin/pg_dumpディレクトリーに pg_dump.c がありこのソースで１度だけ
+&gt; 呼び出される　atol()　で　pg_dump -o での先頭５行内のOIDに関するプリ
+&gt; セット値を決定しています。そのプロセスがダミーのTABLEで適当な INSERT 
+&gt; を１度実行し、その際の戻り値をそのまま加算も何もしないで、pg_dump -o 
+&gt; の先頭５行の３行目のOIDプリセット番号に採用されています。
+
+はい、そんなところです。
+
+&gt; つまり、pg_dump -o を利用するタイミングは DBNAME 内で同じ時系列で連
+&gt; 続して出力させて利用するべきであるということを想定しているのでしょう。
+
+そうなりますね。
+
+&gt; 仮に１つの DBNAME に TABLE が ２つあり、それぞれの TABLE の名前が「A」
+&gt; と「B」であれば、今日、「A」だけを pg_sunp -o をして、明日「B」だけ
+&gt; を pg_dump -o した場合、時系列的に古い「A」の pg_dump -o で作成した
+&gt; ファイルの３行目のOIDプリセット値を変更しなければならない点です。い
+&gt; や、これは間違いなのでしょう。
+
+そんなことはないです。OIDを再セットする動きはおおむね以下のようになり
+ます。
+
+1. PostgreSQLには、全DB共通のOIDカウンタがある。
+
+2. pgdump_oid の内容を copy with oid で登録するときは、指示されたOIDが
+チェックされ、それが 1. よりも小さければそのまま登録される。
+
+3. もしも 1. よりも大きい場合は 1. のカウンタ値を大きくする
+
+ですから、B のダンプを先に復元し、次に A のダンプを復元するという順で
+作業しても、問題ないはずです。
+
+ただし、OIDの重複はチェックされませんから、
+
+&gt; ところが INSERT 時点での OID が同一の TABLE 内で既存の行と重複すると
+&gt; トラブルとなりますので、少なくとも復元前に INSERT を実際に実行して、
+&gt; その実績により作成された OID を調べて、INSERTしたデーターを削除して、
+&gt; 復元直前に手作業で pg_dump -o で出力した３行目のOIDプリセット値を変
+&gt; 更するのがベストと言えそうです。全 TABLE を WITH OID で復元する場合
+&gt; は以上の留意で良いわけですが、途中で OID を復元させない FROM 作業を
+&gt; してしまうと、当然、それ以降の pg_dump -o の３行目のOIDプリセット値
+&gt; を再検討、再編集する必要があるということでしょう。
+
+という考慮が必要になるかもしれません。
+
+&gt; COPY WITH OIDS FROM で復元する場合は、INSERT 処理時に通常は目を覚ま
+&gt; す「自動OID発生ルーチン」は眠ったままなんだと考えていますが、間違い
+&gt; でしょうか。ビンゴ！　であれば、復元前の１度のINSERT(とDELETE)で発見
+&gt; できる新しいOIDをそのまま採用しても、眠れる「自動OID発生ルーチン」君
+&gt; は、あばれないと感じております。
+
+上記参照。
+
+&gt; う〜む、ｄａｔａディレクトリーをリネームか削除し、ＩＮＩＴＤＢするしかないわけですね〜
+
+私のしる限りではそうです。
+
+&gt; 今回のトラブルで大変勉強になりました。PostgreSQLに愛着が以前に増して
+&gt; わいており、落馬しないように乗りこなそうと考えております。
+
+頑張って下さい。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00498" HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00500.html">[pgsql-jp 16887] 数値(ｖａｒｃｈａｒ型)を範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00503.html">[pgsql-jp 16890] RE: [pgsql-jp 16887] 数値 (ｖａｒｃｈａｒ型 )を範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00502.html">[pgsql-jp 16889] Re: [pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00501"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00501"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

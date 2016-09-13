@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11098] Re: DBファ イルの分散配置 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Fri, 08 Oct 1999 13:12:13 +0900 -->
+<!--X-Message-Id: 37FD6F1D348.D21DNKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199910070703.QAA03755@mailgw.jkk.hitachi.co.jp -->
+<!--X-Reference-Id: 199910080135.KAA14867@ext04.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11098] Re: DBファ イルの分散配置 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00141.html">Date Prev</A>][<A HREF="msg00142.html">Date Next</A>][<A HREF="msg00142.html">Thread Prev</A>][<A HREF="msg00141.html">Thread Next</A>][<A HREF="index.html#00137">Date Index</A>][<A HREF="threads.html#00137">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11098] Re: DBファ イルの分散配置</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 08 Oct 1999 13:12:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00111.html">199910070703.QAA03755@mailgw.jkk.hitachi.co.jp</A>&gt; &lt;<A HREF="msg00122.html">199910080135.KAA14867@ext04.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+On Fri, 08 Oct 1999 10:35:20 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt; 石井です。
+&gt; 
+。。。略。。。。
+&gt; 
+&gt; だから、裏技だと言っているじゃないですか:-)
+&gt; 
+&gt; セキュリティの問題は簡単にfixできますが、それよりも「裏技」以外の方法
+&gt; で異なるパーティションにテーブルを置ける機能が是非とも欲しいですね。まっ
+&gt; とうな道としては、create table 文の拡張でしょうか。
+&gt; 
+&gt; -- PostgreSQLのスーパユーザのみが実行可能
+&gt; create table space スペース名 for データベース名 location '/huge/partition';
+&gt; -- こちらは一般ユーザでも実行可能
+&gt; create table テーブル名 ... with table space スペース名;
+&gt; 
+&gt; とか。6.6に入れたくなって来ました。アイデア求む。
+&gt; ---
+&gt; Tatsuo Ishii
+
+
+
+参考までに、Informi-SE での DB 表作成 DIRECTORY の
+指定方法です。(注)Informix-SEは、PostgreSQ と同様、
+DB １表が 複数 UNIX FILE に対応しています。
+Informix-SE では、INDEX の別 DIRECTORY への分離とか、
+表の partitioning は、サポートされていません。
+
+CREATE TABLE 表名 。。略。。 IN  'パス名' ;
+
+Informix-SE は、軽量 DB だから、なんでもシンプルです。
+
+石井さんが例に書かれたように、名前付の DBSPACE を作
+った方が、後の管理が楽です。直接パス名を指定するの
+ではなく、DB領域名 のようなものを介して指定する方が
+いいと考えます。例えば、HDD の編成がえとか、物理 DEV
+や、パス名を変更すつ場合など、DBSPACE の定義を変更す
+るだけで、個々の CREATE TABLE は、いじる必要がなくな
+ります。
+
+手元に Informix−SE がないので確かめられませんが、
+Informix-ONLINE の場合は、DIRECTORY の permission
+が、OWNER、GROUP 共に informix で、かつ、chmod 770
+drwxrwx--- になっていないと、DB 領域を作れないように
+なっていたと記憶してます。(間違ってたらごめんなさい)。
+
+DB 領域を作るときに、 DIRECTORY の permission を
+チェックするというのは、いい方法かも知れません。
+
+PostgreSQL ならば、OWNER が postgres で、chmod 700
+drwx------ の DIRECTORY の下にだけ、DB 領域を作成で
+きるようにしておけば、不用意なミスの防止やセキュリ
+ティー向上に役立つと思いますが、如何でしょう。
+
+
+DB 領域に関して欲しい機能は、一時表(一時作業領域)
+の分離です。     DB DIRECTORY の下に、pg_tmpNNN.NN
+というような SORT などの作業領域が作られるというこ
+とですが、これを、指定した別の DIRECTORY に作らせる
+ようなオプションが欲しいです。
+
+目的は、物理的に別の HDD にして高速化することと、
+一時作業領域の見積りは難しいので、作業領域が巨大に
+なって、DISK FULL になり、他の処理まで止ってしまう
+ことを防止するためです。できれば、個別の JOB 毎に、
+環境変数で指定できるのが望ましいです。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp 11102] Re: DB ファ イルの分散配置</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 11070] Re: DBファイルの分散配置</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;iwakiri@jkk.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00122" HREF="msg00122.html">[pgsql-jp 11083] Re: DBファイルの分散配置</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 11102] Re: DB ファ イルの分散配置</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 11103] Re: DBファイルの分散配置</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 11103] Re: DBファイルの分散配置</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 11102] Re: DB ファ イルの分散配置</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00137"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00137"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

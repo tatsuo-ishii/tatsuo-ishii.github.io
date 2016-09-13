@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6063] Re: why connection is losted? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 08 Dec 1998 12:52:46 +0900 -->
+<!--X-Message-Id: 199812080352.MAA03778@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812031546.AAA06221@kankun.osa.att.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6063] Re: why connection is losted? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00087.html">Date Prev</A>][<A HREF="msg00089.html">Date Next</A>][<A HREF="msg00050.html">Thread Prev</A>][<A HREF="msg00136.html">Thread Next</A>][<A HREF="index.html#00088">Date Index</A>][<A HREF="threads.html#00088">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6063] Re: why connection is losted?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 08 Dec 1998 12:52:46 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt; 石井です。
+&gt;&gt; 
+&gt;(略)
+&gt;&gt; 早速やってみました(6.4+jumbo.patch/LinuxPPC kernel 2.1.24)。結果、必ず
+&gt;&gt; 
+&gt;&gt; Create table "ボトルマスター" ("ボトルID" Int4,"顧客コード" Int4 Not
+&gt;&gt; Null,"品名" Int4,"購入日付" Date Not Null,"購入店" Int4 Not Null,"表示
+&gt;&gt; " Bool Not Null,constraint "ボトルマスター_pkey" Primary Key("ボトル
+&gt;&gt; ID"));
+&gt;&gt; 
+&gt;&gt; でおっこちです。
+&gt;
+&gt;自宅環境を整えて実験してみたところ、顧客情報(固定)でおちます。
+&gt;しかも今回は一つだけでもお亡くなりになりました。
+&gt;実行する場所によって挙動が変わるというのは嫌ですね。
+&gt;
+&gt;&gt; バグとしてはかなりやっかいな方なので、追求するのは時間がかかりそうです。
+&gt;&gt; 少し時間を頂けますか？
+
+この件ですが、メモリ破壊だろうと見当が付いているので、必殺 purify に登
+場願って原因を突き止めました(多分)。添付のパッチをお試し下さい。一応解
+説しておきますと、
+
+(1) パーサ(gram.y) の fmtId()という内部関数でテーブル名などの
+identifierが大文字あるいは日本語の時などに「"」で quote する処理をして
+いるのだが、くっつける「"」の分のメモリを確保していないという御粗末。
+
+(2)primary key で自動的にインデックスを付加するために、indexのデータを
+作っているところ(catalog/index.c:AppendAttributeTuples())で、データエ
+リアの大きさの計算をミスって3バイト程メモリを壊していた。ここは良く間
+違えるんですが、タプルを表現するFormData_pg_attributeという構造体の大
+きさ(sizeof(FormData_pg_attribute)で求めたもの)がそのままメモリorディ
+スク中のタプルの大きさにならないのです。
+
+なお、修正したのはバックエンドだけなので、postmaster を停止し、
+
+$ cd /some/where/../postgresql-v6.4
+$ patch -p1 &lt; パッチファイル
+
+にてパッチを当てた後、
+
+$ cd src/backend
+$ make
+$ make install
+
+を実行してから再び postmaster を起動すればOKです。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+----------------------------- cut here ------------------------------
+*** postgresql-v6.4/src/backend/parser/gram.y.orig	Tue Dec  8 11:26:32 1998
+--- postgresql-v6.4/src/backend/parser/gram.y	Tue Dec  8 11:27:00 1998
+***************
+*** 5125,5131 ****
+  		if (! (islower(*cp) || isdigit(*cp) || (*cp == '_'))) break;
+  
+  	if (*cp != '\0') {
+! 		cp = palloc(strlen(rawid)+1);
+  		strcpy(cp,"\"");
+  		strcat(cp,rawid);
+  		strcat(cp,"\"");
+--- 5125,5131 ----
+  		if (! (islower(*cp) || isdigit(*cp) || (*cp == '_'))) break;
+  
+  	if (*cp != '\0') {
+! 		cp = palloc(strlen(rawid)+3);
+  		strcpy(cp,"\"");
+  		strcat(cp,rawid);
+  		strcat(cp,"\"");
+*** postgresql-v6.4/src/backend/catalog/index.c.orig	Tue Dec  8 11:41:20 1998
+--- postgresql-v6.4/src/backend/catalog/index.c	Tue Dec  8 11:44:45 1998
+***************
+*** 689,695 ****
+  		 */
+  		memmove(GETSTRUCT(cur_tuple),
+  				(char *) indexTupDesc-&gt;attrs[i],
+! 				sizeof(FormData_pg_attribute));
+  
+  		value[Anum_pg_attribute_attnum - 1] = Int16GetDatum(i + 1);
+  
+--- 689,695 ----
+  		 */
+  		memmove(GETSTRUCT(cur_tuple),
+  				(char *) indexTupDesc-&gt;attrs[i],
+! 			        ATTRIBUTE_TUPLE_SIZE);
+  
+  		value[Anum_pg_attribute_attnum - 1] = Int16GetDatum(i + 1);
+  
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00136" HREF="msg00136.html">[pgsql-jp 6111] Re: why connection is losted?</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuo Moriwaka &lt;kankun@osa.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 6025] Re: why connection is losted?</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuo Moriwaka &lt;kankun@osa.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00087.html">[pgsql-jp 6062] Re: text型の最大長は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 6064] Re: text型の最大長は？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 6025] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 6111] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00088"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00088"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

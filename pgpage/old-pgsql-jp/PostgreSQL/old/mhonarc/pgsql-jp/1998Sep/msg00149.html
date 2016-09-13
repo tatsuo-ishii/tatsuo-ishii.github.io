@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5356] Re: WHERE clause -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Fri, 11 Sep 1998 17:56:50 +0900 -->
+<!--X-Message-Id: 19980911175650V.mitsu@cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809110545.OAA25885@sposk.sumitomopharm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5356] Re: WHERE clause </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00148.html">Date Prev</A>][<A HREF="msg00150.html">Date Next</A>][<A HREF="msg00148.html">Thread Prev</A>][<A HREF="msg00157.html">Thread Next</A>][<A HREF="index.html#00149">Date Index</A>][<A HREF="threads.html#00149">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5356] Re: WHERE clause</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 11 Sep 1998 17:56:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00137.html">199809110545.OAA25885@sposk.sumitomopharm.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+higuchi&gt; 便乗質問させていただきたいのですが、英字の全角と半角を区別せずに検索
+higuchi&gt; する方法ってありますでしょうか？あるいは、そのような要望を満足させる
+higuchi&gt; 正規表現の仕方はありますか？
+
+ないのではないでしょうか :-&lt;
+
+石井さんのパッチがあたっていれば、
+[a-zA-Zａ-ｚＡ-Ｚ] とかは使えますが...
+
+あとはめんどくさいですしスピードもかかりますが、
+全角 -&gt; 半角の変換関数でも作ってやる方法でしょうか。
+
+例えば EUC コードなら、
+----------------------------------------------------------------------
+#include &lt;string.h&gt;
+#include "postgres.h"
+static unsigned char buf[BLCKSZ];
+text *zen2han(text *in)
+{
+    text *result;
+    unsigned char *p;
+    int len;
+
+    if( (in == (text*)NULL) || (VARSIZE(in) - VARHDRSZ &lt; 0 ))
+        return in;
+
+    len = VARSIZE(in) - VARHDRSZ;
+    buf[0] = 0;
+    strncat(buf, VARDATA(in), len);
+
+    p = buf;
+    while( *p )
+    {
+        if( (*p) == 0xa3 &amp;&amp; ( *(p+1) &gt;= 0xc1 &amp;&amp; *(p+1) &lt;= 0xda ) ){
+            *p = *(p+1) - 66;
+            strcpy(p+1, p+2);
+        }
+        else if( (*p) == 0xa3 &amp;&amp; ( *(p+1) &gt;= 0xe1 &amp;&amp; *(p+1) &lt;= 0xfa ) ){
+            *p = *(p+1) - 128;
+            strcpy(p+1, p+2);
+        }
+        p++;
+    }
+    len = strlen(buf) + VARHDRSZ;
+
+    result = (text*)palloc(len);
+    VARSIZE(result) = len;
+    strncpy(VARDATA(result), buf, strlen(buf));
+
+    return(result);
+}
+----------------------------------------------------------------------
+といったファイルを例えば zen2han.so などとして共有ライブラリにして、
+
+CREATE FUNCTION zen2han(text)
+  RETURNS text AS '/パス/zen2han.so' 
+  LANGUAGE 'C'
+
+という関数を使って
+
+keyword ~* zen2han('英全角文字')
+
+などとしてやれば一応できます ;p
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00157" HREF="msg00157.html">[pgsql-jp 5364] Re: WHERE clause</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00137" HREF="msg00137.html">[pgsql-jp 5344] Re: WHERE clause</A></STRONG>
+<UL><LI><EM>From:</EM> higuchi@sumitomopharm.co.jp (910699)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 5355] Re: WHERE clause</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 5357] Re^3:はじめまして&amp;</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 5355] Re: WHERE clause</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00157.html">[pgsql-jp 5364] Re: WHERE clause</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00149"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00149"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

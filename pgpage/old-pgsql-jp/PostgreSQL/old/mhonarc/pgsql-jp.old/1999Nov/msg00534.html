@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11967] Re: Accessからｐｇｓｑｌのテーブルを操作する場合 -->
+<!--X-From: MATSUDA Yoh&#45;ichi /TEAC 松田陽一<yoh@ho.teac.co.jp> -->
+<!--X-Date: Mon, 29 Nov 1999 16:25:54 +0900 -->
+<!--X-Message-Id: 19991129162554M.yoh@ho.teac.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3841FC1F3CA.7CB3ASA@edu1.tokyo&#45;med.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11967] Re: Accessからｐｇｓｑｌのテーブルを操作する場合 </TITLE>
+<LINK REV="made" HREF="mailto:yoh@ho.teac.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00532.html">Date Prev</A>][<A HREF="msg00535.html">Date Next</A>][<A HREF="msg00525.html">Thread Prev</A>][<A HREF="msg00536.html">Thread Next</A>][<A HREF="index.html#00534">Date Index</A>][<A HREF="threads.html#00534">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11967] Re: Accessからｐｇｓｑｌのテーブルを操作する場合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: MATSUDA Yoh-ichi /TEAC 松田陽一&lt;<A HREF="mailto:yoh@ho.teac.co.jp">yoh@ho.teac.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 29 Nov 1999 16:25:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00522.html">3841FC1F3CA.7CB3ASA@edu1.tokyo-med.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。松田陽一＠ティアック(株)知的財産法務部特許課です。
+
+PostgreSQL初心者の私がフォローするのも何ですが…^^;
+
+From: 朝子 &lt;asa@mint.ocn.ne.jp&gt;
+Subject: [pgsql-jp 11955] Accessからｐｇｓｑｌのテーブルを操作する場合
+Date: Mon, 29 Nov 1999 13:07:59 +0900
+
+&gt; お世話になっております。朝子といいます。
+
+どうもです。^^
+
+&gt; ・日付から患者さんの年齢をだしたり、
+&gt; 　入院期間や、ある薬品を使用していた期間などを指定して検索を行いたい
+&gt;   場合、やっぱり患者さんの生年月日や入、退院日などは「日付時刻型」にして
+&gt;   おかないと後々まずいことになりますでしょうか・・・・？？
+
+一般的なプログラミング環境の多くは、日時関数やコマンドを持っている
+もので、日数計算を始めする日時の取り扱いは、専用の組み込み関数に任
+せる方が楽です。
+表示させたい日が何曜日なのか、とか、期限管理とか…。
+
+&gt; （病院側からもらっている元データは、19990421というような形で、
+&gt; 　スラッシュ区切りとかではないんですが・・（^-^;））
+
+ちょうど、先週末に同じようなことで私もこの形式のデータを変換する必
+要が生じまして、突貫工事でgawkのスクリプトを書きました。
+signature 以降にぶら下げておきます。
+PostgreSQLの稼働するマシン上にgawkがインストールされていると思いま
+すので、そちらで実行されて下さい。
+
+# 余談ですが、既に御承知の方も多いかと思いますが、Access等のテーブ
+# ルを一旦テキストに書き出す場合、一般的に区切り文字はカンマ以外の
+# ものが好ましいと思います。
+# 私はタブ区切りで出力したテキストファイルに、以下のawk スクリプト
+# で処理を行いました。
+--
+松田陽一(yoh)
+ティアック株式会社 知的財産法務部
+<A HREF="mailto:yoh@ho.teac.co.jp">mailto:yoh@ho.teac.co.jp</A>
+〒180-8550 東京都武蔵野市中町3-7-3
+TEL:0422-52-5007
+FAX:0422-52-3771
+
+#! gawk -f 
+##############convdate.awk####################
+# 使い方: gawk -f convdate.awk [ファイル名] &gt; [出力するファイル名]
+# 目的: "19991231"という形式の数字を、"1999-12-31" というように、
+#       ハイフンを挟ませる。
+#       挟む文字は変数date_saparatorの内容を適宜書き換えて下さい。
+BEGIN{
+    date_saparator="-";
+}
+/1[1-9][0-9][0-9][0-9][0-9][0-9][0-9]/{
+    while(match($0,/1[1-9][0-9][0-9][0-9][0-9][0-9][0-9][^0-9]/)&gt;1){
+        year=substr($0,RSTART,4);
+        month=substr($0,RSTART+4,2);
+        day=substr($0,RSTART+6,2);
+        strstart=substr($0,1,RSTART-1);
+        strend=substr($0,RSTART+8);
+        $0=sprintf("%s%s%s%s%s%s%s",strstart,year,date_saparator,
+            month,date_saparator,day,strend);
+    }
+}
+{
+    print;
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00536" HREF="msg00536.html">[pgsql-jp 11969] Re: Accessからｐｇｓｑｌのテーブルを操作する場合</A></STRONG>
+<UL><LI><EM>From:</EM> Manabu Watanabe &lt;manyabu.nabe@ooi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00522" HREF="msg00522.html">[pgsql-jp 11955] Accessからｐｇｓｑｌのテーブルを操作する場合</A></STRONG>
+<UL><LI><EM>From:</EM> 朝子 &lt;asa@mint.ocn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00532.html">[pgsql-jp 11965] RE: Tuning</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00535.html">[pgsql-jp 11968] Re: VACUUM ANALYZE</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00525.html">[pgsql-jp 11958] Re: Accessからｐｇｓｑｌのテーブルを操作する場合</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00536.html">[pgsql-jp 11969] Re: Accessからｐｇｓｑｌのテーブルを操作する場合</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00534"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00534"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

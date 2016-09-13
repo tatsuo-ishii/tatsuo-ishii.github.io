@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9259] Re: can't exec one more postmaster with "semget failed" Error -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Mon, 05 Jul 1999 19:26:51 +0900 -->
+<!--X-Message-Id: 199907051026.TAA29184@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9907050947.AA14788@wendy.perfect&#45;liberty.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed"  </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00062.html">Date Prev</A>][<A HREF="msg00065.html">Date Next</A>][<A HREF="msg00059.html">Thread Prev</A>][<A HREF="msg00074.html">Thread Next</A>][<A HREF="index.html#00063">Date Index</A>][<A HREF="threads.html#00063">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed" Error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 05 Jul 1999 19:26:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00059.html">9907050947.AA14788@wendy.perfect-liberty.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。
+
+&gt;&gt;&gt;&gt; On Mon, 5 Jul 99 18:47:00 JST,
+&gt;&gt;&gt;&gt; 	takayasu@wendy.perfect-liberty.or.jp wrote:
+
+takayasu&gt; 現在、１つなら稼働しますが、２つ目を稼働させようと、カーネル
+takayasu&gt; を作り直したのですが、変更が効いていないように見えます。
+
+takayasu&gt; [症状(及び考察)]
+takayasu&gt;  a.２つ目の postmaster を起動すると "IpcSemaphoreCreate:
+takayasu&gt;  semget failed"
+takayasu&gt;  b.バックエンドを減らす -N 16 と起動できる。(= shmmax を増や
+takayasu&gt;  せば解決するはず。)
+takayasu&gt;  c.カーネルを作り直しても、改善しない。(= 使える memory が増
+takayasu&gt;  えていない?)
+
+対策法が間違っています。
+ 
+takayasu&gt;  % ipcs -M (FreeBSD 3.1,option SYSVSHM)
+takayasu&gt;  shminfo:
+
+見るべき情報はipcs -Mではなく、ipcs -Sだと思います。
+
+takayasu&gt; しかし、カーネルを作り直す前と同じで、
+takayasu&gt; % postmaster -S -i -p 5555 -N 16  &lt;- これなら出来ちゃうので、
+takayasu&gt; やっぱりshared memory の問題らしい
+
+いえ、shared memoryとは関係ないと思います。
+
+takayasu&gt;  a.２つ目の postmaster を起動すると "IpcSemaphoreCreate:
+takayasu&gt;  semget failed"
+
+これと、
+
+takayasu&gt;  ところが、 6.4.2 がこの状態から起動できてしまいます。
+takayasu&gt; % postmaster -S -p 5579              &lt;- さすがに３つ目は駄目。
+takayasu&gt; IpcMemoryCreate: shmget failed (Cannot allocate memory) key=5579001, size=831176, permission=600
+
+この落ち方をよく比べてみましょう。前者はsemget failedと言っていて、後
+者はshmget failedと言っています。たった1文字の違いですが、この差は重大
+です。
+
+つまり、前者はsemget(セマフォの確保)が失敗していると言っていて、後者は
+shmget(共有メモリの確保)が失敗していると言っているのです。この両者は同
+一ではありません。
+
+# このへんの話は、以前pgsql-jpの7100番台の頭あたりにも書いた記憶があり
+# ます。(2.2.8Rの話ですが…)
+
+セマフォ周りの資源が足りないと言っているのですから、共有メモリ周りのパ
+ラメータをいじってkernel再構築を行なっても問題が解決しないのは当然です。
+
+3.Xのkernel config周りは見ていないので、はっきりしたことは言えないので
+すが、このへんの事情はそれほど変わっていないのではないかと思います。
+
+2.2.8Rの場合だと、
+
+&gt;semgetに絡む、semaphore関連の設定がLINT configにあるはずです。(ちなみ
+&gt;に、セマフォはIPCの手段の一つですが、いわゆる共有メモリ(shmgetで取る)
+&gt;とはちょっと違います)
+
+&gt;&gt; options         SEMMAP=31
+&gt;&gt; options         SEMMNI=11
+&gt;&gt; options         SEMMNS=61 
+&gt;&gt; options         SEMMNU=31
+&gt;&gt; options         SEMMSL=61
+&gt;&gt; options         SEMOPM=101
+&gt;&gt; options         SEMUME=11
+
+&gt;このへんがsemaphore関連ですね。このへんの意味やデフォルト値は、
+&gt;/usr/include/sys/sem.hにあって、意味は
+
+こんな感じでした。
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"Error</A></STRONG>
+<UL><LI><EM>From:</EM> takayasu@wendy.perfect-liberty.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 9255] can't exec one more postmaster with "semget failed" Error</A></STRONG>
+<UL><LI><EM>From:</EM> takayasu@wendy.perfect-liberty.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 9258] Re: 6.5の JDBCにおける接続時の URL指定</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 9261] Re: 6.5の JDBCにおける接続時の URL指定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 9255] can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"Error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00063"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00063"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

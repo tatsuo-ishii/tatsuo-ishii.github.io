@@ -1,0 +1,635 @@
+<A NAME="10">
+<PRE><B>
+From: 片岡  裕生  &lt;kataoka@matsu.interwiz.koganei.tokyo.jp&gt;
+Date: Wed, 14 May 1997 19:52:43 +0900
+Subject: [postgres95 1804] 初めまして
+Message-Id: &lt;199705141052.TAA13237@matsu.interwiz.koganei.tokyo.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みなさん初めまして、片岡です。
+
+実はちょっと前からこのＭＬに入っていたのですが自己紹介が遅くなってしま
+いました。自営業の片岡です。PostgreSQL は興味があってインストールしま
+した。
+
+で、ちょっと聞きたいことがあります。
+
+psql で、ちょっと複雑な where 句を指定すると「黙り」になってしまいます。
+この間 ps でプロセスをみてみるとメモリを怖いくらいどんどん消費していっ
+て、どうも最後には postgres が落ちてしまうようです。
+
+本家ＭＬのアーカイブを探してみたのですが、これと同様な症状がポストされ
+ているのまでは確認できたのですが、その返答が見つけられませんでした。
+
+みなさん、同様な症状にあわれたことは無いでしょうか。以下にこの症状がで
+る sql を示しておきます。
+
+----8&lt;----ここから----8&lt;----
+create table t1 (key1 int4, key2 int4, data varchar);
+
+insert into t1 values (1, 1, 'データ１');
+insert into t1 values (2, 2, 'データ２');
+insert into t1 values (3, 3, 'データ３');
+insert into t1 values (4, 4, 'データ４');
+
+select * from t1
+	where key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1
+	or    key1 = 1 and key2 = 1;
+
+drop table t1;
+----8&lt;----ここまで----8&lt;----
+
+上記 or の部分が 10 回くらい以上からおかしくなるようです。
+
+なぜこのような変な SQL 文を実行したのかというと、PostODBC を利用して 
+MS-Access からテーブルの内容を見ていたところ ODBC ドライバでエラーが発
+生した旨を報告されてしまいました。調べてみると（本当はちょっと違うが）
+上記のような SQL 文が ODBC ドライバに送られていたのです。
+
+どなたか、この現象の｛理由｜回避方法｝がわかる方、居りませんでしょうか。
+よろしくお願いします。
+
+==================================================
+インターウィズ   &lt;staff@interwiz.koganei.tokyo.jp&gt;
+片岡　裕生     &lt;kataoka@interwiz.koganei.tokyo.jp&gt;
+<HR>
+</PRE>
+<A NAME="9">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 14 May 1997 19:07:34 +0900
+Subject: [postgres95 1803] Re: substring handling 
+Message-Id: &lt;199705141007.TAA15368@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;というわけで、substr と atoi を書いてみましたが、手元の 
+&gt;Solaris2.5.1/PostgreSQL 6.0 では
+&gt;
+&gt;	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+&gt;
+&gt;で PostgreSQL が死にます。
+&gt;
+&gt;	WHERE substr(some_date,1,4) = '1997'
+&gt;
+&gt;とか
+&gt;
+&gt;	SELECT atoi(substr(some_date,1,4))
+&gt;
+&gt;は大丈夫なんですけどね。
+
+良く考えたら、常に YYYYMMDD のフォーマットで日付が格納されているとすれ
+ば、
+
+	WHERE substr(some_date,1,4) &lt;  '1997'
+
+でも使えますね。というわけで、でっち上げのソースと GNUmakefile を付け
+ておきます。この２つを同じディレクトリ(仮に /usr/local/src/substr とし
+ます)に置いて、GNUmakefile 中の SRCDIR を PostgreSQL 6.0 のソースがあ
+る場所に書き換え、make します。次に psql を起動して以下を入力します。
+
+create function substr(char8,int4,int4) returns char8 as '/usr/local/src/substr/substr.so' language 'c';
+
+これで substr() が使えるようになります。なお、some_date の型は、char8 
+を前提にしています。varchar 版は宿題と言う事で:-)
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+------------------------- substr.c ------------------------
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;postgres.h&gt;
+
+#include &quot;utils/elog.h&quot;	/* for elog() */
+
+extern char *substr(char *,int, int);
+extern int char8toi(char *);
+
+char *substr(str,start,length)
+char	*str;
+int	start;	/* starts from 1 NOT 0 */
+int	length;
+{
+  int l = 8;	/* str must be CHAR8 */
+  char *newstr = palloc(l + 1);
+  memset(newstr, 0, l + 1);
+  if (str == NULL) {
+    return(newstr);
+  }
+  if (start &lt; 1 || start &gt; l || length &lt; 0 || length &gt; l) {
+    elog(WARN, &quot;substr: start and/or length invalid&quot;);
+    return(newstr);
+  }
+  if ((start + length -1) &gt; l) {
+    length = l - start + 1;
+  }
+  (void)strncpy(newstr,str + start - 1 , length);
+  return(newstr);
+}
+------------------------- GNUmakefile ------------------------
+#
+# Makefile--
+#    Makefile for substr()
+#
+# Tatsuo Ishii (t-ishii@sra.co.jp) on 1997/5/14
+#-------------------------------------------------------------------------
+
+# modify SRCDIR and include for your environment
+SRCDIR= /mnt2/postgres95/v6.0/postgresql/src
+include $(SRCDIR)/Makefile.global
+
+CFLAGS+= -I$(LIBPQDIR) -I$(SRCDIR)/include
+
+LDADD+= -L$(LIBPQDIR) -lpq
+        
+#
+# DLOBJS is the dynamically-loaded object file.
+#
+DLOBJS= substr$(DLSUFFIX)
+
+#
+# plus exports files
+#
+ifdef EXPSUFF
+INFILES+= $(DLOBJS:.o=$(EXPSUFF))
+endif
+
+# OUTFILES is the files that get created by running the regression test.
+OUTFILES= stud_emp.data onek.data regress.out aportal.out
+
+#
+# prepare to run the test (including clean-up after the last run)
+#
+#all: $(INFILES)
+all: $(DLOBJS)
+
+clean:
+	rm -f $(INFILES)
+<HR>
+</PRE>
+<A NAME="8">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 14 May 1997 18:41:27 +0900
+Subject: [postgres95 1802] Re: substring handling 
+Message-Id: &lt;199705140941.SAA15052@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;こんにちは、舘山です。
+&gt;
+&gt;You(Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さま) wrote 
+&gt;&gt; &gt; まあ、実際には'1997年以前'のような検索もしたいので、昔ORACLE使ってたときの
+&gt;&gt; &gt; 記憶を頼りに
+&gt;&gt; &gt;	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+&gt;&gt; &gt; みたいなことをしようと思っていたのでした。
+&gt;&gt; 
+&gt;&gt; やっぱりしたいですか:-)では substr() を自分で作りましょう。思ったより
+&gt;&gt; 簡単ですよ。で、作ったらここで公開する:-)
+&gt;
+&gt; はい、了解です。
+&gt; なんて言ってみたいのですが :-) これは永遠の宿題にしておきます。
+&gt; ＃今やCは&quot;Hello World&quot;くらいしか書く自信がないもので。:-)
+
+というわけで、substr と atoi を書いてみましたが、手元の 
+Solaris2.5.1/PostgreSQL 6.0 では
+
+	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+
+で PostgreSQL が死にます。
+
+	WHERE substr(some_date,1,4) = '1997'
+
+とか
+
+	SELECT atoi(substr(some_date,1,4))
+
+は大丈夫なんですけどね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+ 
+<HR>
+</PRE>
+<A NAME="7">
+<PRE><B>
+From: Hiroyuki HANAI &lt;hanai@astec.co.jp&gt;
+Date: Wed, 14 May 1997 17:04:19 +0900
+Subject: [postgres95 1801] Re: substring handling 
+Message-Id: &lt;19970514170419G.hanai@astec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井さん&gt;
+&gt; &gt; まあ、実際には'1997年以前'のような検索もしたいので、昔ORACLE使ってたときの
+&gt; &gt; 記憶を頼りに
+&gt; &gt;	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+&gt; &gt; みたいなことをしようと思っていたのでした。
+&gt; 
+&gt; やっぱりしたいですか:-)では substr() を自分で作りましょう。思ったより
+
+せっかくの PostgreSQL ですからね。
+自分で作っちゃいましょう！
+
+&gt; 簡単ですよ。で、作ったらここで公開する:-)
+
+是非お願いします。
+
+--はない
+<HR>
+</PRE>
+<A NAME="6">
+<PRE><B>
+From: Jun TATEYAMA &lt;tateyama@tokyo.jst.go.jp&gt;
+Date: Wed, 14 May 1997 16:54:22 +0900
+Subject: [postgres95 1800] Re: substring handling 
+Message-Id: &lt;199705140754.QAA01999@apollo.tokyo.jst.go.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは、舘山です。
+
+You(Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さま) wrote 
+&gt; &gt; まあ、実際には'1997年以前'のような検索もしたいので、昔ORACLE使ってたときの
+&gt; &gt; 記憶を頼りに
+&gt; &gt;	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+&gt; &gt; みたいなことをしようと思っていたのでした。
+&gt; 
+&gt; やっぱりしたいですか:-)では substr() を自分で作りましょう。思ったより
+&gt; 簡単ですよ。で、作ったらここで公開する:-)
+
+ はい、了解です。
+ なんて言ってみたいのですが :-) これは永遠の宿題にしておきます。
+ ＃今やCは&quot;Hello World&quot;くらいしか書く自信がないもので。:-)
+
+&gt; &gt; これを検索してもmaxとか、sumとかは出てこないのですが。
+&gt; &gt; 私の関数という言葉の使い方が間違っているのかもしれませんが、知りたいのは
+&gt; &gt; こういう類のものです。
+&gt; &gt; また、システムカタログについては何を見ればわかるでしょうか。
+&gt; 
+&gt; max とか sum は集約関数なんで PostgreSQL では別扱いです。
+&gt; 
+&gt; select * from pg_aggregate;
+
+ はい、ありがとうございました。
+ リファレンスマニュアルにきちんと書いてありましたね。
+ 御手数をおかけしまして、申し訳ございません。
+
+---
+舘山　純＠科学技術振興事業団(tateyama@tokyo.jst.go.jp)
+<HR>
+</PRE>
+<A NAME="5">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 14 May 1997 16:42:18 +0900
+Subject: [postgres95 1799] Re: substring handling 
+Message-Id: &lt;199705140742.QAA13441@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&gt; まあ、実際には'1997年以前'のような検索もしたいので、昔ORACLE使ってたときの
+&gt; 記憶を頼りに
+&gt;	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+&gt; みたいなことをしようと思っていたのでした。
+
+やっぱりしたいですか:-)では substr() を自分で作りましょう。思ったより
+簡単ですよ。で、作ったらここで公開する:-)
+
+&gt;&gt; 書き物としてはないと思いますが、pg_proc というシステムカタログを検索す
+&gt;&gt; ればある程度情報が取れます。
+&gt;&gt; 
+&gt;&gt; select proname from pg_proc;
+&gt;
+&gt; これを検索してもmaxとか、sumとかは出てこないのですが。
+&gt; 私の関数という言葉の使い方が間違っているのかもしれませんが、知りたいのは
+&gt; こういう類のものです。
+&gt; また、システムカタログについては何を見ればわかるでしょうか。
+
+max とか sum は集約関数なんで PostgreSQL では別扱いです。
+
+select * from pg_aggregate;
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: Jun TATEYAMA &lt;tateyama@tokyo.jst.go.jp&gt;
+Date: Wed, 14 May 1997 16:24:46 +0900
+Subject: [postgres95 1798] Re: substring handling
+Message-Id: &lt;199705140724.QAA01916@apollo.tokyo.jst.go.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは、舘山です。
+
+＠花井さん
+&gt; &gt;    つまりは、標準的にはsubstrという名前の関数はないということだと思うの
+&gt; &gt;    ですが、そこで
+&gt; &gt;    ・これに類するものは何かありませんか？
+&gt; &gt;    ・PostgreSQLが標準で装備している関数の一覧(リファレンス)というものは、
+&gt; 
+&gt; 最近ちょっとデータベースから離れているので、SQL も忘れつつあるのですが、
+&gt; 普通の SQL でできますよね？
+
+ 普通のSQLというのは、
+	WHERE some_date like '1997%';
+ みたいな感じでしょうか。
+
+＠花井さん 
+&gt; PostgreSQL だと、正規表現も使えるし。
+
+＠石井さん
+&gt; substr はないと思いますが、正規表現を使って、&quot;1997....&quot; で検索するのは
+&gt; インチキでしょうか？
+
+ 正規表現かぁ、頭になかったです、確かに。
+ まあ、実際には'1997年以前'のような検索もしたいので、昔ORACLE使ってたときの
+ 記憶を頼りに
+	WHERE atoi(substr(some_date,1,4)) &lt; 1997
+ みたいなことをしようと思っていたのでした。
+
+ でも、どうやら他に手はないようですね。
+
+＠石井さん
+&gt; &gt;   ・PostgreSQLが標準で装備している関数の一覧(リファレンス)というものは、
+&gt; &gt;     どこかに存在するのでしょうか？
+&gt; &gt;   というところを教えていただきたいのですが。
+&gt; 
+&gt; 書き物としてはないと思いますが、pg_proc というシステムカタログを検索す
+&gt; ればある程度情報が取れます。
+&gt; 
+&gt; select proname from pg_proc;
+
+ これを検索してもmaxとか、sumとかは出てこないのですが。
+ 私の関数という言葉の使い方が間違っているのかもしれませんが、知りたいのは
+ こういう類のものです。
+ また、システムカタログについては何を見ればわかるでしょうか。
+
+＠花井さん
+&gt; &gt;    みなさんはこういう時、何かelegantな方法でSQLの生成を行なっているのでは
+&gt; &gt;    ないのでしょうか。
+&gt; それは、それなりのアスゴリズムを考えればすっきりとすると思います。
+&gt; 私は結構グチャグチャと書いて、後で後悔するクチですが。
+
+ 私も全くその通りです。:-)
+
+＠石井さん
+&gt; エレガントな方法があれば私も知りたい:-)私は、
+
+ やっぱり。:-)
+
+&gt; 後、実際には、データ型によって '' を
+&gt; 外したり、cast が必要だったり、色々出て来ます。
+
+ そうなんですよね。
+ 特に、検索条件によってfrom句のパターンが複数あったりすると、簡単に
+ 二度と見たくないコードができあがっちゃいます。
+ ＃配列に比較式をたたき込んでおいて、あとでつなげるとかやってみては
+ ＃いるのですが、なかなか。
+---
+舘山　純＠科学技術振興事業団(tateyama@tokyo.jst.go.jp)
+
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 14 May 1997 16:08:20 +0900
+Subject: [postgres95 1797] Re: substring handling 
+Message-Id: &lt;199705140708.QAA12943@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;みなさま、こんにちは。舘山です。
+
+&gt; 1)substrなる関数はないのか
+&gt;   データとして日付の項目があり、当初はdate型を使用していたのですが、
+&gt;   [postgres95 1612]辺りで指摘されているinsert時に年が0000になってしまう
+&gt;   という現象が見事に発生してしまい、時間もあまりないことからchar型で
+&gt;   逃げることにしました。
+&gt;   originalのデータの制約もあり、yyyymmddという形式で用いることにしました。
+&gt;   この項目を年だけで検索しようとするために、substrという関数を用いたところ
+&gt;   WARN:func_get_detail: function substr(varchar, int4) does not exist
+&gt;   というerrorが出てしまいました。
+&gt;   つまりは、標準的にはsubstrという名前の関数はないということだと思うの
+&gt;   ですが、そこで
+&gt;   ・これに類するものは何かありませんか？
+
+substr はないと思いますが、正規表現を使って、&quot;1997....&quot; で検索するのは
+インチキでしょうか？
+
+&gt;   ・PostgreSQLが標準で装備している関数の一覧(リファレンス)というものは、
+&gt;     どこかに存在するのでしょうか？
+&gt;   というところを教えていただきたいのですが。
+
+書き物としてはないと思いますが、pg_proc というシステムカタログを検索す
+ればある程度情報が取れます。
+
+select proname from pg_proc;
+
+&gt; 2)where句を作る方法
+&gt;
+&gt;   今回、ある程度perl+postgresperlを書いたところで、あまりにもSQL(特にwhere
+&gt;   clause)を作り上げるために、みにくいコードを書かなければならないことに
+&gt;   気付きました。
+&gt;   ＃もちろん、私の能力の低さが最たる原因なのですが...
+&gt;
+&gt;   例えばFORM上に、A,B,C,Dというtableのcolumnに対応する項目が用意されていて
+&gt;   その入力の有無によって、where clauseを作り上げるのですが、
+&gt;   どうしても、最初の条件にはWHEREをつけなきゃならないとか、2番目以降はANDが
+&gt;   必要とか、細かい条件がみるみる膨らんでいきます。
+&gt;
+&gt;   みなさんはこういう時、何かelegantな方法でSQLの生成を行なっているのでは
+&gt;   ないのでしょうか。
+&gt;   もしよろしければ、そういったtipsなんかをお聞かせ願えるとありがたいの
+&gt;   ですが...
+
+エレガントな方法があれば私も知りたい:-)私は、
+
+query=&quot;select ターゲットリスト from テーブル名 &quot;
+f=0
+
+全てのキー項目について {
+    if (もしキー値が入力されていたら) {
+	    if (f == 0) {
+		query += &quot;where カラム名 = 'キー値)' &quot;
+		f=1
+	    } else {
+		query += &quot;and カラム名 = 'キー値)' &quot;
+	}
+    }
+}
+
+とかやっておりますが、醜いですね。後、実際には、データ型によって '' を
+外したり、cast が必要だったり、色々出て来ます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Hiroyuki HANAI &lt;hanai@astec.co.jp&gt;
+Date: Wed, 14 May 1997 16:01:41 +0900
+Subject: [postgres95 1796] Re: substring handling
+Message-Id: &lt;19970514160141Z.hanai@astec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+舘山さん&gt;
+&gt;    originalのデータの制約もあり、yyyymmddという形式で用いることにしました。
+&gt;    この項目を年だけで検索しようとするために、substrという関数を用いたところ
+&gt;    WARN:func_get_detail: function substr(varchar, int4) does not exist
+&gt;    というerrorが出てしまいました。
+&gt;    つまりは、標準的にはsubstrという名前の関数はないということだと思うの
+&gt;    ですが、そこで
+&gt;    ・これに類するものは何かありませんか？
+&gt;    ・PostgreSQLが標準で装備している関数の一覧(リファレンス)というものは、
+
+最近ちょっとデータベースから離れているので、SQL も忘れつつあるのですが、
+普通の SQL でできますよね？
+PostgreSQL だと、正規表現も使えるし。
+
+&gt;  2)where句を作る方法
+&gt;    例えばFORM上に、A,B,C,Dというtableのcolumnに対応する項目が用意されていて
+&gt;    その入力の有無によって、where clauseを作り上げるのですが、
+&gt;    どうしても、最初の条件にはWHEREをつけなきゃならないとか、2番目以降はANDが
+&gt;    必要とか、細かい条件がみるみる膨らんでいきます。
+&gt; 
+&gt;    みなさんはこういう時、何かelegantな方法でSQLの生成を行なっているのでは
+&gt;    ないのでしょうか。
+
+それは、それなりのアスゴリズムを考えればすっきりとすると思います。
+私は結構グチャグチャと書いて、後で後悔するクチですが。
+
+--はない
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Jun TATEYAMA &lt;tateyama@tokyo.jst.go.jp&gt;
+Date: Wed, 14 May 1997 15:21:32 +0900
+Subject: [postgres95 1795] substring handling
+Message-Id: &lt;199705140621.PAA01727@apollo.tokyo.jst.go.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みなさま、こんにちは。舘山です。
+
+You(Jun TATEYAMA &lt;tateyama@tokyo.jst.go.jp&gt; さま) wrote 
+&gt;  どうも、本業が忙しくなってしまって6.0をinstallしてからはpostgresには
+&gt;  ほとんど触れておりません。
+&gt; 
+&gt;  ここでの任期ももうじき終りですので、これ以上の進展は望めないかも...
+
+ 先日、このようなことを書かせていただきましたが、急にPostgresを使っての
+ WWWからの検索システム(のprototype)を作るはめに陥ってしまいました。
+ まあ、システム自体はそれほど複雑なものではなく、FORMから入力された
+ keywordをANDで結んで検索するだけなのですが。
+
+ そんな中、色々と疑問が湧いてきましたので、よろしければ御教示下さい。
+ あっ、なお環境はPostgeSQL6.0+apache1.1.1+perl5+PostgresPerlです。
+
+ 1)substrなる関数はないのか
+   データとして日付の項目があり、当初はdate型を使用していたのですが、
+   [postgres95 1612]辺りで指摘されているinsert時に年が0000になってしまう
+   という現象が見事に発生してしまい、時間もあまりないことからchar型で
+   逃げることにしました。
+   originalのデータの制約もあり、yyyymmddという形式で用いることにしました。
+   この項目を年だけで検索しようとするために、substrという関数を用いたところ
+   WARN:func_get_detail: function substr(varchar, int4) does not exist
+   というerrorが出てしまいました。
+   つまりは、標準的にはsubstrという名前の関数はないということだと思うの
+   ですが、そこで
+   ・これに類するものは何かありませんか？
+   ・PostgreSQLが標準で装備している関数の一覧(リファレンス)というものは、
+     どこかに存在するのでしょうか？
+   というところを教えていただきたいのですが。
+
+ 2)where句を作る方法
+
+   今回、ある程度perl+postgresperlを書いたところで、あまりにもSQL(特にwhere
+   clause)を作り上げるために、みにくいコードを書かなければならないことに
+   気付きました。
+   ＃もちろん、私の能力の低さが最たる原因なのですが...
+
+   例えばFORM上に、A,B,C,Dというtableのcolumnに対応する項目が用意されていて
+   その入力の有無によって、where clauseを作り上げるのですが、
+   どうしても、最初の条件にはWHEREをつけなきゃならないとか、2番目以降はANDが
+   必要とか、細かい条件がみるみる膨らんでいきます。
+
+   みなさんはこういう時、何かelegantな方法でSQLの生成を行なっているのでは
+   ないのでしょうか。
+   もしよろしければ、そういったtipsなんかをお聞かせ願えるとありがたいの
+   ですが...
+
+ 我ながら自分勝手なお願いだとは思いますが、よろしくお願い致します。
+---
+舘山　純＠科学技術振興事業団(tateyama@tokyo.jst.go.jp)
+   
+	
+   
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Takuo Yasunaga &lt;tacyas@tkyemghp.phys.s.u-tokyo.ac.jp&gt;
+Date: Wed, 14 May 1997 00:01:38 +0900
+Subject: [postgres95 1794] Re: How do you back up the data?
+Message-Id: &lt;199705131456.XAA17128@tkysun.phys.s.u-tokyo.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+安永＠若林研と申します。
+
+At 22:07 97/05/13 +0900, you wrote:
+&gt; masayuki&gt; 230MB MOが一番手頃な値段で使いやすいため、今はこちらを
+&gt; masayuki&gt; 多用しております。 バックアップのやりかた、という程では
+&gt; masayuki&gt; ないですが、重要な作業ディレクトリだけをcronにより一日
+&gt; masayuki&gt; 一回(明け方)の頻度でMOにコピーさせてます。
+
+&gt; ありがとうございます. これは, データディレトクリごとコピーす
+&gt; るという考えでよろしいのでしょうか. 
+
+　もう結論が出たので、必要ない情報かもしれませんが、
+最近バックアップは、別のＨＤの上にコピーすることにしています。
+ＭＯにしても、ＤＡＴにしても、ドライブはそんなに安くはないし、
+ＨＤの最近の安さは、群を抜いているので。ＨＤの使い捨て的な
+使い方をしています。
+	安永卓生(Takuo Yasunaga)
+	mailto:tacyas@tkyemghp.phys.s.u-tokyo.ac.jp
+	http://tkyemghp.phys.s.u-tokyo.ac.jp/tacyas/tacyas.html
+
+<HR>
+</PRE>

@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15256] PHP4 vs FastCGI -->
+<!--X-From: Youichi Iwakiri <yiwakiri@st.rim.or.jp> -->
+<!--X-Date: Thu, 15 Jun 2000 07:56:47 +0900 -->
+<!--X-Message-Id: 200006142257.HAA03464@mail1.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15256] PHP4 vs FastCGI </TITLE>
+<LINK REV="made" HREF="mailto:yiwakiri@st.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00297.html">Date Prev</A>][<A HREF="msg00299.html">Date Next</A>][<A HREF="msg00304.html">Thread Prev</A>][<A HREF="msg00299.html">Thread Next</A>][<A HREF="index.html#00298">Date Index</A>][<A HREF="threads.html#00298">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15256] PHP4 vs FastCGI</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:yiwakiri@st.rim.or.jp">yiwakiri@st.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 15 Jun 2000 07:56:47 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+Perl一辺倒でPHPは殆ど使ってなかったのですが、PHP4のリリースに
+触発され使ってみました。
+従来から使ってきたPerlと比較し何が嬉しいのかまだよく理解できて
+いませんがML検索ページで使っているCGIスクリプトを題材に性能比較
+を行ってみました。
+
+比較したものは
+ CGIスクリプト(Perl)
+ FastCGI(persistent connection無)
+ PHP4(persistent connection無)
+ FastCGI(persistent connection有)
+ PHP4(persistent connection有)
+です
+
+1.システム環境
+  CPU:        Mobile PentiumII 266MHz
+  Memory:     128MB
+  HDD:        2.5GB
+  OS:         FreeBSD 3.4-RELEASE with PAO3
+
+2.ソフトウェア環境
+  GCC:        gcc 2.95.2
+  make:       GNU Make version 3.77
+  flex:       2.5.4
+  Bison:      GNU Bison version 1.25
+  perl:       5.6.0
+  Apache:     Apache-1.3.12 ( DSOでコンパイル )
+  PostgreSQL: PostgreSQL-7.0.2
+              ( --with-perl --enable-multibyte=EUC_JP )
+  PHP:        PHP-4.0.0 with Zend Optimizer v0.98
+              ( --with-pgsql --without-mysql \
+                --with-apxs=/usr/local/apache/bin/apxs \
+                --disable-debug )
+              #何も指定しないとMySQLの機能が組み込まれるんですね
+  FastCGI:    mod_fastcgi 2.2.4
+  FCGI:       FCGI-0.52(FastCGIをPerlから利用するためのモジュール)
+
+測定の方法
+ ab(Apache Bench)により同一リクエストを多重度10で500回繰り返した
+  % /usr/local/apache/bin/ab -c 10 -n 500 <A HREF="http://localhost/cgi-bin/スクリプト名">http://localhost/cgi-bin/スクリプト名</A>
+
+測定に用いたスクリプト
+ (1) get_thread.cgi (PerlによるCGIスクリプト)
+     リクエスト毎にApacheよりperl5のfork()およびpostgresバックエンドのfork()の
+     コストが掛るもの。
+
+ (2) get_thread.fcgi (FastCGI persistent connection無)
+     Apache起動時に当該スクリプトはdeamonとして常駐しリクエスト待ちループに
+     なるもの(perlのfork(),exec()を軽減)
+
+ (3) get_thread.php (PHP4 persistent connection無)
+     PHPの大きな利点であるスクリプトエンジンがApacheのモジュールとして
+     取りこまれているためスクリプトエンジンの起動オーバヘッドは無。     
+
+ (4) get_thread.fpl (FastCGI persistent connection有)
+     Apache起動時に当該スクリプトはdeamonとして常駐し、PostgreSQLとの
+     コネクションを確立後にリクエスト待ちループになり、コネクションの
+     開放は行わず。(バックエンドのfork()も軽減される)
+
+ (5) get_threadp.php (PHP4 persistent connection有)
+     PHPの大きな利点であるスクリプトエンジンがApacheのモジュールとして
+     取りこまれているためスクリプトエンジンの起動オーバヘッドは無。     
+     かつ、pg_pconnect()による接続を行うため、一定時間postgresバックエンド
+     との接続が保持され再利用される。(バックエンドのfork()も軽減される)
+
+
+以下が測定結果です。
+(5)のPHP4関連の測定に付いては、初回リクエスト(および一定時間経過後に
+行われるバックエンド解放後)ではバックエンドのfork()が行われるため公平では
+ないと思い2度目の測定結果を採用しています。
+#実質的には多重度10でリクエスト総数が500で有るため影響を受けるのは1/50しか
+#出ないとは思いますが (^^;
+
++------+---------+------------------+----------------+
+|Script|Time(sec)|Request per second|Relative rate(%)|
++------+---------+------------------+----------------+
+|   (1)|  110.812|              4.51|           100.0|
++------+---------+------------------+----------------+
+|   (2)|   71.079|              7.03|           155.8|
++------+---------+------------------+----------------+
+|   (3)|   53.499|              9.35|           207.3|
++------+---------+------------------+----------------+
+|   (4)|   28.189|             17.74|           393.3|
++------+---------+------------------+----------------+
+|   (5)|   28.070|             17.81|           394.9|
++------+---------+------------------+----------------+
+
+うーん、PHP導入するだけで単純2倍、persistent connectionを
+使えば4倍となりました。複雑な問い合せを行わないWEB-DB連携だと
+スクリプトエンジン(Perl, PHP)の起動コストとPostgreSQLの
+バックエンド起動コストが無視できないと言うか殆どがそこに
+費やされている結果となりました。
+
+以前、FastCGI vs PerlというSubjectでMLに結果を送った際は
+石井さんより上記に加え、環境変数PGCLIENTENCORDINGの有無に
+よりクライアントに送り返す文字コードを問い合わせるSELECT文
+が発行され性能に差が出るとご指摘いただいているので
+PGCLIENTENCORDING=EUC_JPを設定しています。
+
+FastCGIとPHP4の比較としてはあまり差は感じませんでした。
+慣れのある言語を使えばどっちでも良いかなと言うのが感想です。
+
+敢えて言えば、Perlだけ覚えていれば非WEB-DB環境でも
+PostgreSQLへのアクセスを行うスクリプトを書けるので応用が
+しやすいかもしれません。
+
+PHPを使っての感想は、QUERY_STRINGの扱いが非常に楽な点と
+スクリプトの構文エラーがWEB上に何行目が悪いぞと表示される点が
+すばらしいと感じました。 (@_@)
+#知らなかった。何を今更と言われそうですが...
+
+あと、SD6月号の渋谷さんの記事を読むとShellで実行できるPHP実行版
+なる記述がありました。これを使えばWEB-DB連携以外もPerlの変わりに
+PHPが利用できそうな気がするんですがPHP-4.0.0の configureオプションを
+眺めてみてもそれらしいオプションが見当たらないのですがどうすれば
+PHP実行版を作れるのでしょうか?
+
+どなたかご教授くださいませ m(_ _)m
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00299" HREF="msg00299.html">[pgsql-jp 15257] Re: PHP4 vs FastCGI</A></STRONG>
+<UL><LI><EM>From:</EM> hosoi@ryo.com</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 15255] Re: 初期ローディング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 15257] Re: PHP4 vs FastCGI</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 15262] Re:（お礼） viewテーブルがselectできない。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 15257] Re: PHP4 vs FastCGI</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00298"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00298"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,240 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7050] Re: NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Thu, 11 Feb 1999 19:33:30 +0900 -->
+<!--X-Message-Id: 199902111033.TAA03633@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902100920.SAA28375@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7050] Re: NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00174.html">Date Prev</A>][<A HREF="msg00176.html">Date Next</A>][<A HREF="msg00168.html">Thread Prev</A>][<A HREF="msg00176.html">Thread Next</A>][<A HREF="index.html#00175">Date Index</A>][<A HREF="threads.html#00175">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7050] Re: NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 11 Feb 1999 19:33:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00168.html">199902100920.SAA28375@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木@kinotropeです。
+
+&gt;&gt;&gt;&gt;&gt;&gt; Wed, 10 Feb 1999 18:20:52 +0900,
+	"TI" == Tatsuo Ishii wrote:
+TI&gt; 石井です。
+TI&gt; &gt;とりあえずFreeBSDのように、
+TI&gt; &gt;Makefile.global で ELF_SYSTEM が trueになるように configure を変え
+TI&gt; &gt;てみました。
+TI&gt; &gt;
+TI&gt; &gt;Makefile.shlibも修正しないとダメなんですが、まだやってません。
+TI&gt;
+TI&gt; うまくいったらまとめてパッチをお願いします。あ、できれば
+TI&gt; configure.in のパッチも一緒に。
+
+まだregressionが通っていませんが、NetBSD/macppc固有と思われる修正のみ
+作成しました。
+これ以降はちょっと様子見です。
+
+configure.in
+現在NetBSDでは、 alpha,mips,powerpc,sparc64 でELFが使われています。
+でもELFに移行しようとしているので、単に CPUだけでフォーマットを特定する
+ことはやめた方がいいと思います。
+FreeBSDでは/etc/objformatにフォーマットが入っているので簡単に判別できま
+すが、NetBSDでは多分/usr/share/mk/bsd.own.mkを見ないと分からないと思いま
+す。
+apacheのpkgsrcのパッチを見たら、下記のようにコンパイラを使って判断してい
+ました。
+	if echo __ELF__ | ${CC} -E - | grep -q __ELF__; then
+		# a.out
+	else
+		# elf
+	fi
+
+今回のパッチでは決め打ちしています。
+
+
+Makefile.shlib
+とりあえずELFの定義を入れてみたんですが、これだとpsql等がstatic linkされ
+てしまいます。
+# FreeBSD 3.Xでも同様のようですが。
+ld がlibpq.so.2.0 を見ていないようです。(libpq.soしか見ていない?)
+そこで ln -s libpq.so.2.0 libpq.so を作っておけば
+dynamic linkされるので、手を入れるとしたら、
+$(shlib)ターゲットにinstall-shlibと同様にsymlinkを追加すればいい?
+あとsoname ですが、NetBSD自体では majorまでを入れているので、
+こっちに合わせた方がいいかもしれません。
+
+
+dynloaderに関しては、ELF形式のFreeBSD 3.Xでも同じような修正が必要だと思います。
+3.0-STABLEがあるので、そのうち確認しておきます。
+
+
+
+TI&gt; 最終的には current (開発中の 6.5)に反映しないといけませんが、 6.4.2
+TI&gt; 用のパッチを作って頂ければ、そのあたりの力仕事はやらせて頂きます。
+
+宜しくお願いします。
+
+
+--- postgresql-6.4.2/src/config.guess.orig      Sun Jul 19 13:16:48 1998
++++ postgresql-6.4.2/src/config.guess   Tue Feb  9 11:42:19 1999
+@@ -129,6 +129,9 @@
+     mac68k:OpenBSD:*:*)
+        echo m68k-apple-openbsd${UNAME_RELEASE}
+        exit 0 ;;
++    macppc:NetBSD:*:*)
++       echo powerpc-apple-netbsd${UNAME_RELEASE}
++       exit 0;;
+     powerpc:machten:*:*)
+        echo powerpc-apple-machten${UNAME_RELEASE}
+        exit 0 ;;
+
+--- postgresql-6.4.2/src/configure.in.orig      Mon Dec 14 05:08:20 1998
++++ postgresql-6.4.2/src/configure.in   Thu Feb 11 18:13:05 1999
+@@ -22,7 +22,12 @@
+     bsdi*) os=bsdi need_tas=no ;;
+  freebsd3*) os=freebsd need_tas=no elf=yes ;;
+  freebsd1*|freebsd2*) os=freebsd need_tas=no ;;
+-  netbsd*|openbsd*) os=bsd need_tas=no ;;
++  netbsd*)
++       os=bsd need_tas=no
++       case "$host_cpu" in
++         powerpc) elf=yes ;;
++       esac ;;
++  openbsd*) os=bsd need_tas=no ;;
+     dgux*) os=dgux need_tas=no ;;
+      aix*) os=aix need_tas=no ;;
+ nextstep*) os=nextstep need_tas=no ;;
+
+--- postgresql-6.4.2/src/makefiles/Makefile.bsd.orig    Sat Dec 20 09:11:13 1997
++++ postgresql-6.4.2/src/makefiles/Makefile.bsd Thu Feb 11 16:01:36 1999
+@@ -1,3 +1,5 @@
++LDFLAGS += -Wl,-E
++
+ %.so: %.o
+        $(LD) -x -r -o $&lt;.obj $&lt;
+        @echo building shared object $@
+@@ -5,5 +7,9 @@
+        @${AR} cq $@.pic `lorder $&lt;.obj | tsort`
+        ${RANLIB} $@.pic
+        @rm -f $@
++ifdef ELF_SYSTEM
++       $(LD) -x -Bshareable -o $@ $@.pic
++else
+        $(LD) -x -Bshareable -Bforcearchive \
+          -o $@ $@.pic
++endif
+
+--- postgresql-6.4.2/src/Makefile.shlib.orig    Mon Nov 30 09:31:19 1998
++++ postgresql-6.4.2/src/Makefile.shlib Thu Feb 11 18:57:28 1999
+@@ -73,7 +73,11 @@
+   ifdef BSD_SHLIB
+     install-shlib-dep  := install-shlib
+     shlib              := lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+-    LDFLAGS_SL         := -x -Bshareable -Bforcearchive
++    ifdef ELF_SYSTEM
++      LDFLAGS_SL       := -x -Bshareable -soname $(shlib)
++    else
++      LDFLAGS_SL       := -x -Bshareable -Bforcearchive
++    endif
+     CFLAGS             += $(CFLAGS_SL)
+   endif
+ endif
+
+--- postgresql-6.4.2/src/include/port/bsd.h.orig        Sun Jul 19 10:19:53 1998
++++ postgresql-6.4.2/src/include/port/bsd.h     Thu Feb 11 18:07:39 1999
+@@ -24,7 +24,15 @@
+ #define HAS_TEST_AND_SET
+ #endif
+
++#if defined(__powerpc__)
++#define HAS_TEST_AND_SET
++typedef unsigned int slock_t;
++#endif
++
+ #if defined(__mips__)
+ /* #   undef HAS_TEST_AND_SET */
+ #endif
++
++#if !defined(__powerpc__)
+ typedef unsigned char slock_t;
++#endif
+
+--- postgresql-6.4.2/src/backend/port/dynloader/bsd.c.orig      Tue Sep  1 13:30:54 1998
++++ postgresql-6.4.2/src/backend/port/dynloader/bsd.c   Thu Feb 11 18:50:30 1999
+@@ -79,6 +79,8 @@
+ #if defined(__mips__) || (defined(__NetBSD__) &amp;&amp; defined(vax))
+        sprintf(error_message, "dlsym (%s) failed", name);
+        return NULL;
++#elif defined(__ELF__)
++       return dlsym(handle, name);
+ #else
+        void       *vp;
+        char            buf[BUFSIZ];
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00178" HREF="msg00178.html">[pgsql-jp 7053] Re: NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 7052] Re: NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiko GOTANDA &lt;a-gota@edomae.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00176" HREF="msg00176.html">[pgsql-jp 7051] bsd (Re: NetBSD/macppc )</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00168" HREF="msg00168.html">[pgsql-jp 7043] Re: NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00174.html">[pgsql-jp 7049] over 8192 bytes</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 7051] bsd (Re: NetBSD/macppc )</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00168.html">[pgsql-jp 7043] Re: NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 7051] bsd (Re: NetBSD/macppc )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00175"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00175"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

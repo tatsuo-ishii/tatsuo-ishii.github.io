@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16922] NULL結果集計 -->
+<!--X-From: Michael Westbay <westbay@seaple.icc.ne.jp> -->
+<!--X-Date: Wed, 23 Aug 2000 23:23:33 +0900 -->
+<!--X-Message-Id: 39A3DE64.1C5D289F@seaple.icc.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16922] NULL結果集計 </TITLE>
+<LINK REV="made" HREF="mailto:westbay@seaple.icc.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00534.html">Date Prev</A>][<A HREF="msg00536.html">Date Next</A>][<A HREF="msg00713.html">Thread Prev</A>][<A HREF="msg00545.html">Thread Next</A>][<A HREF="index.html#00535">Date Index</A>][<A HREF="threads.html#00535">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16922] NULL結果集計</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michael Westbay &lt;<A HREF="mailto:westbay@seaple.icc.ne.jp">westbay@seaple.icc.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 23:23:33 +0900</LI>
+<LI><em>Organization</em>: Beacon-IT</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+始めまして。ウェストベイ@ビーコンITです。
+
+UPDATE FROM で集計をテーブルに入れています。でも、結果に何もない場合、以
+下のエラーメッセージになっています:
+
+     ERROR:  ExecutePlan: (junk) `ctid' is NULL!
+
+sum(何もない) は 0 になると思いましたが、これはどう解決できるんでしょう
+か?
+
+-------------- test.sql -----
+CREATE TABLE monthly_totals (
+        emp_id int4 NOT NULL,
+        gatsudo int4 NOT NULL,
+        kaishibi date,
+        shuryobi date,
+        kinmu_jikan int4,
+        kekkin_jikan int4,
+        zangyo_jikan int4,
+        PRIMARY KEY (emp_id, gatsudo)
+);
+CREATE TABLE todokede_data (
+        emp_id int4 NOT NULL,
+        todokede_code int4 NOT NULL,
+        rec_date date NOT NULL,
+        atai int4,
+        comment text,
+        PRIMARY KEY (emp_id, todokede_code, rec_date)
+);
+COPY monthly_totals FROM stdin;
+2       200008  2000-08-21      2000-09-20      0       0       0
+1       200008  2000-08-21      2000-09-20      0       20      0
+\.
+COPY todokede_data FROM stdin;
+1       1       2000-08-21      450
+1       2       2000-08-22      20
+2       2       2000-08-22      30
+\.
+-------------- test.sql -----
+
+集計は以下のテストケースをやっています:
+
+     update monthly_totals
+     set kekkin_jikan=sum(atai)
+     from todokede_data
+     where todokede_code = 2
+       and todokede_data.emp_id=monthly_totals.emp_id
+       and monthly_totals.emp_id=1
+       and gatsudo=200008
+       and rec_date between kaishibi and shuryobi;
+
+これは問題ないで欠勤時間を更新しています。
+
+でも、届出コードが 3の場合、
+
+     update monthly_totals
+     set kekkin_jikan=sum(atai)
+     from todokede_data
+     where todokede_code = 3
+       and todokede_data.emp_id=monthly_totals.emp_id
+       and monthly_totals.emp_id=1
+       and gatsudo=200008
+       and rec_date between kaishibi and shuryobi;
+
+以上の「ExecutePlan: (junk) `ctid' is NULL!」エラーが発生しています。
+
+メーリングリストのアーカイブを調べたんですが、似ていることしか見つかりま
+せん。UPDATE FROM 文はありませんでした。
+
+この更新の文は多くトランザクションの中にありますので、SELECT文を投げたく
+ないです。(JDBCドライバでは、SELECT文があるとたくさんトランザクションが
+うまく行いません。)
+
+PostgreSQL 7.0.2 を FreeBSD 4.0-RELEASE で動いています。JDBC でアクセス
+していますが、以上は psql でも同じです。
+
+UPDATE FROM をやめて、SELECT で集計をして、別の論理で UPDATE をしなけれ
+ばいけませんか? 「select sum(atai) from todokede_data where
+todokede_code=3;」が 0にならないので、困っています。これは仕様でしょう
+か? Oraちゃんはどうなっていますか? 0 になったと思いましたが、今はテスト
+環境がありません。
+
+では、宜しくお願いします。
+
+--
+Michael Westbay
+Work: Beacon-IT <A HREF="http://www.beacon-it.co.jp/">http://www.beacon-it.co.jp/</A>
+Home:           <A HREF="http://www.seaple.icc.ne.jp/~westbay">http://www.seaple.icc.ne.jp/~westbay</A>
+Commentary:     <A HREF="http://www.japanesebaseball.com/">http://www.japanesebaseball.com/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00545" HREF="msg00545.html">[pgsql-jp 16932] Re: NULL結果集計</A></STRONG>
+<UL><LI><EM>From:</EM> Kei Yanaihara &lt;kei@easylife.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00534.html">[pgsql-jp 16921] Re: [pgsql-jp 16813] 参照整合性エラーが返らない、現象は回避できた</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00536.html">[pgsql-jp 16923] テーブル設計</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00713.html">[pgsql-jp 17115] Re: tcp wrappers の設定について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00545.html">[pgsql-jp 16932] Re: NULL結果集計</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00535"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00535"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

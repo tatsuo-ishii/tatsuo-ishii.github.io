@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26198] 解決レポート -->
+<!--X-From: Junzo Kudou <tech@dk.catv.ne.jp> -->
+<!--X-Date: Wed, 29 May 2002 19:09:26 +0900 -->
+<!--X-Message-Id: 200205291012.TAA18382@cs2.catv.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205271204.VAA16691@cs2.catv.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26198] 解決レポート </TITLE>
+<LINK REV="made" HREF="mailto:tech@dk.catv.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00432.html">Date Prev</A>][<A HREF="msg00434.html">Date Next</A>][<A HREF="msg00435.html">Thread Prev</A>][<A HREF="msg00385.html">Thread Next</A>][<A HREF="index.html#00433">Date Index</A>][<A HREF="threads.html#00433">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26198] 解決レポート</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Junzo Kudou &lt;<A HREF="mailto:tech@dk.catv.ne.jp">tech@dk.catv.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 May 2002 19:09:26 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00386.html">200205271204.VAA16691@cs2.catv.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+工藤です。
+一応pg_dumpが出来るようになりましたので御報告します。
+
+
+井上さんとのやりとりで、問題となってるテーブルの特定レコードを
+昔のアーカイブから復旧したらなんとかなるんじゃなかろうかと当り
+をつけ、試しにローカルに展開したコピーDBでやってみました。
+
+問題となっているテーブルは利用者IDと書き込み期日、書き込み内容等
+からなるテーブルでして、IDとDATEの組合せでレコードがユニークに
+特定されます。
+このテーブルにおいて、特に条件づけをせず
+select ID,DATE,COMMENT from TABLENAME;
+とやるとエラーが出て全く表示されません。
+IDとDATEだけに関してなら問題なく出力されます。
+ここから、おそらく障害が発生しているのはCOMMENTのカラムであろう
+と推測しました。
+このカラムはTEXT型なのでtoastの恩恵を受ける可能性が最も高いカラム
+でした。
+
+レコードのしぼり込みのためにまず
+select COMMENT from TABLENAME where ID=***;
+で全ユーザIDについてループし、さらにDATEでしぼりこみ該当レコード
+と思われるものを2つ発見しました。
+
+このレコードを一度deleteし壊れる前のアーカイブから復旧し再度pg_dump
+をかけてみました。
+
+すると!
+
+別なエラーが(笑
+
+pg_dump: dumpClasses(): SQL command failed
+pg_dump: Error message from server: ERROR:  MemoryContextAlloc: invalid request size 4294967295
+pg_dump: The command was: FETCH 100 FROM _pg_dump_cursor
+
+"MemoryContextAlloc"を調べ歩いたところ、Postgres7.1.2より前の
+バージョンではエラーがあったらしいとの記述を発見したのですが、
+使用しているのは7.2.1ですので無関係と判断。
+
+このDBは以前にも同じ環境でpg_dumpを行っていましたし、同じ構成
+でレコード数が数倍あるデータのpg_dumpも行えていましたので、
+単純にHDD領域が足りないというのも解せません。
+vacuumをしてもまったく状況が変わらなかったので、どうもまだ障害
+が残っているだろうと再度
+select ID,DATE,COMMENT from TABLENAME;
+をやるとやはり
+ERROR:  unexpected chunk number 1 (expected 0) for toast value 74452
+のエラーが発生していました。
+
+よって、残りの幾つかのカラムについても同じ操作行い再度レコードの
+特定をし一件の異常レコードを発見しました。
+今度はレコード毎delete&amp;insertではなく、このカラムについてのupdate
+だけを行いました。
+この操作の後pg_dumpを再度行うと、無事にアーカイブ作成に成功しました。
+
+もしかしたらもっとエレガントな解決策があったのかもしれませんが、結局
+こういう泥臭い手段で解消してしまいました。
+勉強不足を痛感しております。
+三淵さん、井上さん、御協力ありがとうございました。
+
++-----------------------------------------------------------+
+|  株式会社デジタオ 技術担当                      工藤順三  |
+|  mail tech@dk.catv.ne.jp                                  |
++--URL  <A HREF="http://digitao.net/">http://digitao.net/</A> --------------------------------+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00386" HREF="msg00386.html">[pgsql-jp: 26151] pg_dumpが途中終了します</A></STRONG>
+<UL><LI><EM>From:</EM> Junzo Kudou &lt;tech@dk.catv.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00432.html">[pgsql-jp: 26197] Re: pg_dumpが途中終了します</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00434.html">[pgsql-jp: 26199] Re: WALを使用したリカバリについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00435.html">[pgsql-jp: 26200] Re: pg_dumpが途中終了します</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00385.html">[pgsql-jp: 26150] WALを使用したリカバリについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00433"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00433"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

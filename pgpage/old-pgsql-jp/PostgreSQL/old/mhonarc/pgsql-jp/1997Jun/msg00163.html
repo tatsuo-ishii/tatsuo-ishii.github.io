@@ -1,0 +1,363 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2041] PostgreSQL&#45;v6.1 installation with Kerberos. -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Tue, 24 Jun 1997 10:17:21 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.95LJ1.1b4.970624100122.30550C&#45;100000@earth -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199706232237.HAA13512@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2041] PostgreSQL-v6.1 installation with Kerberos. </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00162.html">Thread Prev</A>][<A HREF="msg00164.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2041] PostgreSQL-v6.1 installation with Kerberos.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 24 Jun 1997 10:17:21 +0900 (JST)</LI>
+<LI><em>Cc</em>: Linux Mailing List &lt;<A HREF="mailto:linux@ML.dsl.ics.tut.ac.jp">linux@ML.dsl.ics.tut.ac.jp</A>&gt;,       "JF; Linux Japanese FAQ Project" &lt;<A HREF="mailto:JF@jf.gee.kyoto-u.ac.jp">JF@jf.gee.kyoto-u.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  PostgreSQL-v6.1 を Kerberos4 認証使用で Linux マシンにインストール
+した方法をまとめましたのでお知らせします。
+  Kerberos の簡単な紹介は 
+	<A HREF="http://www.rccm.co.jp/~juk/krb/index.phtml">http://www.rccm.co.jp/~juk/krb/index.phtml</A>
+にありますのでご参照下さい。
+
+--
+『Kerberos4 認証を使う PostgreSQL-6.1 のインストール(Linuxにて)』
+
+								1997-06-18
+								Jun Kuwamura
+
+1. ソースコードをダウンロードし、展開してパッチを当てます。
+
+	次の場所から postgresql-v6.1.tar.gz と jp.patch.gz を取得します:
+		<A HREF="ftp://ftp.PostgreSQL.org/pub/postgresql-v6.1.tar.gz">ftp://ftp.PostgreSQL.org/pub/postgresql-v6.1.tar.gz</A>
+		<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1/jp.patch.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1/jp.patch.gz</A>
+
+	% tar xvfz postgresql-v6.1.tar.gz
+	% zcat jp.patch.gz | patch -p0
+
+	(その他、必要なパッチがあれば適宜当てておきます。)
+
+
+
+2. README, README.jp_patch, INSTALL などのファイルに目を通します。
+
+
+3. configure を実行します。
+
+	% cd postgresql-v6.1/src
+	% ./configure --disable-hba
+
+	( kerberos 認証を行なうため --disable-hba で HBA を使わないよ
+	 うにします。)
+	
+
+4. Makefile.global を修正します。
+
+	(kerbeors 認証を使うためには以下の設定を行ないます。)
+
+	...
+	KRBVERS= 4
+	...
+	LDFLAGS=  -ldld -ldl -lm -lbsd -lreadline -lhistory -ltermcap -lcurses $(KRBLIBS)
+
+
+5. Makefile.custom は以下のような内容でつくりました。
+--
+HAVE_Cplusplus= true
+USE_TCL= true
+TCL_INCDIR= /usr/local/include
+TCL_LIBDIR= /usr/local/lib
+TCL_LIB= -ltcl7.6jp
+TK_INCDIR= /usr/local/include
+TK_LIBDIR= /usr/local/lib
+TK_LIB= -ltk4.2jp
+X11_INCDIR= /usr/include
+X11_LIBDIR= /usr/X11/lib
+X11_LIB= -lX11
+CURSES_LIB= -L/usr/lib -lcurses
+JP=1
+CFLAGS += -DJP
+--
+
+
+6. INSTALL ファイルに書かれている修正をします。(これは Linux-ELF 版のみで
+  しかも必須ではありません。)
+
+  (1) template/linux-elf で CFLAGS の設定行に " -m486" オプションを加えます。
+  (2) include/config.h に "#define HAVE_SIGSETJMP 1" を設定します。
+
+
+7. make を実行します。(注1)参照
+
+	% make
+
+
+8. インストールします。デフォルトでは /usr/local/pgsql/ ディレクトリの
+  下にインストールされます。(PostgreSQL の管理者は自分なのでそのまま行
+  ないます。)
+
+	% make install
+
+
+9. su root して ldconfig を実行します。(ELF 版なので)
+
+	# su
+	# /sbin/ldconfig
+	# exit
+
+
+10. データベースのディレクトリを初期化します。
+
+	% setenv PGDATA /usr/local/pgsql/data
+	% setenv PGLIB /usr/local/pgsql/lib
+	% initdb
+	% createdb
+
+
+11. Kerberos の KDC(Key Distribution Center) に postgres のプリンシパル
+  とインスタンスを登録します。ただし、Kerberos システムがあらかじめイン
+  ストールされて、ユーザのプリンシパル(ここでは 'juk')があらかじめ登録
+  されていることとします。)
+
+	noty# kdb_edit 						&lt;=
+	Opening database...
+
+	Enter Kerberos master key: ********			&lt;=
+
+	Current Kerberos master key version is 1.
+
+	Master key entered.  BEWARE!
+	Previous or default values are in [brackets] ,
+	enter return to leave the same, or new value.
+
+	Principal name: postgres_dbms				&lt;=
+	Instance: penty						&lt;=
+
+	&lt;Not found&gt;, Create [y] ? 
+
+	Principal: postgres_dbms, Instance: penty, kdc_key_ver: 1
+	New Password: RANDOM					&lt;=
+	Verifying password 
+	New Password: RANDOM					&lt;=
+
+	Random password [y] ? 					&lt;=
+
+	Principal's new key version = 1
+	Expiration date (enter yyyy-mm-dd) [ 2000-01-01 ] ? 	&lt;=
+	Max ticket lifetime (*5 minutes) [ 255 ] ? 		&lt;=
+	Attributes [ 0 ] ? 					&lt;=
+	Edit O.K.
+	Principal name: 					&lt;=
+	noty# 
+
+
+12. PostgreSQL のサーバのサービステーブルに登録します。
+
+	penty# ksrvutil add					&lt;=
+	Name: postgres_dbms					&lt;=
+	Instance: penty						&lt;=
+	Realm: RCCM.CO.JP					&lt;=
+	Version number: 1
+	New principal: postgres_dbms.penty@RCCM.CO.JP; version 1
+	Is this correct? (y,n) [y] y				&lt;=
+	Password: ********
+	Verifying password Password: ********			&lt;=
+	Key successfully added.
+	Would you like to add another key? (y,n) [y] n		&lt;=
+	Old keyfile in /etc/srvtab.old.
+	penty# 
+
+
+13. 特別に postgres というグループを作成し、postmaster がサービステー
+  ブルを読めるように許可を与えます。
+ ( もちろん PostgreSQL の管理者は postgres グループに属している必要があります。)
+
+	# chgrp postgres /etc/srvtab
+	# chmod g+r /etc/srvtab
+
+
+14. postmaster を実行し、アクセスのテスト
+
+	(行末に "&lt;=" があるのは入力行です。)
+
+	% postmaster -S						&lt;=
+
+  (1) Kerberos のチケットを取得しない場合。
+
+	% setenv PGHOST penty					&lt;=
+	% psql							&lt;=
+	Connection to database 'juk' failed.
+	connectDB() --  authentication failed with penty
+
+
+  (2) チケットの取得と確認。
+
+	% kinit 						&lt;=
+	eBones International (penty)
+	Kerberos Initialization
+	Kerberos name: juk					&lt;=
+	Password: ********					&lt;=
+
+	% klist							&lt;=
+	Ticket file:    /tmp/tkt1037
+	Principal:      juk@RCCM.CO.JP
+
+	  Issued           Expires          Principal
+	Jun 19 00:45:58  Jun 19 10:45:58  krbtgt.RCCM.CO.JP@RCCM.CO.JP
+
+
+  (3) チケットを取得している場合。
+
+	% psql							&lt;=
+	Welcome to the POSTGRESQL interactive sql monitor:
+	  Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+
+	   type \? for help on slash commands
+	   type \q to quit
+	   type \g or terminate with semicolon to execute query
+	 You are currently connected to the database: juk
+
+	juk=&gt; \q						&lt;=
+
+
+  (4) チケットの確認。( チケット postgres_dbms.penty@RCCM.CO.JP が
+      自動的に取得された事に注意。)
+
+	% klist							&lt;=
+	Ticket file:    /tmp/tkt1037
+	Principal:      juk@RCCM.CO.JP
+
+	  Issued           Expires          Principal
+	Jun 19 00:45:58  Jun 19 10:45:58  krbtgt.RCCM.CO.JP@RCCM.CO.JP
+	Jun 19 00:46:18  Jun 19 10:46:18  postgres_dbms.penty@RCCM.CO.JP
+	
+
+15. postmaster を実行し、src/test/regress ディレクトリで regression テスト
+    を実行。(そのディレクトリの README を参照)
+
+	% setenv TZ PST8PDT
+	% date
+	% /usr/local/pgsql/bin/postmaster -s &amp;
+	% make all runtest
+    (石井@SRA さんの日本語パッチには次のテストもあります)
+	% psql -e regression &lt; sql/jp.sql &gt;&amp; jp.out
+	% diff expected/jp.out jp.out
+
+
+16. src/test/bench ディレクトリでベンチマークを実行します。(注2)参照。
+
+	% make bench.out
+	% vi bench.out
+	(Linux では最後の '&gt;' 以降を削除します。)
+	% make bench.out.perquery
+
+
+
+(注1) libpq++/example/testlibpq5.cc のタイポ
+
+	 Makefile.custom で "HAVE_Cplusplus= true" としていると、その
+	ままでは libpq++/example/ でコンパイルエラーが起きるので、次の
+	パッチを当てておく必要があります。
+
+--- testlibpq5.cc~	Mon Mar 17 08:02:04 1997
++++ testlibpq5.cc	Tue Jun 17 10:41:54 1997
+@@ -93,8 +93,8 @@
+          &lt;&lt; " i = (" &lt;&lt; data.GetLength(i,i_fnum) &lt;&lt; " bytes) " &lt;&lt; *ival &lt;&lt; "," &lt;&lt; endl
+          &lt;&lt; " d = (" &lt;&lt; data.GetLength(i,d_fnum) &lt;&lt; " bytes) " &lt;&lt; *dval &lt;&lt; "," &lt;&lt; endl
+          &lt;&lt; " p = (" &lt;&lt; data.GetLength(i,d_fnum) &lt;&lt; " bytes) " &lt;&lt; pval-&gt;npts &lt;&lt; " points"
+-         &lt;&lt; "\tboundbox = (hi=" &lt;&lt; pval-&gt;boundbox.xh &lt;&lt; "/" &lt;&lt; pval-&gt;boundbox.yh &lt;&lt; ","
+-         &lt;&lt; "lo = " &lt;&lt; pval-&gt;boundbox.xl &lt;&lt; "," &lt;&lt; pval-&gt;boundbox.yl &lt;&lt; ")" &lt;&lt; endl;
++         &lt;&lt; "\tboundbox = (hi=" &lt;&lt; pval-&gt;boundbox.high.x &lt;&lt; "/" &lt;&lt; pval-&gt;boundbox.high.y &lt;&lt; ","
++         &lt;&lt; "lo = " &lt;&lt; pval-&gt;boundbox.low.x &lt;&lt; "," &lt;&lt; pval-&gt;boundbox.low.y &lt;&lt; ")" &lt;&lt; endl;
+ 	   
+     // Deallocate memory allocated for the Polygon structure
+     free(pval);
+--
+
+
+
+(注2) 石井@SRA さんによると src/test/bench/Makefile に次の修正が必要です。
+
+--
+47,48c47,48
+&lt; 	$(SHELL) ./create.sh &amp;&amp; \
+&lt; 	$(SHELL) ./runwisc.sh &gt;bench.out 2&gt;&amp;1
+---
+&gt; 	$(SHELL) ./create.sh $$PGDATA &amp;&amp; \
+&gt; 	$(SHELL) ./runwisc.sh $$PGDATA &gt;bench.out 2&gt;&amp;1
+--
+
+
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: juk@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00164" HREF="msg00164.html">[pgsql-jp 2042] Program language RUBY will handle postgreSQL</A></STRONG>
+<UL><LI><EM>From:</EM> higuchi@sumitomopharm.co.jp (910699)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00162" HREF="msg00162.html">[pgsql-jp 2040] Re: Cannot test Wisconsin Benchmark</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 2040] Re: Cannot test Wisconsin Benchmark</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 2042] Program language RUBY will handle postgreSQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 2040] Re: Cannot test Wisconsin Benchmark</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 2042] Program language RUBY will handle postgreSQL</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

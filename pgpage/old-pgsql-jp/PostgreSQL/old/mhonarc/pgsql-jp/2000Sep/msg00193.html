@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17524] Re: PostgreSQL での排他制御 -->
+<!--X-From: Satoshi Yamada <s&#45;yamada@kh.rim.or.jp> -->
+<!--X-Date: Sat, 09 Sep 2000 21:56:47 +0900 -->
+<!--X-Message-Id: 200009091256.VAA27510@mail1.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Reference-Id: 39B8B4CD280.045DF_KOMOTO@SP3 -->
+<!--X-Reference-Id: 200009081010.TAA08454@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Reference-Id: 20000909120506M.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17524] Re: PostgreSQL での排他制御 </TITLE>
+<LINK REV="made" HREF="mailto:s-yamada@kh.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00192.html">Date Prev</A>][<A HREF="msg00194.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00235.html">Thread Next</A>][<A HREF="index.html#00193">Date Index</A>][<A HREF="threads.html#00193">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17524] Re: PostgreSQL での排他制御</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Yamada &lt;<A HREF="mailto:s-yamada@kh.rim.or.jp">s-yamada@kh.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 09 Sep 2000 21:56:47 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00173.html">200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp</A>&gt;&lt;<A HREF="msg00174.html">39B8B4CD280.045DF_KOMOTO@SP3</A>&gt;&lt;<A HREF="msg00175.html">200009081010.TAA08454@coke.bsd1.kbnes.nec.co.jp</A>&gt;&lt;<A HREF="msg00186.html">20000909120506M.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+山田＠神戸 です。
+
+&gt; 石井です．誤解があるかも知れないので言っておくと，PostgreSQLでは，単独
+&gt; で実行される(beginからendまでの間にない)SQL文でも，それぞれ独立した1個
+&gt; のトランザクションとして扱われます．だから，
+&gt; UPDATE T1 SET ...
+&gt; と
+&gt; BEGIN;
+&gt; UPDATE T1 SET ...
+&gt; END (ないしはCOMMIT);
+&gt; は少なくともユーザから見れば全く同じ結果となります．
+&gt; &gt; &gt; 問１．
+&gt; &gt; &gt;   一日当り数十万カウントも更新されるアクセスカウントが絶対に正しく
+&gt; &gt; &gt;   なくとも業務に支障が出ると考えにくいので 不要
+&gt; &gt; あれ? ってことは逆にいうと、正しくなくなっちゃうこともあるんですね。
+&gt; 正しくなくなることがありえるんですか?あるんだったら私も知りたい:-)
+
+f_komoto さんの真意を確認したいとこですね。
+先のメールでご自身書いてらっしゃったように、SQL云々は置いといて、
+あくまでも自分ならこうする、というだけのことだったんでしょうか?
+
+&gt; まあ，強いて言えばこういうことはあり得ます．
+&gt; 1) このテーブルには初期状態ではすべてのURLが登録されていない．あるURL
+&gt;    がアクセスされ，そのURLがテーブルにない時には対応するレコードが登録
+&gt;    されて初期状態としてカウント=1がセットされるものとする．
+&gt; 2) あるURL Aがはじめてアクセスされた．そこでまずテーブルをSELECTし，レ
+&gt;    コードがないことを確認した．
+&gt; 3) そこで対応レコードを作成した
+&gt; 4) ところが，2)と3)の間に別のユーザが同じURL Aにアクセスし，同様に
+&gt;    SELECTを行った．当然レコードが見つからないのでやはり対応レコードを
+&gt;    登録した．
+&gt; 5) 結局，URL Aに対するレコードが2個できてしまった．
+&gt; このような状況を防ぐためには，2)や4)でSELECTを行う前に，テーブル全体を
+&gt; ロックする必要があります．
+
+"擬似"PHP3 だとこういうことですよね?
+
+  // 重複登録を防止するにはここでテーブルロック
+  $count = SQL実行("SELECT カウント FROM アクセス数 WHERE ページ = URL");
+  if ($count == 0) {
+    SQL実行("INSERT INTO アクセス数 〜");
+  } else {
+    SQL実行("UPDATE アクセス数 〜");
+  }
+
+これも処理がまたがるケースですので納得できます。
+
+&gt; &gt; &gt; 問２．
+&gt; &gt; &gt;   一律10%に意味があり、途中まで更新されたデータと更新されないデータ
+&gt; &gt; &gt;   がシステム上に混在すれば、業務は成り立たないので、すべての更新対象
+&gt; &gt; &gt;   データが正しく更新されるまでを１トランザクションとし管理する。
+&gt; &gt; 
+&gt; &gt; おぉ、これも期待していた答えと違う... ^^;
+&gt; &gt; 例えば A B C という商品と、B C D という商品をそれぞれ一回のクエリーで
+&gt; &gt; 同時に更新した場合、まず先にバックエンドが受け取った A B C を
+&gt; &gt; 更新しようとするが、その間、A B C はロックされるので、他方の
+&gt; &gt; クエリーは待ち状態になる、とかそういう仕組みではないのですね?
+&gt; 待ち状態にはなりますが，A B Cを更新するUPDATEが終わった瞬間にB C Dを更
+&gt; 新するUPDATEが実行されるので，B Cについては10%値上げが2回行われます．
+
+あ、やはり設問まずかったですね...B C についての値上げが二回行われる
+ことに気づきませんでした... ^^;
+
+&gt; でも，これは別に問題ではないですよね?
+
+実務上は問題あると思いますけどね ^^;
+
+&gt; &gt;何かそのあたり、シーラカンス本に書いてあったような気がするので、
+&gt; &gt;もう一度よく読んで出て直してきます _o_
+&gt; というか，自分で実際にやってみればすぐわかるんですが:-)
+
+ただ、実際にやって見て何らかの結果が出たときに、私のような素人では
+それが、本当に正しい結果なのか、たまたま正しくなっただけなのか、
+そのあたりの見極めがつかないような気がします。
+
+それとも ML に聞くときには、実際に試したんですけどどんなもんでしょう?
+という聞き方の方が望ましいのでは?、という話でしたらすいません。
+-- 
+<A HREF="mailto:s-yamada@kh.rim.or.jp">mailto:s-yamada@kh.rim.or.jp</A> (山田 智史)
+<A HREF="http://www.kh.rim.or.jp/~s-yamada/">http://www.kh.rim.or.jp/~s-yamada/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00235" HREF="msg00235.html">[pgsql-jp 17566] Re: PostgreSQL  での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> f_komoto &lt;f_komoto@mx1.tiki.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 17362] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00174" HREF="msg00174.html">[pgsql-jp 17363] Re: PostgreSQL  での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> f_komoto &lt;f_komoto@mx1.tiki.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp 17364] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 17517] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 17523] Re: 別にする事で。。。。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 17525] Re: Create user 	？かトランザクション領域か・・・</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 17517] Re: PostgreSQL での排他制御</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00235.html">[pgsql-jp 17566] Re: PostgreSQL  での排他制御</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00193"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00193"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

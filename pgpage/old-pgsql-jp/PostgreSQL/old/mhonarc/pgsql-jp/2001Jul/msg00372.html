@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22507] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) -->
+<!--X-From: Yutaka tanida <yutaka@hi&#45;net.zaq.ne.jp> -->
+<!--X-Date: Mon, 23 Jul 2001 13:41:43 +0900 -->
+<!--X-Message-Id: 20010723131120.38EC.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 20010721223553.2ADE.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-Reference-Id: JK20010723103719.7316630@mx5.nisiq.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22507] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@hi-net.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00371.html">Date Prev</A>][<A HREF="msg00373.html">Date Next</A>][<A HREF="msg00371.html">Thread Prev</A>][<A HREF="msg00374.html">Thread Next</A>][<A HREF="index.html#00372">Date Index</A>][<A HREF="threads.html#00372">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22507] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yutaka tanida &lt;<A HREF="mailto:yutaka@hi-net.zaq.ne.jp">yutaka@hi-net.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Jul 2001 13:41:43 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00366.html">20010721223553.2ADE.YUTAKA@hi-net.zaq.ne.jp</A>&gt; &lt;<A HREF="msg00371.html">JK20010723103719.7316630@mx5.nisiq.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+On Mon, 23 Jul 2001 10:37:19 +0900
+mizoguchi_reo &lt;r-mi2002@mx5.nisiq.net&gt; wrote:
+
+&gt; sun からダウンロードしてきました。java -version での出力は
+&gt; 
+&gt; java version "1.3.1"
+&gt; Java(TM) 2 Runtime Environment, Standard Edition (build 1.3.1-b24)
+&gt; Java HotSpot(TM) Client VM (build 1.3.1-b24, mixed mode)
+&gt; 
+&gt; となっています。
+&gt; 
+&gt; &gt; また、国際化対応であることを確認されていますでしょうか？
+&gt; 
+&gt; 意識して確認したことはありません。
+&gt; (正直言って「国際化？？？聞いた事はあるけど(^^;」という状況でして……すいません)
+
+えっと・・・JREには国際化対応版とそうでないものがあります。違いは各種エ
+ンコーダーが付属しているかそうでないかぐらいですが。
+
+&gt; &gt; また、このPostgreSQLは--enable-unicode-conversion付きでconfigureされた物
+&gt; &gt; ですか？
+
+
+&gt; --enable-multibyte=UNICODE で configure しています。
+&gt; --enable-unicode-conversion は使っていません。
+
+(snip)
+
+&gt; &gt; &gt; new String(this_row[columnIndex - 1]) を返すようにするとちゃんと
+&gt; &gt; &gt; 日本語を返してくれます。
+(snip)
+
+&gt; PG_Stream クラスの public void Receive(byte[] b,int off,int siz)
+&gt; の中で、
+&gt; 
+&gt;         int w = pg_input.read(b, off+s, siz - s);
+&gt; 
+&gt; と、InputStream からバイト配列を読み込んでいる部分があります。
+&gt; その次の行で、
+&gt; 
+&gt; System.out.println("input_stream_bytes_data:"+new String(b));
+&gt; 
+&gt; を実行すると、ちゃんと "溝口令雄" となっていました。
+
+これもおかしいような気がします・・・
+
+&gt;     set client_encoding='UNICODE';
+&gt;     (例: "set client_encoding='UNICODE';SELECT * FROM ....")
+&gt; 
+
+失礼しました。UNICODEの間違いですね。
+
+&gt; で実行しましたが、やはり空文字(※)が返されました。
+&gt; 
+&gt; ※厳密に空文字かどうかは分かりません。"7カ国首脳、リセッションについて..." 
+&gt; 　という文字列の先頭の "7" だけ生き残っていました。
+
+・・・
+
+&gt;             byte[] b = "溝口令雄".getBytes();
+
+ここはgetBytes("UTF8");とすべきだと思いますが・・・
+
+&gt;             System.out.println("line1:" + new String( b , "UTF8") );
+&gt;             System.out.println("line2:" + new String( b , "SJIS") );
+&gt;             System.out.println("line3:" + new String( b , "EUC_JP") );
+&gt;         }
+&gt;         catch ( UnsupportedEncodingException e )
+&gt;         {
+&gt;             e.printStackTrace();
+&gt;         }
+&gt;     }
+&gt; }
+&gt; 
+&gt; 出力結果は
+&gt; 
+&gt; (Linux)
+&gt; line1:
+&gt; line2:ケツク?睿コ
+&gt; line3:溝口令雄
+&gt; 
+&gt; (Windows 2000)
+&gt; line1:
+&gt; line2:溝口令雄
+&gt; line3:????
+&gt; 
+&gt; となりました。
+&gt; (やっているテスト自体がとんでもなく勘違いしているのかもしれませんが^^;)
+
+あながち間違いとはいえないと思いますが、これでテストするとUTF8!=UNICODE
+のようですね・・・
+
+&gt; このメール(私の書いているメール)を Java-House-Brewers の方に転送しても
+&gt; よろしいでしょうか？
+
+私としてはかまいません（というか、JHBも読んでますが、こちら向けなのでそ
+うしました）
+
+となると結論はPostgreSQL JDBC Driverがサーバー側のエンコーディングUNICODE
+に対してUTF8を割り当てること自体が間違っている、ということになりますね。
+問題は何にすべきか・・・
+
+添付のpatch(UTF8-&gt;UNICODEへの変更)を試していただけますか？
+
+
+-- 
+Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;
+</PRE>
+<P><A HREF="bin00000.bin"> connection.patch</A></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00375" HREF="msg00375.html">[pgsql-jp 22510] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> mizoguchi_reo &lt;r-mi2002@mx5.nisiq.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00374" HREF="msg00374.html">[pgsql-jp 22509] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> mizoguchi_reo &lt;r-mi2002@mx5.nisiq.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00366" HREF="msg00366.html">[pgsql-jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00371" HREF="msg00371.html">[pgsql-jp 22506] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> mizoguchi_reo &lt;r-mi2002@mx5.nisiq.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00371.html">[pgsql-jp 22506] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00373.html">[pgsql-jp 22508] 水泳世界選手権レース分析データベース</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00371.html">[pgsql-jp 22506] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00374.html">[pgsql-jp 22509] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00372"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00372"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

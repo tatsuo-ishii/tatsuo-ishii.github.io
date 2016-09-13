@@ -1,0 +1,205 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12118] psql で SQL ファイルの行頭に \ があるときの不具合 -->
+<!--X-From: Hiroyuki MASUDA <hiro@beat.yamaha.co.jp> -->
+<!--X-Date: Thu, 09 Dec 1999 19:14:50 +0900 -->
+<!--X-Message-Id: 384F811A96.4B3CHIRO@mail.slab.yamaha.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12118] psql で SQL ファイルの行頭に \ があるときの不具合 </TITLE>
+<LINK REV="made" HREF="mailto:hiro@beat.yamaha.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00127.html">Date Prev</A>][<A HREF="msg00129.html">Date Next</A>][<A HREF="msg00152.html">Thread Prev</A>][<A HREF="msg00124.html">Thread Next</A>][<A HREF="index.html#00128">Date Index</A>][<A HREF="threads.html#00128">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12118] psql で SQL ファイルの行頭に \ があるときの不具合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroyuki MASUDA &lt;<A HREF="mailto:hiro@beat.yamaha.co.jp">hiro@beat.yamaha.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 09 Dec 1999 19:14:50 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桝田です。
+
+　psql で 改行を含むテキストデータを INSERT 文形式の SQL でファイルから流
+し込んでいたのですが、テキストデータ中の ' をクォートしている \ がたまた
+ま改行の直後（次の行の先頭）にあった場合、psql のコマンドとして解釈しよう
+とし、対応するコマンドが無いので Usage を出力してしまいエラーになるという
+不具合がありました。(^^;;
+
+　使用している PostgreSQL のバージョンは 6.5.3 です。
+
+　具体的には、以下のようなテストファイルを作成し、psql に食わせると、その
+後のような結果になります。
+最初の２つの INSERT 文は当然問題無く通りますが、３番目の INSERT 文ではエ
+ラーになります。４番目の INSERT 文は同じ行に ; があるためか問題なく通るよ
+うです。
+
+　この現象は SQL をファイルから読み込むときに発生しますが、同じことを対話
+的に行うと問題無く通ります。
+
+
+■テストファイル
+
+&gt; cat test.sql
+create table test_tbl (
+        comment text
+);
+
+insert into test_tbl values ('Nothing\'s gonna stop me.');
+
+insert into test_tbl values ('Nothing\'s go
+nna stop me.');
+
+insert into test_tbl values ('Nothing
+\'s gonna stop me.'
+);
+
+insert into test_tbl values ('Nothing
+\'s gonna stop me.');
+
+
+■実行例
+
+&gt; psql &lt; test.sql
+drop table test_tbl;
+DROP
+create table test_tbl (
+        comment text
+);
+CREATE
+
+insert into test_tbl values ('Nothing\'s gonna stop me.');
+INSERT 7320297 1
+
+insert into test_tbl values ('Nothing\'s go
+nna stop me.');
+INSERT 7320298 1
+
+insert into test_tbl values ( 'Nothing
+\'s gonna stop me.'
+ \?           -- help
+ \a           -- toggle field-alignment (currently on)
+ \C [&lt;captn&gt;] -- set html3 caption (currently '')
+ \connect &lt;dbname|-&gt; &lt;user&gt; -- connect to new database (currently 'masuda')
+ \copy table {from | to} &lt;fname&gt;
+ \d [&lt;table&gt;] -- list tables and indices, columns in &lt;table&gt;, or * for all
+ \da          -- list aggregates
+ \dd [&lt;object&gt;]- list comment for table, field, type, function, or operator.
+ \df          -- list functions
+ \di          -- list only indices
+ \do          -- list operators
+ \ds          -- list only sequences
+ \dS          -- list system tables and indexes
+ \dt          -- list only tables
+ \dT          -- list types
+ \e [&lt;fname&gt;] -- edit the current query buffer or &lt;fname&gt;
+ \E [&lt;fname&gt;] -- edit the current query buffer or &lt;fname&gt;, and execute
+ \f [&lt;sep&gt;]   -- change field separater (currently '|')
+ \g [&lt;fname&gt;] [|&lt;cmd&gt;] -- send query to backend [and results in &lt;fname&gt; or pipe]
+ \h [&lt;cmd&gt;]   -- help on syntax of sql commands, * for all commands
+ \H           -- toggle html3 output (currently off)
+ \i &lt;fname&gt;   -- read and execute queries from filename
+ \l           -- list all databases
+ \m           -- toggle monitor-like table display (currently off)
+ \o [&lt;fname&gt;] [|&lt;cmd&gt;] -- send all query results to stdout, &lt;fname&gt;, or pipe
+ \p           -- print the current query buffer
+ \q           -- quit
+ \r           -- reset(clear) the query buffer
+ \s [&lt;fname&gt;] -- print history or save it in &lt;fname&gt;
+ \t           -- toggle table headings and row count (currently on)
+ \T [&lt;html&gt;]  -- set html3.0 &lt;table ...&gt; options (currently '')
+ \x           -- toggle expanded output (currently off)
+ \w &lt;fname&gt;   -- output current buffer to a file
+ \z           -- list current grant/revoke permissions
+ \! [&lt;cmd&gt;]   -- shell escape or command
+);
+ERROR:  parser: parse error at or near ""
+
+insert into test_tbl values ( 'Nothing
+\'s gonna stop me.');
+INSERT 7320299 1
+EOF
+
+
+　同様のバグ報告がなされていないかと思って TODO と過去メールのアーカイブ
+は見てみたんですが、ちょっと見つけることができませんでした。
+　とりあえず自分用に作成した簡単なパッチがあるのですが、試してみていただ
+けないでしょうか？
+
+
+-----ここから-----
+*** postgresql-6.5.3/src/bin/psql/psql.c.orig   Thu Dec  9 13:43:22 1999
+--- postgresql-6.5.3/src/bin/psql/psql.c        Thu Dec  9 15:22:30 1999
+***************
+*** 2741,2747 ****
+                        continue;
+                }
+
+!               if (!in_quote &amp;&amp; query_start[0] == '\\')
+                {
+                        /* handle \p\g and other backslash combinations */
+                        while (query_start[0] != '\0')
+--- 2741,2748 ----
+                        continue;
+                }
+
+!               if (!in_quote &amp;&amp; query_start[0] == '\\'
+!                             &amp;&amp; query_start[1] != '\'')
+                {
+                        /* handle \p\g and other backslash combinations */
+                        while (query_start[0] != '\0')
+-----ここまで-----
+
+　ソースはざっと見ただけなので、他に影響が無いかどうかちょっと自信無いで
+す。このパッチの既知の問題点として、psql の中で \' と入れた場合に help が
+出なくなるというのがあります。:-P
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 12117] Re: PostgreSQLのバージョンの調べ方</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00129.html">[pgsql-jp 12119] PHP3のPOST経由のセッション管理</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 12142] Re: Re:PHP3の POST経由のセッション管理</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 12114] PostgreSQLのバージョンの調べ方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00128"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00128"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

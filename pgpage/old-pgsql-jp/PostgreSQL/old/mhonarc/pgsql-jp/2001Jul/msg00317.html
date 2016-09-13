@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22452] Re: text 型に対するoctet_length()について -->
+<!--X-From: Doi Daishin <daishin@d.email.ne.jp> -->
+<!--X-Date: Wed, 18 Jul 2001 17:35:24 +0900 -->
+<!--X-Message-Id: 20010718173524.6830c9d7.daishin@d.email.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010718134837.05bf457c.daishin@d.email.ne.jp -->
+<!--X-Reference-Id: 20010718051346.BB77869473@srapc1267.sra.co.jp -->
+<!--X-Reference-Id: 20010718145750.7a02f612.daishin@d.email.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22452] Re: text 型に対するoctet_length()について </TITLE>
+<LINK REV="made" HREF="mailto:daishin@d.email.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00316.html">Date Prev</A>][<A HREF="msg00318.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00325.html">Thread Next</A>][<A HREF="index.html#00317">Date Index</A>][<A HREF="threads.html#00317">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22452] Re: text 型に対するoctet_length()について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Doi Daishin &lt;<A HREF="mailto:daishin@d.email.ne.jp">daishin@d.email.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 18 Jul 2001 17:35:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00314.html">20010718134837.05bf457c.daishin@d.email.ne.jp</A>&gt;&lt;<A HREF="msg00315.html">20010718051346.BB77869473@srapc1267.sra.co.jp</A>&gt;&lt;<A HREF="msg00316.html">20010718145750.7a02f612.daishin@d.email.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すいません、自己レスです。
+
+On Wed, 18 Jul 2001 14:57:50 +0900
+Doi Daishin &lt;daishin@d.email.ne.jp&gt; wrote:
+
+&gt; 圧縮されていたのですね。自分としては圧縮されていない長さがかえってきてほ
+&gt; しいので、手に負えないなりにソースを研究してみます。
+
+ソースコードが良く解りませんでした、というより、まだまだそこまでの技量は無
+いようで・・
+
+もしかすると
+
+データベースに格納された後にoctet_lengthを使うと圧縮されたバイト長が返るの
+ではないか
+
+と思い、だとしたら、
+
+格納される前にoctet_lengthを使えば非圧縮のデータを調べるのではないだろうか
+
+という仮説をたて、トリガプロシージャを使ってみると、見事に圧縮されていない
+text型のバイト長が返ってきましたので、ご報告します。
+
+create table test_text (
+data         text,
+size         int4
+);
+サイズ用のフィールドを追加しました。(size int4)
+
+create function octet_length_text () RETURNS OPAQUE AS '
+BEGIN
+	NEW.size := octet_length( NEW.data );
+	return NEW;
+END;
+' LANGUAGE 'plpgsql';
+
+create TRIGGER sizecheck BEFORE INSERT ON test_text FOR EACH ROW EXECUTE
+PROCEDURE octet_length_text();
+
+これで
+INSERT INTO test_text VALUES ( '大量のあ' );
+とやるとsizeフィールドにバイト長が格納されます。
+
+どれくらい大量かというと、とりあえず83528バイトまでは確認しました。
+
+あらかじめサイズをいれておく、という形ですので、最初とは状況が違うのですが
+、もしだれかの役に立てるなら、と思い投稿しました。というより大部分うれしく
+って、という気持からなのですが。
+
+#というよりこれって役に立つものでしょうか・・?
+
+
+土井  大信 (どい だいしん)
+     daishin@d.email.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp 22460] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp 22449] text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Doi Daishin &lt;daishin@d.email.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00315" HREF="msg00315.html">[pgsql-jp 22450] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@srapc1267.sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00316" HREF="msg00316.html">[pgsql-jp 22451] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Doi Daishin &lt;daishin@d.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 22451] Re: text 型に対するoctet_length()について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00318.html">[pgsql-jp 22453] posgreSQL with cobalt raq4</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 22451] Re: text 型に対するoctet_length()について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 22460] Re: text 型に対するoctet_length()について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00317"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00317"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

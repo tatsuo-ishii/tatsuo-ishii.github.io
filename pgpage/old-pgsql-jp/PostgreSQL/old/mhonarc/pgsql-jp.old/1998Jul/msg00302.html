@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4918] Re: 列の追加、削除（Re:はじめまして) -->
+<!--X-From: Yoshihiro Hanahara <hanahara@meiko.co.jp> -->
+<!--X-Date: Fri, 31 Jul 98 12:49:04 +0900 -->
+<!--X-Message-Id: 199807310349.MAA15166@sakura.meiko.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 35BDE56696.4010MATSUU@po.nststaff.co.jp -->
+<!--X-Reference-Id: 199807290132.AA00525@hotta.remus.dti.ne.jp -->
+<!--X-Reference-Id: 35C10639136.1947MATSUU@po.nststaff.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4918] Re: 列の追加、削除（Re:はじめまして) </TITLE>
+<LINK REV="made" HREF="mailto:hanahara@meiko.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00301.html">Date Prev</A>][<A HREF="msg00303.html">Date Next</A>][<A HREF="msg00299.html">Thread Prev</A>][<A HREF="msg00303.html">Thread Next</A>][<A HREF="index.html#00302">Date Index</A>][<A HREF="threads.html#00302">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4918] Re: 列の追加、削除（Re:はじめまして)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiro Hanahara &lt;<A HREF="mailto:hanahara@meiko.co.jp">hanahara@meiko.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 31 Jul 98 12:49:04 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00279.html">35BDE56696.4010MATSUU@po.nststaff.co.jp</A>&gt;&lt;<A HREF="msg00282.html">199807290132.AA00525@hotta.remus.dti.ne.jp</A>&gt;&lt;<A HREF="msg00296.html">35C10639136.1947MATSUU@po.nststaff.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+花原です。
+
+In &lt;<A HREF="msg00296.html">35C10639136.1947MATSUU@po.nststaff.co.jp</A>&gt;,
+MATSUU Takuto &lt;matsuu@nststaff.co.jp&gt; wrote:
+
+&gt; 松鵜です。
+&gt; ...
+&gt; それは理解しております。
+&gt; <A HREF="http://www.nststaff.co.jp/~matsuu/address.phtml">http://www.nststaff.co.jp/~matsuu/address.phtml</A>
+&gt; ここを見ていただきたいのですがよろしいでしょうか？
+&gt; ここで項目の追加ができるようにしてみました。
+&gt; この画面は編集時の画面であって、実際に表に公開するものではないです。（今回のは実験中の為）。
+&gt; 項目の追加はそう頻繁にやるものではないのですが、（下に続く）
+&gt; 
+&gt; &gt; ひょっとして、エンドユーザから PHP 経由でテーブルの
+&gt; &gt; 作成から何からすべてやらせようとしている？まあ、
+&gt; &gt; やろうと思えば何でもできるんでしょうけど。
+&gt; 
+&gt; その通りです。全てをweb上で出来るようなシステムを考えています。
+&gt; エンドユーザ（この住所録の管理者も）からはプログラムなどの概念が
+&gt; 無くても利用できるシステムを考えています。
+&gt; やはり、項目の削除は管理する上で欲しいのです。
+&gt; 削除しようとする項目に何も入ってない事を確認してから削除するように考えています。
+
+ああー、なるほど。
+データベースの専門家ではないのでウソをいうかもしれないのを割り引いて聞いて下さい。
+でもこれはまずい(というより下手)なデータベース設計です。
+こういう用途にalter tableをつかっちゃあいけません。
+
+テーブルの作り方とリレーションを工夫すれば、固定したテーブルで
+うまくできるはずです(リレーショナルDBなんで)。
+例えば、
+
+    -- インデックスは付けて無いけど、効率化の為には付けた方がよい
+
+    CREATE TABLE master (
+        id              int4 not null,  -- ID番号 プライマリーキー (外部キー)
+        name            text not null,  -- 氏名
+        addr            text,           -- 住所
+        tel             varchar(20),    -- TEL
+        fax             varchar(20),    -- FAX
+	keitai		varchar(20)     -- 携帯TEL
+    );
+
+    CREATE TABLE added_item {
+	id		int4 not null,	-- ID番号 
+	item_name	text not null,  -- 項目名
+	item_value	text		-- 項目の内容
+    );
+
+
+で、masterテーブルの特定IDのレコードに対応する、added_itemテーブルのレコードが
+複数存在するという、1対多の関係をつくればいいのでは? 例えば、
+
+	SELECT id,name,addr,tel,fax,keitai FROM master
+
+でマスターテーブルの全レコードを取得し、特定のレコードの追加項目は、
+
+	SELECT item_name,item_value FROM added_item WHERE id=マスターのID
+
+で複数レコードが返ってきます。これを見かけ上1行にして返せばいいように
+思います。
+ちゃんと管理するには、追加項目名を管理するitem_masterテーブルのような物を
+つくった方がいいかもしれません。
+リレーショナルDBなんで、複数テーブルがリレーションして、レコード集合を
+操作すると考えた方がいいのではないでしょうか。
+
+たぶん、リレーショナルDBの基本だと思います。まだリレーショナル
+データベースの発想に慣れておられないのだと思います(本屋さんへGO!)。
+
+
+また、PostgreSQLのalter tableで列の削除がないのは、
+PostgreSQLのクラス(テーブル)は別のクラスを継承して構造を定義できるので、
+削除しようとする列が含まれるクラスが別のクラスの継承元になっている
+場合、継承先の全てのクラスの構造に影響を与えます(継承機能のある
+オブジェクト指向言語でスーパークラスのパブリックなメンバを変更することと
+同じ)。
+この為、PostgreSQLでは、列の削除がないのだと想像しています。
+
+
+
+偉そうなこと言ってますが、DBに関しては素人です(^_^;)。
+
+---
+hanahara@meiko.co.jp (Yoshihiro Hanahara)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00303" HREF="msg00303.html">[pgsql-jp 4919] Re: 列の追加、削除（Re:はじめまして)</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 4894] Re:はじめまして</A></STRONG>
+<UL><LI><EM>From:</EM> MATSUU Takuto &lt;matsuu@nststaff.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00282" HREF="msg00282.html">[pgsql-jp 4897] Re: はじめまして</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 4912] 列の追加、削除（Re:はじめまして)</A></STRONG>
+<UL><LI><EM>From:</EM> MATSUU Takuto &lt;matsuu@nststaff.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 4917] Re: 検索中の中断について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 4919] Re: 列の追加、削除（Re:はじめまして)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 4915] Re: 列の追加、削除（Re: はじめまして)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 4919] Re: 列の追加、削除（Re:はじめまして)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00302"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00302"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

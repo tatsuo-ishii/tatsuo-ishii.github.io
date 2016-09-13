@@ -1,0 +1,485 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19256] Re: JDBC patch -->
+<!--X-From: MOTOKI Sinichi <sin@ITL.CO.JP> -->
+<!--X-Date: Thu, 28 Dec 2000 03:41:35 +0900 (JST) -->
+<!--X-Message-Id: 20001228.034135.78716503.sin@ITL.CO.JP -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 20001226.155242.68158846.sin@ITL.CO.JP -->
+<!--X-Reference-Id: 20001226173737S.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 3A48E240.D8867533@bullhead.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19256] Re: JDBC patch </TITLE>
+<LINK REV="made" HREF="mailto:sin@ITL.CO.JP">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00377.html">Date Prev</A>][<A HREF="msg00379.html">Date Next</A>][<A HREF="msg00372.html">Thread Prev</A>][<A HREF="msg00304.html">Thread Next</A>][<A HREF="index.html#00378">Date Index</A>][<A HREF="threads.html#00378">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19256] Re: JDBC patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: MOTOKI Sinichi &lt;<A HREF="mailto:sin@ITL.CO.JP">sin@ITL.CO.JP</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 28 Dec 2000 03:41:35 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00368.html">20001226.155242.68158846.sin@ITL.CO.JP</A>&gt;&lt;<A HREF="msg00371.html">20001226173737S.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00372.html">3A48E240.D8867533@bullhead.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ 元木＠ＩＴＬです。
+
+In &lt;<A HREF="msg00372.html">3A48E240.D8867533@bullhead.co.jp</A>&gt;
+  Masatoshi Sato &lt;satou@bullhead.co.jp&gt; wrote:
+
+| Connection.java 151行目
+|    pg_stream.Send(database.getBytes(),SM_DATABASE);
+| Connection.java 154行目
+|     pg_stream.Send(PG_USER.getBytes(),SM_USER+SM_OPTIONS+SM_UNUSED+SM_TTY);
+| Connection.java 186行目
+|      salt = new String(rst,0,2);
+| Connection.java 206〜7行目
+|      pg_stream.SendInteger(5+PG_PASSWORD.length(),4);  // バイトに直した長さでなくてもい
+| い？
+|      pg_stream.Send(PG_PASSWORD.getBytes()); // ISO-8859-1 / ASCII ?
+
+| PG_Stream.java  255行目
+|     return ReceiveString(rst, maxsiz, null);
+| PG_Stream.java  427行目
+|     pg_output.write("X\0".getBytes());  // ISO-8859-1固定?
+
+ username や password って ASCII 以外を許容するんでしたっけ？
+ する場合は使用しているエンコーディングをどのように調べれば
+ よいのでしょうか？
+
+ もし、許容しない場合は ASCII に決めうちでよいと思います。
+
+ で、postgresql.jar を作ってちょっと実験していたのですが 
+
+ - org.postgresql.jdbc2.ResultSet.getTimestamp () が正しくタ
+   イムゾーンをあつかえないのでエラーになる。
+
+ - org.postgresql.jdbc2.PrepareStatement.setTimestamp(Timestamp) 
+   がタイムゾーンを付けずに SQL を作成してしまうためクライアント
+   とサーバのタイムゾーンが異なる場合に正しく動作しない。
+
+ という問題点が未だ残っていました。
+ その他の日本語等の扱いは私の使用する範囲では問題なさそうです。
+
+ 上の2点と username や password を ASCII 固定にしたものを 
+ patch としてこのメールに送付します。
+
+-- 
+MOTOKI Sinichi (元木 伸一) &lt;sin@itl.co.jp&gt;
+株式会社情報技術研究所
+ITL/Information Technology Laboratory Corp.
+</PRE>
+<PRE>
+--- org/postgresql/jdbc2/ResultSet.java.orig	Wed Dec 27 17:51:31 2000
++++ org/postgresql/jdbc2/ResultSet.java	Wed Dec 27 18:20:43 2000
+@@ -462,43 +462,10 @@
+   public Timestamp getTimestamp(int columnIndex) throws SQLException
+   {
+     String s = getString(columnIndex);
+-    if(s==null)
++    if(s == null)
+ 	return null;
+-    
+-    // This works, but it's commented out because Michael Stephenson's
+-    // solution is better still:
+-    //SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+-// Modification by Jan Thomae
+-    String sub = s.substring(s.length() - 3, s.length()-2);
+-    if (sub.equals("+") || sub.equals("-")) {
+-            s = s.substring(0, s.length()-3) + "GMT"+ s.substring(s.length()-3, s.length())+":00";
+-    }
+-// -------
+-       // Michael Stephenson's solution:
+-    SimpleDateFormat df = null;
+ 
+-// Modification by Jan Thomae
+-    if (s.length()&gt;27) {
+-    df = new SimpleDateFormat("yyyy-MM-dd HH:mm:sszzzzzzzzz");  
+-    } else              
+-// -------
+-    if (s.length()&gt;21 &amp;&amp; s.indexOf('.') != -1) {
+-	df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSzzz");
+-    } else if (s.length()&gt;19 &amp;&amp; s.indexOf('.') == -1) {
+-	df = new SimpleDateFormat("yyyy-MM-dd HH:MM:sszzz");
+-    } else if (s.length()&gt;19 &amp;&amp; s.indexOf('.') != -1) {
+-	df = new SimpleDateFormat("yyyy-MM-dd HH:MM:ss.SS");
+-    } else if (s.length()&gt;10 &amp;&amp; s.length()&lt;=18) {
+-	df = new SimpleDateFormat("yyyy-MM-dd HH:MM:ss");
+-    } else {
+-	df = new SimpleDateFormat("yyyy-MM-dd");
+-    }
+-    
+-    try {
+-	return new Timestamp(df.parse(s).getTime());
+-    } catch(ParseException e) {
+-	throw new PSQLException("postgresql.res.badtimestamp",new Integer(e.getErrorOffset()),s);
+-    }
++    return PGtimestamp.valueOf(s, TimeZone.getDefault());
+   }
+   
+   /**
+--- org/postgresql/jdbc2/PreparedStatement.java.orig	Wed Dec 27 18:09:18 2000
++++ org/postgresql/jdbc2/PreparedStatement.java	Wed Dec 27 18:19:17 2000
+@@ -351,7 +351,9 @@
+ 	 */
+ 	public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException
+ 	{
+-		set(parameterIndex, "'" + x.toString() + "'");
++	    set(parameterIndex, "'"
++		+ PGtimestamp.toString(x, TimeZone.getTimeZone("UTC"))
++		+ "'");
+ 	}
+ 
+ 	/**
+--- org/postgresql/PG_Stream.java.orig	Wed Dec 27 18:29:11 2000
++++ org/postgresql/PG_Stream.java	Wed Dec 27 18:29:14 2000
+@@ -423,7 +423,7 @@
+    */
+   public void close() throws IOException
+   {
+-    pg_output.write("X\0".getBytes());
++    pg_output.write("X\0".getBytes("ASCII"));
+     pg_output.flush();
+     pg_output.close();
+     pg_input.close();
+--- org/postgresql/Connection.java.orig	Wed Dec 27 18:31:43 2000
++++ org/postgresql/Connection.java	Wed Dec 27 18:32:11 2000
+@@ -145,10 +145,10 @@
+ 	  pg_stream.SendInteger(4+4+SM_DATABASE+SM_USER+SM_OPTIONS+SM_UNUSED+SM_TTY,4);
+ 	  pg_stream.SendInteger(PG_PROTOCOL_LATEST_MAJOR,2);
+ 	  pg_stream.SendInteger(PG_PROTOCOL_LATEST_MINOR,2);
+-	  pg_stream.Send(database.getBytes(),SM_DATABASE);
++	  pg_stream.Send(database.getBytes("ASCII"),SM_DATABASE);
+ 	  
+ 	  // This last send includes the unused fields
+-	  pg_stream.Send(PG_USER.getBytes(),SM_USER+SM_OPTIONS+SM_UNUSED+SM_TTY);
++	  pg_stream.Send(PG_USER.getBytes("ASCII"),SM_USER+SM_OPTIONS+SM_UNUSED+SM_TTY);
+ 	  
+ 	  // now flush the startup packets to the backend
+ 	  pg_stream.flush();
+@@ -200,7 +200,7 @@
+ 		  case AUTH_REQ_PASSWORD:
+ 		    DriverManager.println("postgresql: PASSWORD");
+ 		    pg_stream.SendInteger(5+PG_PASSWORD.length(),4);
+-		    pg_stream.Send(PG_PASSWORD.getBytes());
++		    pg_stream.Send(PG_PASSWORD.getBytes("ASCII"));
+ 		    pg_stream.SendInteger(0,1);
+ 		    pg_stream.flush();
+ 		    break;
+@@ -209,7 +209,7 @@
+ 		    DriverManager.println("postgresql: CRYPT");
+ 		    String crypted = UnixCrypt.crypt(salt,PG_PASSWORD);
+ 		    pg_stream.SendInteger(5+crypted.length(),4);
+-		    pg_stream.Send(crypted.getBytes());
++		    pg_stream.Send(crypted.getBytes("ASCII"));
+ 		    pg_stream.SendInteger(0,1);
+ 		    pg_stream.flush();
+ 		    break;
+--- /dev/null	Mon Oct 16 18:15:01 2000
++++ org/postgresql/util/PGtimestamp.java	Wed Dec 27 18:17:07 2000
+@@ -0,0 +1,224 @@
++package org.postgresql.util;
++
++import java.util.Locale;
++import java.util.TimeZone;
++import java.util.Calendar;
++import java.util.Date;
++import java.sql.Timestamp;
++
++public class PGtimestamp
++{
++    public static Timestamp valueOf(String string)
++    {
++	return valueOf(string, TimeZone.getDefault());
++    }
++
++    public static Timestamp valueOf(String string, TimeZone timezone)
++    {
++	string = string.trim();
++
++	int dateIndex = -1;
++	int timeIndex = -1;
++	int timezoneIndex = -1;
++	String dateString = null;
++	String timeString = null;
++	String timezoneString = null;
++
++	dateIndex = 0;
++	timeIndex = string.indexOf(" ", dateIndex);
++
++	if(timeIndex &lt; 0)
++	    dateString = string;
++	else {
++	    timeIndex = timeIndex + 1;
++
++	    timezoneIndex = string.indexOf('+', timeIndex);
++	    if(timezoneIndex &lt; 0)
++		timezoneIndex = string.indexOf('-', timeIndex);
++
++	    dateString = string.substring(dateIndex, timeIndex).trim();
++
++	    if(timezoneIndex &lt; 0)
++		timeString = string.substring(timeIndex);
++	    else {
++		timeString = string.substring(timeIndex, timezoneIndex).trim();
++		timezoneString = string.substring(timezoneIndex).trim();
++	    }
++	}
++
++	if(timezoneString != null)
++	    timezone = TimeZone.getTimeZone("GMT" + timezoneString);
++	
++	Calendar calendar = Calendar.getInstance(timezone);
++	int nanos = 0;
++
++	try {
++	    if(dateString != null)
++		setDateOfCalendar(calendar, dateString);
++	    else
++		return java.sql.Timestamp.valueOf(string);
++	    
++	    if(timeString != null) {
++		int i = timeString.indexOf(".");
++		
++		if(i &gt; -1) {
++		    final String zeros = "000000000";
++		    String s = timeString.substring(i + 1);
++		    s = s + zeros.substring(0, 9 - s.length());
++		    nanos = Integer.parseInt(s);
++		    timeString = timeString.substring(0, i);
++		}
++		setTimeOfCalendar(calendar, timeString);
++	    }
++	    else {
++		calendar.set(Calendar.HOUR_OF_DAY, 0);
++		calendar.set(Calendar.MINUTE, 0);
++		calendar.set(Calendar.SECOND, 0);
++		calendar.set(Calendar.MILLISECOND, 0);
++	    }
++	}
++	catch(NumberFormatException e) {
++	    return java.sql.Timestamp.valueOf(string);
++	}
++
++	Timestamp timestamp;
++	long time = calendar.getTime().getTime();
++
++	timestamp = new Timestamp(time);
++	timestamp.setNanos(nanos);
++
++	return timestamp;
++    }
++    
++    public static String toString(Timestamp timestamp)
++    {
++	return toString(timestamp, TimeZone.getDefault());
++    }
++
++    public static String toString(Timestamp timestamp, TimeZone timezone)
++    {
++	Calendar calendar = Calendar.getInstance(timezone);
++
++	calendar.setTime(timestamp);
++
++	int year = calendar.get(Calendar.YEAR);
++	int month = calendar.get(Calendar.MONTH) + 1;
++	int day = calendar.get(Calendar.DAY_OF_MONTH);
++	int hour = calendar.get(Calendar.HOUR_OF_DAY);
++	int minute = calendar.get(Calendar.MINUTE);
++	int second = calendar.get(Calendar.SECOND);
++	int nanos = timestamp.getNanos();
++
++	StringBuffer string = new StringBuffer();
++
++	string.append(Integer.toString(year));
++	string.append("-");
++	string.append(Integer.toString(month / 10));
++	string.append(Integer.toString(month % 10));
++	string.append("-");
++	string.append(Integer.toString(day / 10));
++	string.append(Integer.toString(day % 10));
++	string.append(" ");
++
++	string.append(Integer.toString(hour / 10));
++	string.append(Integer.toString(hour % 10));
++	string.append(":");
++	string.append(Integer.toString(minute / 10));
++	string.append(Integer.toString(minute % 10));
++	string.append(":");
++	string.append(Integer.toString(second / 10));
++	string.append(Integer.toString(second % 10));
++
++	if(nanos &gt; 0) {
++	    String nanosString = Integer.toString(nanos);
++	    int last;
++
++	    for(last = nanosString.length() - 1; last &gt; 0; --last)
++		if(nanosString.charAt(last) != '0')
++		    break;
++
++	    string.append(".");
++	    string.append(nanosString.substring(0, last + 1));
++	}
++
++  	int offset = timezone.getRawOffset();
++
++  	string.append((offset &gt; 0) ? "+" : "-");
++  	offset = Math.abs(offset);
++  	hour = (int)(offset / (1000 * 60 * 60));
++  	minute = (int)((offset % (1000 * 60 * 60)) / (1000 * 60));
++  	second = (int)((offset % (1000 * 60)) / (1000));
++
++  	string.append(Integer.toString(hour / 10));
++  	string.append(Integer.toString(hour % 10));
++
++	if(minute &gt; 0 || second &gt; 0) {
++	    string.append(":");
++	    string.append(Integer.toString(minute / 10));
++	    string.append(Integer.toString(minute % 10));
++	}
++
++	if(second &gt; 0) {
++	    string.append(":");
++	    string.append(Integer.toString(second / 10));
++	    string.append(Integer.toString(second % 10));
++	}
++
++	return string.toString();
++    }
++
++    private static void setDateOfCalendar(Calendar calendar, String string)
++	throws NumberFormatException
++    {
++	int i1, i2;
++	
++	i1 = string.indexOf("-");
++	i2 = string.indexOf("-", i1 + 1);
++
++	if(i1 &gt; -1 &amp;&amp; i2 &gt; -1) {
++	    calendar.set(Calendar.YEAR,
++			 Integer.parseInt(string.substring(0, i1)));
++	    calendar.set(Calendar.MONTH,
++			 Integer.parseInt(string.substring(i1 + 1, i2)) - 1);
++
++	    calendar.set(Calendar.DAY_OF_MONTH, 
++			 Integer.parseInt(string.substring(i2 + 1)));
++	}
++    }
++
++    private static void setTimeOfCalendar(Calendar calendar, String string)
++	throws NumberFormatException
++    {
++	int i1, i2;
++	
++	i1 = string.indexOf(":");
++	i2 = string.indexOf(":", i1 + 1);
++	
++	if(i1 &gt; -1 &amp;&amp; i2 &gt; -1) {
++	    calendar.set(Calendar.HOUR_OF_DAY,
++			 Integer.parseInt(string.substring(0, i1)));
++	    calendar.set(Calendar.MINUTE,
++			 Integer.parseInt(string.substring(i1 + 1, i2)));
++	    calendar.set(Calendar.SECOND, 
++			 Integer.parseInt(string.substring(i2 + 1)));
++	    calendar.set(Calendar.MILLISECOND, 0);
++	}
++    }
++
++    public static void main(String[] args)
++    {
++	Timestamp timestamp;
++	String string;
++
++	string = "2000-08-15 15:00:22.112+09";
++
++	timestamp = PGtimestamp.valueOf(string);
++	System.out.println(timestamp.toString());
++	
++	string = PGtimestamp.toString(timestamp);
++	System.out.println(string);
++
++	timestamp = PGtimestamp.valueOf(string);
++	System.out.println(timestamp.toString());
++    }
++}
+--- build.xml.orig	Wed Dec 27 18:00:27 2000
++++ build.xml	Thu Dec 28 03:16:37 2000
+@@ -80,6 +80,7 @@
+       &lt;include name="${package}/**" /&gt;
+       &lt;exclude name="${package}/jdbc1/**" if="jdk1.2+" /&gt;
+       &lt;exclude name="${package}/jdbc2/**" unless="jdk1.2+" /&gt;
++      &lt;exclude name="${package}/util/PGtimestamp.java" unless="jdk1.2+" /&gt;
+       &lt;exclude name="${package}/largeobject/PGblob.java" unless="jdk1.2+" /&gt;
+       &lt;exclude name="${package}/PostgresqlDataSource.java" unless="jdk1.2e+" /&gt;
+       &lt;exclude name="${package}/xa/**" unless="jdk1.2e+" /&gt;
+--- Makefile.orig	Thu Dec 28 03:17:56 2000
++++ Makefile	Thu Dec 28 03:17:24 2000
+@@ -159,7 +159,8 @@
+ 		$(PGBASE)/jdbc2/DatabaseMetaData.class \
+ 		$(PGBASE)/jdbc2/ResultSetMetaData.class \
+ 		$(PGBASE)/jdbc2/Statement.class \
+-		$(PGBASE)/largeobject/PGblob.class
++		$(PGBASE)/largeobject/PGblob.class \
++		$(PGBASE)/util/PGtimestamp.class
+ 
+ # These files are unique to the JDBC2 Enterprise driver
+ OBJ_ENTER=	$(OBJ_JDBC2) \
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00368" HREF="msg00368.html">[pgsql-jp 19246] Re: JDBC patch</A></STRONG>
+<UL><LI><EM>From:</EM> MOTOKI Sinichi &lt;sin@ITL.CO.JP&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00371" HREF="msg00371.html">[pgsql-jp 19249] Re: JDBC patch</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00372" HREF="msg00372.html">[pgsql-jp 19250] Re: JDBC patch</A></STRONG>
+<UL><LI><EM>From:</EM> Masatoshi Sato &lt;satou@bullhead.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 19255] Re: postgresql の初期化について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00379.html">[pgsql-jp 19257] 来年度のカレンダ（予定）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00372.html">[pgsql-jp 19250] Re: JDBC patch</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 19182] Re: NEWS-OS6 にインストール</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00378"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00378"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

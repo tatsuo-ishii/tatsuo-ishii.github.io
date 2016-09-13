@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26087] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。 -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Thu, 23 May 2002 16:34:09 +0900 -->
+<!--X-Message-Id: 3CEC9B71.EB621825@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205230546.AA02332@KAKURAIBM.saki.netwk.ntt&#45;at.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26087] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得する </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00321.html">Date Prev</A>][<A HREF="msg00323.html">Date Next</A>][<A HREF="msg00320.html">Thread Prev</A>][<A HREF="msg00324.html">Thread Next</A>][<A HREF="index.html#00322">Date Index</A>][<A HREF="threads.html#00322">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26087] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 23 May 2002 16:34:09 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00320.html">200205230546.AA02332@KAKURAIBM.saki.netwk.ntt-at.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+Tetsuya Kakura wrote:
+&gt; 
+&gt; こんにちは。
+&gt; 加倉です。
+&gt; 
+&gt; PostgreSQL 7.2.1 用の ODBC ドライバの SQLColAttribute で以下の様
+&gt; な現象が起きていま
+&gt; す。これは不具合のような気がしますがどうでしょう？
+&gt; ■現象
+&gt; - VARCHAR(40) の列の OCTET LENGTH に 0 が返される。
+&gt; - OCTET_LENGTH の取得は SQLColAttribute で SQL_DESC_OCTET_LENGTH
+&gt; を指定しています。
+&gt; 　SQLRETURN は SQL_SUCCESS が返されています。
+&gt; ※参考までに、Column Size, Display Size は各々 40 と 40 が返されて
+&gt; います。
+
+
+問題がいくつかありそうです。
+
+1）SQL_DESC_OCTET_LENGTHはODBC3.Xで追加された項目ですが、
+　普通にコンパイルしてもODBC2.50対応のドライバしか作成
+　されません。値の0とSQL_SUCCESSはドライバマネージャー
+　が返しているのではないかと思われます。
+2) PostgreSQL7.2.xに付属のソースではOCTET_LENGTHに対応
+　する実装がありません。
+
+1)についてはODBCVER=0x0300を定義すればODBC3.0対応の
+　ドライバが作成されるかもしれません。残念ながら
+　unixODBCで試したことはないので保証はできません。
+2)については最新の開発中ソースを使用する必要があります。
+　ちなみに最新の実装では
+
+&gt; ■加倉の認識
+&gt; - PostgreSQL 7.2.1 では VARCHAR は文字単位になっているので
+&gt; 、OCTET LENGTH (転送に必
+&gt; 　要なバッファのバイトサイズ)は、EUC_JP の場合 2(または3)×
+&gt; ColumnSize が戻らなけれ
+
+はマルチバイト付のコンパイルの場合、無条件に3XColumnSizeが
+返ります。ただし254（正確にはMax Varchar Size)を超えたら
+254にしてしまいます。(VAR)CHARが文字単位というのはODBC
+ドライバにとっては厄介な変更で仕方なくこうしてあります。
+
+Hiroshi Inoue
+	<A HREF="http://w2422.nsk.ne.jp/~inoue/">http://w2422.nsk.ne.jp/~inoue/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp: 26089] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0  になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kakura &lt;kakura@saki.netwk.ntt-at.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00320" HREF="msg00320.html">[pgsql-jp: 26085] 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kakura &lt;kakura@saki.netwk.ntt-at.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00321.html">[pgsql-jp: 26086] Re: イベント発生時にプログラムを走らせたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00323.html">[pgsql-jp: 26088] \i によるインポートで文字列リテラルのエスケープが正常に解釈されない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00320.html">[pgsql-jp: 26085] 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp: 26089] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0  になる。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00322"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00322"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

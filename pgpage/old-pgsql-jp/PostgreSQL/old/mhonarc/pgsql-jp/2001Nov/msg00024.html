@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23607] Re: 検索順変更可能なDBの構築方法について -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 06 Nov 2001 13:51:42 +0900 -->
+<!--X-Message-Id: 3BE76C5E.F3F6C8FA@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011106102139.9B2C.KIYOSHI.YOSHIDA@mail.toyota&#45;shokki.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23607] Re: 検索順変更可能なDBの構築方法について </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00023.html">Date Prev</A>][<A HREF="msg00025.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00029.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23607] Re: 検索順変更可能なDBの構築方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 06 Nov 2001 13:51:42 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00022.html">20011106102139.9B2C.KIYOSHI.YOSHIDA@mail.toyota-shokki.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+"kiyoshi.yoshida" wrote:
+
+...略....
+
+&gt; １．レコード（row）の構成は、i INTEGER,j INTEGER。j値は重複有り。
+&gt; ２．検索条件は、
+&gt;         (1)iの値
+&gt;         (2)jの値＆rowの検索順（基本的には登録順）で最初のもの
+&gt; ３．rowの検索順は、運用中に変更する可能性がある。
+&gt;                 ↓検索順
+&gt;         (row1)                          (row1)
+&gt;         (row2)                          (row4)
+&gt;         (row3)  検索順変更後→          (row2)
+&gt;         (row4)                          (row3)
+&gt; ４．検索順途中にrowを追加する可能性がある。
+&gt; ５．もちろん、rowの削除機能も必須。
+&gt; （以上DB仕様）
+&gt; 
+&gt; 最初に素人考えで思ったのは、INSERTコマンドでINSERTする場所が指定できるか
+&gt; と思ったのですができないようで断念しました。
+
+RDB では行(ROW)の順番に意味はないので、そういう機能は
+実装されていないですね。
+
+&gt; 次に、
+&gt; 順番値カラム(INTEGER)を追加して、通常登録時は直前のrowの値＋100
+&gt; とし、検索順変更時は前後のrowの中間値にする。
+&gt; とも考えましたが、値がオーバーフローしたときの処置や変更操作を繰り返すと
+&gt; 中間値が同値になってしまう、ことなどの問題があります。
+&gt; 検索順変更時にテーブル全体に対して、検索順番値を振り直すのもおかしいでしょ
+&gt; うし。
+....略....
+
+# 検索順というと誤解を招きそうなので、『表示順』とします。
+
+用途によって、いろんなやりかたがあると思います。
+
+(A) 表示順番値カラムの番号取直し
+
+表示順を変更する対象件数が少いならば、同値が発生しない
+ように番号を取り直す。 なんらかの明細表で、明細レコード
+の表示順に意味があるような場合で、更新対象となる件数が
+少い(数件から数百件)場合は、番号を再付番します。
+
+
+(B) 表示順番値カラムの桁数を大きくする。
+
+変更が少い場合にのみ可能な方法ですが、INTEGER でなく、
+NUMERIC(30,20) とか、float などにすれば、INTEGER で、
+100 毎に初期値を取るよりは 同値になる可能性は減ります。
+但し、同値発生の可能性はあります。
+
+--------
+
+具体的用途がわからないのでなんともいえませんが、表示順番
+が同一になった場合、他のカラム(例えばSERIAL型のINSERT順)
+でソート順を指定できれば簡単になります。
+
+システム設計を見直して、表示順を他のカラムでできないか
+とか、表示順の変更が発生しないような仕組みを考えてみる
+ことも必要です。
+
+また、分類コードや商品コードなどをコード順以外の順番に
+表示したいときは、各コード表に表示順カラムを作っておいて、
+JOIN して各コード表の表示順カラムでソートするというような
+こともよく行ないます。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00022" HREF="msg00022.html">[pgsql-jp 23605] 検索順変更可能なDBの構築方法について</A></STRONG>
+<UL><LI><EM>From:</EM> "kiyoshi.yoshida" &lt;kiyoshi.yoshida@mail.toyota-shokki.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 23606] Re: 検索順変更可能なDBの構築方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 23608] テーブルのバックアップにおける障害</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 23606] Re: 検索順変更可能なDBの構築方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 23612] Re: 検索順変更可能なDBの構築方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21768] Re: 切り分け処理後の文字列よりグループ化 -->
+<!--X-From: "Shohei Sato" <shohei@shohei.ota.tokyo.jp> -->
+<!--X-Date: Tue, 12 Jun 2001 02:26:03 +0900 -->
+<!--X-Message-Id: 00a301c0f29b$a31e2b90$6510a8c0@shohei.ota.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: PDEPLPMOMDPCONBOCMMKOELCCDAA.c&#45;boys@mx9.freecom.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21768] Re: 切り分け処理後の文字列よりグループ化 </TITLE>
+<LINK REV="made" HREF="mailto:shohei@shohei.ota.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00146.html">Date Prev</A>][<A HREF="msg00148.html">Date Next</A>][<A HREF="msg00143.html">Thread Prev</A>][<A HREF="msg00153.html">Thread Next</A>][<A HREF="index.html#00147">Date Index</A>][<A HREF="threads.html#00147">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21768] Re: 切り分け処理後の文字列よりグループ化</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Shohei Sato" &lt;<A HREF="mailto:shohei@shohei.ota.tokyo.jp">shohei@shohei.ota.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 12 Jun 2001 02:26:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00143.html">PDEPLPMOMDPCONBOCMMKOELCCDAA.c-boys@mx9.freecom.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠でぶちん といいます。
+
+
+&gt; 　お世話になっております。武田です。
+&gt;
+&gt; 　SQLに関して質問があります。PostgreSQL6.5.3を用いて、
+&gt;  ....中略....
+&gt; 　ところで、上記の仕様を「ファイル別集計」だけではなく「ディレクトリ別集
+計」
+&gt; も行えるような形、つまり、file.pathカラムの文字列の整形（具体的には、文字
+列
+&gt; の一番右端の '/' の切り落とし）を行った後グループ化、という処理を行いたい
+の
+&gt; ですが、SQL文でそのような処理を行う事は可能でしょうか？
+&gt;
+&gt; 　CGI部・SQL部に関わらず、同様の処理を行った経験のある方がいらっしゃいまし
+た
+&gt; ら、お知恵を拝借出来れば幸いです。
+&gt;
+
+SQLでやるとディレクトリをサブディレクトリまで含めて処理をしようとすると大変
+で
+はないでしょうか？CGIは言語はなにを使っているのでしょうか？ perlを使っている
+の
+であれば、以下のようなスクリプトを書いてみたのですが、いかがでしょうか？
+末尾の'/'は取るとファイル名とディレクトリの区別がしにくくなり、また、ルート
+ディ
+レクトリを表現する方法がなくなるので残してあります。不要な場合は取り除いて下
+さ
+い。ファイル名の厳密なチェックは行っておりませんので、その辺は適時にお願いし
+ま
+す。同一のpathに対して、複数のidが割り当てられていないものと仮定しておりま
+す。
+
+最初にサンプルで掲載してあったSQLの検索結果を、 $data に取り込んでいただけれ
+ば
+動作すると思います。
+
+= answer.pl ================================================================
+#!/usr/bin/perl -w
+use strict;
+my($data,$each_data,$path1,$path2,$result,$key,$value);
+
+# SAMPLE DATA
+              # ID:ID NUMBER,
+              # TITLE:TITLE OF WEB PAGE,
+              # PATH:FULLY PATH OF HTML ,
+              # COUNT:NUMBER OF ACCESS
+              # Please extract SQL query result into this buffer.
+$data=[
+       {ID=&gt;'0001',TITLE=&gt;'Title
+A',PATH=&gt;'/aaa/bbb/CCC/xxxx.html',COUNT=&gt;12},
+       {ID=&gt;'0001',TITLE=&gt;'Title
+A',PATH=&gt;'/aaa/bbb/CCC/xxxx.html',COUNT=&gt;11},
+       {ID=&gt;'0002',TITLE=&gt;'Title
+B',PATH=&gt;'/aaa/bbb/CCC/yyyy.html',COUNT=&gt;10},
+       {ID=&gt;'0002',TITLE=&gt;'Title
+B',PATH=&gt;'/aaa/bbb/CCC/yyyy.html',COUNT=&gt;9},
+
+       {ID=&gt;'0003',TITLE=&gt;'Title
+C',PATH=&gt;'/aaa/bbb/ccc/xxxx.html',COUNT=&gt;8},
+       {ID=&gt;'0004',TITLE=&gt;'Title
+D',PATH=&gt;'/aaa/bbb/ccc/yyyy.html',COUNT=&gt;7},
+
+       {ID=&gt;'0005',TITLE=&gt;'Title E',PATH=&gt;'/aaa/bbb/xxxx.html',COUNT=&gt;6},
+       {ID=&gt;'0006',TITLE=&gt;'Title F',PATH=&gt;'/aaa/bbb/yyyy.html',COUNT=&gt;5},
+
+       {ID=&gt;'0007',TITLE=&gt;'Title G',PATH=&gt;'/aaa/xxxx.html',COUNT=&gt;4},
+       {ID=&gt;'0008',TITLE=&gt;'Title H',PATH=&gt;'/aaa/yyyy.html',COUNT=&gt;3},
+
+       {ID=&gt;'0009',TITLE=&gt;'Title I',PATH=&gt;'/xxxx.html',COUNT=&gt;2},
+       {ID=&gt;'0010',TITLE=&gt;'Title J',PATH=&gt;'/yyyy.html',COUNT=&gt;1},
+       ];
+
+$result={};
+
+# MAIN ROUTINE
+foreach $each_data (@{$data}){
+    $path2=$each_data-&gt;{PATH};
+    while(1){
+        if($path2=~ /^(.*?\/)(.*)$/){
+            $path1.=$1;
+                $path2=$2;
+                if(defined($result-&gt;{$path1})){
+                    $result-&gt;{$path1}-&gt;{COUNT}+=$each_data-&gt;{COUNT};
+                }else{
+                    $result-&gt;{$path1}-&gt;{COUNT}=$each_data-&gt;{COUNT};
+                }
+        }else{
+            $path1.=$2;
+            $result-&gt;{$path1}={COUNT=&gt;$each_data-&gt;{COUNT},
+                                ID=&gt;$each_data-&gt;{ID},
+                                TITLE=&gt;$each_data-&gt;{TITLE}};
+            $path1=$path2='';
+            last;
+            }
+        }
+    }
+
+print("ACCESS:                  PATH                  : ID : TITLE \n");
+print("------------------------------------------------------------\n");
+foreach $key (sort(keys(%{$result}))){
+    print(sprintf("%6d:%-40s",$result-&gt;{$key}-&gt;{COUNT},$key));
+    if(defined($result-&gt;{$key}-&gt;{ID})){
+        print(":$result-&gt;{$key}-&gt;{ID}:$result-&gt;{$key}-&gt;{TITLE}");
+    }
+    print("\n");
+}
+
+__END__
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00143" HREF="msg00143.html">[pgsql-jp 21764] 切り分け処理後の文字列よりグループ化</A></STRONG>
+<UL><LI><EM>From:</EM> "武田憲太郎" &lt;c-boys@mx9.freecom.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 21767] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 21769] unsubscribe</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 21764] 切り分け処理後の文字列よりグループ化</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 21774] Re: 切り分け処理後の文字列よりグループ化</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00147"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00147"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

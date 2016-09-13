@@ -1,0 +1,469 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10409] pgbashの仕様　 -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Wed, 25 Aug 1999 19:30:32 +0900 -->
+<!--X-Message-Id: 37C3C5C8190.96CESAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37C159993CA.899FSAKAIDA@smtp.psn.ne.jp -->
+<!--X-Reference-Id: 199908232300.IAA27400@mail.cx.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10409] pgbashの仕様　 </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00560.html">Date Prev</A>][<A HREF="msg00562.html">Date Next</A>][<A HREF="msg00551.html">Thread Prev</A>][<A HREF="msg00574.html">Thread Next</A>][<A HREF="index.html#00561">Date Index</A>][<A HREF="threads.html#00561">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10409] pgbashの仕様　</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 25 Aug 1999 19:30:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00537.html">37C159993CA.899FSAKAIDA@smtp.psn.ne.jp</A>&gt; &lt;<A HREF="msg00540.html">199908232300.IAA27400@mail.cx.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+　pgbashは 8月末日公開予定ですが、前もってpgbashの仕様を公開
+します。皆様のご意見を頂ければ幸いです。
+
+# この仕様は最終ではありません、公開までに若干変更の可能性は
+  あります。
+
+# ちょっと長い文章です。興味の無い方は破棄してください。
+
+------------------------------------------------------------
+１.pgbashの概要
+------------------------------------------------------------
+　pgbashは、bash(Version2)シェルにおいてPostgreSQL用の直接SQL
+/埋込SQLインターフェイスを提供するシステムです。
+
+　「直接SQL」(直接呼び出しとも言います）は、対話型の環境でSQL
+を入力した場合やシェルプログラムの中に記述すると、その結果を
+即座に標準出力に出力します。
+
+　また、「埋込SQL」は、 bashシェル言語を親言語として、その中に
+SQLを埋め込み、親言語とSQL機能を'bashシェル変数'を介して連携さ
+せることができます。
+
+　pgbashは、exec_sqlという１個のコマンドから構成されています。
+そのため、libpqインターフェイスのようなPostgreSQL特有の関数の
+動作を知る必要がありません。SQLさえわかればpgbashを利用できる
+ことになります。
+
+  bashシェルプログラムは、C 言語やPerl言語などの高級言語と比較
+すると処理能力が低くなりますが、そのかわりに簡単にプログラミン
+グできます。pgbashは、短時間で比較的単純なPostgreSQL用処理プロ
+グラムを作成したい場合などに最適です。
+
+ (謝辞)
+　pgbashは、久保健洋(kubo-t@cx.airnet.ne.jp)さんの orabash /
+pqbash(Oracle/PostgreSQL用bash組込コマンド）のアイデアをもと
+にして開発されました。また、pgbashの検討に際して、pgsql-jpメ
+ーリングリストの皆様から貴重なご意見を頂きました。ここに、改
+めてpgbashにご協力くださった皆様に感謝の意を表したいと思いま
+す。
+
+------------------------------------------------------------
+２．pgbashの特徴
+------------------------------------------------------------
+ (1)pgbashは、psql の対話型入力処理機能を除いて、psqlと同等の
+　　機能を有しています。
+ (2)pgbashは、bashのメモリ中に組み込まれて動作しますのでpsql
+　　と比較すると高速です。
+ (3)pgbashは、CONNECT, DISCONNECT, SET CONNECTIONを実装し、複
+　　数のデータベースを同時に処理する機能を有しています。
+ (4)pgbashの -dオプションは、カレントのデータベースを一時的に
+　　切り替えて別のデータベースのSQLを実行することができます。
+ (5)pgbashは、fetch into文によって検索結果をシェル変数に代入す
+　　ることができます。
+ (6)pgbashは、SQL実行後にエラーコード、エラーメッセージをシェ
+　　ル変数にセットしますので、SQLの実行状態を知ることができま
+　　す。
+
+------------------------------------------------------------
+３．exec_sqlコマンドのロード
+------------------------------------------------------------
+  exec_sqlコマンドを使用するするには、まず始めにenableコマン
+ドによってロード(bashへの組み込み)しなければなりません。
+
+  対話型におけるロード方法は、次のenableコマンドを直接入力し
+ます。
+
+ 　enable -f /usr/local/pgsql/lib/libpgbash.so exec_sql
+  
+  シェルプログラムでのロード方法は、シェルプログラムの先頭に、
+enableコマンドを記述します
+
+  #!/usr/local/bin/bash
+  enable -f /usr/local/pgsql/lib/libpgbash.so exec_sql
+  source ~/.bashrc
+
+  sourecコマンドによって、"~/.bashrc"などの環境設定ファイル
+に記述されている環境を使用することができます。
+
+　対話型で exec_sqlコマンドを使用する際は、上記のenableコマン
+ドや exec_sqlを、例えば ".bashrc"などにalias指定しておいた方
+が便利です。
+
+ 例）
+ alias ef='enable -f /usr/local/pgsql/lib/libpgbash.so exec_sq'
+ alias E='exec_sql'
+
+　但し、シェルプログラムの中では alias は働きません。
+
+
+------------------------------------------------------------
+４．exec_sql の実行方法とオプション
+------------------------------------------------------------
+　exec_sqlコマンドを実行する場合は、各種オプションおよび SQL
+を指定します。書式は次です。
+
+   exec_sql [option] ["SQL"]
+
+ (1) exec_sqlの戻り値
+
+　exec_sqlの実行が成功すると TRUE、エラーが発生すると FALSEの
+値が返されます。シェルプログラムにおいて、例えば次のように戻り
+値を利用することができます。
+
+  if exec_sql "insert into test values(111,'aaa','bbb')"
+  then
+     ...
+  fi
+
+ (2) SQL文の指定方法
+
+　SQL文は" "の中に記述します。SQL文の最後に';'はあっても無くて
+もかまいません。SQL文は、単語の切れ目で自由に改行することができ
+ます。
+
+  例) exec_sql "select aa,bb,cc from test_table
+                          where a&gt;'123' and dd&lt;'999'"
+
+　SQLのなかで、シェル変数を利用することができます。
+
+  例) exec_sql "insert into test values($_AA, '$_BB', '$_CC')"
+　
+  但し、fect into文のホスト変数部分に直接シェル変数を当てるこ
+とはできません。into句は ':'とシェル変数名にします。
+
+　例) exec_sql "fetch in cur into :_AA, :_BB, :_CC"
+
+
+ (3) exec_sqlコマンドのオプション
+
+    -h item   help item: select,insert,.. or next command:
+             (HELP,ALL,OPTION,EXAMPLE)...&lt;Only 2 char are judged&gt;
+    -v        display exec_sql version
+
+    -m        list all connected databases
+    -d conn   set current CONNect_name defined in CONNECT_SQL
+
+    -q        tern off printing of system and SQL error messages
+    -N        turn off printing of headings and row count
+    -A        turn off alignment
+    -T        tern on TABLE type output
+    -X        turn on EXPANDED type output (field names on left)
+    -F sep    set sep(separator) of field. (sep: default is '|')
+    -H        tern on HTML table type output
+    -C cap    set cap(cation) of HTML table (ex. -HC 'TITLE')
+    -O opt    set opt(option) of HTML table (ex. -HO 'BORDER=0')
+
+    -e        tern on printing of commnad_queries sent to the backend
+    -l obj    list databases objects:  &lt;Only 2 char are judged&gt;
+              (DATABASES, TABLES,    INDICES, SEQUENCES, GRANT)
+              (FUNCTIONS, OPERATORS, TYPES,   SYSTEM_TABLES   )
+    -p tbl    list tables objects      (tbl: table_name or ALL)
+    -r des    list description:        &lt;Only 2 char are judged&gt;
+              (TABLE, FIELD, TYPE, FUNCTION, OPERATOR   or ALL)
+
+
+  psqlと同じ意味で同じオプション名につきましては、ここでの説
+明は省略し、pgbash特有の機能についてのみ説明します。
+
+ a) ヘルプについて
+
+　　ヘルプは、bashコマンドのヘルプと同様で、'help exec_sql'
+    とすると、上記のオプションが表示されます。さらに次のよう
+  　に指定することができます。
+    
+    exec_sql -h select         --- SELECT文のヘルプ
+    exec_sql -h 'create table' --- CRAETE TABLE文のヘルプ
+    exec_sql -h HELP           --- SELECT,CREATEなどの一覧表示
+    exec_sql -h ALL            --- SELECT,CREATEなどの全詳細
+    exec_sql -h OPTION         --- オプションだけの一覧
+    exec_sql -h EXAMPLE        --- 使用例
+
+ b) -m (データベースの接続状態表示)オプション
+
+    -m オプションは、データベースの接続状態を示します。例え
+　　ば次のように３つの接続を行い exec_sql -m としますと以下
+　　のように表示されます。
+
+    exec_sql -q "connect to default"
+    exec_sql -q "connect to postgre1 as db1"
+    exec_sql -q "connect to admin    as db2"
+    exec_sql -m
+
+    # Connected Databases List
+
+    CURRENT|connect_name |user_name |target_name 
+    -------+-------------+----------+---------------------
+           |_DEFAULT_    |postgres  |postgres:5432
+           |db1          |postgres  |postgres:5432
+     *     |db2          |postgres  |admin:5432
+    (3 rows)
+
+ c) データベース情報の表示
+
+　　pgbashは、psqlのバックスラッシュコマンドと同等のデータベ
+　　ース情報の表示機能があります。
+    exec_sql -l databases -l tables -l index -p test1 のように
+　　連続して指定することが可能です。
+
+    exec_sql -l da    --- データベース名一覧表示
+    exec_sql -l ta    --- テーブル名とビユー名一覧表示
+    exec_sql -l in    --- インデックス名一覧表示
+    exec_sql -l se    --- シークエンステーブル名一覧表示
+    exec_sql -l gr    --- 権限一覧表示
+    exec_sql -l fu    --- FUNCTION名一覧表示
+    exec_sql -l op    --- オペレータ一覧表示
+    exec_sql -l ty    --- データ型一覧表示
+    exec_sql -l sy    --- システムテーブル一覧
+    exec_sql -p table名 - テーブルの列名、データ型などの表示
+    exec_sql -p ALL   --- すべてのテーブルの列名、データ型表示
+
+ d) -q (サイレンスモード)オプション
+
+　　pgbashの -q オプションは、ソフトウェアの致命的なエラーを除
+　　いて、全てのシステムメッセージの出力を停止します。
+
+------------------------------------------------------------
+５. データベースの接続
+------------------------------------------------------------
+　pgbashは、CONNECT, DISCONNECT, SET CONNECTION の３つのSQLを
+実装してます。
+
+　CONNECTは、接続名(connect_name)を指定してデータベースに接続
+します。SET CONNECTIONは、カレントのデータベースを指定します。
+SET CONNECTIONが無い場合は、最後のCONNECTがカレントのデータベ
+ースになります。そして最後に DISCONNECT によってデータベースの
+接続を切断します。それぞれの文法は次です。
+
+  ・CONNECT TO dbname[@server[:port]] | DEFAULT
+             [AS connect_name] [USER user_name];
+
+  ・DISCONNECT connect_name|CURRENT|DEFAULT|ALL;
+
+  ・SET CONNECTION connect_name|DEFAULT
+
+  例) exec_sql -q "connect to postgres1 as db1 user postgres"
+      exec_sql -q "connect to postgres2 as db2 user postgres"
+      exec_sql -q "set connection db1"
+      exec_sql    "select * from test1"
+      exec_sql -q "set connection db2"
+      exec_sql    "select * from test2"
+      exec_sql -q "disconenct all"
+
+  もし、CONNECTを実行せずに　SELECTなどのSQLを実行した場合は、
+自動的に"CONNECT TO DEFAULT"が発行されます。これは、psqlをデ
+ータベース名を指定せずに実行した場合と同等です。
+
+  対話型の場合、exec_sql "disconnect all"で全ての接続を切断す
+ることができます。また、ログインアウトすると自動的に全て切断
+されます。
+
+　シェルプログラムは、シェルプログラムが終了すると、自動的に
+全て切断されます。
+
+------------------------------------------------------------
+６．-d オプションによるカレントデータベースの切替
+------------------------------------------------------------
+　-d オプションは、カレントのデータベース接続を一時的に切りか
+える場合に使用します。例えば次のように使用します。
+
+  例) exec_sql "connect to postgres1 as db1"
+      exec_sql "connect to postgres2 as db2"
+      exec_sql "connect to postgres1 as db3"
+      exec_sql "set connection db1"
+      exec_sql -d db2 "select * from test2" &lt;-- db2の接続
+      exec_sql        "select * from test1" &lt;-- db1の接続
+      exec_sql -d db3 "select * from test2" &lt;-- db3の接続
+
+　同じデータベースに対して、違う接続名で接続することができま
+す。例えば、１データベースに複数ユーザが接続しているテスト環
+境を作成する場合などに便利です。
+
+------------------------------------------------------------
+７．検索結果のシェル変数への代入
+------------------------------------------------------------
+　pgbashは、fetch into文を使用して、検索結果をシェル変数に代入
+することができます。fetch intoの文法は次です。
+
+  FETCH [FORWARD|BACKWARD] [number|ALL] [IN cursorname]
+  [INTO :host_var1 [[INDICATOR] :ind_var1], ...
+        :host_varN [[INDICATOR] :ind_varN]];
+
+  (例)
+ +----
+ |exec_sql  "begin"
+  exec_sql  "declare cur cursor for select * from test"
+  declare -i x ; let x=0;  while ((x &lt; 10))
+  do
+    exec_sql "fetch in cur into :CODE indicator :IND_C,
+                               :NAME:IND_N, :ADDRESS :IND_A"
+    if (( SQLCODE == SQL_OK ))
+    then
+        if ((IND_N != SQL_NULL || IND_A != SQL_NULL))
+        then
+            echo "$CODE, $NAME, $ADDRESS"
+            let x=x+1
+        fi
+    else
+        if(( SQLCODE == SQL_NOT_FOUND ))
+        then
+                let x=11
+        else
+                echo "$SQLERRMC"
+                let x=x+1
+        fi
+    fi
+  done
+ |exec_sql "end"
+ +----
+
+  ここで、SQLCODEは SQLエラーコードを、$SQLERRMCは SQLエラー
+メッセージを表すシェル変数です。また、SQL_NULL, SQL_NOT_FOUND
+は pgbashが初期設定している値です。(9.のエラーコードを参照)
+
+# (( ))演算式のなかでは、整数型シェル変数の先頭'$'は省略する
+  ことができます。
+
+------------------------------------------------------------
+８.SQL実行状態を表すシェル変数(SQLCA構造体に相当)
+------------------------------------------------------------
+　pgbashは、SQL実行後の処理結果をシェル変数にセットします。
+主なシェル変数は次です。
+
+　$SQLCODE    :(整数型) SQLエラーコード (9.エラーコード参照)
+                0    --- 正常終了          
+                100  --- EOF(Eond Of File)  
+                負値 --- SQLエラー         
+  $SQLERRMC   :(文字型) SQLエラーメッセージ(最大70字)
+　$SQLERRML   :(整数型) SQL エラーメッセージの長さ(&lt;70)
+  $SQLERRD2   :(整数型) 検索結果の行数(PQntuples()の値)
+  $SQLERRD3   :(整数型) 検索結果の列数(PQnfields()の値)
+  $SQLNTUPLES :(整数型) SQLERRD2と同じ
+  $SQLNFIELDS :(整数型) SQLERRD3と同じ
+
+------------------------------------------------------------
+９．エラーコード
+------------------------------------------------------------
+  pgbashは、整数型シェル変数に予め次のエラーコードを設定して
+ます。このシェル変数を使用でして、SQL実行後に SQLCODE と比較
+することによって以下のエラーの状態を知ることができます。
+
+  (整数型シェル変数)
+  $SQL_NULL                -1   : INDICATORのNULL値
+
+  $SQL_OK                  0　  : 正常終了のときの値
+  $SQL_NOT_FOUND           100  : ファイルの終了
+
+  $SQL_SYSTEM_ERROR        -200 : pgbashシステム障害
+  $SQL_TOO_MANY_ARGUMENTS  -201 : fetch into句のホスト変数が多い
+  $SQL_TOO_FEW_ARGUMENTS   -202 : fetch into句のホスト変数が多い
+  $SQL_CONNECT_ERROR       -203 : connect文のエラー
+  $SQL_DISCONNECT_ERROR    -204 : disconnect文のエラー
+  $SQL_SETCONNECT_ERROR    -205 : set connection文のエラー
+  $SQL_INVALID_STMT        -230 : 無効なSQL文
+
+  $SQL_EMPTY_QUERY         -400 : backendのエラーコードと同じ 
+  $SQL_BAD_RESPONSE        -401 :         "
+  $SQL_CONNECTION_BAD      -402 :         "
+  $SQL_FATAL_ERROR         -403 :         "
+  $SQL_NONFATAL_ERROR      -404 :         "
+
+
+　エラーコードは、(( ))演算式を利用してシェルプログラムの中で
+次のように使用します。
+
+　(例)
+　exec_sql "insert into test values(111,'aaa','bbb')"
+  if(( SQLCODE &lt; SQL_OK ))
+  then
+     echo $SQLERRMC
+  fi
+
+------------------------------------------------------------
+
+--
+Personal Software, Inc.
+境田雅明&lt;sakaida@psn.ne.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00636" HREF="msg00636.html">[pgsql-jp 10486] Re: pgbashの仕様　</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00579" HREF="msg00579.html">[pgsql-jp 10427] Re: pgbashの仕様　</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00577" HREF="msg00577.html">[pgsql-jp 10425] Re: pgbashの仕様　</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00574" HREF="msg00574.html">[pgsql-jp 10422] Re: pgbashの仕様　</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00537" HREF="msg00537.html">[pgsql-jp 10385] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00540" HREF="msg00540.html">[pgsql-jp 10388] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00560.html">[pgsql-jp 10408] RE: レコード参照にロックをかける方法は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00562.html">[pgsql-jp 10410] RE: Access2000の情報</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00551.html">[pgsql-jp 10399] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00574.html">[pgsql-jp 10422] Re: pgbashの仕様　</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00561"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00561"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

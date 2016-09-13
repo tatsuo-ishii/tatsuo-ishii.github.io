@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9243] Re: JDBC Driver for 6.5 -->
+<!--X-From: "N.Ogiso" <ogiso@use&#45;net.co.jp> -->
+<!--X-Date: Mon, 5 Jul 1999 12:13:16 +0900 -->
+<!--X-Message-Id: 199907050312.MAA24155@ns.use&#45;net.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9243] Re: JDBC Driver for 6.5 </TITLE>
+<LINK REV="made" HREF="mailto:ogiso@use-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00046.html">Date Prev</A>][<A HREF="msg00048.html">Date Next</A>][<A HREF="msg00048.html">Thread Prev</A>][<A HREF="msg00049.html">Thread Next</A>][<A HREF="index.html#00047">Date Index</A>][<A HREF="threads.html#00047">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9243] Re: JDBC Driver for 6.5</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "N.Ogiso" &lt;<A HREF="mailto:ogiso@use-net.co.jp">ogiso@use-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 5 Jul 1999 12:13:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。
+
+----------
+&gt; 差出人 : Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;
+&gt; 宛先 : pgsql-jp@sra.co.jp
+&gt; 件名 : [pgsql-jp 9230] Re: JDBC Driver for 6.5
+&gt; 送信日時 : 1999年7月4日 11:29
+&gt; 
+&gt; 
+&gt; 遅めのフォローですが、ようやくにして試してみましたので… ^^;
+&gt; 
+snip...
+&gt; 
+&gt; 当方で PostgreSQL 6.5 の JDBC
+ドライバを試して見た限りでは、executeQuery()
+&gt; の後の getString() でも、executeUpdate() による更新処理でも正常に行えて
+&gt; います。
+&gt; 
+&gt; 当方の環境は FreeBSD 2.2.8 + JDK 1.1.8 (jdk1.1.8_AOUT.V99-6-3) です。
+&gt; そちらで実行する際に、環境変数 LANG などの値が未設定となっていません
+&gt; でしょうか？
+&gt; 
+&gt; 当方では LANG=ja_JP.EUC としています。LANG が未設定だったり C であったり
+&gt; すると、getString() の値が EUC で帰って来て、executeUpdate() の結果も
+&gt; 不正になります。
+&gt; 
+&gt; 細かい事はよく知りませんが、LANG によりこのような結果になるのは
+&gt; 正しい仕様であろうと思います。
+&gt; 
+
+う〜む、ちょっと疑問ですね。
+
+まず、postgresql.jar への CLASSPATH が PostgreSQL 6.3 or 6.4 の
+postgresql.jar へ向いていないか御確認下さい。
+# 違ってたらごめんなさい。
+
+LANG=ja_JP.EUC としないと executeUpdate() の結果が不正に
+なるというのは後藤さんの使用されているプログラムの事情だと
+思われます。
+つまり、エディットボックスなり入力アイテムに入力される日本語
+コードに左右されるコーディングがなされてはいないでしょうか。
+
+通常 Java プログラムはプラットホームに依存しませんが、
+日本語コードにも依存しない設計をするためには、入力されるコード
+を判定して Unicode にエンコーディングしなければなりません。
+私の場合
+        byte b[] = nihongo.getBytes("8859_1");
+        nihongo = new String(b, "JISAutoDetect");
+などとしています。
+
+6.3 と 6.4 には日本語を扱うための PATCH があってそれによって
+JDBC にも PATCH があたります。そこでは、データベースの
+エンコーディング・プロパティーを取得して Connection.java の
+ExecSQL() の中で Unicode から EUC へのエンコーディングを
+しています。ところが、6.5 のソースからはこれらのコードがごっそり
+と抜け落ちています。
+# 当然と言えは当然なのですが、JDBC についても 6.4 の
+# 日本語 PATCH が merge されることを期待していたもの
+# ですから。
+
+6.5 のソースコードでは単に Unicode から latin1 へのエンコーデング
+をしているだけですから日本語文字が不正になってしまうのは
+当然です。
+# もしそれでも日本語が正常に扱えているとしたら ??? です。
+
+またJDBC が LANG の設定に左右されることは有り得ません。
+もしあったとしたらそれは誤った設計と言えるでしょう。
+何故なら Java プログラムは Unix などだけをターゲットと
+している訳ではないからです。
+
+# Windows なんかは LANG なんて概念はないでしょ。
+# また Servlet の場合を考えてみて下さい。ApacheJServ
+# を使うとしましょう。jserv は apache によってロードされ
+# jserv が java 或いは jre を使って class ファイルを実行
+# します。この場合 LANG はどうします？
+
+---
+おぎそ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00049" HREF="msg00049.html">[pgsql-jp 9245] Re: JDBC Driver for 6.5</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 9242] Re: JDBC Driver for 6.5</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 9244] RE: JDBC Driver for 6.5</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 9244] RE: JDBC Driver for 6.5</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00049.html">[pgsql-jp 9245] Re: JDBC Driver for 6.5</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00047"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00047"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

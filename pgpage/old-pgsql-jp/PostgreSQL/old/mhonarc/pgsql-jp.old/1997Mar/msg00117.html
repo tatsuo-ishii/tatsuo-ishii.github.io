@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1614] Re: date -->
+<!--X-From: "神田大輔 [Daisuke Kanda]"<small@first.tsukuba.ac.jp> -->
+<!--X-Date: Tue, 25 Mar 1997 01:45:34 +0900 -->
+<!--X-Message-Id: 19970325014534U.small@first.tsukuba.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199703241533.AAA07690@log.tramp.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1614] Re: date </TITLE>
+<LINK REV="made" HREF="mailto:small@first.tsukuba.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00116.html">Date Prev</A>][<A HREF="msg00118.html">Date Next</A>][<A HREF="msg00116.html">Thread Prev</A>][<A HREF="msg00118.html">Thread Next</A>][<A HREF="index.html#00117">Date Index</A>][<A HREF="threads.html#00117">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1614] Re: date</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "神田大輔 [Daisuke Kanda]"&lt;<A HREF="mailto:small@first.tsukuba.ac.jp">small@first.tsukuba.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Mar 1997 01:45:34 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00116.html">199703241533.AAA07690@log.tramp.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+  まいどお騒がせしてます(^^; 神田です。
+
+おみつさんの書かれた、
+	「[postgres95 1613] Re: date」
+からの引用です。
+
+おみつ&gt; おみつ@Tramp です
+おみつ&gt; 
+おみつ&gt; On Mon, 24 Mar 1997 19:35:16 +0900
+おみつ&gt; "神田大輔 [Daisuke Kanda]" &lt;small@first.tsukuba.ac.jp&gt; wrote:
+おみつ&gt; &gt; ...snip...
+おみつ&gt; &gt; 
+おみつ&gt; &gt;   Apache1.2b7 &amp; PHP/FI 1.0b10 +jp3 から、postgreSQL6.0 +date引き算パッチ
+おみつ&gt; &gt; 
+おみつ&gt; 
+おみつ&gt; date引き算の部分は単純な(でもないかな;p)コードのバグでしたが、
+おみつ&gt; 
+おみつ&gt; &gt;   を使っていますが、以下のような症状がでます。
+おみつ&gt; &gt;     ・PHP から、insert into table (date) values('03-26-1997') などとやると
+おみつ&gt; &gt;       ・年が 0000 になってしまいます。
+おみつ&gt; 
+おみつ&gt; これがよく分からないんですよね... :-&lt;
+おみつ&gt; 
+おみつ&gt; 石井さん(MkLinux)、いしかわ＠ぎふだいさん(SPARC/Linux)からの投稿で
+おみつ&gt; 変な症状が出ているとのことでしたし、
+おみつ&gt; 本家 ML でも同様な報告が流れてました。
+
+おみつ&gt; ちなみに、プラットホームは何でしょうか?
+おみつ&gt; # Linux/x86 では問題なく代入・保存・表示できていますので...
+
+  書き忘れました、SPARC/Solaris2.4 です。
+
+
+
+おみつ&gt; もしかして内部処理が変なのかななどと勝手に疑ったりして、
+おみつ&gt; 少々ハックしてみますと、
+おみつ&gt; 
+おみつ&gt; PostgreSQL での date型のデータの受渡しはint4型(32bit)の値渡しで、
+おみつ&gt; それを DateADT構造体にキャストしてます。(なんでかな?)
+おみつ&gt; 
+おみつ&gt; DateADT は 
+おみつ&gt;         typedef struct DateADT {
+おみつ&gt;             char        day;
+おみつ&gt;             char        month;
+おみつ&gt;             short       year;
+おみつ&gt;         } DateADT;
+おみつ&gt; の形です。
+おみつ&gt; 合計4バイトですので、int4型と同じ大きさということなのでしょう。
+おみつ&gt; 
+おみつ&gt; このメンバの day,month,year にそれぞれ PostgreSQL がパースした文字列を
+おみつ&gt; sscanf で int型にとってきて突っ込んでるのですが、
+おみつ&gt; この代入(明示的な int から char または short へのキャストはしてません)
+おみつ&gt; がおかしいのか、値渡しの機構そのものがおかしいのか...
+おみつ&gt; くらいしか datetimes.c からは読み取れません
+
+おみつ&gt; で、提案なのですが、
+おみつ&gt; datetimes.c で気になった代入時のキャストと値渡しの構造について、
+おみつ&gt; 
+おみつ&gt; 	1. 代入時にキャストするようにソースをいじってみる
+おみつ&gt; 
+おみつ&gt; 	2. ポインタを渡す date型を登録してみる
+おみつ&gt; 	   あるいは同じ構造体で定義できる新しい型を作ってみる
+おみつ&gt; 	   # Cソースと登録用のSQLくらいは用意できると思います
+おみつ&gt; 
+おみつ&gt; という実験をしてみる元気はありませんか?
+
+  ソースが多くて hack はあきらめてましたが、これだけ書いて頂ければ少しくら
+いは。というわけで、少し試してみました。
+
+  src/backend/utils/datetime.c の int4 datein(char *datestr) の後半。
+
+    date-&gt;day = d;
+    date-&gt;month = m;
+    date-&gt;year = y;
+    return result;
+
+  の辺り。
+
+  その一
+    date-&gt;day = (char)d;
+    date-&gt;month = (char)m;
+    date-&gt;year = (short)y;
+
+    結果：×
+
+  その二
+&gt;   elog(DEBUG, "");
+    return result; 
+
+    結果：○ (なぜ？)
+
+  その三
+    return((int4)(d &lt;&lt; 24 | m &lt;&lt; 16 | y));
+
+    結果：○
+
+  結論
+  elog 呼んだだけでうまくいくというのが少々謎ですが、DateADT -&gt; int4 のキャ
+ストが変みたいですね。
+  となるとコンパイラか？ 一応 gcc 2.7.0 ですけど。
+
+    筑波大学自然学類三年次神田大輔 
+	e-mail:	small@first.tsukuba.ac.jp
+	WWW:	<A HREF="http://www.first.tsukuba.ac.jp/~small">http://www.first.tsukuba.ac.jp/~small</A>
+	PGP fingerprint:09 35 5B 57 5B B7 C8 8B  9C 87 7C 57 8F 2F BE 8B
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00119" HREF="msg00119.html">[postgres95 1616] Re: date</A></STRONG>
+<UL><LI><EM>From:</EM> ASADA Kazuhisa &lt;asada@trust.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00118" HREF="msg00118.html">[postgres95 1615] Re: date</A></STRONG>
+<UL><LI><EM>From:</EM> ASADA Kazuhisa &lt;asada@trust.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[postgres95 1613] Re: date</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00116.html">[postgres95 1613] Re: date</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00118.html">[postgres95 1615] Re: date</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00116.html">[postgres95 1613] Re: date</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00118.html">[postgres95 1615] Re: date</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00117"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00117"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

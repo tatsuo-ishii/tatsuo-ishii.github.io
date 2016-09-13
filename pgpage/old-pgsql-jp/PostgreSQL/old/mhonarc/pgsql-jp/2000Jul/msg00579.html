@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16346] Re: libpqでmallocした時の問題 -->
+<!--X-From: Kohzi Terao <terao@cyheit.co.jp> -->
+<!--X-Date: Fri, 28 Jul 2000 19:39:29 +0900 -->
+<!--X-Message-Id: 20000728190101.36258016.1228030990@mailhost.cyheit.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000728181825.8C85.ATSUKA@be.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16346] Re: libpqでmallocした時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:terao@cyheit.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00578.html">Date Prev</A>][<A HREF="msg00580.html">Date Next</A>][<A HREF="msg00578.html">Thread Prev</A>][<A HREF="msg00580.html">Thread Next</A>][<A HREF="index.html#00579">Date Index</A>][<A HREF="threads.html#00579">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16346] Re: libpqでmallocした時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kohzi Terao &lt;<A HREF="mailto:terao@cyheit.co.jp">terao@cyheit.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jul 2000 19:39:29 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00578.html">20000728181825.8C85.ATSUKA@be.mbn.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+寺尾と申します。
+
+&gt; libpqを使ってCGIを作成しようとしております。
+&gt; そこで発生した問題なのですが、自力では解決できず、以前のMLも検索したので
+&gt; すが、答えが見つかりませんでした。
+&gt; 
+&gt; 現象として、カーソルでselect *を実行し、fetchした後、malloc、memsetを実
+&gt; 行したところ、select結果を取得することができませんでした。
+&gt; 
+&gt; gdbで追跡したところ、PQexecの戻り値（res)とmallocで取得した領域のアドレ
+&gt; スが同じで、memsetしたことにより、resの中身が消えてしまったようです。
+
+　・・・省略・・・
+
+&gt; void main(void)
+&gt; {
+&gt;     PGconn   *conn1;
+&gt;     PGresult *res;
+&gt;     char   *work_p;
+&gt;     FILE *fp;
+&gt;     char read_buf[2048];
+&gt;     char w_sql[1024];
+&gt; 
+&gt;     conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+&gt; 
+&gt;     strcpy(w_sql, "BEGIN");
+&gt;     res = PQexec(conn1, w_sql);
+&gt; 
+&gt;     PQclear(res);
+&gt; 
+&gt;     strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+&gt;     strcat(w_sql, "SELECT * FROM work_tbl ");
+&gt; 
+&gt;     res = PQexec(conn1, w_sql);
+&gt;     PQclear(res);
+&gt; 
+&gt;     strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+&gt;     res = PQexec(conn1, w_sql);
+&gt; 
+&gt;     PQclear(res);
+
+　ここでresをクリアしてしまうと、Fetchした結果が消えてしまう
+ので、このPQclear(res)を止めるだけで良いでしょう。
+　resを開放するのは、Fetchした全データをresから取り出して、
+別領域なりファイルに出力した後となりますね。
+
+　データを取り出すのは、シーラカンス本のサンプルが使えますか
+ら、判りますよね？
+
+&gt;     work_p = malloc(2048);
+&gt;     memset(work_p, 0x0, 2048);
+&gt; 
+&gt;     fp = fopen("./test.txt", "r");
+&gt;     fgets(read_buf, sizeof(read_buf)-1, fp);
+&gt; 
+&gt;     以下続く....
+&gt; 
+&gt; 
+&gt; db名  work
+&gt; テーブルスキーマ
+&gt;   CREATE TABLE work_tbl
+&gt;   (
+&gt;       work1          INT,
+&gt;       work2          char(200)
+&gt;   );
+&gt; textの中身
+&gt;   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+&gt;   bbbbbbbbbbbbbbbbbbbb
+&gt;   ddddddddddddddddd
+&gt; 
+&gt; −−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−
+&gt; データは3件ほど入れた状態でテストしました。
+&gt; また、テスト環境は以下の通りです。
+&gt; 
+&gt; OS         FreeBSD 2.2.8
+&gt; PostgreSQL Version  7.0.2
+&gt; gcc version 2.7.2.1でコンパイル
+&gt; 
+&gt; 
+&gt; fopen、fgetsがあるのは、mallocをしなくても、fgetsを実行した直後に同様な
+&gt; 現象が起こるのを確認するためです。
+
+　必要な領域をクリアした為、「Fetchしたデータがない」という
+状態だと思いますよ。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00580" HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00578" HREF="msg00578.html">[pgsql-jp 16345] libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00578.html">[pgsql-jp 16345] libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00578.html">[pgsql-jp 16345] libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00579"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00579"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4474] Re: sequence & copy? -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Tue, 16 Jun 1998 15:36:35 +0900 -->
+<!--X-Message-Id: 199806160636.PAA20335@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 35860B11.98CEB82@lunaris.hanmesoft.co.kr -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4474] Re: sequence &amp; copy? </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00203.html">Date Prev</A>][<A HREF="msg00205.html">Date Next</A>][<A HREF="msg00205.html">Thread Prev</A>][<A HREF="msg00207.html">Thread Next</A>][<A HREF="index.html#00204">Date Index</A>][<A HREF="threads.html#00204">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4474] Re: sequence &amp; copy?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 16 Jun 1998 15:36:35 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00202.html">35860B11.98CEB82@lunaris.hanmesoft.co.kr</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+On Tue, 16 Jun 1998 15:05:05 +0900,
+"Soonmyung. Hong" &lt;hong@lunaris.hanmesoft.co.kr&gt; wrote:
+&gt; hong@hanmesoftです。
+&gt; 
+&gt; 下のようにやってみったんですが、うまくいきません。
+&gt; 
+&gt; create sequence seq;
+&gt; create table test (
+&gt;     serialno    integer DEFAULT nextval('seq') not null,
+&gt;     name        varchar(8)                     not null );
+&gt; 
+&gt; copy test from '/datafile';
+&gt; 
+&gt; datafile:
+&gt; name1
+&gt; name2
+&gt; ...
+&gt; 
+&gt; 
+&gt; なんかいい方法がありましたらどうぞ御教授ください。お願いいたします。
+
+SELECT と違って、COPY は全部のフィールドがないと
+多分ダメじゃないかと思います。
+
+awk なんかのスクリプトでやるのは邪道でしょうか ;p
+CREATE TABLE の DEFAULT に、
+存在しない SEQUENCE を入れることもできましたので、例えば、
+======================================================================
+test.awk 
+----------------------------------------------------------------------
+#!/usr/bin/awk -f
+BEGIN {
+	print "create table test ("
+	print "     serialno    integer DEFAULT nextval('seq') not null,"
+	print "     name        varchar(8)                     not null );"
+}
+{
+	print NR "\t" $0
+}
+END {
+	print "\\."
+	print "create sequence seq start " NR+1 ";"
+}
+----------------------------------------------------------------------
+なんてのを作っておいて、
+
+	% awk -f test.awk datafile | psql データベース名
+
+でできると思います。
+後は insert の時にターゲットのフィールドを指定すればよさそうです。
+
+testdb=&gt; insert into test (name) values ('name4');
+INSERT 185248 1
+testdb=&gt; select * from test;
+serialno|name 
+--------+-----
+       1|name1
+       2|name2
+       3|name3
+       4|name4
+(4 rows)
+
+質問の意図をはずしてたらすみません。
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00206" HREF="msg00206.html">[pgsql-jp 4476] Re: sequence &amp; copy?</A></STRONG>
+<UL><LI><EM>From:</EM> SAKUMA Tuyosi &lt;sakuma@pst.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00207" HREF="msg00207.html">[pgsql-jp 4477] Re: sequence &amp; copy?</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00202" HREF="msg00202.html">[pgsql-jp 4472] sequence &amp; copy?</A></STRONG>
+<UL><LI><EM>From:</EM> "Soonmyung. Hong" &lt;hong@lunaris.hanmesoft.co.kr&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 4473] Re: sequence &amp; copy?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 4475] Re: sequence &amp; copy?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 4475] Re: sequence &amp; copy?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00207.html">[pgsql-jp 4477] Re: sequence &amp; copy?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00204"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00204"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,879 @@
+<A NAME="11">
+<PRE><B>
+From: 大黒洋史  &lt;daikoku@ulysses.lang2.bs1.fc.nec.co.jp&gt;
+Date: Mon, 30 Sep 1996 14:45:53 +0900
+Subject: [postgres95 794] Re: みなさんはじめまして  
+Message-Id: &lt;199609300545.OAA05926@ulysses.lang2.bs1.fc.nec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+大黒です。こんにちは。
+
+
+&gt; 具体的にどのようにして移植されたのか、御教授頂ければ幸いです。
+&gt; 
+&gt; 私の場合は、基本的に svr4 への移植内容を元に作業しました。
+
+私もそうです。ベースがsvr4.2(最近はＭＰ)ですの
+で、大抵のものは、svr4ですね。
+
+&gt; これだけだと、 make all runtest の時に
+&gt; ------------------------------------------------------------------
+&gt; WARN:Load of file /home/postgres/postgres95/src/test/regress/
+&gt; obj/regress.so failed: dynamic linker: /home/postgres/postgres95/
+&gt; bin/postgres: relocation error: symbol not found: FailedAssertion
+&gt; ------------------------------------------------------------------
+&gt; と怒られましたので(これが[postgres95 765]、FailedAssertion を適当に
+&gt; 適当な場所で定義して無理矢理通してみました(結果が [postgres95 766])。
+
+これは、ldの最適化によってdynamicシンボルが、削除されたのが
+原因のようです。
+ldがリンクする時に、ターゲットシンボル、つまり、FailedAssertion
+が参照されなかったために発生したものです。
+ ですので、解決方法は、
+(１)そのようなシンボルへのダミー参照をソースに書き込む
+(２)src/backend/Makefileのpostgresをリンクする行(１２７行)
+     に-Zalldynsymを指定する。
+    副作用で(というか当然)、ファイルが大きくなったりします。
+
+の二つがあります。まぁ(２)のほうがお手軽ですね。
+
+P。S。
+１。０６と１。０７の差分調査された方はいらっしゃいませんか
+FAQかもしれませんが、ご存知の方教えていただけないでしょうか？
+
+----------------------------------------------------
+No news is              ＮＥＣ    大黒洋史(だいこく)
+     good news        daikoku@lang2.bs1.fc.nec.co.jp
+                  or  daikoku@ca2.so-net.or.jp
+----------------------------------------------------
+<HR>
+</PRE>
+<A NAME="10">
+<PRE><B>
+From: Tanaka Minoru &lt;green@keiken.co.jp&gt;
+Date: Mon, 30 Sep 1996 14:08:33 +0900
+Subject: [postgres95 793] Re: Large object 
+Message-Id: &lt;9609300508.AA00982@onbashira&gt;
+</A>
+</B></PRE>
+<PRE>
+
+田仲＠ケイケンです。
+
+Large Object の実装について…
+
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;さん：
+t-ishii&gt; 石井です。
+...
+t-ishii&gt; ところで、
+t-ishii&gt; 	select hoge from foo;
+t-ishii&gt; 
+t-ishii&gt; なんてやって、hoge がバイナリのカラムだとどうなるんでしょう？また、
+t-ishii&gt; hoge を insert するのは？
+t-ishii&gt; やっぱ postgres95 みたいにファイルに入れたり出したりするんでしょうか？
+
+これについては、私も石井さんに聞いてみたいと思ってました。 ^_^)
+
+empressでは、データ型に、不定長テキストを入れる text と、不
+定長バイナリの bulk というのがあります。bulkの方は、SQL コマ
+ンドラインからは16進のテキストで入出力できます(試したことが
+ない)。もちろん、普段はそれじゃたまらないんで、ファイルを介
+してます。
+
+ select hoge direct_into 'file_path' from foo;
+ insert foo (hoge) values ( direct_from 'file_path' );
+
+というように direct_into とかの特別な句を使っています。
+
+で、これだと、(SQLを実際に解釈する)サーバ上のファイルしか参
+照できないのが、悩みなんですよね。基本的にクライアント・サー
+バ型である postgres95 でも同じだと思います。私のとこでは今の
+ところ、クライアントとサーバ間で明示的に(SQLとは別に)ファイ
+ル転送して、しのいでいます。他のRDBMSではどうなんでしょうね。
+-
+田仲 稔 (Tanaka Minoru) （株）ケイケンエンジニアリングシステム 諏訪支社
+<HR>
+</PRE>
+<A NAME="9">
+<PRE><B>
+From: minematu@aimcom.co.jp (Hiroki Minematu)
+Date: Mon, 30 Sep 1996 14:25:19 +0900
+Subject: [postgres95 792] Re: みなさんはじめまして
+Message-Id: &lt;199609300525.OAA07679@admin.aimcom.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みねまつ＠あいむ と申します。
+
+From: 大黒洋史 &lt;daikoku@ulysses.lang2.bs1.fc.nec.co.jp&gt;
+Subject: [postgres95 788] みなさんはじめまして
+Date: Mon, 30 Sep 1996 13:48:07 +0900
+
+&gt; ところで、私の机上のマシンは、EWS4800/350で、EWS-UX/V(Rel4.2)
+&gt; R9.4なのですが、１。０６が動いています。
+
+具体的にどのようにして移植されたのか、御教授頂ければ幸いです。
+
+私の場合は、基本的に svr4 への移植内容を元に作業しました。
+しかしながら、cc が -oと-c オプションをうまく取り扱ってくれない
+ようでしたので(/usr/abiccs/bin/ccを使用しました) Makefile類を
+少々書き換えたのと、strcasecmp は既に実装されていたので、その
+部分を書き換えました。これだけだと、 make all runtest の時に
+------------------------------------------------------------------
+WARN:Load of file /home/postgres/postgres95/src/test/regress/
+obj/regress.so failed: dynamic linker: /home/postgres/postgres95/
+bin/postgres: relocation error: symbol not found: FailedAssertion
+------------------------------------------------------------------
+と怒られましたので(これが[postgres95 765]、FailedAssertion を適当に
+適当な場所で定義して無理矢理通してみました(結果が [postgres95 766])。
+
+------------------------------------------------------------------ 
+_/_/  Hiroki Minematu|(New mail addr) &lt;minematu@aimcom.co.jp&gt; _/_/
+_/_/    峰松  浩樹   |                                        _/_/ 
+_/_/                 |      http://www.aimcom.co.jp/minematu/ _/_/
+------------------------------------------------------------------ 
+
+<HR>
+</PRE>
+<A NAME="8">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Mon, 30 Sep 1996 14:27:54 +0900
+Subject: [postgres95 791] Re: pg95+MkLinux 
+Message-Id: &lt;199609300527.OAA10033@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;薬師神＠神戸大です．
+&gt;FreeBSD に Postgres95 を入れてます．
+&gt;
+&gt;&lt;199609260818.RAA23099@srashc.sra.co.jp&gt;において
+&gt;1996年09月26日(木)，石井さんは書きました。
+&gt;
+&gt;  | P.S. MkLinux をインストールしたディスクを１週間後には他の目的に転用し
+&gt;  | なければならないので、この世界初(?)の pg95+MkLinux は後１週間で消滅し
+&gt;  | てしまいます。
+&gt;
+&gt;今度，PowerMac に MkLinux DR2 を入れて，そこで世界
+&gt;2番目(?)の pg95+MkLinux を動かしてみようと思ってい
+&gt;ます．
+&gt;
+&gt;その際，石井さんが施した修正を参考にさせて頂きたい
+&gt;のですが，よろしければパッチを公開してもらえないで
+&gt;しょうか？
+
+せっかくですから、1.07 ベースのパッチを作りました。jp patch とはコンフ
+リクトしないと思いますが、一応 original の 1.07 に直接当てることを想定
+したパッチです。src ではなく、そのひとつ上の postgres95 のディレクトリ
+があるレベルでパッチを当てて下さい。
+
+o port name は &quot;mklinux&quot; として下さい
+o 前にも言ったように dynamic loading の機能は使えません。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+----------------------- cut here ------------------------
+diff -c -r -N -C 2 postgres95.orig/src/backend/port/mklinux/Makefile.inc postgres95/src/backend/port/mklinux/Makefile.inc
+*** postgres95.orig/src/backend/port/mklinux/Makefile.inc	Wed Dec 31 19:00:00 1969
+--- postgres95/src/backend/port/mklinux/Makefile.inc	Mon Sep 30 01:12:56 1996
+***************
+*** 0 ****
+--- 1,36 ----
++ #-------------------------------------------------------------------------
++ #
++ # Makefile.inc--
++ #    Makefile for port/linux (Linux specific stuff)
++ #
++ # Copyright (c) 1994, Regents of the University of California
++ #
++ #
++ # IDENTIFICATION
++ #    $Header: /usr/local/cvsroot/postgres95/src/backend/port/linux/Makefile.inc,v 1.1.1.1 1996/07/09 06:21:44 scrappy Exp $
++ #
++ # NOTES
++ #    The Linux port is included here by courtesy of Kai Petzke.
++ #
++ #    (C) 1994, Kai Petzke, wpp@marie.physik.tu-berlin.de
++ #
++ #-------------------------------------------------------------------------
++ 
++ #
++ # linux has fast linkers and don't need the BIGOBJ stuff.
++ #
++ BIGOBJS= false
++ 
++ 
++ ifdef LINUX_ELF
++ CC=gcc
++ LDADD+= -ldl
++ CFLAGS+= -DLINUX_ELF
++ else
++ #LDADD+= -ldld
++ SUBSRCS+= dynloader.c
++ endif
++ 
++ HEADERS+= machine.h port-protos.h
++ CFLAGS+= -DNEED_CBRT
++ 
+diff -c -r -N -C 2 postgres95.orig/src/backend/port/mklinux/dynloader.c postgres95/src/backend/port/mklinux/dynloader.c
+*** postgres95.orig/src/backend/port/mklinux/dynloader.c	Wed Dec 31 19:00:00 1969
+--- postgres95/src/backend/port/mklinux/dynloader.c	Mon Sep 30 01:12:56 1996
+***************
+*** 0 ****
+--- 1,104 ----
++ /*-------------------------------------------------------------------------
++  *
++  * dynloader.c--
++  *    Dynamic Loader for Postgres for Linux, generated from those for
++  *    Ultrix.
++  *
++  *    You need to install the dld library on your Linux system!
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  *
++  * IDENTIFICATION
++  *    $Header: /usr/local/cvsroot/postgres95/src/backend/port/linux/dynloader.c,v 1.1.1.1 1996/07/09 06:21:44 scrappy Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #include &lt;stdio.h&gt;
++ #if !defined(PORTNAME_mklinux)
++ #include &lt;dld.h&gt;
++ #endif
++ #include &quot;postgres.h&quot;
++ #include &quot;port-protos.h&quot;
++ #include &quot;utils/elog.h&quot;
++ #include &quot;fmgr.h&quot;
++ 
++ extern char pg_pathname[];
++ 
++ void *
++ pg_dlopen(char *filename)
++ {
++ #if defined(PORTNAME_mklinux)
++   elog(WARN, &quot;dynamic load not supported&quot;);
++   return(NULL);
++ #else
++     static int dl_initialized= 0;
++ 
++     /*
++      * initializes the dynamic loader with the executable's pathname.
++      * (only needs to do this the first time pg_dlopen is called.)
++      */
++     if (!dl_initialized) {
++         if (dld_init (dld_find_executable (pg_pathname))) {
++ 	    return NULL;
++ 	}
++ 	/*
++ 	 * if there are undefined symbols, we want dl to search from the
++ 	 * following libraries also.
++ 	 */
++ 	dl_initialized= 1;
++     }
++ 
++     /*
++      * link the file, then check for undefined symbols!
++      */
++     if (dld_link(filename)) {
++ 	return NULL;
++     }
++ 
++     /*
++      * If undefined symbols: try to link with the C and math libraries!
++      * This could be smarter, if the dynamic linker was able to handle
++      * shared libs!
++      */
++     if(dld_undefined_sym_count &gt; 0) {
++ 	if (dld_link(&quot;/usr/lib/libc.a&quot;)) {
++ 	    elog(NOTICE, &quot;dld: Cannot link C library!&quot;);
++ 	    return NULL;
++ 	}
++ 	if(dld_undefined_sym_count &gt; 0) {
++ 	    if (dld_link(&quot;/usr/lib/libm.a&quot;)) {
++ 		elog(NOTICE, &quot;dld: Cannot link math library!&quot;);
++ 		return NULL;
++ 	    }
++ 	    if(dld_undefined_sym_count &gt; 0) {
++ 		int count = dld_undefined_sym_count;
++ 		char **list= dld_list_undefined_sym();
++ 
++ 		/* list the undefined symbols, if any */
++ 		elog(NOTICE, &quot;dld: Undefined:&quot;);
++ 		do {
++ 		    elog(NOTICE, &quot;  %s&quot;, *list);
++ 		    list++;
++ 		    count--;
++ 		} while(count &gt; 0);
++ 
++ 		dld_unlink_by_file(filename, 1);
++ 		return NULL;
++ 	    }
++ 	}
++     }
++ 
++     return (void *) strdup(filename);
++ #endif
++ }
++ 
++ char *
++ pg_dlerror()
++ {
++ #if defined(PORTNAME_mklinux)
++   return(&quot;dynaloader unspported&quot;);
++ #else
++     return dld_strerror(dld_errno);
++ #endif
++ }
+diff -c -r -N -C 2 postgres95.orig/src/backend/port/mklinux/machine.h postgres95/src/backend/port/mklinux/machine.h
+*** postgres95.orig/src/backend/port/mklinux/machine.h	Wed Dec 31 19:00:00 1969
+--- postgres95/src/backend/port/mklinux/machine.h	Mon Sep 30 01:12:56 1996
+***************
+*** 0 ****
+--- 1,18 ----
++ /*-------------------------------------------------------------------------
++  *
++  * machine.h--
++  *    
++  *
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  * $Id: machine.h,v 1.1.1.1 1996/07/09 06:21:44 scrappy Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #ifndef MACHINE_H
++ #define MACHINE_H
++ 
++ #define BLCKSZ	8192
++ 
++ #endif
+diff -c -r -N -C 2 postgres95.orig/src/backend/port/mklinux/port-protos.h postgres95/src/backend/port/mklinux/port-protos.h
+*** postgres95.orig/src/backend/port/mklinux/port-protos.h	Wed Dec 31 19:00:00 1969
+--- postgres95/src/backend/port/mklinux/port-protos.h	Mon Sep 30 01:12:56 1996
+***************
+*** 0 ****
+--- 1,37 ----
++ /*-------------------------------------------------------------------------
++  *
++  * port-protos.h--
++  *    port-specific prototypes for SunOS 4
++  *
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  * $Id: port-protos.h,v 1.1.1.1 1996/07/09 06:21:44 scrappy Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
++ #ifndef PORT_PROTOS_H
++ #define PORT_PROTOS_H
++ 
++ #include &quot;fmgr.h&quot;			/* for func_ptr */
++ #include &quot;utils/dynamic_loader.h&quot;
++ #ifdef LINUX_ELF
++ #include &quot;dlfcn.h&quot;
++ #endif
++ 
++ /* dynloader.c */
++ 
++ #ifndef LINUX_ELF
++ #define pg_dlsym(handle, funcname)	(NULL)
++ #define pg_dlclose(handle)		({})
++ #else
++ /* #define	pg_dlopen(f)	dlopen(f, 1) */
++ #define	pg_dlopen(f)	dlopen(f, 2)
++ #define	pg_dlsym	dlsym
++ #define	pg_dlclose	dlclose
++ #define	pg_dlerror	dlerror
++ #endif
++ 
++ /* port.c */
++ 
++ #endif /* PORT_PROTOS_H */
+diff -c -r -N -C 2 postgres95.orig/src/backend/port/mklinux/port.c postgres95/src/backend/port/mklinux/port.c
+*** postgres95.orig/src/backend/port/mklinux/port.c	Wed Dec 31 19:00:00 1969
+--- postgres95/src/backend/port/mklinux/port.c	Mon Sep 30 01:12:56 1996
+***************
+*** 0 ****
+--- 1,13 ----
++ /*-------------------------------------------------------------------------
++  *
++  * port.c--
++  *    Linux-specific routines
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  *
++  * IDENTIFICATION
++  *    $Header: /usr/local/cvsroot/postgres95/src/backend/port/linux/port.c,v 1.1.1.1 1996/07/09 06:21:44 scrappy Exp $
++  *
++  *-------------------------------------------------------------------------
++  */
+diff -c -r -N -C 2 postgres95.orig/src/backend/utils/adt/misc.c postgres95/src/backend/utils/adt/misc.c
+*** postgres95.orig/src/backend/utils/adt/misc.c	Mon Jul 22 17:56:02 1996
+--- postgres95/src/backend/utils/adt/misc.c	Mon Sep 30 01:15:00 1996
+***************
+*** 23,27 ****
+      !defined(PORTNAME_bsdi_2_1) &amp;&amp; \
+      !defined(PORTNAME_irix5) &amp;&amp; \
+!     !defined(PORTNAME_linux)
+  extern int random();
+  extern int srandom(unsigned);
+--- 23,28 ----
+      !defined(PORTNAME_bsdi_2_1) &amp;&amp; \
+      !defined(PORTNAME_irix5) &amp;&amp; \
+!     !defined(PORTNAME_linux) &amp;&amp; \
+!     !defined(PORTNAME_mklinux) 
+  extern int random();
+  extern int srandom(unsigned);
+diff -c -r -N -C 2 postgres95.orig/src/mk/port/postgres.mk.mklinux postgres95/src/mk/port/postgres.mk.mklinux
+*** postgres95.orig/src/mk/port/postgres.mk.mklinux	Wed Dec 31 19:00:00 1969
+--- postgres95/src/mk/port/postgres.mk.mklinux	Mon Sep 30 01:11:52 1996
+***************
+*** 0 ****
+--- 1,54 ----
++ #-------------------------------------------------------------------------
++ #
++ # postgres.mk.linux--
++ #    Intel x86/Linux specific rules and variables
++ #
++ # Copyright (c) 1994-5, Regents of the University of California
++ #
++ #    $Id: postgres.mk.linux,v 1.1.1.1 1996/07/09 06:22:20 scrappy Exp $
++ #
++ # NOTE
++ #    you may remove lines that start with ## which are general comments
++ #-------------------------------------------------------------------------
++ ifndef MK_PORT
++ MK_PORT=	mklinux
++ 
++ # Comment the following flag if you're not using Linux ELF
++ #LINUX_ELF = 1
++ 
++ ifndef LINUX_ELF
++ RANLIB=		ranlib
++ SLSUFF=		.o
++ else
++ RANLIB=		ranlib
++ SLSUFF=		.so
++ LDFLAGS+=	-rdynamic
++ endif
++ INSTALL=	install
++ MK_NO_LORDER=	true
++ 
++ # use the regex library
++ USE_REGEX = 1
++ 
++ #
++ # for postgres.user.mk
++ #
++ #CFLAGS_SL=	-fPIC
++ CFLAGS_SL=	-fpic
++ %.so:  %.o
++ 	cd $(objdir); $(CC) -shared -o $(@F) $(&lt;F)
++ 
++ #
++ # for postgres.mk
++ #
++ CFLAGS_OPT=	-O2 -pipe
++ 
++ # The Linux gnulib #defines the problem away for you and calls 
++ # the BSD routines if you give it the right flags.
++ CFLAGS_BE= -D__USE_BSD -D__USE_BSD_SIGNAL
++ LDADD_BE= -lbsd
++ 
++ LEX = flex
++ #YACC = bison -y
++ 
++ endif
+<HR>
+</PRE>
+<A NAME="7">
+<PRE><B>
+From: Tanaka Minoru &lt;green@keiken.co.jp&gt;
+Date: Mon, 30 Sep 1996 13:44:06 +0900
+Subject: [postgres95 790] Re: manual-jp
+Message-Id: &lt;9609300444.AA00945@onbashira&gt;
+</A>
+</B></PRE>
+<PRE>
+
+田仲＠ケイケンです。
+
+すでに pg95doc への勧誘はされてるようなので、ちょっとだけ。
+
+Akio Tokaji &lt;tokaji@db.nm.fujitsu.co.jp&gt;さん：
+tokaji&gt; 戸梶＠富士通です。
+...
+tokaji&gt; |    Aggregates ：集合？ データベースの専門用語だと思う。
+tokaji&gt; 
+tokaji&gt; Aggregate というのは、多分、SUM とか AVG などによる集計のことを指して
+tokaji&gt; いると思います。「集計機能(関数)」という訳が良いかもしれません。
+
+後の方では、「集約関数」と訳しています。私も集計関数という訳
+が普通だとは思います。が、postgres95の場合は「各レコードを見
+て、内部状態を変更していき、最後に結果を表示する関数」が 
+Aggregate なのだ、という感じでして、必ずしも算術的な集計だけ
+が対象では無いようです。
+
+たとえば、「名前の頭文字を結合した文字列を作る(意味がないな
+あ)」とか、「選択したレコード全体のチェックサムを求める(これ
+も集計の一種？)」とかいう関数を、拡張として加えることができ
+ます(と思います、たぶん ^_^;)。こういうものも「集計」だ、と
+言えなくもないですが、「集約関数」の方が、より包括的かなあ、
+と思ったのでした。
+
+ここらへんは postgres95 の拡張指向をどう汲み取るかが、なかな
+か難しいですね。
+
+＃ 超ローカル話： 金箱さんとは御近所ですね。こちらは釜飯のお
+＃ ぎのやが見えるところに居ます。
+-
+田仲 稔 (Tanaka Minoru)  （株）ケイケンエンジニアリングシステム 諏訪支社
+<HR>
+</PRE>
+<A NAME="6">
+<PRE><B>
+From: kane@gb.sankyoseiki.co.jp (Hideki Kanebako)
+Date: Mon, 30 Sep 1996 13:47:09 +0900 (JST)
+Subject: [postgres95 789] Re: manual-jp 
+Message-Id: &lt;199609300447.NAA14042@inetgw.gb.sankyoseiki.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+金箱です。
+
+私のつたない和訳に多くの方のコメントを頂きありがとうございました。
+
+&lt;199609300347.MAA01624@srashc.sra.co.jp&gt;の記事において
+t-ishii@sra.co.jpさんは書きました。
+
+&gt;&gt; 石井です。
+&gt;&gt; 
+&gt;&gt; &gt;桑村です。
+&gt;&gt; &gt;
+&gt;&gt; &gt;&gt; 戸梶＠富士通です。
+&gt;&gt; &gt;&gt; 
+&gt;&gt; &gt;&gt; |コメント：
+&gt;&gt; &gt;&gt; |    Aggregates ：集合？ データベースの専門用語だと思う。
+&gt;&gt; &gt;&gt; 
+&gt;&gt; &gt;&gt; Aggregate というのは、多分、SUM とか AVG などによる集計のことを指して
+&gt;&gt; &gt;&gt; いると思います。「集計機能(関数)」という訳が良いかもしれません。
+&gt;&gt; &gt;
+&gt;&gt; &gt;  集約関数はだめですか？
+&gt;&gt; 
+&gt;&gt; 先日紹介したSQL の本でも「集計関数(aggregate functions)」となっていま
+&gt;&gt; したから、こちらの方が一般的なようですね。
+&gt;&gt; 
+&gt;&gt; &gt;  金箱＠三協精機さん、戸梶＠富士通さん。是非、pg95doc の方にも参加して
+&gt;&gt; &gt;下さい。マニュアルページの翻訳も控えています。
+
+お役にたてるかどうか分かりませんが参加させて頂きます。
+
+とりあえず、pg95doc へ subscribe を出しておきます。
+
+
+--
+Hideki Kanebako,   SANKYO SEIKI MFG. CO., LTD. NAGANO, JAPAN
+Office: kane@gb.sankyoseiki.co.jp
+Home:   kane@kane.shimosuwa.nagano.jp
+	kane@st.rim.or.jp
+        gga02061@niftyserve.or.jp
+<HR>
+</PRE>
+<A NAME="5">
+<PRE><B>
+From: 大黒洋史  &lt;daikoku@ulysses.lang2.bs1.fc.nec.co.jp&gt;
+Date: Mon, 30 Sep 1996 13:48:07 +0900
+Subject: [postgres95 788] みなさんはじめまして
+Message-Id: &lt;199609300448.NAA05768@ulysses.lang2.bs1.fc.nec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みなさん初めまして、大黒と申します。
+
+職場で、バグ票を管理しようと思いpostgres95を利用させてもらっ
+ています。
+
+ところで、私の机上のマシンは、EWS4800/350で、EWS-UX/V(Rel4.2)
+R9.4なのですが、１。０６が動いています。
+＃１。０７は時間が無くていれていません。
+
+みなさんのメールをWWWで拝見しておりまして、４８００上では
+なかなかうまく行かないようなので、情報提供できるのではないか
+と思い出てまいりました。
+
+ところで、４８００上でも問題点はdlopenだけでしょうか？
+
+----------------------------------------------------
+No news is              ＮＥＣ    大黒洋史(だいこく)
+     good news        daikoku@lang2.bs1.fc.nec.co.jp
+                  or  daikoku@ca2.so-net.or.jp
+----------------------------------------------------
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: Hiroyuki Hanai &lt;hanai@astec.co.jp&gt;
+Date: Mon, 30 Sep 1996 13:41:16 +0900
+Subject: [postgres95 787] Re: SQL book 
+Message-Id: &lt;199609300441.NAA00279@astec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+はないです
+
+石井さん:
+&gt; &gt;意味不明の訳がちらほらとあったりしませんか？
+&gt; 
+&gt; まあ、この手の本はそんなもんだとあきらめています。
+
+そうですねぇ。仕方ないですねぇ。
+
+はださん:
+&gt; さすが www.clbooks.com つーことで 発見しました。
+&gt;  Instockなので 注文すれば１週間もあれば手にはいりますね。
+
+おぉ、すばらしい！！
+
+でも……
+
+&gt; PRICE  : $  39.95
+
+日本語版が 3,900円 だから、原書の方が高い？？
+
+もうちょっと SQL の修行を積んでから買うことにしよう。
+
+-----はない％なぜか今は Sybase 使っております
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: Hisakazu Hada &lt;hisaka-h@is.aist-nara.ac.jp&gt;
+Date: Tue, 01 Oct 1996 13:01:10 +0900
+Subject: [postgres95 786] Re: SQL book 
+Message-Id: &lt;199610010401.EAA09638@onyx8.aist-nara.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Subject: [postgres95 783] Re: SQL book 
+Date: Mon, 30 Sep 1996 12:29:42 +0900
+
+&gt; 石井です。
+&gt; 
+&gt; &gt;はないです
+&gt; &gt;
+&gt; &gt;石井さん:
+&gt; &gt;&gt; 「プログラマのためのSQL」(原題：&quot;JOE CELKO'S SQL FOR SMARTIES:
+&gt; &gt;&gt; ADVANCED SQL PROGRAMMING&quot;)トッパン:￥3900：414ページ
+&gt; 
+&gt; &gt;ちょっとだけしか読んでませんが、内容は面白そうですね。
+&gt; &gt;でも……
+&gt; &gt;意味不明の訳がちらほらとあったりしませんか？
+&gt; 
+&gt; まあ、この手の本はそんなもんだとあきらめています。
+&gt; 
+&gt; &gt;出来れば原書を読んでみたいものですが、どなたか原書を見つけた方、いませんか？
+&gt; &gt;秋葉原の「書泉ブックタワー」には原書は無いみたいでした。
+&gt; 
+&gt; www.book.com にも無かったですね。
+
+さすが www.clbooks.com つーことで 発見しました。
+ Instockなので 注文すれば１週間もあれば手にはいりますね。
+
+- はだひさかず／ならせんたんかがくぎじゅつだいがくいんだいがく
+		じょうほうねっとわーくこうざ
+
+-- 以下、WWWより。
+
+TITLE  : SQL F SMARTIES:ADVANCED SQL PROGRAMMG    [  1.0 ed]
+AUTHOR : CELKO
+ORDER# : DZ685530
+ISBN # : 1558603239
+PUB BY : MORGAN-KAUFMANN PUBLISHERS
+YEAR   : May 1995
+SUBJECT: SQL (STRUCTURED QUERY LANGUAGE)
+PRICE  : $  39.95
+STOCK  : IN STOCK at San Jose
+         LOW STOCK at Tyson's Corner
+
+Book Review:
+
+----------------------------------------------------------------------------
+Written in a casual conversational style, this book is definitely geared
+towards the experienced SQL programmer who is looking to learn advanced
+programming tips and techniques. The author not only discusses SQL-89
+features, but also SQL-92, including information on how it is currently
+being implemented in database products. Topics discussed include SQL
+datatypes, NULL's, the SELECT statement, VIEWs, data design, and all kinds
+of difficult queries. The tips and techniques presented are not product
+specific, so that programmers can get the most out of any system.
+
+[ BACK TO HOME PAGE ]
+
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Mon, 30 Sep 1996 12:47:31 +0900
+Subject: [postgres95 785] Re: manual-jp 
+Message-Id: &lt;199609300347.MAA01624@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;桑村です。
+&gt;
+&gt;&gt; 戸梶＠富士通です。
+&gt;&gt; 
+&gt;&gt; |コメント：
+&gt;&gt; |    Aggregates ：集合？ データベースの専門用語だと思う。
+&gt;&gt; 
+&gt;&gt; Aggregate というのは、多分、SUM とか AVG などによる集計のことを指して
+&gt;&gt; いると思います。「集計機能(関数)」という訳が良いかもしれません。
+&gt;
+&gt;  集約関数はだめですか？
+
+先日紹介したSQL の本でも「集計関数(aggregate functions)」となっていま
+したから、こちらの方が一般的なようですね。
+
+&gt;  金箱＠三協精機さん、戸梶＠富士通さん。是非、pg95doc の方にも参加して
+&gt;下さい。マニュアルページの翻訳も控えています。
+&gt;
+&gt;	pg95doc@sramhe.sra.co.jp 
+&gt;
+&gt;にメールを出せば良いのでしたっけ？＞石井＠SRAさん
+
+といきなり言われてもびっくりするでしょうから:-)背景をちょっと説明しま
+すと、以前以下のように postgres95 のドキュメントを日本語化するプロジェ
+クトの立ち上げを呼びかけたところ、桑村さんをはじめ、多数の方々が参加し
+て下さいました。そしてそこでメンバの連絡用に立ちあげたのが pg95doc と
+いう ML です。現在、ご存知のようにこのプロジェクトの成果として、
+&quot;postgres95 user manual (J) beta 1.0 release&quot; があるわけですが、現在も
+内容の brush up が続いております。近々次のバージョンを公開できると思い
+ます。また、今後はリファレンスマニュアルの翻訳を行なう予定です。
+
+というわけで、御協力頂ける方は、
+
+	majordomo@sramhe.sra.co.jp
+
+あてに、&quot;subscribe pg95doc&quot; とだけ本文に１行書いたメールをお送り下さい
+（サブジェクトいりません）。あるいは、postgres95(J)ML で手を上げて下さっ
+ても結構です。
+
+&gt;Subject: [postgres95 457] Japanese pg95 document
+&gt;Errors-To: owner-postgres95@sramhe.sra.co.jp
+&gt;Sender: owner-postgres95@sramhe.sra.co.jp
+&gt;
+&gt;石井＠SRAです。
+&gt;
+&gt;pg95-1.01 になってからようやくマニュアルが pg95 用になりましたが、これ
+&gt;の日本語版のニーズってどの位でしょうか？もしかなり需要があるようでした
+&gt;ら、日本語訳をやってみようかなと思っています。（どの位の期間でできるか
+&gt;は分かりませんが）
+&gt;
+&gt;また、そういうプロジェクトがあるなら是非協力したい、という方はいらっしゃ
+&gt;いますか？
+&gt;--
+&gt;t-ishii@sra.co.jp	石井達夫
+&gt;（株）ＳＲＡ
+&gt;
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Mon, 30 Sep 1996 12:33:09 +0900
+Subject: [postgres95 784] Re: Large object 
+Message-Id: &lt;199609300333.MAA00498@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;田仲＠ケイケンです。
+&gt;
+&gt;これだけじゃ、なんなんで empress という市販のRDBMSの似たよう
+&gt;なものの仕様を書いておきます。(つーか、当然、推測した仕様です)
+&gt;
+&gt;empress の場合、テーブル毎にひとつファイルがあり、そこに不定
+&gt;長の属性があるときは属性毎に「オーバーフローファイル」があり
+&gt;ます。不定長属性を定義するときにはパラメータとして、
+&gt;
+&gt;	selectで表示する時の1行のバイト数
+&gt;	メインファイルに格納するバイト数
+&gt;	オーバーフローファイルに格納する1レコードのバイト数
+&gt;	メインファイルから直接参照できるオーバーフローファイルのレコード数
+&gt;
+&gt;を指定します。(最後のやつは今ひとつ理解できてません)
+&gt;
+&gt;で、insertすると最初の部分がメインファイルに入ります。そして
+&gt;ハミ出た部分は固定長レコードのオーバーフローファイルに入りま
+&gt;す。データ長と開始レコードはメインファイル側に記録してあるよ
+&gt;うです。オーバーフローファイルでのデータの扱いですが、
+
+昔、こういう機能を持った DBMS もどきを作ったことがあります。みんな同じ
+ことを考えるものですね。
+
+ところで、
+	select hoge from foo;
+
+なんてやって、hoge がバイナリのカラムだとどうなるんでしょう？また、
+hoge を insert するのは？
+やっぱ postgres95 みたいにファイルに入れたり出したりするんでしょうか？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Mon, 30 Sep 1996 12:29:42 +0900
+Subject: [postgres95 783] Re: SQL book 
+Message-Id: &lt;199609300329.MAA00133@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;はないです
+&gt;
+&gt;石井さん:
+&gt;&gt; 「プログラマのためのSQL」(原題：&quot;JOE CELKO'S SQL FOR SMARTIES:
+&gt;&gt; ADVANCED SQL PROGRAMMING&quot;)トッパン:￥3900：414ページ
+
+&gt;ちょっとだけしか読んでませんが、内容は面白そうですね。
+&gt;でも……
+&gt;意味不明の訳がちらほらとあったりしませんか？
+
+まあ、この手の本はそんなもんだとあきらめています。
+
+&gt;出来れば原書を読んでみたいものですが、どなたか原書を見つけた方、いませんか？
+&gt;秋葉原の「書泉ブックタワー」には原書は無いみたいでした。
+
+www.book.com にも無かったですね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>

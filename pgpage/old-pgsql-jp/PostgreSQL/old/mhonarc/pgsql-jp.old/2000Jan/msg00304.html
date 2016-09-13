@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12760] Re: はじめまして。PL/pgSQLのインストールが出来ません。 -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Fri, 21 Jan 2000 19:12:36 +0900 -->
+<!--X-Message-Id: v04010113b4ade17e73f4@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010110b4adc2030fe8@str.hitachi.co.jp -->
+<!--X-Reference-Id: 000501bf63e7$6f8b0440$6901a8c0@nbsystem.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12760] Re: はじめまして。PL/pgSQLのインストールが出来ません。 </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00303.html">Date Prev</A>][<A HREF="msg00305.html">Date Next</A>][<A HREF="msg00302.html">Thread Prev</A>][<A HREF="msg00321.html">Thread Next</A>][<A HREF="index.html#00304">Date Index</A>][<A HREF="threads.html#00304">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12760] Re: はじめまして。PL/pgSQLのインストールが出来ません。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 Jan 2000 19:12:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00301.html">v04010110b4adc2030fe8@str.hitachi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+At 17:13 +0900 2000.01.21, 芋野 一男 wrote:
+&gt; 余りに早いご返事に驚いています。ありがとうございます。
+&gt; 確かに必要な情報が漏れていました。失礼しました。
+&gt; LASER5 Linux 6.0
+&gt; PostgreSQL 6.5.3
+&gt; コンパイル自体はシーラカンス本の通りで何も問題はありません
+&gt; でした。
+&gt; ご指摘の VACUUM もやってみましたが変化ありません。
+&gt; 一度エラーメッセージで過去ログを検索してみます。
+&gt; PL/pgSQL では検索してみたのですが....
+
+で、こちらでもいろいろ調査というか、過去記事を見てみました。
+結局の所、バックエンドが落ちる理由は沢山あるので、
+いろいろやってみて下さい、、、くらいしか言い様がないです。
+すごくきたないメモを下記に付けますので、そのあたりの記事も
+ちょっと見て下さい。下から読んでいくといいかも。
+
+■ pqReadData() -- backend closed the channel unexpectedly.
+
+・「[pgsql-jp 10170] Re: pqReadData()のエラー」より
+いろいろ試してみたのですが、コンパイラやvacuum等では解決せず、
+postmasterの起動時に -B （バッファ数）を付け加えればエラーの起こる回数は
+極端に減りました。（以前はデフォルトのままでした）
+
+  su - postgres -c "$POSTGRESDIR/bin/postmaster -S -i -D $POSTGRESDIR/data
+  -B 2000"
+
+(続きはログ参照)
+
+・「[pgsql-jp 9164] select文でgroup関数結果に対して副問い合わせをしたいのですが。」
+(ログ参照)
+
+・「[pgsql-jp 8527] joinの際pgReadDataでError」
+　「[pgsql-jp 8530] Re: joinの際pgReadDataでError」で、
+　vacuum を実行したら、おちなくなった、とのこと。
+　しかし、境田さんより
+&gt;　「vacuumを実行しなければエラーで落ちる」ことはありません
+&gt;（あってはいけません）ので、今回のエラーの原因は別の所にあ
+&gt;ると思います。
+　ということで、原因は別のところかな。
+　
+・「[pgsql-jp 8544] Re: pgReadData() Error. 」
+　石井さんより。
+&gt; pqReadData() -- backend closed the channel unexpectedly.
+&gt; This probably means the backend terminated abnormally before or
+&gt;  while processing the request.
+&gt; We have lost the connection to the backend, so further processing
+&gt;  is impossible.
+&gt; Terminating.
+
+これはバックエンド(postgres)が死んだときに出る現象です。バックエンドが
+死ぬ原因は色々あるので、これだけでは問題を特定できません。
+とりあえず
+gdb /usr/local/pgsql/bin/postgres postgres.core
+where
+を実行した結果を見せて下さい。
+
+-&gt; その後
+1. 4/14のパッチがあたっているかどうか確認
+2. 一度インデックスを削除し、再び create index でインデックスを構築し
+て同じ現象が起こるかどうか確認
+
+
+・「[pgsql-jp 8575] Re: pgReadData() Error. 」
+結局、この解を得る前に、ド初心者的な判断で、pg_dump でバックアップを
+とった後に、バックアップから再構築したら直りました。
+
+--
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00321" HREF="msg00321.html">[pgsql-jp 12777] Re: [pgsql-jp 12760] Re: はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+<UL><LI><EM>From:</EM> 芋野　一男&lt;imono@nbsystem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00301" HREF="msg00301.html">[pgsql-jp 12757] Re: はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp 12758] Re: [pgsql-jp 12757] Re: はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+<UL><LI><EM>From:</EM> 芋野 一男&lt;imono@nbsystem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 12759] Re: octet_lengthとupper/lower</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 12761] 6.5.3 on FreeBSD 3.3-RELEASE</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00302.html">[pgsql-jp 12758] Re: [pgsql-jp 12757] Re: はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00321.html">[pgsql-jp 12777] Re: [pgsql-jp 12760] Re: はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00304"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00304"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

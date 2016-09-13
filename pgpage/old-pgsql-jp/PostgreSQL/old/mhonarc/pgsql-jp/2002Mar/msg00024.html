@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25047] Re: HDDサイズ -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Sat, 02 Mar 2002 00:58:33 +0900 -->
+<!--X-Message-Id: 3C7FA529.7AC349DA@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003c01c1ba85$33e5cf00$7d05d2a3@is.hitachizosen.co.jp -->
+<!--X-Reference-Id: 20020301.111355.106282895.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25047] Re: HDDサイズ </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00023.html">Date Prev</A>][<A HREF="msg00025.html">Date Next</A>][<A HREF="msg00001.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25047] Re: HDDサイズ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 02 Mar 2002 00:58:33 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;003c01c1ba85$33e5cf00$7d05d2a3@is.hitachizosen.co.jp&gt; &lt;<A HREF="msg00001.html">20020301.111355.106282895.sugita@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+sugita@sra.co.jp wrote:
+
+詳細な資料ありがとうございます。参考になります。
+
+.....snip....
+
+&gt;     フィールドが NULL 値かどうかを判断するNULL ビットマスクによって、NULL 値の
+&gt;     場合には値を格納する領域はタプル内に取られません。従って、ビットフラグが存
+&gt;     在し、すべてのフィールドについてタプル内に格納領域が必要として見積もりをす
+&gt;     るならば、実測値を下回る可能性は少なくなります。
+
+なるほど。こういう仕掛けになっているんですね。
+
+NULL の場合はデーター領域が節約できるのですね。
+私は、NULL 判定が面倒なので、特に支障がないか
+ぎり、NOT NULL DEFAULT 0 などとする方式なので
+すが、NULL が多い場合は DEFAULT にしないで、
+NULL 判定をした方がデータースペースの節約にな
+りそうですね。
+
+古い版ですが、Informix ONLINE 4.2 だと INTEGER 
+型の場合は特定の値を NULL だとする方式で、他に
+ビットはとらないけど、ESQL/C で読み込むと、NULL
+が integer(４バイト)の範囲内なのでちょっぴりや
+やこしいです。 
+
+....snip...
+
+&gt;     約 +10% の誤差があります。この誤差は、インデックスファイル内のインデックペー
+&gt;     ジが 100% 埋まることがないために発生します。
+
+PostgreSQL の Btree index  は、reindex か DROP/CREATE
+INDEX をしないと、インデックスサイズは増えていくと
+思いました。  キーの偏りで中身が少くなっても Btree
+node の自動再編成はしないはずですね。更新頻度が高い
+場合は、インデックス領域をかなり余分に見込んでおかな
+いといけなのではないでしょうか。
+
+
+&gt;     decimal                 圧縮 (サイズは値の桁数に依存)
+&gt;     numeric                 圧縮 (同上)
+
+やっぱり圧縮しているんですね。
+4 bit に十進数１桁が入る方式でしょうか？。
+# COBOL の PACK DECIMAL のような。
+
+
+&gt;     character(n)            圧縮
+&gt;     character varying(n)    圧縮
+&gt;     text                    圧縮
+
+text 型も圧縮しているとは知りませんでした。
+# 石井さんの本をちゃんと読んでいないのが
+# バレバレ (^^;;
+どんなアルゴリズムですか。オーバーへッドは
+どのくらいなんでしょう。
+
+..... snip ...
+
+&gt;     データベースのサイズは以下の要因により動的に変化します。
+&gt; 
+&gt;         1) 更新の頻度 (テーブルファイルとインデックスファイルに影響)
+&gt;         2) ソートを必要とするクエリーのワークファイル
+
+ソートや JOIN 用のワークエリアの見積りが一番難しい
+ですね。何か妙案はありませんでしょうか。
+
+&gt;         3) テンポラリテーブルの使用の有無
+&gt;         4) WAL ファイルサイズ
+&gt;         5) REINDEX のワークファイル
+&gt;         6) バックアップ領域などの付随的なワーク領域
+&gt; 
+&gt;     従って、静的なサイズの見積もりに加え、運用シナリオを作成し、実験を行ってディ
+&gt;     スク使用量を見積もります。特に 1) は PostgreSQL の追記型という特徴を反映し
+&gt;     た影響を受けるので、VACUUM の適用と合わせて運用設計を行います。
+
+やはり、運用を想定して実験し、運用状態をモニター
+しながら適宜対策するというのが結論でしょうか。
+
+... snip ...
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+  《 PostgreSQL+PHPソースコードジェネレーターデモＧＰＬ版 》
+           <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00001" HREF="msg00001.html">[pgsql-jp: 25025] Re: HDDサイズ</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp: 25046] Re: optimizerの動作</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp: 25048] Re: postgreSQL 7.2 とpgaccess</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00001.html">[pgsql-jp: 25025] Re: HDDサイズ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp: 25050] Re: HDDサイズ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

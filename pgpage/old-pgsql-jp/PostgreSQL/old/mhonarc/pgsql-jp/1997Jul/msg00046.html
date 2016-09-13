@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2123] Re: endian -->
+<!--X-From: 片岡裕生<kataoka@matsu.interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Mon, 07 Jul 1997 21:03:49 +0900 -->
+<!--X-Message-Id: 199707071203.VAA11337@matsu.interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199707051147.UAA17868@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2123] Re: endian </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@matsu.interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00045.html">Date Prev</A>][<A HREF="msg00047.html">Date Next</A>][<A HREF="msg00042.html">Thread Prev</A>][<A HREF="msg00035.html">Thread Next</A>][<A HREF="index.html#00046">Date Index</A>][<A HREF="threads.html#00046">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2123] Re: endian</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 片岡裕生&lt;<A HREF="mailto:kataoka@matsu.interwiz.koganei.tokyo.jp">kataoka@matsu.interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Jul 1997 21:03:49 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00042.html">199707051147.UAA17868@meshsv26.tk.mesh.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: t-ishii@sra.co.jp (Tatsuo Ishii)
+Subject: [pgsql-jp 2119] Re: endian
+Date: Sat, 5 Jul 1997 20:48:45 +1000
+Message-ID: &lt;<A HREF="msg00042.html">199707051147.UAA17868@meshsv26.tk.mesh.ad.jp</A>&gt;
+
+&gt; 石井＠ＳＲＡです。
+&gt; 
+&gt; At  1:29 AM 97.7.5 +0900, 片岡  裕生 wrote:
+&gt; &gt;遅くなりましたが、片岡＠インターウィズです。
+&gt; 
+&gt; &gt;早速その内容です。
+&gt; &gt;
+&gt; &gt;        Solaris 2.4/Pentium 160MHz/gcc 2.7.2(Little Endian)
+&gt; &gt;        Solaris 2.5.1/Sparc/gcc 2.7.2(Big Endian)
+&gt; 
+&gt; どうもありがとうございました。
+
+どういたしまして。
+
+（途中省略）
+
+&gt; ところで、PostODBC からみの話題ですが...
+&gt; 
+&gt; &gt;ところで、PostgreSQL の次のバージョンでは Postmaster ←→ クライアント
+&gt; &gt;間のバイトオーダーが変わるそうですが、本当でしょうか。
+&gt; 
+&gt; まだ決定ではないですが、その可能性が高いようです。多分移行時期だけの
+&gt; 問題でしょう。私は 6.2 でそうなるのだろうと思っていたのですが、
+&gt; もしかしたら、もっと早まって、6.1p1 で実現されるかも知れません。
+&gt;  
+&gt; &gt;確かに今の 
+&gt; &gt;PostgreSQL ではネットワークバイトオーダーとリトルエンディアンが混じっ
+&gt; &gt;たプロトコルなのでびっくりしましたが。
+&gt; 
+&gt; 本家のMLでも話題になっているので、ここを確認したいのですが,
+&gt; 私の理解では、
+&gt; 
+&gt; o 6.0 or それ以前では、PostgreSQLのプロトコルはLittle Endian であった
+&gt; o 6.1 ではバグのため、Little Endian のマシンでは Little Endian,
+&gt;   Big Endian のマシンでは Big Endian という状態になってしまった
+&gt; o endian.patch はこれを修正し、6.0 と同じ、すなわち Little Endian
+&gt;   にプロトコルを統一した
+
+だいたいその通りだと思いますが、一つおもしろい点を。
+
+PostgreSQLのプロトコルは、電文の内容を表すデータはすべて Little Endian 
+の様ですが、このデータを送受信する際に「パケット」という単位でラップし
+ています。ところが、この「パケット」の先頭の4バイト（パケット長）だけ
+がネットワークバイトオーダー（Big Endian）なのです。
+
+今回 6.1 で発生したバイトオーダー系のバグは、上記 Little Endian の部分
+で起きています。ネットワークバイトオーダーの所では（ntol系の関数を使用
+していたため）バグは発生していません。
+
+このため「パケット」の送受信はできていたので、Little Endian ←→ Big
+Endian のマシン間で、（バイナリ整数表現を使用していない）「コネクト」
+と「SQL の送信」はできるけど、（バイナリ整数表現を使用している、タップ
+ルが返却される場合などの）「リザルト」は受信できない、なんて変なバグに
+なってしまったようです。
+
+&gt; です。次に PostODBC ですが、これは 6.0 でも動いていたんですよね？
+&gt; すると、PostODBC はプロトコルとして Little Endian を想定していると。
+&gt; もしそうならば、
+&gt; 
+&gt; o PostODBC は original 6.1 の Big Endian マシンとは通信できない
+&gt; o しかし、endian.patch を当てた 6.1/Big Endian もしくは
+&gt;   patch があたってなくても Little Endian のマシンとならば通信できる
+&gt; 
+&gt; となるはずです。以上の理解で合っているでしょうか？
+
+全くその通りです。
+
+==================================================
+インターウィズ   &lt;staff@interwiz.koganei.tokyo.jp&gt;
+片岡　裕生     &lt;kataoka@interwiz.koganei.tokyo.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00042" HREF="msg00042.html">[pgsql-jp 2119] Re: endian</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 2122] Re: about install error</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00047.html">[pgsql-jp 2124] Re: about install error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00042.html">[pgsql-jp 2119] Re: endian</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00035.html">[pgsql-jp 2112] Re: pgsqp_perl5</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00046"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00046"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

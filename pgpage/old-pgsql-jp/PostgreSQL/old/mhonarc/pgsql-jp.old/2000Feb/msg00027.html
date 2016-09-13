@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12984] Re:テーブルのDeadlock -->
+<!--X-From: "N.Ogiso" <ogiso@use&#45;net.co.jp> -->
+<!--X-Date: Tue, 1 Feb 2000 15:47:24 +0900 -->
+<!--X-Message-Id: 019f01bf6c80$330f07e0$8fcf8dcb@usenet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200002010604.PAA02335@smtpb.mailbank.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12984] Re:テーブルのDeadlock </TITLE>
+<LINK REV="made" HREF="mailto:ogiso@use-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00026.html">Date Prev</A>][<A HREF="msg00028.html">Date Next</A>][<A HREF="msg00024.html">Thread Prev</A>][<A HREF="msg00028.html">Thread Next</A>][<A HREF="index.html#00027">Date Index</A>][<A HREF="threads.html#00027">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12984] Re:テーブルのDeadlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "N.Ogiso" &lt;<A HREF="mailto:ogiso@use-net.co.jp">ogiso@use-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 1 Feb 2000 15:47:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00024.html">200002010604.PAA02335@smtpb.mailbank.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。
+
+&gt; テストバージョンの時にはLOCKを使っていたのですが、
+&gt; プログラム処理中にブラウザを切ってしまうと
+
+これは理由が良く分かりませんね。ブラウザを突然切った
+としても Apache の方では突然セッションが終了してしまう
+訳ではないはずですので、そのページの PHP のコードは
+最後まで実行されると思うのですが。
+
+
+&gt; (もしくは送信中のクリック連打による2重送信)、
+&gt; LOCKがいつまでも切れない、というような状況が出てきました。
+
+こちらは、連打により同時に複数のプロセスが実行されたことで、
+プロセス間でのデッドロックが起きてしまったのでしょう。
+
+
+&gt; なので恐くなって外してしまいました。
+&gt; この時も、begin〜endの中でLockしてSELECT文を入れていたのですが、
+&gt; やはりSELECT文はbegin〜endの外に出しておくべきなのでしょうか？
+snip....
+
+&gt; INSERTとUPDATEは、このプログラムからしか行われません。
+&gt; が、SELECTは他からも行われます。
+&gt; これでDeadlockがかかってしまったのでしょうか。
+
+LOCK はむしろ有効に利用した方が良いです。
+例えば先の
+
+Process1            |      Process2
+------------------------------
+BEGIN                |   BIGIN
+LOCK TableA      |   LOCK TableB
+SELECT TableB   |   SELECT TableA
+UPDATE TableA   |   UPDATE TableB
+END                   |   END
+
+は
+
+Process1            |      Process2
+------------------------------
+BEGIN                |   BIGIN
+LOCK TableA      |   LOCK TableA
+LOCK TableB      |   LOCK TableB
+SELECT TableB   |   SELECT TableA
+UPDATE TableA   |   UPDATE TableB
+END                   |   END
+
+の様に SELECT より前に明示的に排他ロックしてしまえば
+デッドロックを回避できます。これはどちらの Process も A → B
+の順番で LOCK を掛けるところがミソですね。
+
+また次の様なパターンでもデッドロックは発生します。
+
+Process1            |      Process2
+------------------------------------
+BEGIN                |   SELECT TableA, TableB
+LOCK TableA      |
+LOCK TableB      |
+UPDATE TableA   |
+UPDATE TableB   |
+END                   |
+
+Process2 の SELECT が内部的に TableA と TableB の両方を
+共有ロックしますが、このロック順は不定になってしまいます。
+その結果、ロック順によっては一つ上のデッドロックと同じ現象に
+なることがあります。これも明示的に排他ロックを掛けることで
+デッドロックを回避できます。
+
+Process1            |      Process2
+------------------------------------
+BEGIN                |   BIGIN
+LOCK TableA      |   LOCK TableA
+LOCK TableB      |   LOCK TableB
+UPDATE TableA   |  SELECT TableA, TableB
+UPDATE TableB   |   END
+END                   |
+
+という具合です。
+
+---
+おぎそ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00024" HREF="msg00024.html">[pgsql-jp 12981] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> Shinichi Fukuda &lt;shinf@ma.mailbank.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 12983] RE: [pgsql-jp 12979] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 12985] Re: Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00024.html">[pgsql-jp 12981] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 12985] Re: Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00027"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00027"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

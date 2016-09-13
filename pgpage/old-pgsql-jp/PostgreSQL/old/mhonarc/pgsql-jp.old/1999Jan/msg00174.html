@@ -1,0 +1,272 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6587] Re: JDBC driver multi&#45;byte patch for pg6.4 (19981214) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 12 Jan 1999 12:04:33 +0900 -->
+<!--X-Message-Id: 199901120304.MAA03729@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990112092016S.mochid@tpj.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6587] Re: JDBC driver multi-byte patch for pg6.4 (19981214) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00173.html">Date Prev</A>][<A HREF="msg00175.html">Date Next</A>][<A HREF="msg00172.html">Thread Prev</A>][<A HREF="msg00176.html">Thread Next</A>][<A HREF="index.html#00174">Date Index</A>][<A HREF="threads.html#00174">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6587] Re: JDBC driver multi-byte patch for pg6.4 (19981214)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 12 Jan 1999 12:04:33 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。お手数かけます。
+
+&gt;持田です。
+&gt;
+&gt;持田&gt; で 2 種類の postgresql.jar を試してみていただけないでしょうか。
+&gt;
+&gt;&gt; LANG=japanese+original JDBC driver	→正常
+&gt;&gt; LANG=C+original JDBC driver	→日本語は全く表示されず
+&gt;&gt; LANG=C+パッチあり JDBC driver	→文字化け(黒い■)
+&gt;
+&gt; んー、わかんないっすー。ということで、申し訳ないんですが、
+&gt;もう一つやってみていただけないでしょうか。
+
+なんかJDBC以前の問題のような気がして来ました。たとえば、
+
+public class test {
+  public static void main (String arg[]) {
+    String s = "白菜";
+    System.out.println(s);
+  }
+}
+
+こんなプログラムを LANG=C で実行すると、
+
+env LANG=C java test
+	→文字化け
+
+env LANG=C java -Duser.language=ja test
+	→文字化け
+
+env LANG=C java -Dfile.encoding=EUCJIS test
+	→正常
+
+というわけで、LANG=C の環境では、file.encoding を指定しない限り文字化
+けします。持田さんの環境では、
+
+env LANG=C java -Duser.language=ja test
+
+で正常表示だったんですよね？うーむ、何が違うんだろう。
+
+ところで、持田さんのテストプログラムの実行結果は以下でした。
+
+[sras94]t-ishii{50} env LANG=C java Mbtest0 jdbc:postgresql://sras94/test t-ishii "" "select hoge from mbtest where gno=1"
+Java Porperty postgresql.databaseencoding: null
+Encoding from URL: null
+Encoding from DB: EUC_JP
+accepted DB Encoding: EUCJIS.
+
+****exec SQL: "select '??'"...
+****bytes of SQL by default(8859_1) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   3F 3F 27                 select '??'
+
+****bytes of SQL by DB encoding(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****result: "??"
+****bytes from backend in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes()] in HEX: 
+0000: 3F 3F                                              ??
+
+****bytes of ResultSet[getString(i).getBytes("EUCJIS")] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+
+select hoge from mbtest where gno=1
+0000: 73 65 6C 65 63 74 20 68   6F 67 65 20 66 72 6F 6D  select hoge from
+0010: 20 6D 62 74 65 73 74 20   77 68 65 72 65 20 67 6E   mbtest where gn
+0020: 6F 3D 31                                           o=1
+
+SQL result: ""??"
+0000: C7 F2 BA DA                                        ....
+
+0000: C7 F2 BA DA                                        ....
+
+
+"
+[sras94]t-ishii{51} env LANG=C java -Dfile.encoding=EUCJIS Mbtest0 jdbc:postgresql://sras94/test t-ishii "" "select * from mbtest where gno=1"
+Java Porperty postgresql.databaseencoding: null
+Encoding from URL: null
+Encoding from DB: EUC_JP
+accepted DB Encoding: EUCJIS.
+
+****exec SQL: "select '漢字'"...
+****bytes of SQL by default(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****bytes of SQL by DB encoding(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****result: "漢字"
+****bytes from backend in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes()] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes("EUCJIS")] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+
+select * from mbtest where gno=1
+0000: 73 65 6C 65 63 74 20 2A   20 66 72 6F 6D 20 6D 62  select * from mb
+0010: 74 65 73 74 20 77 68 65   72 65 20 67 6E 6F 3D 31  test where gno=1
+0020:                                                    
+
+SQL result: ""1"
+"白菜"
+0000: C7 F2 BA DA                                        ....
+
+0000: C7 F2 BA DA                                        ....
+
+
+"
+[sras94]t-ishii{52} env LANG=ja java Mbtest0 jdbc:postgresql://sras94/test t-ishii "" "select * from mbtest where gno=1"
+Java Porperty postgresql.databaseencoding: null
+Encoding from URL: null
+Encoding from DB: EUC_JP
+accepted DB Encoding: EUCJIS.
+
+****exec SQL: "select '漢字'"...
+****bytes of SQL by default(EUC_JP) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****bytes of SQL by DB encoding(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****result: "漢字"
+****bytes from backend in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes()] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes("EUCJIS")] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+
+select * from mbtest where gno=1
+0000: 73 65 6C 65 63 74 20 2A   20 66 72 6F 6D 20 6D 62  select * from mb
+0010: 74 65 73 74 20 77 68 65   72 65 20 67 6E 6F 3D 31  test where gno=1
+0020:                                                    
+
+SQL result: ""1"
+"白菜"
+0000: C7 F2 BA DA                                        ....
+
+0000: C7 F2 BA DA                                        ....
+
+
+"
+[sras94]t-ishii{53} env LANG=ja java -Dfile.encoding=EUCJIS Mbtest0 jdbc:postgresql://sras94/test t-ishii "" "select * from mbtest where gno=1"
+Java Porperty postgresql.databaseencoding: null
+Encoding from URL: null
+Encoding from DB: EUC_JP
+accepted DB Encoding: EUCJIS.
+
+****exec SQL: "select '漢字'"...
+****bytes of SQL by default(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****bytes of SQL by DB encoding(EUCJIS) in HEX: 
+0000: 73 65 6C 65 63 74 20 27   B4 C1 BB FA 27           select '....'
+
+****result: "漢字"
+****bytes from backend in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes()] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+****bytes of ResultSet[getString(i).getBytes("EUCJIS")] in HEX: 
+0000: B4 C1 BB FA                                        ....
+
+
+select * from mbtest where gno=1
+0000: 73 65 6C 65 63 74 20 2A   20 66 72 6F 6D 20 6D 62  select * from mb
+0010: 74 65 73 74 20 77 68 65   72 65 20 67 6E 6F 3D 31  test where gno=1
+0020:                                                    
+
+SQL result: ""1"
+"白菜"
+0000: C7 F2 BA DA                                        ....
+
+0000: C7 F2 BA DA                                        ....
+
+
+"
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00178" HREF="msg00178.html">[pgsql-jp 6591] Re: JDBC driver multi-byte patch for pg6.4 (19981214)</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@tpj.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00176" HREF="msg00176.html">[pgsql-jp 6589] はじめまして＆ご教授ください。</A></STRONG>
+<UL><LI><EM>From:</EM> Dai Kobayashi &lt;d-koba@core.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp 6585] Re: JDBC driver multi-byte patch for pg6.4 (19981214)</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@tpj.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 6586] Re: 教えてください。日 本語が使えません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 6588] Re: 石井さんの本</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00172.html">[pgsql-jp 6585] Re: JDBC driver multi-byte patch for pg6.4 (19981214)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 6589] はじめまして＆ご教授ください。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00174"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00174"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

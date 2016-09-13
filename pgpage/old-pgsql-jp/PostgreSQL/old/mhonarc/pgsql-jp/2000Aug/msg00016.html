@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16400] Re: libpq  でmalloc  した時の問題 -->
+<!--X-From: Akihiro Tsukamoto <atsuka@be.mbn.or.jp> -->
+<!--X-Date: Wed, 02 Aug 2000 09:03:25 +0900 -->
+<!--X-Message-Id: 20000802085113.FAC7.ATSUKA@be.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000731173015.52B8.ATSUKA@be.mbn.or.jp -->
+<!--X-Reference-Id: 20000801221931O.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16400] Re: libpq  でmalloc  した時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:atsuka@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00015.html">Date Prev</A>][<A HREF="msg00017.html">Date Next</A>][<A HREF="msg00014.html">Thread Prev</A>][<A HREF="msg00017.html">Thread Next</A>][<A HREF="index.html#00016">Date Index</A>][<A HREF="threads.html#00016">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16400] Re: libpq  でmalloc  した時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akihiro Tsukamoto &lt;<A HREF="mailto:atsuka@be.mbn.or.jp">atsuka@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Aug 2000 09:03:25 +0900</LI>
+<LI><em>References</em>: &lt;20000731173015.52B8.ATSUKA@be.mbn.or.jp&gt; &lt;<A HREF="msg00014.html">20000801221931O.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塚本です。お世話になっております。
+
+&gt; こちらでは問題が再現しませんね。
+うーむ、FreeBSD2.2.8では違うとか・・・、ないですよね、きっと。
+
+&gt; &gt; 今、ふと思い付いたのですが、6.5.2をversion upして、7.0.2にしました。何か
+&gt; &gt; 関係が有るでしょうか？
+&gt; 
+&gt; 「バージョンアップ」ってどうやったのでしょう?
+まず、/usr/local/etc/rc.d/pgsql.sh(起動時に自動的にpostmasterを起動する
+shell)をmvして、rebootしました。Postmasterが起動していない状態で、7.0.2
+のパッチをあてていないソースをDLし、展開してsrc配下で
+./configure
+./gmake all
+./gmake all install
+を行いました。これは、PostgreSQL用のUserIDで行いました。
+
+パッチを当てたソースの方も昨日試してみました。
+./configure --enable-multibyte=EUC_JP
+./gmake all
+./gmake install
+
+結果は、変化なし、でした。
+
+&gt; 「バージョンアップ」ってどうやったのでしょう?
+&gt; 
+&gt; それはともかく、可能性はあります。試しに、
+&gt; 
+&gt;     conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+&gt; 
+&gt; の直後に、
+&gt; 
+&gt; 		PQclientEncoding(conn1);
+&gt; 
+&gt; を入れてコンパイル/リンク/実行し、ワーニングやエラーが出ないかどうか調
+&gt; べてみて下さい。この関数は7.0ではじめて導入されたので、6.5.xの環境が混
+&gt; ざっていると問題が起きるはずです。
+結果は
+%make
+gcc -c -g -Wall -O2  -Wmissing-prototypes  -Wmissing-declarations  -I/usr/local/pgsql/incl
+ude work.c
+gcc work.o  -o work.cgi -L/usr/local/pgsql/lib -lpq
+%
+で、特にエラーも、ワーニングも有りませんでした。
+gdbの結果は以下の通りです。
+
+---- gdb の結果 ------
+17          conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+(gdb) n
+19          PQclientEncoding(conn1);
+(gdb) p PQclientEncoding(conn1)
+$1 = 0
+(gdb) n
+21          strcpy(w_sql, "BEGIN");
+
+
+&gt; それに、ldd a.outの出力結果はどうでしょう?
+結果は（こちらではwork.cgiですが）、以下の通りです。
+
+----- ldd work.cgi の結果 -----
+ldd work.cgi
+work.cgi:
+        -lpq.2 =&gt; /usr/local/pgsql/lib/libpq.so.2.1 (0x2001c000)
+        -lcrypt.2 =&gt; /usr/lib/libcrypt.so.2.0 (0x2002e000)
+        -lc.3 =&gt; /usr/lib/libc.so.3.1 (0x20031000)
+
+
+
+
+以上です。よろしくお願いいたします。
+
+
+-------------------------------------------------------------
+塚本 明博
+atsuka@be.mbn.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 16405] Re: libpq   でmalloc   した時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 16404] (No Subject in original)</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Yamanaka" &lt;maruki@platz.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00017" HREF="msg00017.html">[pgsql-jp 16401] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00014" HREF="msg00014.html">[pgsql-jp 16398] Re: libpq  でmalloc  した時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 16399] PostgreSQL7.0.2でlibpq(6.5.0)が利用できるか</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 16401] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00014.html">[pgsql-jp 16398] Re: libpq  でmalloc  した時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 16401] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00016"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00016"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

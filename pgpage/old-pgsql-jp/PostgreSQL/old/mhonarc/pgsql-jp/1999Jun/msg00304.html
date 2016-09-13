@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8870] 6.5での grant文実行後の不具合について -->
+<!--X-From: Kouji Shirakawa <sira@Qman.shikoku.nttcom.co.jp> -->
+<!--X-Date: Wed, 16 Jun 1999 11:50:17 +0900 -->
+<!--X-Message-Id: 376710E9.D95AAB93@Qman.shikoku.nttcom.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199906150849.RAA02217@srapc451.sra.co.jp -->
+<!--X-Reference-Id: 199906160212.LAA11710@po.himx.hek.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8870] 6.5での grant文実行後の不具合について </TITLE>
+<LINK REV="made" HREF="mailto:sira@Qman.shikoku.nttcom.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00303.html">Date Prev</A>][<A HREF="msg00305.html">Date Next</A>][<A HREF="msg00303.html">Thread Prev</A>][<A HREF="msg00305.html">Thread Next</A>][<A HREF="index.html#00304">Date Index</A>][<A HREF="threads.html#00304">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8870] 6.5での grant文実行後の不具合について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kouji Shirakawa &lt;<A HREF="mailto:sira@Qman.shikoku.nttcom.co.jp">sira@Qman.shikoku.nttcom.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 16 Jun 1999 11:50:17 +0900</LI>
+<LI><em>Organization</em>: NTT ComWare Shikoku</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00279.html">199906150849.RAA02217@srapc451.sra.co.jp</A>&gt; &lt;<A HREF="msg00303.html">199906160212.LAA11710@po.himx.hek.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+白川です。６．５を導入してみました。
+
+６．５での不具合報告です。
+
+とりあえず、テストしてみましたがどうも、ｇｒａｎｔ文の挙動が
+へんなので、どなたかアドバイス願います。
+
+
+
+【環境】
+PostgreSQL 6.5.0 on sparc-sun-solaris2.5, compiled by gcc 2.8.1
+　　＊青木さんどうも、shmgetの件はどうも、アドバイスありがとうございまし
+た。
+　　　とりあえず、backendの数を３０にして動作させています。
+
+【トラブル状況】
+
+まず、ユーザ hpwork でｄｂを作成しておいて、
+ｇｒａｎｔ文にて ユーザ nobodyに all権限を与えます。
+すると、
+ERROR:  t1: Permission denied.
+
+以降、hpworkからselect できなくなります。
+
+ｄｂのオーナにも関わらずアクセスできなくなるとは。。。
+
+
+そこで、postgres superユーザで、再度hpworkに対して
+grant文により、権限を与え直すとｓｅｌｅｃｔできるようになりました。
+
+
+
+
+【コンソールログ】
+
+
+iyo% createdb testdb
+iyo% psql testdb
+Welcome to the POSTGRESQL interactive sql monitor:
+  Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+[iyo% createdb testdb
+iyo% psql testdb
+Welcome to the POSTGRESQL interactive sql monitor:
+  Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+[PostgreSQL 6.5.0 on sparc-sun-solaris2.5, compiled by gcc 2.8.1]
+
+   type \? for help on slash commands
+   type \q to quit
+   type \g or terminate with semicolon to execute query
+ You are currently connected to the database: testdb
+
+testdb=&gt; select * from pg_user where usename='hpwork';
+usename|usesysid|usecreatedb|usetrace|usesuper|usecatupd|passwd 
+|valuntil
+-------+--------+-----------+--------+--------+---------+--------+--------
+hpwork |    1012|t          |t       |f       |t        |********|
+(1 row)
+
+testdb=&gt; create table t1(
+testdb-&gt; a char(10),
+testdb-&gt; b integer);
+CREATE
+testdb=&gt; \dt
+Database    = testdb
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | hpwork           | t1                               | table    |
+ +------------------+----------------------------------+----------+
+
+testdb=&gt; insert into t1 values('testdata1',10);
+INSERT 18954 1
+testdb=&gt; insert into t1 values('testdata2',11);
+INSERT 18955 1
+testdb=&gt; select * from t1;
+a         | b
+----------+--
+testdata1 |10
+testdata2 |11
+(2 rows)
+
+testdb=&gt; grant all on t1 to nobody;
+CHANGE
+testdb=&gt; select * from t1;
+ERROR:  t1: Permission denied.
+testdb=&gt;
+
+
+他のプラットフォームでも同様に発生するのでしょうか？
+まさか、これが仕様ということはないですよね。
+
+-- 
+
+  白川  浩二   E-mail: sira@Qman.shikoku.nttcom.co.jp 
+  NTT COMMUNICATIONWARE Shikoku
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00305" HREF="msg00305.html">[pgsql-jp 8871] Re: 6.5でのgrant文実行後の不具合について</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 8845] PostgreSQL 6.5 released</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00303" HREF="msg00303.html">[pgsql-jp 8869] Re: PostgreSQL 6.5 released</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Shimizu &lt;gen@hek.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 8869] Re: PostgreSQL 6.5 released</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 8871] Re: 6.5でのgrant文実行後の不具合について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 8869] Re: PostgreSQL 6.5 released</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 8871] Re: 6.5でのgrant文実行後の不具合について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00304"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00304"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,194 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2501] Re: Kanji&#45;code on PHP/FI -->
+<!--X-From: Yoshitaka Ozawa <yozawa@rd.tokodenki.co.jp> -->
+<!--X-Date: Fri, 19 Sep 1997 18:12:27 +0900 -->
+<!--X-Message-Id: 9709190912.AA17576@ecad5.rd.tokodenki.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199709161254.VAA07824@mainsrv.appear.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2501] Re: Kanji-code on PHP/FI </TITLE>
+<LINK REV="made" HREF="mailto:yozawa@rd.tokodenki.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00072.html">Date Prev</A>][<A HREF="msg00075.html">Date Next</A>][<A HREF="msg00072.html">Thread Prev</A>][<A HREF="msg00075.html">Thread Next</A>][<A HREF="index.html#00074">Date Index</A>][<A HREF="threads.html#00074">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2501] Re: Kanji-code on PHP/FI</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshitaka Ozawa &lt;<A HREF="mailto:yozawa@rd.tokodenki.co.jp">yozawa@rd.tokodenki.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 Sep 1997 18:12:27 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00047.html">199709161254.VAA07824@mainsrv.appear.ne.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小沢＠東光電気です。
+
+ogata@appear.ne.jp wrote:
+&gt; 　緒方＠アピアです。
+こんにちは
+
+&gt; 　現在、WEBページ上のShockwaveとデータベースの連携をしてゲームのスコア管
+&gt; 　理をやっているのですが、漢字コードの変換が出来ません。
+&gt; 
+&gt; 	<A HREF="http://www.hoge.or.jp/home.phtml?緒方俊輔+ogata@appear.ne.jp">http://www.hoge.or.jp/home.phtml?緒方俊輔+ogata@appear.ne.jp</A>
+&gt; 
+&gt; 　という形でデータを送っているのですが、PHP/FI上で$argv[0]等として取り出
+&gt; 　したデータのコードは環境に依存してしまうようで、ブラウザ経由となると大
+&gt; 　半がSJISの様なのです。
+私は会社で、
+Apache 1.2.0 + PHP/FI 2.0b11 + PostgreSQL 6.1
+の構成で文書管理システムを作成している最中です。
+
+＃ もちろん日本語パッチは当っています。皆バージョンが
+   １つ前のですが、今度バージョンアップします。(^^;
+
+ブラウザからアップロード機能を使って文書ファイルも
+取り込もうとしてますが、緒方さんと同様の問題に
+ぶつかりました。
+
+最初は緒方さんの状態とは違いますが、おつき合い下さい。
+具体的には、以下の様な状態でした。
+
+1. ブラウザに送る漢字コードをJISに設定。
+2. PCから日本語を含むファイル名(パス名でも)を指定
+   してアップロードを試みるとfile not foundエラー
+   で失敗する。
+3. UNIX上からも同様に日本語を含むファイル名を指定
+   すると、同様に失敗する。
+4. ブラウザに送る漢字コードを変更。
+	コード	PC	UNIX
+	SJIS	成功	失敗
+	EUC	失敗	成功	
+
+つまり、アップロードの入力フォームの漢字コードに依存
+するようでした。
+
+そこで、クライアントを判別して表示コードをクライアント
+に合わせて変更するようにしたら、無事にアップロードが
+行える様になりました。
+
+ここからが本題ですが、上記の様にしてしめしめと思って
+いた所、アップロード結果画面に渡って来る変数の漢字
+コードが入力フォームの漢字コードと同じになってしまいました。
+
+submitする時に、アップロードフォームでは、通常の様に
+	kekka.phtml?file=hogehoge
+とならずに
+	kekka.phtml
+しか、渡らないため、日本語部分がどの様に渡されているか
+確認できませんが、変数にはSJISがそのまま入ってしまいます。
+
+日本語化PHP/FIでは、『一度変数にセットされた日本語は
+全てEUCである』という前提で処理している様で、色々
+やってみましたが、うまくEUCコードに変換する事が
+できません。
+
+そこで、とりあえず今は以下の様に逃げています。
+
+＃ 時間がなかったので...(^^;
+
+-------------------- ここから --------------------
+	(略)
+	 ：
+&lt;?
+  /* 変数 $platform は、BrowserMatchNoCaseでサーバで設定
+        /etc/httpd/conf/srm.conf に以下の記述を追加
+         BrowserMatchNoCase win platform=win
+         BrowserMatchNoCase x11 platform=unix
+  */
+  switch($platform) {
+    case "win";
+      $flag="-Se";
+      break;
+    default;
+      $flag="-e";
+  }
+  $mode="EUC"; $code="x-euc-jp";
+
+  SetKanjiOutput($mode);
+  echo "\&lt;META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=%s\"\&gt;\n
+ " $code;
+	 ：
+	(略)
+	 ：
+  /* 日本語が含まれていた場合のコードを正しく変更する */
+  $userfile_name = Exec("echo $userfile_name | nkf $flag");
+	 ：
+	(略)
+-------------------- ここまで --------------------
+
+つまり、PCからのアクセスの場合はnkfでEUCコードに
+変更します。これで無事にEUCコードに統一されます。
+
+&gt; 　perlのjcode.plに相当する関数は無いのでしょうか？
+PHP/FIの日本語化パッチは変数にセットする時に内部コード
+(EUC)に変更されるようになっているはずなので、こんな
+処理は不要なはずですが、EUCコードに変換されずに変数に
+セットされてしまう場合があるようです。
+
+＃ 週末にパッチの内容を見てみます。私が見てどこまで
+   分かるか...
+
+-- 
+東光電気(株) 開発部  小沢吉賢 (Yoshitaka Ozawa)
+Email : yozawa@rd.tokodenki.co.jp
+Public Key -&gt; Mail to me (Subject: GET PUBLIC KEY)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp 2502] Re*2: Kanji-code on PHP/FI</A></STRONG>
+<UL><LI><EM>From:</EM> 緒方俊輔&lt;ogata@appear.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 2474] Kanji-code on PHP/FI</A></STRONG>
+<UL><LI><EM>From:</EM> 緒方俊輔&lt;ogata@appear.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 2499] Re: Kanji-code on PHP/FI</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 2502] Re*2: Kanji-code on PHP/FI</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 2499] Re: Kanji-code on PHP/FI</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 2502] Re*2: Kanji-code on PHP/FI</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00074"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00074"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

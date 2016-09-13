@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26933] Re: postmasterをdaemontoolから起動していますが、「createdb」ができません。 -->
+<!--X-From: Shuhei Tomita <tomita@zingy.or.jp> -->
+<!--X-Date: Tue, 06 Aug 2002 18:31:47 +0900 -->
+<!--X-Message-Id: 20020806164220.8AC1.TOMITA@zingy.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: FIEHKIKOAAFPNLNEMNOMKEPKCFAA.hnakano@fastnet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26933] Re: postmasterをdaemontoolから起動していますが、「crea </TITLE>
+<LINK REV="made" HREF="mailto:tomita@zingy.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00064.html">Date Prev</A>][<A HREF="msg00066.html">Date Next</A>][<A HREF="msg00060.html">Thread Prev</A>][<A HREF="msg00066.html">Thread Next</A>][<A HREF="index.html#00065">Date Index</A>][<A HREF="threads.html#00065">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26933] Re: postmasterをdaemontoolから起動していますが、「createdb」ができません。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shuhei Tomita &lt;<A HREF="mailto:tomita@zingy.or.jp">tomita@zingy.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 06 Aug 2002 18:31:47 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00060.html">FIEHKIKOAAFPNLNEMNOMKEPKCFAA.hnakano@fastnet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+冨田と申します。
+
+&gt; 現在、以下の環境でpostgresqlを使用しています。
+&gt; 
+&gt; [環境]
+&gt; OS : FreeBSD4.4
+&gt; Postgresql : postgresql-7.2.1
+&gt; daemontool : daemontool-0.70
+
+ぉぉ、奇特にもかなり近い環境の方がいらっしゃるとは。
+ちょうど近い環境がありますので試してみました。
+
+OS : FreeBSD 4.4-Release
+Postgresql : postgresql-7.1.3
+daemontool : daemontool-0.70
+
+&gt; /var/service/pgsql/runには以下のように設定しています。
+&gt; ----------------------------------------------------------------
+&gt; #!/bin/sh
+&gt; exec env - PATH="/usr/local/pgsql/bin:/usr/local/bin:/usr/bin:/usr/sbin" \
+&gt; PGDATESTYLE=ISO \
+&gt; setuidgid postgres \
+&gt; postmaster -i -D /usr/local/pgsql/data -p 5432
+&gt; ----------------------------------------------------------------
+
+確かに、このrunスクリプトで起動してcreatedbしてみると、私の環境でも全く
+同じエラーになります。
+
+&gt; NOTICE:  database directory '/usr/local/pgsql/data/base/1046419' could not
+&gt; be removed
+&gt; ERROR:  CREATE DATABASE: could not initialize database directory; delete
+&gt; failed as well
+&gt; createdb: database creation failed
+
+そこで、postmasterの起動オプションにデバッグフラグ(-d 2)を追加して
+multilogでログを取ってみると、createdb時のエラーメッセージの舞台裏を見る
+ことができました。
+
+| DEBUG:  StartTransactionCommand
+| DEBUG:  query: CREATE DATABASE "test"
+| DEBUG:  ProcessUtility: CREATE DATABASE "test"
+| cp: not found
+| rm: not found
+| NOTICE:  database directory '/usr/local/pgsql/data/base/18725' could
+| not be removed
+| ERROR:  CREATE DATABASE: could not initialize database directory;
+| delete failed as well
+| DEBUG:  AbortCurrentTransaction
+
+どうやら、cpとrmが見つからないと言っているようです。
+
+そこで、runスクリプトの
+PATH="/usr/local/pgsql/bin:/usr/local/bin:/usr/bin:/usr/sbin"に、
+cpとrmの在処を追加して、
+PATH="/usr/local/pgsql/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin"に
+すると、createdbできるようになりませんか？
+
+さて、ここで、内部構造に詳しい方にお尋ねしたいのですが、今回のcreatedbが
+失敗する際の環境変数は、
+
+1.postmaster起動時の環境変数PATHに/binが含まれない
+2.createdb実行時の環境変数PATHに/binが含まれる
+
+という条件でした。ということは、createdbがcpやrmを呼び出しているのではな
+く、postmaster(postgres)がcpやrmを呼んでいるんでしょうか？
+
+………………………………………………………………………………………………
+		冨田 修平(Shuhei Tomita) tomita@zingy.or.jp
+………………………………………………………………………………………………
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00066" HREF="msg00066.html">[pgsql-jp: 26934] Re: postmasterをdaemontoolから起動していますが、「createdb 」ができません。</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00060" HREF="msg00060.html">[pgsql-jp: 26928] postmasterをdaemontoolから起動していますが、「createdb」ができません。</A></STRONG>
+<UL><LI><EM>From:</EM> "nakanohideyuki" &lt;hnakano@fastnet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00064.html">[pgsql-jp: 26932] Re: ファイルの検査方法は?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00066.html">[pgsql-jp: 26934] Re: postmasterをdaemontoolから起動していますが、「createdb 」ができません。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00060.html">[pgsql-jp: 26928] postmasterをdaemontoolから起動していますが、「createdb」ができません。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00066.html">[pgsql-jp: 26934] Re: postmasterをdaemontoolから起動していますが、「createdb 」ができません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00065"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00065"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

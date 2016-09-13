@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7764] Re: テーブルへの数値データコピーについて教えてください。 -->
+<!--X-From: "Masaya SEKI" <seki@ooi.dai&#45;ichi&#45;life.co.jp> -->
+<!--X-Date: Mon, 29 Mar 1999 11:26:45 +0900 -->
+<!--X-Message-Id: 199903290227.LAA08254@ns.dai&#45;ichi&#45;life.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7764] Re: テーブルへの数値データコピーについて教えてください。 </TITLE>
+<LINK REV="made" HREF="mailto:seki@ooi.dai-ichi-life.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00507.html">Date Prev</A>][<A HREF="msg00509.html">Date Next</A>][<A HREF="msg00543.html">Thread Prev</A>][<A HREF="msg00509.html">Thread Next</A>][<A HREF="index.html#00508">Date Index</A>][<A HREF="threads.html#00508">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7764] Re: テーブルへの数値データコピーについて教えてください。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Masaya SEKI" &lt;<A HREF="mailto:seki@ooi.dai-ichi-life.co.jp">seki@ooi.dai-ichi-life.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 29 Mar 1999 11:26:45 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+くわむらさん お手数をお掛けしております。
+
+&gt; &gt; [506]postgres@server1: ~&gt; csvtopg kojin.csv | psql -c "copy boshunin
+from
+&gt; &gt; stdin"&gt; &gt; 
+&gt; &gt; ERROR:  COPY command failed.  Class boshunin does not exist
+&gt; 
+&gt;   デフォルトのデータベース(UNIXユーザと同じ名前のデータベース)に
+&gt; boshuninというクラス(テーブルのこと)がないということでは。
+&gt; 
+
+kojin.csvとboshuninの場所が以下のファイル構成から
+/usr/local/pgsqlと/usr/local/pgsql/data/base/meiboの下にあると思いますので
+
+カレントポイントをpostgresのホームにおいて
+ 
+[507]postgres@server1: ~&gt; csvtopg kojin.csv | psql -c "copy
+/usr/local/pgsq/data/base/meibo/boshunin from stdin"
+としたところ、
+ERROR:  parser: parse error at or near "/"
+となりました。
+
+一方、/usr/local/pgsql/data/base/meiboにおいて
+
+[510]postgres@server1: meibo&gt; csvtopg /usr/local/pgsql/kojin.csv | psql -c
+"copy
+ boshunin from stdin"
+ERROR:  COPY command failed.  Class boshunin does not exist.
+
+となりました。
+
+[ディレクトリーの構成]
+
+[501]postgres@server1: ~&gt; cd /usr/local/pgsql
+[502]postgres@server1: ~&gt; ls
+COPYRIGHT     apps/         data/         include/      kojinn.csv
+HISTORY       bin/          doc@          kojin.csv     lib/
+README        contrib/      examples/     kojin.nn      register.txt
+
+[503]postgres@server1: ~&gt; cd ./data/base/meibo
+[504]postgres@server1: meibo&gt; ls
+PG_VERSION                       pg_language
+boshunin                         pg_listener
+honten                           pg_opclass
+jigyousho                        pg_operator
+meibo                            pg_parg
+pg_aggregate                     pg_proc
+pg_am                            pg_proc_oid_index
+pg_amop                          pg_proc_proname_index
+pg_amproc                        pg_proc_prosrc_index
+pg_attrdef                       pg_relcheck
+pg_attrdef_adrelid_index         pg_relcheck_rcrelid_index
+pg_attribute                     pg_rewrite
+pg_attribute_attrelid_index      pg_statistic
+pg_attribute_relid_attnam_index  pg_trigger
+pg_attribute_relid_attnum_index  pg_trigger_tgrelid_index
+pg_class                         pg_type
+pg_class_oid_index               pg_type_oid_index
+pg_class_relname_index           pg_type_typname_index
+pg_description                   pg_user
+pg_description_objoid_index      pg_version
+pg_index                         pga_forms
+pg_inheritproc                   pga_layout
+pg_inherits                      pga_queries
+pg_internal.init                 pga_reports
+pg_ipl                           pga_scripts
+
+
+&gt; 
+&gt;   csvtopg で区切り(delimiters)はタブとなります。すなわち、"using
+&gt; ..." は不要となります。
+&gt; 
+
+
+すみません。"using&gt; ..."要らないんですね。そこで、 
+
+"using&gt; ..." 外しcsvtopg実行し変換時エラーがないと思うのですが、
+ 
+server1:/usr/local/pgsql# /usr/local/pgsql/apps/utils/csvtopg kojin.csv &gt;
+kojinn.csv
+server1:/usr/local/pgsql# su postgres
+/usr/local/pgsql/bin/pgsqld: postmaster(PostgreSQL server) is ALREADY
+running(PID = 166).
+
+Try "psql" PostgreSQL frontend program as you check the backend running.
+
+
+[501]postgres@server1: ~&gt; psql meibo 
+Welcome to the POSTGRESQL interactive sql monitor:
+  Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+
+   type \? for help on slash commands
+   type \q to quit
+   type \g or terminate with semicolon to execute query
+ You are currently connected to the database: meibo
+
+meibo=&gt; copy boshunin from '/usr/local/pgsql/kojinn.csv';
+'RROR:  Bad float8 input format '10000
+
+
+関  正弥 I wish to be skilled in Postgres m(__)m
+
+  
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00509" HREF="msg00509.html">[pgsql-jp 7765] Re: テーブルへの数値データコピーについて教えてください。</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00507.html">[pgsql-jp 7763] 自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00509.html">[pgsql-jp 7765] Re: テーブルへの数値データコピーについて教えてください。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00543.html">[pgsql-jp 7799] Re: Announcement: PostgreSQL for Plamo Linux.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00509.html">[pgsql-jp 7765] Re: テーブルへの数値データコピーについて教えてください。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00508"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00508"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html;charset=iso-2022-jp" />
+<link rev=made href="mailto:ishii@sraoss.co.jp" />
+<link href="icon.ico" rel="shorcut icon" />
+<title>PostgreSQL information page</title>
+<style type="text/css">
+<!--
+td {
+  background-image:url(midashi.png);
+  width: 1024;
+  font-weight: bold
+}
+
+-->
+</style>
+</head>
+<body bgcolor="#ffffff">
+<!-- hhmts start -->
+Last modified: Tue May  4 12:50:17 JST 2010
+<!-- hhmts end -->
+<h1>PostgreSQL 9.0のレプリケーション機能を簡単に試す方法</h1>
+<p>
+PostgreSQL 9.0では、「ストリーミングレプリケーション(Streaming Replication)」と呼ばれる組み込みのレプリケーション機能が利用できます。特に他のソフトを追加インストールする必要もなく、簡単に使えます。
+ここでは、1台のLinuxマシンにPostgreSQLのデータベースクラスタを2つインストールし、ストリーミングレプリケーションを試す方法を解説します。
+新しくインストールするPostgreSQLは5435と5436のポートを使うので、このポートを使っていない限り既存のPostgreSQLには影響を与えません。
+なお、実際に私が試した環境は、Vine Linux 4.2CRです。
+
+</p>
+<h2>用意するもの</h2>
+<p>
+<ul>
+<li>gccなど、コンパイル環境一式
+<li>PostgreSQL 9.0のソースコード(<a href="ftp://ftp.sra.co.jp/pub/cmd/postgres/9.0-beta/postgresql-9.0beta1.tar.gz">postgresql-9.0beta1.tar.gz</a>)
+</ul>
+
+<h2>PostgreSQLをインストールする</h2>
+<p>
+以下、すべての手順をPostgreSQLのスーパユーザ(通常postgres)で実行してください。
+なお、ここでは、あらかじめpostgresで書き込みができる
+/usr/local/src/pgsql/9.0-betaというディレクトリが用意してあるものとします。
+また、PostgreSQLのソースコードは、/tmpに用意してあるものとします。
+</p>
+<pre>
+mkdir /usr/local/src/pgsql/9.0-beta
+cd /usr/local/src/pgsql/9.0-beta
+tar xfz /tmp/postgresql-9.0beta1.tar.gz
+cd postgresql-9.0beta1
+./configure --prefix=/usr/local/src/pgsql/9.0-beta
+make
+make install
+</pre>
+
+<h2>データベースクラスタを作る</h2>
+<p>
+<a href="bashrc">このファイル</a>を/usr/local/src/pgsql/9.0-beta/bashrcに置きます。
+以下を実行してデータベースクラスタを作ります。
+ここでは、プライマリ(後述)のデータベースクラスタを"data"、スタンバイ(後述)のデータベースクラスタを"standby"としています。
+また、以降、コマンドサーチパスを変えて、今インストールしたばかりのPostgreSQLのコマンドを利用できるようにします。
+<pre>
+cd /usr/local/src/pgsql/9.0-beta
+source bashrc
+initdb --no-locale -E EUC_JP -D data
+initdb --no-locale -E EUC_JP -D standby
+</pre>
+以下、カレントディレクトリは/usr/local/src/pgsql/9.0-betaにあるものとします。
+</p>
+
+<h2>プライマリのPostgreSQLを設定する</h2>
+<p>
+ストリーミングレプリケーションでは、主サーバをプライマリと呼びます。
+プライマリは、通常のPostgreSQLとして動作しますが、DBの更新が発生すると、その情報(トランザクションログ)を従サーバ(スタンバイ)に転送することによってレプリケーションを実施します。スタンバイ側では更新クエリやVACUUMは実行できません。SELECTなどのread onlyの問い合わせのみが実行できます。
+</p>
+<p>
+まず、プライマリがアーカイブログを格納するディレクトリを作ります。
+</p>
+<pre>
+mkdir /usr/local/src/pgsql/9.0-beta/archivedir
+</pre>
+
+<p>
+<a href="primary-postgresql-conf-addition">この内容</a>をプライマリのpostgresql.confに追加します。
+次に以下の内容をプライマリのpg_hba.confに追加します。
+<pre>
+host	replication		postgres			0.0.0.0/0				trust
+</pre>
+
+<h2>スタンバイのPostgreSQLを設定する</h2>
+<p>
+<a href="standby-postgresql-conf-addition">この内容</a>をスタンバイのstandby/postgresql.confに追加します。
+次に<a href="recovery.conf">この内容</a>をスタンバイのデータベースクラスタにstandby/recovery.confとして保存します。
+
+<h2>プライマリサーバの起動とベースバックアップのコピー</h2>
+<p>
+以下のコマンドでプライマリサーバを起動します。
+</p>
+<pre>
+pg_ctl -D data start
+</pre>
+正常に起動できればpsqlで接続できるはずなので試してみましょう。
+<pre>
+psql -p 5435 -l
+</pre>
+
+</p>
+次に、プライマリサーバのベースバックアップを取得して、スタンバイにコピーします。
+<a href="basebackup.sh">このコマンド</a>をbasebackup.shとして保存して実行してください。
+<pre>
+sh basebackup.sh
+</pre>
+
+<h2>スタンバイのPostgreSQLを起動</h2>
+<p>
+以上で準備ができたので、スタンバイのPostgreSQLを起動します。
+<pre>
+pg_ctl -D standby start
+</pre>
+うまくいけば、psqlでスタンバイに接続できるはずです。
+<pre>
+psql -p 5436 -l
+</pre>
+
+<h2>実際にレプリケーションされていることを確かめる</h2>
+<p>
+プライマリで更新クエリを実行すれば、スタンバイにもコピーされます。試してみましょう。
+</p>
+<pre>
+psql -p 5435 test
+create table t1(i int);
+insert into t1 values(1);
+</pre>
+スタンバイに接続して、t1の内容を見ることができれば成功です。
+<pre>
+psql -p 5436 test
+select * fro t1;
+</pre>
+
+<h2>停止手順</h2>
+<p>
+<dl>
+<dt>プライマリを一時的に停止する
+<dd>
+<p>
+プライマリは普通にpg_ctlコマンドで停止できます。
+この状態でもスタンバイ側では、依然としてread onlyのクエリが実行できます。
+プライマリを再起動すれば、再びレプリケーション構成となります。
+</p>
+
+<dt>スタンバイ停止する
+<dd>
+<p>
+スタンバイ側の停止はpg_ctl -m fで行ってください。
+この状態でもプライマリ側では更新クエリが実行できます。
+スタンバイ側を再起動すれば、スタンバイが停止中に行った更新がスタンバイ側に適用されます。
+</p>
+
+<dt>フェイルオーバ
+<dd>
+<p>
+スタンバイ側は、定期的にrecovery.confの"trigger_file"で指定したファイルが存在するかどうかチェックしています。
+このファイルが存在すると、スタンバイ側は、スタンバイとしての動作を終了し、通常のPostgreSQLとして立ち上がります。
+プライマリがダウンした際に、この仕組みを利用してフェイルオーバするようにすれば、DBの運用を継続できます。
+</p>
+<p>
+プライマリがダウンした際に、自動的にtrigger_fileを作る機能はPostgreSQLにはありませんが、
+サードパーティのソフト、たとえばpgpool-IIを使えばそのようなことが可能になります。
+</p>
+</dl>
+
+<hr>
+
+[<a href="../index.html">PostgreSQL information pageに戻る</a>]
+</body>
+</html>

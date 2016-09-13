@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24204] Re: [Fwd: [PHP&#45;dev 162] Re: PostgreSQL Session Save Handler Module.] -->
+<!--X-From: Yasuo Ohgaki <yohgaki@yahoo.co.jp> -->
+<!--X-Date: Thu, 20 Dec 2001 17:36:03 +0900 -->
+<!--X-Message-Id: 3C21A2F3.3070504@yahoo.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C218F73.4040103@yahoo.co.jp -->
+<!--X-Reference-Id: 20011220162018A.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24204] Re: [Fwd: [PHP-dev 162] Re: PostgreSQL Session Save Han </TITLE>
+<LINK REV="made" HREF="mailto:yohgaki@yahoo.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00311.html">Date Prev</A>][<A HREF="msg00313.html">Date Next</A>][<A HREF="msg00311.html">Thread Prev</A>][<A HREF="msg00316.html">Thread Next</A>][<A HREF="index.html#00312">Date Index</A>][<A HREF="threads.html#00312">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24204] Re: [Fwd: [PHP-dev 162] Re: PostgreSQL Session Save Handler Module.]</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasuo Ohgaki &lt;<A HREF="mailto:yohgaki@yahoo.co.jp">yohgaki@yahoo.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 20 Dec 2001 17:36:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00310.html">3C218F73.4040103@yahoo.co.jp</A>&gt; &lt;<A HREF="msg00311.html">20011220162018A.t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:0.9.6+) Gecko/20011211</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Tatsuo Ishii wrote:
+
+&gt; 石井です．
+&gt; 
+&gt; 
+&gt;&gt;今のところ、必ず追加するつもりでいる機能
+&gt;&gt;1) Failover
+&gt;&gt;  複数のDBをphp.iniのsave_pathに";"区切りで指定し接続できない場合、
+&gt;&gt;  接続が壊れてリセットを試みても接続できない場合、は別のDBに接続する。
+&gt;&gt;
+&gt; 
+&gt; 質問があります．
+&gt; 
+&gt; (1)複数DBの間で同期をとることまで，このハンドラでやってくれるのか?
+&gt; 
+&gt; (2)(1)がyesとして，故障したシステムが回復した場合，DBを再同期させるメ
+&gt;    カニズムは?
+&gt; 
+
+
+大垣です。
+
+この質問がくると思いつつ避けていました。;)
+
+fail overが発生した後の同期は今のところ考えていません。が、7x２4の稼働を
+行うには必要な機能なので実装したい機能の内の一つです。
+
+# 実はPostgreSQLの関数に複数のデータベースに同じクエリーを実行する
+# 関数(Unofficial関数)も作ろうかな、と考えていました。
+# レプリケーションアプリの安定性などをテストして不必要と言うことに
+# なれば、作らないつもりですが。
+
+今、考えたのですが実装するとなると、こんな感じで実装すると思います。
+
+fail overした場合は、レコードに本来のDBに保存されていないフラグ(DB
+ID)と共に保存する。モジュールの初期化時(起動時の初期化では無く、スク
+リプトの実行時に毎回初期化を行う関数)にfail overが発生しているかチェック
+し、サーバーが回復している場合は、フラグの付いたレコードを本来のサー
+バーに移動する。
+
+データ移動完了までは、回復したサーバーに保存すべきレコードをロックする
+ので、該当するSession IDを持つアクセスしたユーザーは同期が完了するま
+ではアクセスを待つ事になるので、ページ表示が遅れる事になると思います。
+回復したサーバー側はテーブルごとロックします。
+
+あまり良く考えていないので、どちらにしても熟慮する必要があります。
+(マルチプロセス、マルチスレッド、マルチWeb&amp;DBサーバーなので不具合
+が無いように考えるにはちょっと時間が必要です。ご意見/ご提案、大歓迎
+です)
+
+# Windowsは知らないので、UNIXだけになるかも知れません。MSがVisual
+# Studioと開発用のPCをくれるのであれば、動くようにしても構いませんが ;)
+
+&gt; 
+&gt;&gt;2) Load balancing
+&gt;&gt;  複数のDBが指定されている場合にphp.iniにsession.pgsql-balance=Onかつ
+&gt;&gt;  複数のDBがsave_pathに指定されている場合、セッションIDの数値ハッシュ値
+&gt;&gt;  を取得して保存するDBを分散する。
+&gt;&gt;
+&gt; 
+&gt; 素晴らしい!
+
+気に入って頂けて幸いです。
+ロードバランスしている際の同期は更に複雑になるのでしばらくは避けて通りた
+いです。
+Fail overは実装したいです。DBが増えれば増える程、MTBFは短くなりますから。
+
+PostgreSQL session save handler moduleはPECLと言うPEAR系
+のモジュールにしては?と本家php-devで意見をもらっていますが、標準
+モジュールになるよう頑張ってます。
+
+-- 
+Yasuo Ohgaki
+yohgaki@dd.iij4u.or.jp
+
+__________________________________________________
+Do You Yahoo!?
+Yahoo! BB is Broadband by Yahoo!  <A HREF="http://bb.yahoo.co.jp/">http://bb.yahoo.co.jp/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00316" HREF="msg00316.html">[pgsql-jp 24208] Re: [Fwd: [PHP-dev 162] Re: PostgreSQLSession Save 	Handler Module.]</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp 24202] [Fwd: [PHP-dev 162] Re: PostgreSQL Session Save Handler Module.]</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuo Ohgaki &lt;yohgaki@yahoo.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00311" HREF="msg00311.html">[pgsql-jp 24203] Re: [Fwd: [PHP-dev 162] Re: PostgreSQL SessionSave Handler Module.]</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00311.html">[pgsql-jp 24203] Re: [Fwd: [PHP-dev 162] Re: PostgreSQL SessionSave Handler Module.]</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00313.html">[pgsql-jp 24205] postmaster が起動しない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00311.html">[pgsql-jp 24203] Re: [Fwd: [PHP-dev 162] Re: PostgreSQL SessionSave Handler Module.]</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 24208] Re: [Fwd: [PHP-dev 162] Re: PostgreSQLSession Save 	Handler Module.]</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00312"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00312"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25143] Re: INSERT文に関して -->
+<!--X-From: "KAWAI,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Thu, 7 Mar 2002 22:43:41 +0900 -->
+<!--X-Message-Id: 008001c1c5df$f1df32c0$13a280d3@hipponote -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 012d01c1c585$d9083300$a623780a@silence.sys.mapion.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25143] Re: INSERT文に関して </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00119.html">Date Prev</A>][<A HREF="msg00121.html">Date Next</A>][<A HREF="msg00100.html">Thread Prev</A>][<A HREF="msg00096.html">Thread Next</A>][<A HREF="index.html#00120">Date Index</A>][<A HREF="threads.html#00120">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25143] Re: INSERT文に関して</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "KAWAI,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 7 Mar 2002 22:43:41 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00098.html">012d01c1c585$d9083300$a623780a@silence.sys.mapion.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: "Tadashi Kanbayashi" &lt;Tadashi.Kanbayashi@toppan.co.jp&gt;
+To: &lt;pgsql-jp@ml.postgresql.jp&gt;
+Sent: Thursday, March 07, 2002 12:12 PM
+Subject: [pgsql-jp: 25121] Re: INSERT文に関して
+
+
+&gt; 神林です。
+&gt;
+&gt; 下記の件、参考になりました。
+&gt;
+&gt; ところで、
+&gt;
+&gt; my $sth = $dbh-&gt;prepare('INSERT INTO tbl VALUES(?, ?)');
+&gt;
+&gt; のprepare句で、ある配列にinsert文を１００個保持しておいて、
+&gt; その配列をprepareに食わせることも可能だと思いますけど、
+&gt;
+&gt; @ins　=　（insert・・・　insert・・・　insert・・・　・・・・・１００個）
+&gt; my $sth = $dbh-&gt;prepare（”@ins”）；
+（以下略）
+
+実際にやってみましたか？
+＃なにしろ出張中で手元に環境が無いんで。
+ただできたとしても自分としてはやらないでしょうね。
+複数のINSERT文を同時に実行できるかどうかは、対応する
+データベースやDBDによりますし。あんまり長いSQL文では
+受け付けてくれないこともありえます。
+そうでなくても変数の値をそのまま埋め込むよりは、DBIとしては
+「正しい」(^^)使い方なんだろうと思っています。
+
+ちなみに送信済みメールを見たら、copyコマンドのサンプルが
+見つかったので。ついでに。詳しくはDBD::Pgのドキュメントを
+ご覧ください。
+
+[DBIによる例]
+use strict;
+use DBI;
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;1, RaiseError=&gt;1}) || die $DBI::errstr;
+eval {
+#Export
+    $hDb-&gt;do('copy emp to stdout');
+    my $sLine;
+    open OUT, '&gt;data';
+        $hDb-&gt;func($sLine, 1000, 'getline');
+        while($sLine ne '\\.') {
+                   print OUT $sLine, "\n";
+                $hDb-&gt;func($sLine, 1000, 'getline');
+        }
+        close OUT;
+        $hDb-&gt;func('endcopy');
+#Import
+        $hDb-&gt;do('copy emp from stdin');
+        open IN, '&lt;data';
+        while($sLine = &lt;IN&gt;) {
+                $hDb-&gt;func($sLine, 'putline');
+        }
+        close IN;
+        $hDb-&gt;func("\\.\n", 'putline');
+        $hDb-&gt;func('endcopy');
+};
+die $@ if($@);
+$hDb-&gt;disconnect;
+
+===================================================
+川合 孝典 (Hippo2000)
+   DBI日本語メーリングリスト管理人、Kansai.pm所属
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+   <A HREF="http://www.hippo2000.net/">http://www.hippo2000.net/</A>
+「Perlを256倍使うための本　DBI編」　3/14発売
+<A HREF="http://www.ascii.co.jp/books/detail/4-7561/4-7561-4058-0.html">http://www.ascii.co.jp/books/detail/4-7561/4-7561-4058-0.html</A>
+===================================================
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00098" HREF="msg00098.html">[pgsql-jp: 25121] Re: INSERT文に関して</A></STRONG>
+<UL><LI><EM>From:</EM> "Tadashi Kanbayashi" &lt;Tadashi.Kanbayashi@toppan.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00119.html">[pgsql-jp: 25142] Re: TRIGGER 作成でエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00121.html">[pgsql-jp: 25144] PostgreSQL停止時の動作について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp: 25123] Re: INSERT文に関して</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00096.html">[pgsql-jp: 25119] Re: INSERT文に関して</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00120"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00120"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

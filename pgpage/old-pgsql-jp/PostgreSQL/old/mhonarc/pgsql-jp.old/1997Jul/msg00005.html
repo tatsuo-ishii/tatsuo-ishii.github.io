@@ -1,0 +1,212 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2082] Re: pgsqp_perl5 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Wed, 02 Jul 1997 18:54:50 +0900 -->
+<!--X-Message-Id: 199707020954.SAA13456@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199707020655.PAA01678@libra.map.chiba&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2082] Re: pgsqp_perl5 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00003.html">Thread Prev</A>][<A HREF="msg00006.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2082] Re: pgsqp_perl5</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Jul 1997 18:54:50 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;はじめまして。安部＠千葉大と申します。
+&gt;
+&gt;PostgresはPostgre95のころから使っていましたがそのころは
+&gt;先輩がこのメーリングリストに入っていたため入ってはいませんでした。
+&gt;しかし、その先輩が卒業したためこのメーリングリストに参加させて頂きました。
+&gt;
+&gt;いきなり質問で恐縮なのですが、
+&gt;
+&gt;SunOS 4.1.3-JL 1 でpgsql_perl5を使いたいのですがつかえなくて困っています。
+&gt;
+&gt;&gt;perl Makefile.PL
+&gt;&gt;make
+&gt;
+&gt;は、問題なく終了しますが
+&gt;
+&gt;&gt;make test
+&gt;
+&gt;とすると
+&gt;
+&gt;PERL_DL_NONLAZY=1 /usr/local/bin/perl -I./blib/arch -I./blib/lib -I/usr/local/lib/perl5/sun4-sunos/5.003 -I/usr/local/lib/perl5 test.pl
+&gt;1..49
+&gt;ld.so: Undefined symbol: _fe_setauthsvc
+&gt;*** Error code 127
+&gt;make: Fatal error: Command failed for target `test_dynamic'
+&gt;
+&gt;となって止まってしまいます。どなたかこのような現象にあった方は
+&gt;いらしゃいますでしょうか？
+&gt;
+&gt;構成は
+&gt;	SunOS 4.1.3-JL 1
+&gt;	PostgreSQL-6.1 + sunos.patch + jp.patch 
+&gt;
+&gt;です。どんな情報でも構いませんのでよろしくお願いします。
+
+私は perl を知らないので外しているかも知れませんが、以下の方法ですべて
+のテストが OK になりました。
+
+1. src/libpq で Makefile に以下のパッチをあてる。
+--------------------------------------------------------------
+*** Makefile~	Fri Apr  4 20:02:02 1997
+--- Makefile	Wed Jul  2 18:29:42 1997
+***************
+*** 48,53 ****
+--- 48,59 ----
+    LDFLAGS_SL = -G -z text
+    CFLAGS += $(CFLAGS_SL)
+  endif
++ ifeq ($(PORTNAME), sunos4)
++   install-shlib-dep := install-shlib
++   shlib := libpq.so.1
++   LDFLAGS_SL = -dc -dp -Bdynamic
++   CFLAGS += $(CFLAGS_SL)
++ endif
+  
+  all: libpq.a $(shlib) c.h
+  
+***************
+*** 77,84 ****
+  
+  $(shlib): $(OBJS)
+  	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) 
+  	ln -sf $@ libpq.so
+! 
+  
+  c.h: ../include/c.h
+  	rm -f c.h
+--- 83,93 ----
+  
+  $(shlib): $(OBJS)
+  	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) 
++ ifeq ($(PORTNAME), sunos4)
++ 	ln -s $@ libpq.so
++ else
+  	ln -sf $@ libpq.so
+! endif
+  
+  c.h: ../include/c.h
+  	rm -f c.h
+
+--------------------------------------------------------------
+make clean したあと、make install する。
+
+2. src/pgsql_perl5 に行き、perl Makefile.PL した後以下のパッチを 
+Makefile にあてる。
+--------------------------------------------------------------
+*** Makefile~	Wed Jul  2 18:25:24 1997
+--- Makefile	Wed Jul  2 18:43:56 1997
+***************
+*** 23,34 ****
+  # They may have been overridden via Makefile.PL or on the command line
+  AR = ar
+  CC = gcc
+! CCCDLFLAGS = -fpic
+  CCDLFLAGS =  
+  DLEXT = so
+  DLSRC = dl_dlopen.xs
+  LD = ld
+! LDDLFLAGS = -assert nodefinitions -L/usr/local/lib
+  LDFLAGS =  -L/usr/local/lib
+  LIBC = /lib/libc.so.1.7
+  LIB_EXT = .a
+--- 23,34 ----
+  # They may have been overridden via Makefile.PL or on the command line
+  AR = ar
+  CC = gcc
+! CCCDLFLAGS = -fPIC
+  CCDLFLAGS =  
+  DLEXT = so
+  DLSRC = dl_dlopen.xs
+  LD = ld
+! LDDLFLAGS = -dc -dp -Bdynamic -assert nodefinitions -L/usr/local/lib
+  LDFLAGS =  -L/usr/local/lib
+  LIBC = /lib/libc.so.1.7
+  LIB_EXT = .a
+--------------------------------------------------------------
+後は普通に make;make test して下さい。
+
+&gt;あと、手元に
+&gt;	FreeBSD2.2.1のベンチマークの結果
+&gt;があるんですが送った方がよろしいでしょうか？
+&gt;		(値が負になってるところがあるので)
+
+負になる原因は良く分かりませんが、PostgreSQL のせいではないようです。
+良かったら、ベンチマーク投稿して下さい。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00013" HREF="msg00013.html">[pgsql-jp 2090] Re: pgsqp_perl5</A></STRONG>
+<UL><LI><EM>From:</EM> Atsushi Abe&lt;atsushi@hike.te.chiba-u.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00006" HREF="msg00006.html">[pgsql-jp 2083] Re: pgsqp_perl5</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00003" HREF="msg00003.html">[pgsql-jp 2080] pgsqp_perl5</A></STRONG>
+<UL><LI><EM>From:</EM> atsushi@hike.te.chiba-u.ac.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 2081] Sun OS bench mark result</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 2083] Re: pgsqp_perl5</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 2080] pgsqp_perl5</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 2083] Re: pgsqp_perl5</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

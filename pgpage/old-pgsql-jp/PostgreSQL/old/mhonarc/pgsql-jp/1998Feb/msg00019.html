@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3328] Re: about EUC -->
+<!--X-From: hyoshiok@jp.oracle.com -->
+<!--X-Date: Fri, 6 Feb 1998 12:19:34 &#45;0800 -->
+<!--X-Message-Id: 199802062019.MAA15265@dlsun329.oracle.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3328] Re: about EUC </TITLE>
+<LINK REV="made" HREF="mailto:hyoshiok@jp.oracle.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00020.html">Thread Prev</A>][<A HREF="msg00021.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3328] Re: about EUC</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+<LI><em>Date</em>: Fri, 6 Feb 1998 12:19:34 -0800</LI>
+<LI><em>CC</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしおかです．
+
+どんどん長くなってきてすいません．
+
+&gt; 私の実装では、like の処理を行なう前に、内部コードを1文字固定長の表現に
+&gt; 変換しています(正規表現も同じ)。たとえば、UTF-8 -&gt; UCS-2 への変換を行
+&gt; ないます。このコストはEUC、UTF-8、muleのどれでもほぼ同じだと思います。
+
+なるほど．その変換コストがどのくらいになるかがポイントになりそうですね．
+つまり，ASCIIだけの実装と，マルチバイトまで視野にいれた実装の性能比．
+後者は，変換コストがかかるが，EUC/UTF8/muleでの差はほとんどないという
+ことですね．
+
+&gt; # これは本題とは無関係ですが、今まで jp patch で使っていた正規表現エン
+&gt; # ジン(GNU のもの)をPostgreSQL に付属のものに変えたら、5割ほどスピードアッ
+&gt; # プしました。ちょっと嬉しい。
+
+おお，すばらしい．ちなみに，どうやって，それを測定しました？
+附属のベンチマークは like 処理とかほとんどやっていないですよね．
+特別のベンチマークを作ったのでしょうか？
+
+実装の定量的な比較というのにはとっても興味があります．
+
+&gt; &gt;mule は表現力がリッチな分，内部コードがASCII以外は一文字あたり1-2バイ
+&gt; &gt;ト増えていますが，その処理のオーバヘッドがどのくらいあるのか興味深いと
+&gt; &gt;ころです．
+&gt; 
+&gt; ISO-2022 準拠の文字集合に関しては、mule の内部コードと UTF-8 は同じ長
+&gt; さですね。
+&gt; 
+&gt; ASCII                         1バイト
+&gt; ASCII 以外のラテン文字など    2バイト
+&gt; 漢字など                      3バイト
+
+あ，そうですね．ちなみに，muleからさらになにか固定長のコードにさらに変
+換するのですか？UTF8&lt;-&gt;UCS2は機械的な変換で，コストが安そうです．
+
+&gt; &gt;なるほど．スケーラビリティのことを考えると，クライアント側でコード変換
+&gt; &gt;するといいかもしれないですね．でも，最初はいいかな．
+&gt; 
+&gt; 悩んでます。PostgreSQL では、クライアント側の通信処理はほとんどの場合、 
+&gt; libpq というライブラリ経由で行なわれるので、libpq で一括してコード変換
+&gt; することにしてもいいのですが、一部のクライアント、たとえば JDBC や 
+&gt; ODBC は libpq を使いません。そこで、サーバ側でまとめてコード変換しては
+&gt; どうかなと思ったのですが...
+
+これは確かにそうなんですけど，なかなか難しいところですね．
+
+&gt; &gt;&gt; また、各国語を混ぜて使いたいという要求であれば、UTF-8 とか、mule
+&gt; &gt;&gt; internal code をつかえば対応できますし。(それどころか、列の中に複数の
+&gt; &gt;&gt; 文字集合を混在させることも出来る)
+&gt; &gt;
+&gt; &gt;UTF8は一つの文字集合だけど，マルチスクリプトですよね．一方，mule のコー
+&gt; &gt;ドは確かに複数の文字集合を混在させることはできますね．ただそうすると，
+&gt; &gt;GBで書いた(中国漢字スクリプト)の毛沢東とJISで書いた毛沢東をマッチさせ
+&gt; &gt;たいとかいうのが，UTF8ではできるけど，muleでは，ちょっと面倒ですね．
+&gt; 
+&gt; ここが良く分かりません。この例は、
+&gt; 
+&gt;       中国漢字スクリプトで書いた「毛沢東」と日本漢字スクリプトで書い
+&gt;       た「毛沢東」を同じ物とみなす(たとえば、= や LIKE でマッチさせ
+&gt;       る)
+&gt; 
+&gt; という意味だと思うのですが、これは本質的に、
+&gt; 
+&gt;       中国漢字スクリプトで書いた「毛沢東」と日本平仮名スクリプトで書
+&gt;       いた「もうたくとう」を同じ物とみなす
+&gt; 
+&gt; ような処理と同じですよね。つまり、「毛沢東」という単語を異なるスクリプ
+&gt; トで表現したときに、それらを同一のものと見倣すためには、コード系や文字
+&gt; 集合とは別の情報が必要になります。それは UTF でも mule でも同じことで
+&gt; はないですか？
+
+いや，わたしのイメージしているのは，「毛沢東」の「毛」のコードポイント
+は，JISでは44区51点で，GBだと35区11点で，なにもしなければ，マッチしな
+いど，Unicodeだと，U+6BDAというコードポイントだから，同一視できるとい
+うものです．ここでの前提は，わたしは中国語の漢字と，日本語の漢字を同じ
+ものだと認識しているということです．石井さんは，違うものだという立場の
+ようですが，いかがでしょうか？
+
+あと「毛沢東」と「もうたくとう」を同一視するかどうかというのはエンジン
+部分でやるというより，アプリケーションで解決すべき問題かなと思います．
+インターフェース，インタフェース，インタフェスとか表記のゆれとかも，似
+たような問題だと思ってます．
+
+余談ですけど，JIS X0208-1997で「毛」のコードポイントを調べたんですけど，
+音訓索引はついているは，対応する，UCS2の番号はついているはで，非常に便
+利ですね．でUCS2の番号がわかれば，Unicode handbookを見れば対応する，
+GB(中国語)，KS(韓国語)，台湾でのそれぞれのコードポイントがすぐわかって，
+便利でした．
+
+よ
+-- 
+Hiro Yoshioka
+<A HREF="mailto:hyoshiok@jp.oracle.com">mailto:hyoshiok@jp.oracle.com</A> (office)
+<A HREF="http://www.best.com/~yoshioka/diary.html">http://www.best.com/~yoshioka/diary.html</A>
+What is Oracle 8?
+It's The Database for Network Computing.
+<A HREF="http://www.oracle.co.jp/books/o8/003/top.html">http://www.oracle.co.jp/books/o8/003/top.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 3330] Re: about EUC</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 3327] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 3329] not null &amp; copy</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 3329] not null &amp; copy</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 3330] Re: about EUC</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

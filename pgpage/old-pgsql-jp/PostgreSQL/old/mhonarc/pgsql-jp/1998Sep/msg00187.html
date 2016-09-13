@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5394] Re: about SERIAL data type -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 17 Sep 1998 17:03:38 +0900 -->
+<!--X-Message-Id: 199809170803.RAA15407@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000101bde20e$ac0a0800$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5394] Re: about SERIAL data type </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00186.html">Date Prev</A>][<A HREF="msg00189.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00189.html">Thread Next</A>][<A HREF="index.html#00187">Date Index</A>][<A HREF="threads.html#00187">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5394] Re: about SERIAL data type</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Sep 1998 17:03:38 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;井上＠セーレンです。
+
+井上さんは本家の MLも読んでらっしゃるので心強い:-)
+
+# 本家のML(hackers)読んでいる方他にもいらっしゃいますか？
+
+&gt;    PostgreSQL 6.3.2 から 6.4 への変更点(工事中)
+&gt;
+&gt;の中に   2.新しいデータ型 SERIAL の追加。  が入っています。
+&gt;これに関しては石井さんが本家のMLに投稿されていましたが、
+&gt;sequenceを利用するということで私も気になる点がいくつか。
+&gt;
+&gt;1.作成されたsequenceを単独でdropしたらどうなるのでしょう。
+&gt;  （出来ないようにするのが本当？）
+
+できちゃいますね。困ったもんです。で、次に insert すると、
+
+ERROR:  a_i_seq.nextval: sequence does not exist
+
+となります。
+
+&gt;2..テーブルをdropしたら付随するsequenceもdropされるの
+&gt;   でしょうか？（石井さんの投稿内容にも含まれていた。
+&gt;   多分dropするのが本当？）
+
+されるべきだと思いますが、実際にはされません。
+
+&gt;3.テーブルの再作成やコンバートの時のSERIALのスタートの
+&gt;  設定はどうするのでしょう。
+&gt;  1.を逆手にとってテーブル作成後に付随するsequenceを
+&gt;  手動で作り直すのでしょうか。
+&gt;  再作成の場合に機械的な方法がないようではとても使え
+&gt;  ないように思うのですが。
+
+この辺はちゃんと pg_dump がサポートしているようです。
+
+test=&gt; create table a (i serial, j text);
+NOTICE:  CREATE TABLE will create implicit sequence a_i_seq for SERIAL column a.i
+NOTICE:  CREATE TABLE/UNIQUE will create implicit index a_i_key for table a
+CREATE
+test=&gt; insert into a(j) values('aaa');
+INSERT 18335 1
+でもう1回 INSERT してから pg_dump すると、
+
+pg_dump test
+\connect - t-ishii
+CREATE SEQUENCE a_i_seq start 2 increment 1 maxvalue 2147483647 minvalue 1  cache 1 ;
+SELECT nextval ('a_i_seq');
+\connect - t-ishii
+CREATE TABLE a (i int4 DEFAULT nextval('a_i_seq') NOT NULL, j text);
+COPY a FROM stdin;
+1	aaa
+2	aaa
+\.
+CREATE UNIQUE INDEX a_i_key on a using btree ( i int4_ops );
+
+となるので、辻褄はあっているように思えます。
+
+&gt;なお、PostgreSQL 6.3.2 から 6.4 への変更点(工事中)には
+&gt;
+&gt;データの INSERT 時に値を省略すると、 自動的に前回の値 +1
+&gt;が挿入されます。
+&gt;
+&gt;となっていますが、MLの議論の雰囲気では "SERIALデータ型の
+&gt;columnには値を設定できない" のではないでしょうか？
+
+MLの議論は、"SERIALデータ型のcolumnに値を設定できるけど、それはおかし
+い" ではないんでしたっけ？
+
+P.S. 私信で HAVING はどうなった？っていう質問を受けたので、お答えする
+と、
+	一応サポートしているけど、まだバグがあるかもしれない
+
+っていう雰囲気みたいです。ちなみに、regression test をみると、この程度
+のことはできるようです。
+
+--
+-- select_having.sql
+--
+
+-- load test data
+CREATE TABLE test_having (a int, b int, c char(8), d char);
+INSERT INTO test_having VALUES (0, 1, 'XXXX', 'A');
+INSERT INTO test_having VALUES (1, 2, 'AAAA', 'b');
+INSERT INTO test_having VALUES (2, 2, 'AAAA', 'c');
+INSERT INTO test_having VALUES (3, 3, 'BBBB', 'D');
+INSERT INTO test_having VALUES (4, 3, 'BBBB', 'e');
+INSERT INTO test_having VALUES (5, 3, 'bbbb', 'F');
+INSERT INTO test_having VALUES (6, 4, 'cccc', 'g');
+INSERT INTO test_having VALUES (7, 4, 'cccc', 'h');
+INSERT INTO test_having VALUES (8, 4, 'CCCC', 'I');
+INSERT INTO test_having VALUES (9, 4, 'CCCC', 'j');
+
+SELECT b, c FROM test_having
+	GROUP BY b, c HAVING count(*) = 1;
+
+SELECT lower(c), count(c) FROM test_having
+	GROUP BY lower(c) HAVING count(*) &gt; 2 OR min(a) = max(a);
+
+SELECT c, max(a) FROM test_having
+	GROUP BY c HAVING count(*) &gt; 2 OR min(a) = max(a);
+
+DROP TABLE test_having;
+
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00189" HREF="msg00189.html">[pgsql-jp 5396] Re: about SERIAL data type</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 5393] about SERIAL data type</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 5393] about SERIAL data type</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 5396] Re: about SERIAL data type</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 5393] about SERIAL data type</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 5396] Re: about SERIAL data type</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00187"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00187"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

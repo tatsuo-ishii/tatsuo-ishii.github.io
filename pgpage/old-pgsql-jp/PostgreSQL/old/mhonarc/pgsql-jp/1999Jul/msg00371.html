@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9568] Re: pqbash -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Wed, 21 Jul 1999 17:58:57 +0900 -->
+<!--X-Message-Id: 37958BD12F8.A53ESAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 378D87A0E6.7FD7SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199907180956.SAA19840@mail.cx.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9568] Re: pqbash </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00370.html">Date Prev</A>][<A HREF="msg00372.html">Date Next</A>][<A HREF="msg00319.html">Thread Prev</A>][<A HREF="msg00377.html">Thread Next</A>][<A HREF="index.html#00371">Date Index</A>][<A HREF="threads.html#00371">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9568] Re: pqbash</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Jul 1999 17:58:57 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00242.html">378D87A0E6.7FD7SAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00314.html">199907180956.SAA19840@mail.cx.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On 18 Jul 1999 18:53:02 +0900
+KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt; さん wrote:
+&gt; 久保＠伊勢原市(引越し予定)です。
+&gt; 
+&gt; はーい。Orabash の作者です。
+&gt; 1月にとりあえず公開して、o4l ML でバインド変数使えるようにすると言っと
+&gt; いて、なんにも手をつけていません。(^^;)
+&gt;
+
+  休み明けにメールを見て、突然の Orabash の作者登場にびっくりし
+ています(^^)。
+
+
+&gt; &gt;   アクセス機能を組み込んだ bash (?) みたいなものがあれば、psql
+&gt; &gt; は不要になるでしょうし、簡単なPostgreSQLアプリとしても使えます
+&gt; &gt; し、当然 CGIとしても利用できますので、結構使えそうな気がします
+&gt; &gt; (^^)。
+&gt; 
+&gt; 今日勢いで、ひな型を作りました。
+
+　すばらしいです(^^)。
+
+
+&gt; しかし、psql 不要とまではいかないでしょうね。用途によっては bash のほ
+&gt; うが便利だろうけど。
+&gt;
+
+  bashに exec_sql(or pqexec)コマンドを組みこむと、psqlは不要で
+しょう(^^;)。 psqlの全機能を bashrc に組みこむことは可能だと思
+ってます。
+
+  psql と違って、SQL文を「exec_sql "SQL"」の形式で記述しなけれ
+ばならないというわずらわしさがありますが、exec_sql は alias を
+使用して短縮形にできますし、ダブルクォートは、これを使用するこ
+とで複数行の入力が可能になりますので、この短所も帳消しです。
+
+　exec_sql に例えば次のようなオプションを持たせると良いのではな
+かと思っています。
+
+　exec_sql [オプション] ["SQL文"]
+
+  -h : Help
+  -n : SQL実行結果の出力を表示しない
+　-f : ファイル名を指定して実行する  (exec_sql -f FILENAME)
+  -e : Backendに送信するSQL文を表示する
+  -d : データ構造定義内容を表示する  (exec_sql -d [adfiosStT])
+　　   (psqlの \dx に相当)
+
+　-F : SELECTの結果のフィールド区切を指定する(exec_sql -F '|')
+  -T : SELECTの結果を HTML の TABLE文形式で出力する
+  -N : SELECTの結果のヘッダーを出力しない
+
+
+&gt; TODO としては
+&gt; ・libpq の関数をもっと実装する。
+&gt; ・select の結果を bash の変数に直接代入するコマンドを作成する。
+
+　selectの結果を bashの変数に直接代入する方法はどのようにします
+か？
+
+# 最も単純な方法としては、次のように一端ファイルに落して read 
+　で読み上げてシェル変数に代入する方法が考えられます。これは、
+　fetch で読み上げているような感覚なので、この方法でも、がまん
+　できなくはないと思っています。
+
+　exec_sql -F ' ' "seelc * from test" &gt; /tmp/work
+  
+  while　[ read col1 col2 col3 &lt; /tmp/work ]; do
+     echo $col1 $col2 $col3
+  done
+
+
+&gt; ・内部で getopt_long を使っているのを internal の getopt に変更する。
+
+　作成していただいたファイルは、FreeBSD-2.2.7では実行できません
+でしたので、FreeBSD用の変更箇所を少し示しておきます。 (まだ実行
+テストしていませんが）
+
+ 1.bashに関するヘッダー
+
+  # include "config.h"
+  # include "shell.h"
+  # include "builtins.h"
+  # include "builtins/bashgetopt.h"
+
+ 2.getopt_long()をinternal_getopt()へ変更
+　 reset_internal_getopt()   ... 先頭で初期化が必要です。
+
+ 3.FreeBSD用コンパイルリンク
+
+　cc -fpic -I.... -c pqbash.c
+  ld -x -Bshareable -o pqbash.so pqbash.o
+
+--
+SAKAIDA Masaaki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00377" HREF="msg00377.html">[pgsql-jp 9574] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00242" HREF="msg00242.html">[pgsql-jp 9438] Re: PostgreSQLのインターフェイスの人気度は?</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp 9511] pqbash (Re: PostgreSQL のインターフ ェイスの人気度は?)</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00370.html">[pgsql-jp 9567] Re: ★機能比較★　Oracle等既存DB MSとの比較,</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00372.html">[pgsql-jp 9569] 幕張メッセ行って来ました</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00319.html">[pgsql-jp 9516] Re: pqbash (Re: PostgreSQL のインターフェイスの人気度は ?)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 9574] Re: pqbash</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00371"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00371"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

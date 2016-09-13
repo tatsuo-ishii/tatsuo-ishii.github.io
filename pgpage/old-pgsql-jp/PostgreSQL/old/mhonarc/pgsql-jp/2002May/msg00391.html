@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26156] Re: 日付データのDB 登録について -->
+<!--X-From: Kishimoto Yu <kishimoto@bisonsoft.co.jp> -->
+<!--X-Date: Tue, 28 May 2002 16:00:04 +0900 -->
+<!--X-Message-Id: 20020528154802.8122.KISHIMOTO@bisonsoft.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 002901c205f8$2e8cc180$0200a8c0@is.hitachizosen.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26156] Re: 日付データのDB 登録について </TITLE>
+<LINK REV="made" HREF="mailto:kishimoto@bisonsoft.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00390.html">Date Prev</A>][<A HREF="msg00392.html">Date Next</A>][<A HREF="msg00388.html">Thread Prev</A>][<A HREF="msg00392.html">Thread Next</A>][<A HREF="index.html#00391">Date Index</A>][<A HREF="threads.html#00391">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26156] Re: 日付データのDB 登録について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kishimoto Yu &lt;<A HREF="mailto:kishimoto@bisonsoft.co.jp">kishimoto@bisonsoft.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 May 2002 16:00:04 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00388.html">002901c205f8$2e8cc180$0200a8c0@is.hitachizosen.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+山田＠京都さんこんにちは、Kishimoto と申します。
+
+On Tue, 28 May 2002 12:31:35 +0900
+"Hiroyuki Yamada" &lt;hiroyuki@rh.is.hitachizosen.co.jp&gt; 様 wrote:
+
+&gt; 　下記プログラムは、現在時刻をテーブル登録するものなのですが、 d_date,
+&gt; d_time, d_timestampの各フィールドに String型データからDBへ値を登録したいので
+&gt; すが、どのようにしたら良いのかご教授ねがいませんでしょうか？
+&gt; 
+&gt; (例)
+&gt;  String date_field = "2002-11-05";
+&gt;  String time_field = "10:09:35";
+&gt;  String timestamp_field = "1980-09-21 15:42:13.123";
+&gt; のデータをttt_tableテーブルへ登録したい。
+
+PostgreSQL + Java のコーディングは初めてなので
+間違いがあったらご指摘ください。
+
+当方の環境（PostgreSQL 7.1.3, JDBC 1.3.1）では
+以下のコードで動作しましたが、お望みのものとは
+違うでしょうか？
+
+[Hizuke.java]
+import java.lang.*;
+import java.sql.*;
+
+public class Hizuke {
+        public static void main(String[] args) {
+
+                Connection conn = null;
+                String url = "jdbc:postgresql:testdb";
+                String user = "postgres";
+                String password = "";
+
+                String date_field = "2002-11-05";
+                String time_field = "10:09:35";
+                String timestamp_field = "1980-09-21 15:42:13";
+
+                try{
+                        Class.forName("org.postgresql.Driver");
+                        conn = DriverManager.getConnection(url, user, password);
+
+                        PreparedStatement pstmt = conn.prepareStatement("INSERT INTO ttt_table values (?,?,?)");
+                        pstmt.clearParameters();
+                        pstmt.setString(1, date_field);
+                        pstmt.setString(2, time_field);
+                        pstmt.setString(3, timestamp_field);
+
+                        pstmt.executeUpdate();
+                        conn.commit();
+
+                        pstmt.close();
+                        conn.close();
+
+                } catch(SQLException e){
+                        e.printStackTrace();
+                } catch(Exception e){
+                        e.printStackTrace();
+                }
+        }
+}
+
+[実行結果]
+
+testdb=# \d ttt_table
+                 Table "ttt_table"
+  Attribute  |           Type           | Modifier
+-------------+--------------------------+----------
+ d_date      | date                     |
+ d_time      | time                     |
+ d_timestamp | timestamp with time zone |
+
+testdb=# select * from ttt_table;
+   d_date   |  d_time  |      d_timestamp
+------------+----------+------------------------
+ 2002-11-05 | 10:09:35 | 1980-09-21 15:42:13+09
+(1 row)
+
+
+あと、済みません。
+
+&gt;  String timestamp_field = "1980-09-21 15:42:13.123";
+                                                ^^^^
+".123" の書き方はわかりませんでした。
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+ Kishimoto Yu &lt;kishimoto@bisonsoft.co.jp&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00392" HREF="msg00392.html">[pgsql-jp: 26157] Re: 日付データのDB  登録について</A></STRONG>
+<UL><LI><EM>From:</EM> Kishimoto Yu &lt;kishimoto@bisonsoft.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00388" HREF="msg00388.html">[pgsql-jp: 26153] 日付データのDB登録について</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroyuki Yamada" &lt;hiroyuki@rh.is.hitachizosen.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00390.html">[pgsql-jp: 26155] Re: データ形式についての質問です</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp: 26157] Re: 日付データのDB  登録について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00388.html">[pgsql-jp: 26153] 日付データのDB登録について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00392.html">[pgsql-jp: 26157] Re: 日付データのDB  登録について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00391"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00391"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

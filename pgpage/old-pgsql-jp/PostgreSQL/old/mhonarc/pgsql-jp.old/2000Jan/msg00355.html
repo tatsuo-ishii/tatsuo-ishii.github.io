@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12811] Re: 6.5.3 on FreeBSD 3.3&#45;RELEASE -->
+<!--X-From: Satoshi Yamada <s&#45;yamada@kh.rim.or.jp> -->
+<!--X-Date: Tue, 25 Jan 2000 14:56:17 +0900 -->
+<!--X-Message-Id: 200001250556.OAA05406@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010109b4aefba34b2b@str.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12811] Re: 6.5.3 on FreeBSD 3.3-RELEASE </TITLE>
+<LINK REV="made" HREF="mailto:s-yamada@kh.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00354.html">Date Prev</A>][<A HREF="msg00356.html">Date Next</A>][<A HREF="msg00314.html">Thread Prev</A>][<A HREF="msg00300.html">Thread Next</A>][<A HREF="index.html#00355">Date Index</A>][<A HREF="threads.html#00355">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12811] Re: 6.5.3 on FreeBSD 3.3-RELEASE</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Yamada &lt;<A HREF="mailto:s-yamada@kh.rim.or.jp">s-yamada@kh.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Jan 2000 14:56:17 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00314.html">v04010109b4aefba34b2b@str.hitachi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+山田です。
+
+下記の件、解決しました。
+
+&gt;こすげです。
+&gt;&gt; 山田＠まとめてしまって申し訳ありません です。
+&gt;&gt; &gt;こすげです。
+&gt;&gt; &gt;&gt; &gt;山田と申します。
+&gt;&gt; &gt;&gt; &gt;FreeBSD 3.3-RELEASE に PostgreSQL 6.5.3 を
+&gt;&gt; &gt;&gt; &gt;インストールしてみたのですが、どうも変です。
+&gt;&gt; &gt;インストールしたばかりでしたら、もう一度/usr/local/pgsql/ 以下を
+&gt;&gt; &gt;削除してインストールしなおし(gmake install) しても、それほど負荷は
+&gt;&gt; &gt;なさそうなので、それでやってみたらどうでしょうか。
+&gt;&gt; これはやってみました。全パッチ当て済みのもの二回、
+&gt;&gt; 何か相性の悪いパッチがあるのかなと思い、パッチ当たってないもの一回
+&gt;&gt; 一からインストールしてみましたが、結果は同じでした。
+&gt;　うーむ、、、
+&gt;　ところで、rm とかcp とかのコマンドのあるディレクトリに
+&gt;パスは通っているのでしょうか。パスの追加の時に編集ミス
+&gt;してないですか? とりあえず、コマンドラインにwhich rm と
+&gt;入力してみればわかると思います。
+
+原因は postmaster の起動方法にありました。
+こすげさんのご指摘の通り、 これまで
+
+========================================================================
+exec /usr/bin/env - \
+ PATH="/usr/local/pgsql/bin:/usr/local/bin" \
+ PGDATA="/usr/local/pgsql/data" \
+ LD_LIBRARY_PATH="/usr/local/pgsql/lib" \
+setuidgid postgres /usr/local/pgsql/bin/postmaster -i
+========================================================================
+
+のように起動していたため、バックエンドとしては /bin に
+パスが通ってませんでした。
+# ちなみにバックエンドで system() 使ってるんですね。
+# grep しただけなのでアレなんですが、exec() 系には
+# ならないのでしょうか? いや別にいいんですけど ^^;
+
+また、エラー出力もリダイレクトするようにすることにより、
+端末には表示されなくなりました。
+
+ご参考までに現在の起動スクリプトは以下のようになっています。
+
+=== /service/postgres/run ==============================================
+#!/bin/sh
+exec /usr/bin/env - \
+ PATH="/usr/local/pgsql/bin:/usr/local/bin:$PATH" \
+ PGDATA="/usr/local/pgsql/data" \
+ LD_LIBRARY_PATH="/usr/local/pgsql/lib" \
+setuidgid postgres /usr/local/pgsql/bin/postmaster -i -o -F -D/usr/local/pgsql/d
+ata 2&gt;&amp;1
+========================================================================
+
+ということでどうもありがとうございました &amp; お騒がせしました。
+-- 
+<A HREF="mailto:s-yamada@kh.rim.or.jp">mailto:s-yamada@kh.rim.or.jp</A> (山田 智史)
+<A HREF="http://www.kh.rim.or.jp/~s-yamada/">http://www.kh.rim.or.jp/~s-yamada/</A>
+-- 
+Like a rolling stone...
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp 12770] Re: 6.5.3 on FreeBSD 3.3-RELEASE</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00354.html">[pgsql-jp 12810] Re: GtkSQL</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 12812] オフコンのデータ取り込み</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00314.html">[pgsql-jp 12770] Re: 6.5.3 on FreeBSD 3.3-RELEASE</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00300.html">[pgsql-jp 12756] はじめまして。PL/pgSQLのインストールが出来ません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00355"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00355"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

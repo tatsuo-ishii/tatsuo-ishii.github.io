@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7116] Re: semget failed (No space left on device)が出る -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Thu, 18 Feb 1999 12:20:33 +0900 -->
+<!--X-Message-Id: 199902180320.MAA08190@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010501b2f0824cd809@tk.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7116] Re: semget failed (No space left on device)が出る </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00240.html">Date Prev</A>][<A HREF="msg00242.html">Date Next</A>][<A HREF="msg00235.html">Thread Prev</A>][<A HREF="msg00245.html">Thread Next</A>][<A HREF="index.html#00241">Date Index</A>][<A HREF="threads.html#00241">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7116] Re: semget failed (No space left on device)が出る</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 18 Feb 1999 12:20:33 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00235.html">v04010501b2f0824cd809@tk.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。
+
+&gt;&gt;&gt;&gt; On Wed, 17 Feb 1999 23:36:09 +0900,
+&gt;&gt;&gt;&gt;	Takuya Abe &lt;abet@tk.airnet.ne.jp&gt; wrote:
+
+&gt;&gt; semgetに絡む、semaphore関連の設定がLINT configにあるはずです。(ちな
+&gt;&gt; みに、セマフォはIPCの手段の一つですが、いわゆる共有メモリ(shmgetで
+&gt;&gt; 取る)とはちょっと違います)
+
+abet&gt; 　なんと！！！あったんですか？LINTは見ていたんですけど、もしかす
+abet&gt; ると古いのを見ていたか見逃していたかもしれません。恥ずかしい・・・。
+
+ちょっと昔のものをほじくってみました;)。2.1.0Rにはまだなく、2.2.2Rには
+すでにあった…くらいのタイミングみたいです。＞SysV IPC関連のパラメータ
+
+&gt;&gt; （中略）# ちなみに、共有メモリのサイズをいじるなら、options
+&gt;&gt; SHMMAXPGSでしょう# ね。デフォルトでは1024page=4MBだと思います。
+
+abet&gt; 　なんとなんと・・・。まさにそのことかもしれません。明日早速やっ
+abet&gt; てみます。これでこの数週間の苦労が酬われるかも。谷山さんに感謝で
+abet&gt; す！！
+
+うーん、きちんとソースを追いかけ切ったわけじゃないので断言はできません
+が、雰囲気としては違うと思いますよ。
+
+&gt; IpcSemaphoreCreate: semget failed (No space left on device)
+
+落ちる時に出るメッセージはこれですよね？これを出しているのは、石井さん
+が作ってくださったpostgresql-6.4.2-patched-990217.tar.gzのソースでは、
+backend/storage/ipc/ipc.cの351行付近、
+
+	if (semId &lt; 0)
+	{
+		EPRINTF("IpcSemaphoreCreate: semget failed (%s) "
+			"key=%d, num=%d, permission=%o",
+			 strerror(errno), semKey, semNum, permission);
+			proc_exit(3);
+	}
+
+このへんでしょう。このソースだと、阿部さんが示してくださったメッセージ
+とちょっと違うものが出るはず(付加情報がつくはず)なので、お使いのソース
+のバージョンが違うはずです。ですから、行番号は一致しないと思いますが…
+
+で、結局、このメッセージは、semget()が失敗して、その時のerrnoがENOSPC
+だった時に出るわけです。
+
+それでは、semgetがENOSPCを返すのはどんな時？ってわけで、kernelソースに
+潜ってみると、/usr/src/sys/kern/sysv_sem.cのsemget()の中の
+
+	if (nsems &gt; seminfo.semmns - semtot) {
+#ifdef SEM_DEBUG
+		printf("not enough semaphores left (need %d, got %d)\n",
+		    nsems, seminfo.semmns - semtot);
+#endif
+		return(ENOSPC);
+	}
+
+このへんと、
+
+	if (semid == seminfo.semmni) {
+#ifdef SEM_DEBUG
+		printf("no more semid_ds's available\n");
+#endif
+		return(ENOSPC);
+	}
+
+このへんがクサいわけです。
+
+というわけで、ざっとソースを眺めた感じでは、options MAXSHMPGSを増やす
+のではなく(いや…増やしてもいいんでしょうけど)、options SEMMNIかSEMMNS
+を増やさないと、問題は解決しないんじゃないかと思います。
+
+abet&gt; P.S以前石井さんから教えていただいたlimit descriptors 20は、なぜ
+abet&gt; かシェルスクリプト中ではエラーになりましたので使っていません。通
+abet&gt; 常のコマンドラインでは使えるのになぜなんでしょうか。
+
+&gt;&gt; それは、おそらくそのシェルスクリプトがcshではなくshだからだと思いま
+&gt;&gt; す。limitはcshの組み込みコマンドです。もし、/bin/shでスクリプトが書
+&gt;&gt; かれているなら、sh(1)のrlimitコマンドをご覧下さい。
+
+abet&gt; 　いえ、確かにcshを使っているんです。だから、limit datasize 64m
+abet&gt; とかのコマンドは通るし、ulimitというコマンドも通りました。でもな
+abet&gt; ぜかdescriptorsだけ通らないという・・・。変でしょうか。
+
+ぁぅ…この謎、解けました。cshとtcshで違う…(^^;
+
+tcshだとlimit descriptorsで通りますが、cshだとlimit openfilesとしなけ
+ればなりません。(少なくともFreeBSDでは)
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00245" HREF="msg00245.html">[pgsql-jp 7120] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00235" HREF="msg00235.html">[pgsql-jp 7110] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00240.html">[pgsql-jp 7115] Re: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 7117] Re: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00235.html">[pgsql-jp 7110] Re: semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 7120] Re: semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00241"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00241"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

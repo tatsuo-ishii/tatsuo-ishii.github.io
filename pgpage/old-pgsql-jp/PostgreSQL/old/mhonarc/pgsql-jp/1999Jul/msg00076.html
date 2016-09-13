@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9272] Re: can't exec one more postmaster with "semgetfailed"Error -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Tue, 06 Jul 1999 16:15:28 +0900 -->
+<!--X-Message-Id: 199907060715.QAA01126@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9907060320.AA25043@wendy.perfect&#45;liberty.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9272] Re: can't exec one more postmaster with "semgetfailed"Er </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00075.html">Date Prev</A>][<A HREF="msg00077.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00078.html">Thread Next</A>][<A HREF="index.html#00076">Date Index</A>][<A HREF="threads.html#00076">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9272] Re: can't exec one more postmaster with "semgetfailed"Error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 06 Jul 1999 16:15:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00074.html">9907060320.AA25043@wendy.perfect-liberty.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。
+
+&gt;&gt;&gt;&gt; On Tue, 6 Jul 99 12:20:40 JST,
+&gt;&gt;&gt;&gt; 	takayasu@wendy.perfect-liberty.or.jp wrote:
+
+takayasu&gt; [リコンフィグでの疑問]
+takayasu&gt;  kernel の作り直しにて、/usr/include/sys/s[eh]m.h への変更が
+takayasu&gt;  有効にならない。のは、私だけでしょうか。（そうに違いないと
+takayasu&gt;  は思う）
+
+takayasu&gt;  で、/usr/src/sys/conf/param.c で、直に
+takayasu&gt;    struct  shminfo shminfo = {
+takayasu&gt;            SHMMAX,
+takayasu&gt;            ↓
+takayasu&gt;            SHMMAX*8,  とか
+takayasu&gt;    struct seminfo seminfo = {
+takayasu&gt;                 SEMMAP+33,
+takayasu&gt;     などと書き込んでシノイデ（？）います。    
+
+takayasu&gt; 「有効にならない」とは、sys/sem.h での該当（と思われる）
+takayasu&gt; #define 行での数値を変更、
+takayasu&gt;  config MYHOST,cd ../../compile/MYHOST,make depend,make,
+takayasu&gt;  make install で reboot しても、ipcs で見る数値が変わらない、
+takayasu&gt;  のです。なんか変、ですよね？
+
+いえ、それはそういうものだと思います、多分。;)
+
+手元に3.Xが動いているマシンがないので、2.2.8Rのコードを見ながらこれを
+書いていますが…
+
+reconfig時にsem.h、shm.hをいじるというのは正道ではないでしょう。これら
+のヘッダを見ればわかりますが、#ifndef SEMMNI…みたいに書かれていますね？
+
+つまり、これらはデフォルト値を記述しているだけの話で、reconfig時はここ
+をいじるわけではないのです。config file MYHOSTに、
+
+options         SEMMAP=31 (数字は必要に応じて値を調整)
+options         SEMMNI=11
+options         SEMMNS=61 
+options         SEMMNU=31
+options         SEMMSL=61
+options         SEMOPM=101
+options         SEMUME=11
+
+を書くことで設定するのです。options行を書かなければ、sys/sem.hで定義さ
+れている値がデフォルト値として使われます。(つまり、sem.hよりconfig
+fileのoptions行の方が優先)
+
+(上の各optionの値は、2.2.8RのLINT configに書かれていたもので、特に意味
+はありません)
+
+余談: 複数のpostmasterを起動した時に起こり得る問題
+
+1.ファイルのぶち壊し合い
+
+PGDATAを同じにして、複数のpostmasterを上げたらどうなるのでしょうね？こ
+れは実装依存だと思います。ちゃんと排他が行なわれていれば、後から上げた
+ものが動かない(fileがlockされてて駄目だったといって落ちる)だけで済みま
+す。
+
+2.shm,semのkeyの衝突
+
+システムグローバルな名前空間であるshm、semのkeyは、pgsqlではサーバの
+port番号に何やら怪しげな演算を施すことによって決めているようです。
+
+ですから、基本的にはport番号が異なる複数のサーバ間でkeyが衝突して壊し
+合いを行なうことはないはずです。
+
+しかしながら、そのport番号からkeyの値を決める「怪しげな演算」は一種の
+hash関数として働いているに過ぎないので、偶然の衝突が皆無であるという保
+証はありません。もし、運悪く衝突してしまったら、どうなるのでしょうね？
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00078" HREF="msg00078.html">[pgsql-jp 9274] Re: can't exec one more postmaster with "semgetfailed"Error</A></STRONG>
+<UL><LI><EM>From:</EM> takayasu@wendy.perfect-liberty.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"Error</A></STRONG>
+<UL><LI><EM>From:</EM> takayasu@wendy.perfect-liberty.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 9271] pg_dumpできない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00077.html">[pgsql-jp 9273] RE: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"Error</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 9274] Re: can't exec one more postmaster with "semgetfailed"Error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00076"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00076"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

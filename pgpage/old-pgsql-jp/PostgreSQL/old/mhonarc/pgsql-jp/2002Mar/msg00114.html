@@ -1,0 +1,133 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25137] text 型に大量(50MB)のデータを入れた場合 -->
+<!--X-From: Kazumasa Gotoh <kgotoh@cic&#45;kk.co.jp> -->
+<!--X-Date: Thu, 07 Mar 2002 16:39:13 +0900 -->
+<!--X-Message-Id: 20020307163913A.kgotoh@cic&#45;kk.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25137] text 型に大量(50MB)のデータを入れた場合 </TITLE>
+<LINK REV="made" HREF="mailto:kgotoh@cic-kk.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00115.html">Date Prev</A>][<A HREF="msg00113.html">Date Next</A>][<A HREF="msg00118.html">Thread Prev</A>][<A HREF="msg00116.html">Thread Next</A>][<A HREF="index.html#00114">Date Index</A>][<A HREF="threads.html#00114">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25137] text 型に大量(50MB)のデータを入れた場合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kazumasa Gotoh &lt;<A HREF="mailto:kgotoh@cic-kk.co.jp">kgotoh@cic-kk.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 07 Mar 2002 16:39:13 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+私のところではなく、知り合いのところで発生した問題なのですが、
+以下の条件でエラーが発生するというものがありました。
+
+  環境 : Digital UNIX 5.0 + PostgreSQL 7.2
+
+  現象 : text 型のカラムに 50MB ほどのデータを insert しにゆくと
+         "Memory exhausted in AllocSetAlloc(数字)" となる。
+
+"数字" はアロケーションサイズで、50MB ほどの値になります。
+
+結局はその環境で malloc できる最大値を標準の 512MB から1GB に増やして
+登録できるようにはなったのですが、何でそんなにメモリを食うの？
+という点が疑問になりました。
+
+私自身は追試はしていないのですが、top で見ると、postmaster のプロセス
+サイズは確かに 500MB 以上になっていたそうです。
+
+エラー発生個所は、src/backend/utils/mmgr/aset.c の AllocSetAlloc() の
+493行目になります。実際にはその前の 489行目の malloc でエラーになって
+いるわけです。
+
+  485  if (size &gt; ALLOC_CHUNK_LIMIT)
+  486  {
+  487         chunk_size = MAXALIGN(size);
+  488         blksize = chunk_size + ALLOC_BLOCKHDRS + ALLOC_CHUNKHDRSZ;
+  489         block = (AllocBlock)malloc(blksize);
+  490         if (block == NULL)
+  491         {
+  492                 MemoryContextStats(TopMemoryContext);
+  493                 elog(ERROR, "Memory exhausted in AllocSetAlloc(%lu)".
+  494                          (unsigned long) size);
+
+作業者はこの関数でトレースを取るようにしてみたのだそうですが、489行目の
+malloc は 8〜10回ほど実行されていたと言っています。
+
+ここが何らかのワーキングセットを確保しているんだろう以上の事は調べて
+いませんが、カラムサイズの 10倍くらいのメモリが消費されるというのは
+PostgreSQL の動きとしては正しいのでしょうか？
+
+まぁ、text 型になんでそんな大きなデータを入れるんだという話も
+あるのかも知れませんが、実際できてしまうし、マニュアルにも無制限と
+書いてあるし…
+
+AllocSetRealloc() じゃなくて AllocSetAlloc() だということは、最初に
+確保する必要のあるメモリエリアということなのだろうと思うのですが、
+結果としてはメモリを食いすぎてる気がしないではありません…
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+(株) セントラル情報センター
+                             後藤和政    kgotoh@cic-kk.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[pgsql-jp: 25139] Re: text 型に大量(50MB) のデータを入れた場合</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00115.html">[pgsql-jp: 25138] Re: VB からODBC   経由で文字化け</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00113.html">[pgsql-jp: 25136] Re: VB からODBC    経由で文字化け</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00118.html">[pgsql-jp: 25141] Re: JDBCドライバ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00116.html">[pgsql-jp: 25139] Re: text 型に大量(50MB) のデータを入れた場合</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00114"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00114"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

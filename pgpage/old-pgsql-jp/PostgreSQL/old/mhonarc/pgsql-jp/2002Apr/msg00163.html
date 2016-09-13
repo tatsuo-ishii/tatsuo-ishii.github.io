@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25643] 外部キーのリファレンス先のテーブル所有者 -->
+<!--X-From: Jun Kitamura <kitamura@zoozee.jp> -->
+<!--X-Date: Mon, 22 Apr 2002 07:03:33 +0900 -->
+<!--X-Message-Id: 3CC337351D6.0EEAKITAMURA@sv.zoozee.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25643] 外部キーのリファレンス先のテーブル所有者 </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@zoozee.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00168.html">Thread Prev</A>][<A HREF="msg00166.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25643] 外部キーのリファレンス先のテーブル所有者</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@zoozee.jp">kitamura@zoozee.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 22 Apr 2002 07:03:33 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠zoozee (旧)アシェットです。独立開業しました。
+
+PostgreSQL のバージョンは、7.0.3、7.1.3 です。
+オーナー(A) のテーブル t1 に対して、ユーザ(B) が 外部参照する t2 を作成し
+ようとすると、t1 のオーナーでは無いので作れない、とエラーになります。
+
+テーブルに対するパーミッションは、松本豊 さん投稿の 「19392 外部キーのリ
+ファレンス先の permission」から始まるスレッドで理解できます。7.1.3 で修正
+されているのも確認しました。
+
+t1 が他人のテーブルで、その内容に伴い自分のテーブル(t2)が DELETE されたり
+UPDATE されたりするのを「承知」で作成したいのですが、ムリなようです。
+オーナー(A)の t1 に、UPDATE、DELETE とも追従したいテーブル t2 をユーザ
+(B)が作れない、というのはどうしてでしょうか？
+7.0.3 でも、7.1.3 でも同じ動作です。
+
+ムリなのはしょうがないのですが、この仕様、皆さんは納得できますか？
+
+(例えば管理者の作成するプロジェクトマスタに従って、自分の受け持ちの仕事を
+格納するタスクテーブルを作成したい、その際、プロジェクトが消失したら、自
+分のタスクテーブルから勝手にタスクが消えて欲しい、など用途はあると思うの
+ですが。まぁ、その時は管理者が各人用のタスクテーブルを作成して各人向けの
+権限を与える、で問題は解決なのですが)。
+
+(以下実行結果)
+(ちなみに、ユーザ A が grant all on t1 to public しても、ダメでした。t2 
+作成時にオーナーが違うというエラーが出ているので、ダメだろうと思ったので
+すが、やっぱりダメでした。)
+
+-- ユーザ A で実行
+psql -U userA test
+
+create table t1(
+ a int4,
+  primary key(a),
+ b int4
+);
+NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index 't1_pkey' for table
+ 't1'
+CREATE
+
+-- ユーザ B になって、t2 を作成
+psql -U userB test
+
+create table t2 (
+ a int4,
+  CONSTRAINT t2_a
+   FOREIGN KEY(a)
+   REFERENCES t1(a)
+   ON UPDATE CASCADE
+   ON DELETE CASCADE,
+ c int4
+);
+NOTICE:  CREATE TABLE will create implicit trigger(s) for FOREIGN KEY check(s)
+ERROR:  t1: Must be table owner.
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp: 25646] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp: 25642] Re: default の設定</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp: 25644] Re: default の設定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00168.html">[pgsql-jp: 25648] Re: java.sql.Exception</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00166.html">[pgsql-jp: 25646] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

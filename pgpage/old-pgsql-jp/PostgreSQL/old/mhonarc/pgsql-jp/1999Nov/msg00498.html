@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11931] Tuning -->
+<!--X-From: EMOTO Masahiko <emo@nifs.ac.jp> -->
+<!--X-Date: Sun, 28 Nov 1999 15:42:42 +0900 -->
+<!--X-Message-Id: 19991128154242U.emo@nifs.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11931] Tuning </TITLE>
+<LINK REV="made" HREF="mailto:emo@nifs.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00497.html">Date Prev</A>][<A HREF="msg00499.html">Date Next</A>][<A HREF="msg00526.html">Thread Prev</A>][<A HREF="msg00507.html">Thread Next</A>][<A HREF="index.html#00498">Date Index</A>][<A HREF="threads.html#00498">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11931] Tuning</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: EMOTO Masahiko &lt;<A HREF="mailto:emo@nifs.ac.jp">emo@nifs.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 28 Nov 1999 15:42:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+行数が極めて大きい場合のパフォーマンスのチューニング方法
+を教えてください。
+
+                                           江本
+以下本文、
+
+現在実験のデータを管理するため、データベースを使用しています。
+データ量が増加したときのパフォーマンスを調べるため、ベンチ
+マークを取ってみました。
+
+
+テーブル定義は以下のとおりです。
+
+Table    = _locationfileinfo_
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| shotno                           | int4 not null                    |     4 |
+| subshotno                        | int4 not null                    |     4 |
+| diagnostics                      | char() not null                  |    32 |
+| server                           | varchar()                        |   255 |
+| directory                        | varchar()                        |   255 |
+| filename                         | varchar()                        |   255 |
+| filelen                          | int4                             |     4 |
+| filedate                         | datetime                         |     8 |
+| userid                           | char()                           |    32 |
+| summary                          | varchar()                        |   255 |
++----------------------------------+----------------------------------+-------+
+Index:    _locationfileinfoindex_
+
+Table    = _locationfileinfoindex_
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| diagnostics                      | char()                           |    32 |
+| shotno                           | int4                             |     4 |
+| subshotno                        | int4                             |     4 |
++----------------------------------+----------------------------------+-------+
+また、使用したSQLは
+	
+	select * from _locationfileinfo_
+	where diagnostics = 'xxxx' and
+	shotno &gt;= xxxx and shotno &lt;= xxxx
+
+というものです(1行だけマッチする)。この際
+インデックスが使われていることは explain
+文で確かめました。
+
+
+また、使用した環境は、
+サーバ:
+	CPU Pentium II 450MHz x 2
+        MEM 128MB
+        OS  Laser5 Linux 6
+        DB  PostgreSQL 6.5.3
+
+クライアント
+       CPU Pentium II 350MHz x 1
+       MEM 192MB
+       OS  Windows NT4 SP5
+
+です。
+また、PostgreSQL の立ち上げオプションは、
+
+postmaster -i -S -B 256 -N 128 -D/xxx/yyy/zzz
+
+で行いました。
+
+カラムを 129099 行から、倍、倍・・・と増やしてゆき 8,262,336 
+行まで増やして、クライアントから、SQL発行から、結果が帰って
+くるまでの時間を測定した結果が次のとおりです。
+
+       倍率   実行時間(ms)
+------------------------------
+          x 1          88     
+            2         121     
+            4         197     
+            8         332     
+           16         599     
+           32        1129     
+           64        2185     
+
+これをみると完全に、行数に比例しているのですが、こんなもの
+なんでしょうか？インデックスは B Tree で作成しているので、
+Log(N)に比例すると思っていたのですが。
+
+この後、-Bオプションで指定する数を増やしてみたり、
+メモリを　256 MB まで増設してみましたが、有意な
+差が認められませんでした。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00507" HREF="msg00507.html">[pgsql-jp 11940] RE: Tuning</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00497.html">[pgsql-jp 11930] はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00499.html">[pgsql-jp 11932] CHAR型フィールドで数値演算ができる？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00526.html">[pgsql-jp 11959] Re: CHAR型フィールドで数値演算ができる？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00507.html">[pgsql-jp 11940] RE: Tuning</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00498"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00498"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

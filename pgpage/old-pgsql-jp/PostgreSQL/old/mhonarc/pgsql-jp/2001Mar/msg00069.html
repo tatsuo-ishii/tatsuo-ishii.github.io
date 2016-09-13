@@ -1,0 +1,224 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20203] Re: perl からラージオブジェクト再び -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Mon, 5 Mar 2001 10:06:25 +0900 -->
+<!--X-Message-Id: 002101c0a510$839e66f0$0a00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 357948019.983718604032.JavaMail.javamailuser@localhost -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20203] Re: perl からラージオブジェクト再び </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00059.html">Thread Prev</A>][<A HREF="msg00055.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20203] Re: perl からラージオブジェクト再び</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 5 Mar 2001 10:06:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00059.html">357948019.983718604032.JavaMail.javamailuser@localhost</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+スクリプトが入っているので、長文になっています。&lt;(__)&gt;
+
+----- Original Message ----- 
+From: "website004" &lt;website004@yo-mail.co.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Monday, March 05, 2001 12:10 AM
+Subject: [pgsql-jp 20193] Re: perl からラージオブジェクト再び
+
+&gt; ビーンズネットワーク　吉田孝雄です。
+（中略）
+&gt; せめて参考になるものをご存知でしたらHPでも
+&gt; 参考書でも薦めていただければ幸いです。
+perldoc だけでは足りませんか？
+私はとりあえず自分の見ましたけど：
+<A HREF="http://member.nifty.ne.jp/hippo2000/perltips/DBD/pg.htm">http://member.nifty.ne.jp/hippo2000/perltips/DBD/pg.htm</A>
+＃っていうか、これもperldocをHTMLにしているだけだから
+
+lo_import、lo_exportのつもりではなかったのですが、
+どうも前のメールでいったことがうまく伝わらなかったようで、
+面倒なので、簡単なCGIによる例を作りました。
+登録から検索まで１つにまとめてみました。
+ユーザもpostgresをやめて、scott/tigerにしてみました。
+＃Oracleに対抗しようというような意志はありません(^^)
+
+これを以下の環境で動かしましたが、うまく動いています。
+製作＋確認15分程度のものなので、エラー処理とかかなりいい加減
+です。（こうやってメール書いている方が長い...）
+＃少なくともクライアントから登録した加藤あいちゃんや
+＃岡部玲子ちゃんはとても可愛いです。（そんな問題じゃない？）
+
+Server：
+  TurboLinux6.0 Workstation 
+  Apache 1.3.12
+  PostgreSQL 7.0.2 (patched)
+  DBI 1.14 + DBD::Pg 0.95
+Client: WinNT 4.0 Workstation SP3 + IE5.0
+
+#!/usr/bin/perl
+use strict;
+use DBI;
+use CGI;
+use CGI::Carp qw(fatalsToBrowser); #for Debug
+use constant MsgHead =&gt; 
+ qq{Content-Type: text/html\nRefresh: 2;URL="$ENV{SCRIPT_NAME}"\n\n};
+
+#0.準備
+my $oCgi = new CGI;
+if($oCgi-&gt;param() &amp;&amp; 
+   (defined($oCgi-&gt;param('exeUpd')) || 
+ defined($oCgi-&gt;param('exeDsp')))
+  ) {
+ my $hDb = DBI-&gt;connect("dbi:Pg:dbname=gotdate", "scott", "tiger",
+                        {AutoCommit =&gt; 0, RaiseError=&gt;1}) ||
+           die $DBI::errstr;
+ $hDb-&gt;commit;
+
+ my $iRow = 0;
+ my $hSt;
+ eval {
+  #2. 登録
+  if($oCgi-&gt;param('exeUpd')) {
+      my $oId = $hDb-&gt;func($hDb-&gt;{pg_INV_WRITE}, 'lo_creat');
+      my $oFd = $hDb-&gt;func($oId, $hDb-&gt;{pg_INV_WRITE},
+     'lo_open');
+      $hSt = $hDb-&gt;prepare('INSERT INTO img VALUES (?, ?);');
+   my $fIN = $oCgi-&gt;upload('fileUpd');
+   if($fIN) {
+    binmode($fIN); #用心だけ
+       my($sBuff, $iLen);
+       while($iLen = read($fIN, $sBuff, 2048)){
+           $hDb-&gt;func($oFd, $sBuff, $iLen, 'lo_write');
+       }
+       $hDb-&gt;func($oFd, 'lo_close');
+       $hSt-&gt;execute($oCgi-&gt;param('txtCmmt'), $oId);
+    print MsgHead;
+    print "&lt;html&gt;&lt;body&gt;UPLOADED&lt;/body&gt;&lt;/html&gt;";
+   }
+   else{
+    print MsgHead;
+    print "&lt;html&gt;&lt;body&gt;No File Specified&lt;/body&gt;&lt;/html&gt;";
+   }
+  }
+  #3. 取得
+  else {
+      $hSt = $hDb-&gt;prepare(
+    'SELECT name, raster FROM img where name like ?');
+      $hSt-&gt;execute($oCgi-&gt;param('txtCmmt'));
+      my $raData = $hSt-&gt;fetchrow_arrayref();
+   if($raData) {
+          binmode STDOUT;
+    print "Content-Type: image/jpeg\n\n";
+          my $oFd = $hDb-&gt;func($raData-&gt;[1],
+                              $hDb-&gt;{pg_INV_READ}, 'lo_open');
+          my $sBuff='';
+          while($hDb-&gt;func($oFd, $sBuff, 4096, 'lo_read')) {
+              print $sBuff;
+          }
+          $hDb-&gt;func($oFd, 'lo_close');                  
+   }
+   else{
+    print MsgHead;
+    print "&lt;html&gt;&lt;body&gt;No Data found!!&lt;/body&gt;&lt;/html&gt;";
+   }
+  }
+ };
+ if($@) {
+  $hDb-&gt;rollback if($hDb);
+  print STDERR $@;
+ }                      
+ $hDb-&gt;commit;
+ $hSt-&gt;finish() if($hSt);
+ $hDb-&gt;disconnect() if($hDb); 
+ exit;
+}
+#画面表示
+print&lt;&lt;EOF;
+Content-Type: text/html
+
+&lt;html&gt;
+&lt;body&gt;
+&lt;BODY&gt;
+&lt;FORM ACTION="" METHOD="POST" ENCTYPE="multipart/form-data"&gt;
+&lt;TABLE&gt;
+&lt;TR&gt;
+ &lt;TD&gt;Keyword&lt;/TD&gt;
+ &lt;TD&gt;&lt;INPUT TYPE="TEXT" SIZE="100" NAME="txtCmmt"&gt;&lt;/TD&gt;
+&lt;/TR&gt;
+&lt;TR&gt;
+ &lt;TD&gt;FILES&lt;/TD&gt;
+ &lt;TD&gt;&lt;INPUT TYPE="FILE" SIZE="60" NAME="fileUpd"&gt;&lt;/TD&gt;
+&lt;/TR&gt;
+&lt;/TABLE&gt;
+&lt;INPUT TYPE="SUBMIT" NAME="exeUpd" VALUE="UPLOAD"&gt;
+&lt;INPUT TYPE="SUBMIT" NAME="exeDsp" VALUE="DISPLAY"&gt;
+&lt;INPUT TYPE="RESET"  NAME="exeRst" VALUE="RESET"&gt;
+&lt;/FORM&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+EOF
+
+==============================================
+川合 孝典 (Hippo2000)
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+    DBI日本語メーリングリスト管理人、 Kansai.pm所属
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 20193] Re: perl からラージオブジェクト再び</A></STRONG>
+<UL><LI><EM>From:</EM> website004 &lt;website004@yo-mail.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 20202] Re: lo_* の権限</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 20204] transaction がうまくいきません</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 20193] Re: perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 20189] lo_* の権限</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,280 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16119] Re: PostgreSQLのリレーションについて(長文注意) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 14 Jul 2000 13:22:50 +0900 -->
+<!--X-Message-Id: 20000714132250X.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001701bfeaeb$6c4c0a00$025011ac@nms -->
+<!--X-Reference-Id: 20000711201919C.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 396E2D49140.EE71JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16119] Re: PostgreSQLのリレーションについて(長文注意) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00351.html">Date Prev</A>][<A HREF="msg00353.html">Date Next</A>][<A HREF="msg00351.html">Thread Prev</A>][<A HREF="msg00353.html">Thread Next</A>][<A HREF="index.html#00352">Date Index</A>][<A HREF="threads.html#00352">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16119] Re: PostgreSQLのリレーションについて(長文注意)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 14 Jul 2000 13:22:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00252.html">001701bfeaeb$6c4c0a00$025011ac@nms</A>&gt;&lt;<A HREF="msg00264.html">20000711201919C.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00337.html">396E2D49140.EE71JUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; リレーションシップについてですが、私の知らなかった事が今日判明したので。
+&gt; 問題は、「同一テーブル内の連鎖削除・更新」です。
+
+同一テーブル内でも、PostgreSQL 7.0 の外部キーは問題なく使えます。ただ
+し、その場合はCREATE TABLE時に外部キーを定義するのではなく、ALTER
+TABLE ADD CONSTRAINT を使って後付で外部キーを定義します。また「同一テー
+ブル内の連鎖削除・更新」も可能です。
+
+&gt; 親子関係を示すテーブルt1があります。
+&gt; create table t1 ( id int2, PRIMARY KEY(id), pid int2 );
+&gt; pid は ParentIDで、親のIDを示します。
+&gt; トップの親はありませんので、-1を入れるものとします。
+&gt; 
+&gt;  id | pid		階層
+&gt; ----+-----
+&gt;   -1|  -1		0
+&gt;    0|  -1		|= 1
+&gt;    1|   0		|  |= 3
+&gt;    2|   0		|  |= 5
+&gt;    3|   1		|
+&gt;    4|   2		|= 2
+&gt;    5|   1		   |= 4
+&gt;    6|   4		      |= 6
+&gt; というデータがあります。(最初の id=-1,pid=-1 は、id=0 の時の pid の外部キー
+&gt; 制約を回避するために、リレーションシップを「定義する前」に入れます(定義す
+&gt; る前に入れるのがミソで、 id=-1,pid=-1 のレコードは、参照整合性がとれてし
+&gt; まいます。定義の後だと、pid=-1 が入りません(id=-1 の行が無いから))。
+
+そんな小細工を使わなくても、id = 0 の行で、pid = NULL にすれば参照整合
+性のチェックに引っかかりません。
+
+&gt; PostgreSQL 7.0.x環境をお持ちの方で、今回のこの話に興味の在る方、是非、以
+&gt; 下の実験をしてみてはもらえないでしょうか。(testデータベースを作成して下さ
+&gt; い)。また、実験せずとも、出来る・出来ないをご存じの方、ご教授ください。
+&gt; (「自テーブルは指定できない」「内部的にトリガを作成してるだけだから、
+&gt; [query rewritten 10 times, may contain cycles]エラーにひっかかる（本命）」
+&gt; ・・など）。
+&gt; 
+&gt; CREATE TABLE t1(id int2, PRIMARY KEY(a), pid int2);
+&gt; INSERT INTO t1 VALUES (-1,-1);
+&gt; ALTER TABLE t1 ADD CONSTRAINT t1test FOREIGN KEY(pid) 
+&gt;  REFERENCES t1 ON UPDATE CASCADE ON DELETE CASCADE;
+&gt; INSERT INTO t1 VALUES (0,-1);
+&gt; INSERT INTO t1 VALUES (1,0);
+&gt; INSERT INTO t1 VALUES (2,0);
+&gt; INSERT INTO t1 VALUES (3,1);
+&gt; INSERT INTO t1 VALUES (4,2);
+&gt; INSERT INTO t1 VALUES (5,3);
+&gt; INSERT INTO t1 VALUES (6,4);
+&gt; INSERT INTO t1 VALUES (7,0);
+&gt; INSERT INTO t1 VALUES (8,7);
+&gt; UPDATE t1 SET id = 9 where id = 1;
+&gt; DELETE FROM t1 where id = 2;
+&gt; UPDATE t1 SET id = 10 where id = 7;
+&gt; 
+&gt; (最初の UPDATE で 10 times のエラーが出たら、その下は実行する必要ないです
+&gt; ・・・)
+&gt; よろしくお願いします。
+&gt; (これが出来たらかなり美味しいんですが・・・)
+
+ちょっとCREATE TABLEが間違っていたのを修正し、(-1, -1)の小細工をやめた
+バージョンの実行結果を載せておきます(7.0.2で実行)。
+
+psql -e -f ref1.sql test
+Using pager is off.
+DROP TABLE t1;
+DROP
+CREATE TABLE t1(id int2 PRIMARY KEY, pid int2);
+psql:ref1.sql:2: NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index 't1_pkey' for table 't1'
+CREATE
+ALTER TABLE t1 ADD CONSTRAINT t1test FOREIGN KEY(pid) 
+REFERENCES t1 ON UPDATE CASCADE ON DELETE CASCADE;
+psql:ref1.sql:4: NOTICE:  ALTER TABLE ... ADD CONSTRAINT will create implicit trigger(s) for FOREIGN KEY check(s)
+CREATE
+INSERT INTO t1 VALUES (0);
+INSERT 666259 1
+INSERT INTO t1 VALUES (1,0);
+INSERT 666260 1
+INSERT INTO t1 VALUES (2,0);
+INSERT 666261 1
+INSERT INTO t1 VALUES (3,1);
+INSERT 666262 1
+INSERT INTO t1 VALUES (4,2);
+INSERT 666263 1
+INSERT INTO t1 VALUES (5,3);
+INSERT 666264 1
+INSERT INTO t1 VALUES (6,4);
+INSERT 666265 1
+INSERT INTO t1 VALUES (7,0);
+INSERT 666266 1
+INSERT INTO t1 VALUES (8,7);
+INSERT 666267 1
+SELECT * FROM t1 ORDER BY oid;
+ id | pid 
+----+-----
+  0 |    
+  1 |   0
+  2 |   0
+  3 |   1
+  4 |   2
+  5 |   3
+  6 |   4
+  7 |   0
+  8 |   7
+(9 rows)
+
+UPDATE t1 SET id = 9 where id = 1;
+UPDATE 1
+SELECT * FROM t1 ORDER BY oid;
+ id | pid 
+----+-----
+  0 |    
+  9 |   0
+  2 |   0
+  3 |   9
+  4 |   2
+  5 |   3
+  6 |   4
+  7 |   0
+  8 |   7
+(9 rows)
+
+DELETE FROM t1 where id = 2;
+DELETE 1
+SELECT * FROM t1 ORDER BY oid;
+ id | pid 
+----+-----
+  0 |    
+  9 |   0
+  3 |   9
+  5 |   3
+  7 |   0
+  8 |   7
+(6 rows)
+
+UPDATE t1 SET id = 10 where id = 7;
+UPDATE 1
+SELECT * FROM t1 ORDER BY oid;
+ id | pid 
+----+-----
+  0 |    
+  9 |   0
+  3 |   9
+  5 |   3
+ 10 |   0
+  8 |  10
+(6 rows)
+
+ところで、外部キーを定義しておきながら、一時的に参照整合性を制約チェッ
+クをかけたくない場合もあります。たとえば、参照関係がループしている場合
+などですね。こういうときは、外部キーの定義時に、
+
+	DEFERRABLE INITIALLY DEFERRED
+
+というオプションを付けておき、BEGIN;で明示的トランザクションを開始して
+からデータの追加、更新などを行います。すると、トランザクションがコミッ
+トした時点か、
+
+	SET CONSTRAINTS t1test IMMEDIATE;
+
+を発行した時点で始めて参照整合性のチェックが行われます。
+
+&gt; (以下、MS-Access、MS-SQL Server のお話)
+&gt; 上記リレーションシップの定義をした後に、id=-1,pid=-1 のレコードを、テーブ
+&gt; ル画面から id=10 などに変更しようとすると、「データの競合」(他のユーザが
+&gt; 更新しようとしている)が発生し、「レコードの保存」「クリップボードへコピー」
+&gt; 「他のユーザーによる変更を反映」が選べますが、後ろの2つは id=-1,pid=-1 の
+&gt; まま。「レコードの保存」は同じエラーがもう1回出てきて、さらに「レコードの
+&gt; 保存」を選ぶと整合性が合わないというエラーになって id=-1,pid=-1 に戻さざ
+&gt; るを得なくなります。これは、テーブル画面ではレコードの編集が始まるとトラ
+&gt; ンザクションが内部的に開始されるからです。クエリー画面のSQL編集画面で
+&gt; [update t1 set id=10 where id=-1]を入れて実行すると、更新できてしまいます。
+&gt; (id=-1,pid=-1 -&gt; id=10,pid=10、id=0,pid=-1 -&gt; id=0,pid=10 にちゃんとなり
+&gt; ます)
+&gt; 
+&gt; ちなみに、MS-SQL6.0、7.0(MSDE)でも出来ません。MS-SQL7.0 ではリレーション
+&gt; シップではなく、ダイアグラム(すみません。記憶が定かじゃないです）とかい
+&gt; う名前で、MS-Accessと似たような画面で定義できますが(連鎖削除は定義できま
+&gt; せん）、同一テーブルを2つ以上追加できません(よって連鎖更新の定義が出来な
+&gt; い)。
+&gt; MS-SQL6.0、 7.0ともトリガを利用して連鎖更新・削除なるものが実現可能ですが、
+&gt; 同一テーブル内の更新・削除は、1順しかしません。上のテーブルの例で言うと、
+&gt; id=2 を DELETE した場合、pid=2 である id=4を削除しますが、pid=4 である
+&gt; id=6 は残ります(このアーキテクチャは長くなるので書きません)(既に長いです
+&gt; が。汗)。
+
+あらあら。さすがM$製品というところですね:-)まともな実装ではなさそうで
+す。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00353" HREF="msg00353.html">[pgsql-jp 16120] Re: PostgreSQLのリレーションについて (長文注意 )</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00252" HREF="msg00252.html">[pgsql-jp 16019] Re: [pgsql-jp 16016] PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp 16031] Re: PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00337" HREF="msg00337.html">[pgsql-jp 16104] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 16118] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00353.html">[pgsql-jp 16120] Re: PostgreSQLのリレーションについて (長文注意 )</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 16118] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00353.html">[pgsql-jp 16120] Re: PostgreSQLのリレーションについて (長文注意 )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00352"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00352"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

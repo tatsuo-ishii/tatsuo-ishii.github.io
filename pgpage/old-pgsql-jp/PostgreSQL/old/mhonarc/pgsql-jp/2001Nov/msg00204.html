@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23789] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULLJOIN is only supported with mergejoinable join conditions -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 19 Nov 2001 10:56:24 +0900 -->
+<!--X-Message-Id: 20011119105624E.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011116175946L.akito@pc.fujitsu.com -->
+<!--X-Reference-Id: 20011118205119N.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23789] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULLJOIN </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00205.html">Date Prev</A>][<A HREF="msg00206.html">Date Next</A>][<A HREF="msg00199.html">Thread Prev</A>][<A HREF="msg00210.html">Thread Next</A>][<A HREF="index.html#00204">Date Index</A>][<A HREF="threads.html#00204">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23789] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULLJOIN is only supported with mergejoinable join conditions</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Nov 2001 10:56:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00181.html">20011116175946L.akito@pc.fujitsu.com</A>&gt;&lt;<A HREF="msg00199.html">20011118205119N.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+&gt; 
+&gt; &gt; PostgreSQL 7.2b2 で以下のように FULL JOIN した結果をさらに
+&gt; &gt; FULL JOIN でつなげるとエラーになってしまいました。
+&gt; &gt; クエリ式がまずいのでしょうか？なお7.1.2でも再現していました。
+&gt; &gt; 
+&gt; &gt; SELECT * FROM t1 FULL JOIN t2 USING (name) FULL  JOIN t3 USING (name);
+&gt; &gt; psql:tmp.sql:13: ERROR:  FULL JOIN is only supported with mergejoinable join conditions
+&gt; 
+&gt; currentでも再現しますね．本家に聞いてみましょう．
+
+やはりバグのようです．本家のMLの記事を引用しておきます．
+workaroundとしては，
+
+SELECT * FROM t1 FULL JOIN t2 on t1.name=t2.name
+FULL JOIN t3 on t1.name=t3.name;
+
+のように書き換えるしか現状ないそうです．また，7.2でもこの点は修正予定
+には入っていません．
+--
+Tatsuo Ishii
+
+---------------------------------------------------------------------------
+Subject: Re: [HACKERS] full outer join bug? 
+From: Tom Lane &lt;tgl@sss.pgh.pa.us&gt;
+To: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+cc: pgsql-hackers@postgresql.org
+Date: Sun, 18 Nov 2001 14:20:23 -0500
+Comments: In-reply-to Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;	message dated "Sun, 18 Nov 2001 20:57:39 +0900"
+
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:
+&gt; SELECT * FROM t1 FULL JOIN t2 USING (name) FULL  JOIN t3 USING (name);
+&gt; ERROR:  FULL JOIN is only supported with mergejoinable join conditions
+
+I think we're kinda stuck with that in the near term.  A possible
+workaround is
+
+SELECT * FROM t1 FULL JOIN t2 on t1.name=t2.name
+FULL JOIN t3 on t1.name=t3.name;
+
+or similarly
+
+SELECT * FROM t1 FULL JOIN t2 on t1.name=t2.name
+FULL JOIN t3 on t2.name=t3.name;
+
+each of which is slightly different from the semantics of the original
+query, but might be close enough for your purposes.
+
+The problem is that "name" coming out of the t1/t2 full join is not a
+simple variable: it's actually a "COALESCE(t1.name,t2.name)" construct.
+And the mergejoin code doesn't support mergejoining on anything but
+simple variables.  And our other join methods don't support FULL JOIN.
+So there's no way to build a working plan.
+
+I have plans to revise the handling of join variables at some point
+in the future, probably as part of the fabled querytree redesign.
+And mergejoining on expressions should be allowed too, sooner or later.
+Neither one is going to happen for 7.2 though ...
+
+			regards, tom lane
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00210" HREF="msg00210.html">[pgsql-jp 23794] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULLJOIN is only supported with mergejoinable join conditions</A></STRONG>
+<UL><LI><EM>From:</EM> Akinori ITO &lt;akito@pc.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00181" HREF="msg00181.html">[pgsql-jp 23765] FULL JOIN した結果をFULLJOIN するとERROR: FULL JOIN is onlysupportedwith mergejoinable join conditions</A></STRONG>
+<UL><LI><EM>From:</EM> Akinori ITO &lt;akito@pc.fujitsu.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00199" HREF="msg00199.html">[pgsql-jp 23783] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULL JOINis only supported with mergejoinable join conditions</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 23788] Re: Web Site はどこへ行った？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 23790] Re: SELECT 結果でUPDATE　その後</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00199.html">[pgsql-jp 23783] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULL JOINis only supported with mergejoinable join conditions</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 23794] Re: FULL JOIN した結果をFULL JOIN するとERROR: FULLJOIN is only supported with mergejoinable join conditions</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00204"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00204"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

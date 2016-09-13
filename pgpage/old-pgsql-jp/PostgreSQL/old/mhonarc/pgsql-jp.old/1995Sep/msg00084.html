@@ -1,0 +1,585 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 186] Pg95browse does not work well.(with diffs) -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Mon, 25 Sep 95 16:22:48 JST -->
+<!--X-Message-Id: 9509250722.AA03288@yukie.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199509250204.LAA03099@srashc.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 186] Pg95browse does not work well.(with diffs) </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00082.html">Date Prev</A>][<A HREF="msg00085.html">Date Next</A>][<A HREF="msg00081.html">Thread Prev</A>][<A HREF="msg00079.html">Thread Next</A>][<A HREF="index.html#00084">Date Index</A>][<A HREF="threads.html#00084">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 186] Pg95browse does not work well.(with diffs)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 25 Sep 95 16:22:48 JST</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  どなたか、pg95browse を使っている人はいませんか？
+
+<A HREF="ftp://s2k-ftp.cs.berkeley.edu/pub/postgres95/contrib">ftp://s2k-ftp.cs.berkeley.edu/pub/postgres95/contrib</A>
+
+にあった pg95browse.tgz を持って来て、少し修正を加えましたがうまく動き
+ません。
+(Postgres95-1.0 と Tcl7.4-p1/Tk4.0-p1 + jp-beta + TclX7.4a-p1を使いました。)
+
+  アペンドとかすると次のようなエラーが出たり、コアダンプしたりし
+てしまいます。
+
+	PQfname: ERROR! name of field 0(of -1) is not available
+
+
+また、リトリーブした時に "Query Result"窓で TkX のエラーもあります。
+
+	unknown option "-geometry"
+	    while executing
+	"$s.c.0 conf -geometry"
+	    invoked from within
+	"lindex [$s.c.0 conf -geometry]..."
+	    invoked from within
+	"set g [lindex [$s.c.0 conf -geometry]..."
+	    (procedure "Tku_Sheet:YResize" line 9)
+	    invoked from within
+	"Tku_Sheet:YResize $s"
+	    invoked from within
+	"if {[winfo height $s.c] != $TKU(sheetHeight,$s)} {Tku_Sheet:Y
+
+
+"Query Result"窓を閉じる時にもエラーがあります。
+
+	invalid command name ".qres.sheet.xs"
+	    while executing
+	".qres.sheet.xs set 0.00135135 0.310811"
+
+
+なお、加えました修正は次の通りです。
+
+	o クエリーのクォートを ''' から '"' に変更。
+	o src ディレクトリーの追加。
+
+--
+diff -c -r -P -C 2 pg95browse.org/lib/browse.tcl pg95browse/lib/browse.tcl
+*** pg95browse.org/lib/browse.tcl	Thu Jun 15 00:42:39 1995
+--- pg95browse/lib/browse.tcl	Wed Sep 20 15:28:09 1995
+***************
+*** 65,69 ****
+      PGBSupportDelete $class
+  
+!     if ![PQ exec "DROP TABLE $class" "Destroying..."] {
+           PQ errbox "DESTROY class failed"
+           return 0
+--- 65,69 ----
+      PGBSupportDelete $class
+  
+!     if ![PQ exec "DROP TABLE '$class'" "Destroying..."] {
+           PQ errbox "DESTROY class failed"
+           return 0
+***************
+*** 484,489 ****
+  FROM
+      pg_class
+! WHERE relkind = "r"
+! AND   relname !~ "^Xinv"}
+  
+      if ![PQ exec $cmd "Getting classes..."] {
+--- 484,489 ----
+  FROM
+      pg_class
+! WHERE relkind = 'r'
+! AND   relname !~ '^Xinv'}
+  
+      if ![PQ exec $cmd "Getting classes..."] {
+***************
+*** 565,574 ****
+      attr.attname, attr.attnum,
+      typ.typname, attr.attnelems,
+!     pgb_get_meta(\"$class\"::char16,attr.attname) AS metadata
+  FROM pg_attribute attr, pg_class class, pg_type typ
+  WHERE attr.attrelid = class.oid
+  AND   attr.atttypid = typ.oid
+  AND   attr.attnum   &gt; 0
+! AND   class.relname      = \"$class\"
+  ORDER BY attnum
+  "
+--- 565,574 ----
+      attr.attname, attr.attnum,
+      typ.typname, attr.attnelems,
+!     pgb_get_meta(\'$class\'::char16,attr.attname) AS metadata
+  FROM pg_attribute attr, pg_class class, pg_type typ
+  WHERE attr.attrelid = class.oid
+  AND   attr.atttypid = typ.oid
+  AND   attr.attnum   &gt; 0
+! AND   class.relname      = \'$class\'
+  ORDER BY attnum
+  "
+diff -c -r -P -C 2 pg95browse.org/lib/class.tcl pg95browse/lib/class.tcl
+*** pg95browse.org/lib/class.tcl	Thu Jun 15 00:43:43 1995
+--- pg95browse/lib/class.tcl	Fri Sep 22 16:27:35 1995
+***************
+*** 55,60 ****
+  SELECT  typname
+  FROM    pg_type
+! WHERE	typname !~ "^_"
+! AND 	typname !~ "^Xinv"
+  AND	typrelid = 0::oid
+  }]	{
+--- 55,60 ----
+  SELECT  typname
+  FROM    pg_type
+! WHERE	typname !~ '^_'
+! AND 	typname !~ '^Xinv'
+  AND	typrelid = 0::oid
+  }]	{
+diff -c -r -P -C 2 pg95browse.org/lib/query.tcl pg95browse/lib/query.tcl
+*** pg95browse.org/lib/query.tcl	Thu Jun 15 00:42:14 1995
+--- pg95browse/lib/query.tcl	Mon Sep 25 15:26:39 1995
+***************
+*** 166,170 ****
+  FROM	pg_operator op, pg_type typ
+  WHERE	op.oprleft = typ.oid
+! AND	typ.typname = \"$type\"
+  " "Getting $type operators..."]	    {
+  		PQ errbox "Can't get operators for type: $type"
+--- 166,170 ----
+  FROM	pg_operator op, pg_type typ
+  WHERE	op.oprleft = typ.oid
+! AND	typ.typname = \'$type\'
+  " "Getting $type operators..."]	    {
+  		PQ errbox "Can't get operators for type: $type"
+***************
+*** 306,312 ****
+      if !$join {
+      	if {$dim == 0 || $dim == 1} {
+! 	    	set data "\"$data\"::$type"
+  	} else {
+! 	  	foreach e [split $data ,] {lappend d "\"$e\"::$type"}
+  	 	set data "{[join $d ,]}"
+  	}
+--- 306,312 ----
+      if !$join {
+      	if {$dim == 0 || $dim == 1} {
+! 	    	set data "\'$data\'::$type"
+  	} else {
+! 	  	foreach e [split $data ,] {lappend d "\'$e\'::$type"}
+  	 	set data "{[join $d ,]}"
+  	}
+***************
+*** 487,491 ****
+      global coord_1 coord_2
+  
+! 	source /home/src/base/local/tk/pgb3.0/lib/graphical_query.tcl
+  	open_idl .idl
+  	graphical_query .idl
+--- 487,491 ----
+      global coord_1 coord_2
+  
+! 	source /usr/local/postgres95/pg95browse/lib/graphical_query.tcl
+  	open_idl .idl
+  	graphical_query .idl
+***************
+*** 538,545 ****
+          if ![info exists enter_query] {
+  	    set enter_query "INSERT INTO $class\n\t($name"
+! 	    set values "VALUES (\"$data\"::$type"
+          } else {
+              append enter_query ", $name"
+!             append values ", \"$data\"::$type"
+          }
+      }
+--- 538,545 ----
+          if ![info exists enter_query] {
+  	    set enter_query "INSERT INTO $class\n\t($name"
+! 	    set values "VALUES (\'$data\'::$type"
+          } else {
+              append enter_query ", $name"
+!             append values ", \'$data\'::$type"
+          }
+      }
+***************
+*** 827,831 ****
+  
+      	foreach inst $ten {
+!             set oid "\"[$oidbox get $inst]\"::oid"
+              if ![info exists cmd] {
+              	set cmd "DELETE FROM $class \n\tWHERE $class.oid = $oid"
+--- 827,831 ----
+  
+      	foreach inst $ten {
+!             set oid "\'[$oidbox get $inst]\'::oid"
+              if ![info exists cmd] {
+              	set cmd "DELETE FROM $class \n\tWHERE $class.oid = $oid"
+***************
+*** 953,959 ****
+  	    set nullfield $name
+  	} elseif ![info exists enter_query] {
+!             set enter_query "UPDATE $class SET $name=\"$data\""
+  	} else {
+!             append enter_query ",\n\t$name=\"$data\""
+          }
+      }
+--- 953,959 ----
+  	    set nullfield $name
+  	} elseif ![info exists enter_query] {
+!             set enter_query "UPDATE $class SET $name=\'$data\'"
+  	} else {
+!             append enter_query ",\n\t$name=\'$data\'"
+          }
+      }
+***************
+*** 968,972 ****
+          default    {if ![Tku_Confirm "Some fields are null, continue?"] return}
+      }
+!     append enter_query "\n WHERE $class.oid = \"$oid\"::oid"
+      if ![PQ exec $enter_query] {
+          PQ errbox "Replace Failed"
+--- 968,972 ----
+          default    {if ![Tku_Confirm "Some fields are null, continue?"] return}
+      }
+!     append enter_query "\n WHERE $class.oid = \'$oid\'::oid"
+      if ![PQ exec $enter_query] {
+          PQ errbox "Replace Failed"
+diff -c -r -P -C 2 pg95browse.org/lib/support.tcl pg95browse/lib/support.tcl
+*** pg95browse.org/lib/support.tcl	Tue Jun 13 01:25:03 1995
+--- pg95browse/lib/support.tcl	Mon Sep 25 14:51:17 1995
+***************
+*** 16,21 ****
+  SELECT relname
+  FROM pg_class
+! WHERE relname = "pgb_support"
+! OR    relname = "pgb_namex"
+  }
+      if ![PQ exec $cmd "Checking support..."] {
+--- 16,21 ----
+  SELECT relname
+  FROM pg_class
+! WHERE relname = 'pgb_support'
+! OR    relname = 'pgb_namex'
+  }
+      if ![PQ exec $cmd "Checking support..."] {
+***************
+*** 29,33 ****
+  
+      # look for the pgb_get_meta function
+!     set cmd {SELECT proname FROM pg_proc WHERE proname = "pgb_get_meta"}
+      if ![PQ exec $cmd "Checking support..."] {
+  	PQ errbox "Could not check for the pgb_get_meta function."
+--- 29,33 ----
+  
+      # look for the pgb_get_meta function
+!     set cmd {SELECT proname FROM pg_proc WHERE proname = 'pgb_get_meta'}
+      if ![PQ exec $cmd "Checking support..."] {
+  	PQ errbox "Could not check for the pgb_get_meta function."
+***************
+*** 87,92 ****
+     (char16, char16)
+     RETURNS text
+!    AS "SELECT pgb_metadata FROM pgb_support WHERE pgb_class = $1 AND pgb_support.pgb_attribute = $2" 
+!    LANGUAGE "sql"
+  }
+  	if ![PQ exec $cmd "Updating support..."] {
+--- 87,92 ----
+     (char16, char16)
+     RETURNS text
+!    AS 'SELECT pgb_metadata FROM pgb_support WHERE pgb_class = $1 AND pgb_support.pgb_attribute = $2' 
+!    LANGUAGE 'sql'
+  }
+  	if ![PQ exec $cmd "Updating support..."] {
+***************
+*** 115,121 ****
+      set cmd "
+  UPDATE pgb_support
+! SET pgb_metadata = \"$metadata\"
+! WHERE pgb_class = \"$class\"
+! AND   pgb_attribute = \"$att\"
+  "
+      if ![PQ exec $cmd "Updating support..."] {
+--- 115,121 ----
+      set cmd "
+  UPDATE pgb_support
+! SET pgb_metadata = \'$metadata\'
+! WHERE pgb_class = \'$class\'
+! AND   pgb_attribute = \'$att\'
+  "
+      if ![PQ exec $cmd "Updating support..."] {
+***************
+*** 136,140 ****
+  INSERT INTO pgb_support
+  (pgb_class, pgb_attribute, pgb_metadata)
+! VALUES (\"$class\", \"$att\", \"$metadata\")"
+      if ![PQ exec $cmd "Updating support..."] {
+  	PQ errbox "Could not append metadata."
+--- 136,140 ----
+  INSERT INTO pgb_support
+  (pgb_class, pgb_attribute, pgb_metadata)
+! VALUES (\'$class\', \'$att\', \'$metadata\')"
+      if ![PQ exec $cmd "Updating support..."] {
+  	PQ errbox "Could not append metadata."
+***************
+*** 150,157 ****
+      set cmd "
+  DELETE FROM pgb_support
+! WHERE pgb_class = \"$class\"
+  "
+      if {$att != ""} {
+! 	append cmd "AND pgb_attribute = \"$att\""
+      }
+  
+--- 150,157 ----
+      set cmd "
+  DELETE FROM pgb_support
+! WHERE pgb_class = \'$class\'
+  "
+      if {$att != ""} {
+! 	append cmd "AND pgb_attribute = \'$att\'"
+      }
+  
+diff -c -r -P -C 2 pg95browse.org/src/Makefile pg95browse/src/Makefile
+*** pg95browse.org/src/Makefile	Thu Jan  1 09:00:00 1970
+--- pg95browse/src/Makefile	Wed Sep 20 14:00:22 1995
+***************
+*** 0 ****
+--- 1,47 ----
++ #-------------------------------------------------------------------------
++ #
++ # Makefile
++ #    Makefile for a tclsh workalike with pgtcl commands installed
++ #
++ # Copyright (c) 1994, Regents of the University of California
++ #
++ #
++ # IDENTIFICATION
++ #    /usr/local/devel/pglite/cvs/src/bin/pgtclsh/Makefile,v 1.11 1995/07/21 19:38:43 jolly Exp
++ #
++ #-------------------------------------------------------------------------
++ 
++ MKDIR=	/usr/local/postgres95/src/mk
++ include $(MKDIR)/postgres.mk
++ include /usr/local/postgres95/src/Makefile.global
++ 
++ CFLAGS+=  -I$(TCL_INCDIR) -I$(TK_INCDIR) -I/usr/local/postgres95/include
++ 
++ TCLX_LIBDIR=/usr/local/lib
++ TCLX_LIB=-ltclx
++ TKX_LIBDIR=/usr/local/lib
++ TKX_LIB=-ltkx
++ 
++ # try to find libpgtcl.a in either directory
++ LIBPGTCL= -L$(srcdir)/libpgtcl/$(objdir) -L$(LIBDIR) -lpgtcl -lpq
++ 
++ pgtkxsh: $(objdir)/pgtkXAppInit.o
++ 	$(CC) $(CDEBUG) -o $(objdir)/$(@F) $(objdir)/pgtkXAppInit.o \
++ 	$(LIBPGTCL) $(LIBPQ) -L$(TCL_LIBDIR) -L$(TK_LIBDIR) \
++ 	 -L$(TKX_LIBDIR) -L$(TCLX_LIBDIR) $(TKX_LIB) $(TCLX_LIB) \
++ 	$(TK_LIB) $(TCL_LIB) -lX11 -lm
++ 
++ install::	localobj pgtkxsh
++ 	$(INSTALL) $(INSTL_EXE_OPTS) $(objdir)/pgtkxsh $(DESTDIR)$(BINDIR)/pgtkxsh
++ 
++ CLEANFILES = pgtkXAppInit.o pgtkxsh
++ 
++ PROG=pgtkxsh
++ 
++ all::  pgtkxsh
++ 
++ # don't use the default template for generating executables since we have
++ # two executable targets
++ # include $(MKDIR)/postgres.prog.mk
++ 
++ 
+diff -c -r -P -C 2 pg95browse.org/src/pgtkXAppInit.c pg95browse/src/pgtkXAppInit.c
+*** pg95browse.org/src/pgtkXAppInit.c	Thu Jan  1 09:00:00 1970
+--- pg95browse/src/pgtkXAppInit.c	Wed Sep 20 13:33:25 1995
+***************
+*** 0 ****
+--- 1,124 ----
++ /* 
++  * tkXAppInit.c --
++  *
++  *      Provides a default version of the Tcl_AppInit procedure for use with
++  *      applications built with Extended Tcl and Tk.  This is based on the
++  *      the UCB Tk file tkAppInit.c
++  *
++  *-----------------------------------------------------------------------------
++  * Copyright 1991-1995 Karl Lehenbauer and Mark Diekhans.
++  *
++  * Permission to use, copy, modify, and distribute this software and its
++  * documentation for any purpose and without fee is hereby granted, provided
++  * that the above copyright notice appear in all copies.  Karl Lehenbauer and
++  * Mark Diekhans make no representations about the suitability of this
++  * software for any purpose.  It is provided "as is" without express or
++  * implied warranty.
++  *-----------------------------------------------------------------------------
++  * $Id: tkXAppInit.c,v 5.0 1995/07/25 06:00:44 markd Rel $
++  *-----------------------------------------------------------------------------
++  */
++ 
++ #include "tclExtend.h"
++ #include "tk.h"
++ #include "libpgtcl.h"
++ 
++ /*
++  * The following variable is a special hack that insures the tcl
++  * version of matherr() is used when linking against shared libraries
++  * Even if matherr is not used on this system, there is a dummy version
++  * in libtcl.
++  */
++ EXTERN int matherr ();
++ int (*tclDummyMathPtr)() = matherr;
++ 
++ 
++ /*
++  *----------------------------------------------------------------------
++  *
++  * main --
++  *
++  *	This is the main program for the application.
++  *----------------------------------------------------------------------
++  */
++ #ifdef __cplusplus
++ int
++ main (int    argc,
++       char **argv)
++ #else
++ int
++ main (argc, argv)
++     int    argc;
++     char **argv;
++ #endif
++ {
++     TkX_Main(argc, argv, Tcl_AppInit);
++     return 0;			/* Needed only to prevent compiler warning. */
++ }
++ 
++ /*
++  *----------------------------------------------------------------------
++  *
++  * Tcl_AppInit --
++  *
++  *	This procedure performs application-specific initialization.
++  *	Most applications, especially those that incorporate additional
++  *	packages, will have their own version of this procedure.
++  *
++  * Results:
++  *	Returns a standard Tcl completion code, and leaves an error
++  *	message in interp-&gt;result if an error occurs.
++  *----------------------------------------------------------------------
++  */
++ #ifdef __cplusplus
++ int
++ Tcl_AppInit (Tcl_Interp *interp)
++ #else
++ int
++ Tcl_AppInit (interp)
++     Tcl_Interp *interp;
++ #endif
++ {
++     Tk_Window main;
++ 
++     main = Tk_MainWindow(interp);
++ 
++     /*
++      * Call the init procedures for included packages.  Each call should
++      * look like this:
++      *
++      * if (Mod_Init(interp) == TCL_ERROR) {
++      *     return TCL_ERROR;
++      * }
++      *
++      * where "Mod" is the name of the module.
++      */
++ 
++     if (TclX_Init(interp) == TCL_ERROR) {
++ 	return TCL_ERROR;
++     }
++     if (main != NULL) {
++         if ((TkX_Init(interp) == TCL_ERROR)) {
++             return TCL_ERROR;
++         }
++     }
++ 
++     /*
++      * Call Tcl_CreateCommand for application-specific commands, if
++      * they weren't already created by the init procedures called above.
++      */
++ 
++     if (Pg_Init(interp) == TCL_ERROR) { 
++       return TCL_ERROR;
++     }
++ 
++     /*
++      * Specify a user-specific startup file to invoke if the application
++      * is run interactively.  Typically the startup file is "~/.apprc"
++      * where "app" is the name of the application.  If this line is deleted
++      * then no user-specific startup file will be run under any conditions.
++      */
++ 
++     tcl_RcFileName = "~/.tclrc";
++     return TCL_OK;
++ }
+ 
+-- 
+ Jun Kuwamura		桑村 潤
+Rc cM			（株）計算力学研究センター
+ _^_			Phone: 03-3785-3033, Fax: 03-3785-6066
+  ~			E-mail:	juk@rccm.co.jp	
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[postgres95 183] platform</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00082.html">[postgres95 184] Re: postgres95-1.0 JP patch</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00085.html">[postgres95 187] Re: postgres95-1.0 JP patch</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00081.html">[postgres95 183] platform</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00079.html">[postgres95 181] postgres95-1.0 JP patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00084"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00084"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23113] Re: 毎月の差額からリストを抽出するには？ -->
+<!--X-From: Masaru Sugawara <rk73@echna.ne.jp> -->
+<!--X-Date: Fri, 14 Sep 2001 02:03:06 +0900 -->
+<!--X-Message-Id: 20010914014404.5FFF.RK73@echna.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010913202627.E991.KATAMA2@osk.toppan.co.jp -->
+<!--X-Reference-Id: 20010913212100.E993.KATAMA2@osk.toppan.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23113] Re: 毎月の差額からリストを抽出するには？ </TITLE>
+<LINK REV="made" HREF="mailto:rk73@echna.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00154.html">Date Prev</A>][<A HREF="msg00156.html">Date Next</A>][<A HREF="msg00147.html">Thread Prev</A>][<A HREF="msg00170.html">Thread Next</A>][<A HREF="index.html#00155">Date Index</A>][<A HREF="threads.html#00155">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23113] Re: 毎月の差額からリストを抽出するには？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaru Sugawara &lt;<A HREF="mailto:rk73@echna.ne.jp">rk73@echna.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 14 Sep 2001 02:03:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00146.html">20010913202627.E991.KATAMA2@osk.toppan.co.jp</A>&gt; &lt;<A HREF="msg00147.html">20010913212100.E993.KATAMA2@osk.toppan.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すがわら/ＲＫ７３です。
+
+Message-ID:&lt;<A HREF="msg00147.html">20010913212100.E993.KATAMA2@osk.toppan.co.jp</A>&gt;  
+Mail-Count:pgsql-jp 23105    Date&amp;Time:2001/09/13 21:27:43
+Yuji Katamatsu &lt;katama2@osk.toppan.co.jp&gt;さんのφ(..@)について
+
+
+&gt; 請求金額が入力されていた時は対応していませんね…う〜ん
+
+  皆さんのを参考に、□印のようなダブリの場合の処理を追加してみま
+  した。not existsのところで△印を、existsのところで□と☆印を含
+  むreqを抽出しています。あとはpayとmemに連結しただけです。ただし、
+  分割払いの処理は含まれていません。
+
+会員【mem】         請求【req】             入金【pay】
+(id)    name        (num)   id  mon yen     (num)   id  mon yen
+----------------    -------------------     ------------------
+001     hoehoe      0001    001  1  100□   0001    001  1  100□
+002     uiui                                0002    001  1  100□
+                    0002    001  2  200☆   0003    001  2  200
+                                            0004    001  2  100☆
+                    0003    001  3  100     0005    001  3  100
+                    0004    002  1  100     0006    002  1  100
+                    0005    002  2  200     0007    002  2  200
+                    0006    002  3  100△   0008    002  3    0△
+
+
+---------------------------------------------------------------
+select m0.*, r1.mon, r1.yen as "req.yen" ,p1.yen as "pay.yen"
+   from (select r0.id, r0.mon, r0.yen
+            from req as r0
+            where not exists (select p0.id, p0.mon
+                                 from pay as p0
+                                 where r0.id  = p0.id 
+                                   and r0.mon = p0.mon
+                                   and r0.yen = p0.yen
+                              )
+                  or exists  (select p2.id, p2.mon
+                                 from pay as p2
+                                 where r0.id  = p2.id 
+                                   and r0.mon = p2.mon
+                                 group by p2.id, p2.mon
+                                 having count(*)&gt;1
+                              )
+         ) as r1 left outer join pay as p1 using(id, mon),
+         mem as m0
+    where m0.id = r1.id
+;
+-------------------------------------------------------
+
+ id  |  name  | mon | req.yen | pay.yen
+-----+--------+-----+---------+---------
+ 001 | hoehoe |   1 |     100 |     100
+ 001 | hoehoe |   1 |     100 |     100
+ 001 | hoehoe |   2 |     200 |     100
+ 001 | hoehoe |   2 |     200 |     200
+ 002 | uiui   |   3 |     100 |       0
+(5 rows)
+
+
+-- 7.1.2です
+--------------------------------
+  Masaru Sugawara
+  rk73@echna.ne.jp
+ -------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp 23129] Re: 毎月の差額からリストを抽出するには？</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi_Fukuda &lt;dada-all@sygnas.tv&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00146" HREF="msg00146.html">[pgsql-jp 23104] Re: 毎月の差額からリストを抽出するには？</A></STRONG>
+<UL><LI><EM>From:</EM> Yuji Katamatsu &lt;katama2@osk.toppan.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00147" HREF="msg00147.html">[pgsql-jp 23105] Re: 毎月の差額からリストを抽出するには？</A></STRONG>
+<UL><LI><EM>From:</EM> Yuji Katamatsu &lt;katama2@osk.toppan.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 23112] plpgsql でnullが帰ってくる。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 23114] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00147.html">[pgsql-jp 23105] Re: 毎月の差額からリストを抽出するには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00170.html">[pgsql-jp 23129] Re: 毎月の差額からリストを抽出するには？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00155"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00155"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

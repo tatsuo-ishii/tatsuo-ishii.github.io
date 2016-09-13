@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26503] UmU6IFtwZ3NxbC1qcDogMjY0NjRdIEludmFsaWQgRVVDX0pQIGM=?=aGFyYWN0ZXIgg0eDiYFbkc6N9A==?= -->
+<!--X-From: Hajime Lucky Okada <paraiso@luckyo.8m.com> -->
+<!--X-Date: Thu, 27 Jun 2002 14:29:09 +0900 -->
+<!--X-Message-Id: 3D1AA2A5.5060204@luckyo.8m.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3D12C7E5.7020604@luckyo.8m.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26503] UmU6IFtwZ3NxbC1qcDogMjY0NjRdIEludmFsaWQgRVVDX0pQIGM=?= </TITLE>
+<LINK REV="made" HREF="mailto:paraiso@luckyo.8m.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00281.html">Date Prev</A>][<A HREF="msg00283.html">Date Next</A>][<A HREF="msg00255.html">Thread Prev</A>][<A HREF="msg00304.html">Thread Next</A>][<A HREF="index.html#00282">Date Index</A>][<A HREF="threads.html#00282">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26503] UmU6IFtwZ3NxbC1qcDogMjY0NjRdIEludmFsaWQgRVVDX0pQIGM=?=aGFyYWN0ZXIgg0eDiYFbkc6N9A==?=</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hajime Lucky Okada &lt;<A HREF="mailto:paraiso@luckyo.8m.com">paraiso@luckyo.8m.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 27 Jun 2002 14:29:09 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL日本語メーリングリスト &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00243.html">3D12C7E5.7020604@luckyo.8m.com</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (Windows; U; Windows NT 5.0; ja-JP; rv:1.0rc2) Gecko/20020512 Netscape/7.0b1</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、岡田です。
+
+皆様の情報を元に表題の件について色々調査した結果、何とか
+下記のロジックで行いたいことを実現出来ましたので、参考までに
+ご一報致します。
+
+1. 文字列全体が EUC コードに合致しているか検査。 OK なら次の文字列。
+2. NG なら途中に文字化けを含んでることを意味する。
+   この時、文字列の頭から文字化けの手前までを救出して、
+   文字化け部より後ろを破棄する。
+
+これにより、文字化けを含んでるから全てを削除するのではなく
+生きてるところは何とか残せることになるので、今回はこの論理を使いました。
+今から思うと確かに大した事ではなかったのですが、、、 (^^;;
+
+ありがとうございました。
+何かありましたら、またご連絡下さい！
+宜しくお願い致します。
+
+岡田はじめ
+
+
+--------------------------------------
+(参考)最後にコードを。  Perl です。
+『複数項目のCSVデータに対して、EUC の検査を行い、文字化けがあれば
+  それ以降をカットし健全にします。』
+
+
+# 「Perlメモ」 参照	<A HREF="http://www.din.or.jp/~ohzaki/perl.htm#JP_EUC_JP">http://www.din.or.jp/~ohzaki/perl.htm#JP_EUC_JP</A>
+$ascii      = '[\x00-\x7F]';
+$twoBytes   = '[\x8E\xA1-\xFE][\xA1-\xFE]';
+$threeBytes = '\x8F[\xA1-\xFE][\xA1-\xFE]';
+
+$_ = '(tab 区切りCSV文字列)';
+
+@item = split /\t/;		# トークン分解
+foreach (@item) {
+	# 完全な EUC 文字列であれば、ＯＫ． 次のトークンへ。   パターンの最後に $。
+	next  if( /^($ascii|$twoBytes|$threeBytes)+$/ );
+	
+	# 完全なEUC 文字列で無かったら・・
+	#	生きてる文字列があれば、出来るだけ生かす。頭から化けてたら null 化。
+	# print "化けもの発見 [$_] --&gt; ";
+
+	if( /^($ascii|$twoBytes|$threeBytes)+/ ) { $_ = $&amp;; }   # マッチ部 後方参照
+	else                                     { $_ = ""; }
+
+	# print "[$_]\n";
+}
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00304" HREF="msg00304.html">[pgsql-jp: 26525] メールヘッダーが不正です(was Re: Invalid EUC_JP character エラー対策)</A></STRONG>
+<UL><LI><EM>From:</EM> HIROSHI OOTA &lt;oota@LSi.nec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00243" HREF="msg00243.html">[pgsql-jp: 26464] Invalid EUC_JP character g0eDiYFbkc6N9A==?=</A></STRONG>
+<UL><LI><EM>From:</EM> Hajime Lucky Okada &lt;paraiso@luckyo.8m.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00281.html">[pgsql-jp: 26502] Re: Win-Native PostgreSQLでの C言語を使ったユーザ定義型の作成</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00283.html">[pgsql-jp: 26504] 画像データ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00255.html">[pgsql-jp: 26476] Re: Invalid EUC_JP character  エラー対策</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00304.html">[pgsql-jp: 26525] メールヘッダーが不正です(was Re: Invalid EUC_JP character エラー対策)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00282"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00282"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

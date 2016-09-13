@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7057] Re: NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Fri, 12 Feb 1999 14:01:33 +0900 -->
+<!--X-Message-Id: 199902120501.OAA04509@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902091440.XAA00772@ext16.sra.co.jp -->
+<!--X-Reference-Id: 199902100309.MAA01159@jack.kinotrope.co.jp -->
+<!--X-Reference-Id: 199902101336.WAA03001@jack.kinotrope.co.jp -->
+<!--X-Reference-Id: 199902110803.RAA03551@jack.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7057] Re: NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00181.html">Date Prev</A>][<A HREF="msg00183.html">Date Next</A>][<A HREF="msg00173.html">Thread Prev</A>][<A HREF="msg00184.html">Thread Next</A>][<A HREF="index.html#00182">Date Index</A>][<A HREF="threads.html#00182">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7057] Re: NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 12 Feb 1999 14:01:33 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00160.html">199902091440.XAA00772@ext16.sra.co.jp</A>&gt;&lt;<A HREF="msg00164.html">199902100309.MAA01159@jack.kinotrope.co.jp</A>&gt;&lt;<A HREF="msg00169.html">199902101336.WAA03001@jack.kinotrope.co.jp</A>&gt;&lt;<A HREF="msg00173.html">199902110803.RAA03551@jack.kinotrope.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木@kinotropeです。
+
+&gt;&gt;&gt;&gt;&gt;&gt; Thu, 11 Feb 1999 17:03:02 +0900,
+	"TA" == Toshimi Aoki wrote:
+TA&gt; [pgsql-jp 7045]で書いたように CFLAGS=-pipe (-O2を外した )の状態でです
+TA&gt; が、少し進展しました。
+TA&gt;
+TA&gt; 結果としては下記エラーのままですが、plpgsql はOKになりました。
+TA&gt;
+TA&gt; float8 .. failed
+TA&gt; inet .. failed
+TA&gt; create_function_2 .. failed
+TA&gt; triggers .. failed
+TA&gt; sanity_check .. failed
+TA&gt; misc .. failed
+TA&gt; alter_table .. failed
+TA&gt; --------------------------------
+TA&gt;
+TA&gt; また create_function_2 等も前回のようにロードできないエラーではなくな
+TA&gt; りました。
+TA&gt; create_function_2, triggers, misc は下記出力がありました。
+TA&gt;
+TA&gt; pqReadData() -- backend closed the channel unexpectedly.
+TA&gt; This probably means the backend terminated abnormally before
+TA&gt; or while processing the request.
+TA&gt; We have lost the connection to the backend, so further processing is
+TA&gt; impossible.
+TA&gt; Terminating.
+
+上記は *.so のところで間違っていたためでした。
+
+[pgsql-jp 7053] で出したMakefile.bsd のパッチも間違いで、下記でお願いします。
+何度もすみません。
+
+
+--- postgresql-6.4.2/src/makefiles/Makefile.bsd.orig    Sat Dec 20 09:11:13 1997
++++ postgresql-6.4.2/src/makefiles/Makefile.bsd Fri Feb 12 13:07:53 1999
+@@ -1,4 +1,11 @@
++ifdef ELF_SYSTEM
++LDFLAGS += -Wl,-E
++endif
++
+ %.so: %.o
++ifdef ELF_SYSTEM
++       $(LD) -x -Bshareable -o $@ $&lt;
++else
+        $(LD) -x -r -o $&lt;.obj $&lt;
+        @echo building shared object $@
+        @rm -f $@.pic
+@@ -7,3 +14,4 @@
+        @rm -f $@
+        $(LD) -x -Bshareable -Bforcearchive \
+          -o $@ $@.pic
++endif
+
+
+
+これでregressionは
+float8 .. failed
+inet .. failed
+になりました。
+
+
+% diff -uw expected/inet.out results/inet.out
+--- expected/inet.out   Fri Oct 30 03:12:50 1998
++++ results/inet.out    Fri Feb 12 13:32:02 1999
+@@ -44,12 +44,12 @@
+ QUERY: SELECT '' AS ten, c AS cidr, broadcast(c),
+   i AS inet, broadcast(i) FROM INET_TBL;
+ ten|cidr        |      broadcast|inet            |      broadcast
+----+------------+---------------+----------------+---------------
++---+------------+--------------+----------------+--------------
+    |192.168.1/24|  192.168.1.255|192.168.1.226/24|  192.168.1.255
+-   |192.168.1/24|  192.168.1.255|192.168.1.226   |255.255.255.255
++   |192.168.1/24| 192.168.1.255|192.168.1.226   | 192.168.1.226
+    |10/8        | 10.255.255.255|10.1.2.3/8      | 10.255.255.255
+-   |10.0.0.0/32 |255.255.255.255|10.1.2.3/8      | 10.255.255.255
+-   |10.1.2.3/32 |255.255.255.255|10.1.2.3        |255.255.255.255
++   |10.0.0.0/32 |      10.0.0.0|10.1.2.3/8      |10.255.255.255
++   |10.1.2.3/32 |      10.1.2.3|10.1.2.3        |      10.1.2.3
+    |10.1.2/24   |     10.1.2.255|10.1.2.3/24     |     10.1.2.255
+    |10.1/16     |   10.1.255.255|10.1.2.3/16     |   10.1.255.255
+    |10/8        | 10.255.255.255|10.1.2.3/8      | 10.255.255.255
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00184" HREF="msg00184.html">[pgsql-jp 7059] Re: NetBSD/macppc(&amp; FreeBSD 3.0RELEASE)</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp 7035] Re: Benchmark on NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00164" HREF="msg00164.html">[pgsql-jp 7039] NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00169" HREF="msg00169.html">[pgsql-jp 7044] Re: NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 7048] Re: NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00181.html">[pgsql-jp 7056] Re: over 8192 bytes</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 7058] ご挨拶</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 7048] Re: NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00184.html">[pgsql-jp 7059] Re: NetBSD/macppc(&amp; FreeBSD 3.0RELEASE)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00182"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00182"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,227 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21365] コピーコマンドについて -->
+<!--X-From: Fumikatu_Saitoh@hq.digi.co.jp -->
+<!--X-Date: Mon, 21 May 2001 15:46:12 +0900 -->
+<!--X-Message-Id: 49256A53.00258345.00@notesmailgw -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21365] コピーコマンドについて </TITLE>
+<LINK REV="made" HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00409.html">Date Prev</A>][<A HREF="msg00411.html">Date Next</A>][<A HREF="msg00411.html">Thread Prev</A>][<A HREF="msg00413.html">Thread Next</A>][<A HREF="index.html#00410">Date Index</A>][<A HREF="threads.html#00410">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21365] コピーコマンドについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">Fumikatu_Saitoh@hq.digi.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 21 May 2001 15:46:12 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+齋藤＠寺岡精工です。
+お世話になっております。
+
+ RHL 6.2J
+ PostgreSQL 7.0.3
+
+の環境下で、
+C言語のlibpq関数群で、以下のような現象が起きています。
+
+・PQputline()からエラーが返ってくる。
+
+プログラムが悪いのだろうと思い、調べたのですが、どうもわからないので、
+皆さんのお知恵を借りようとメール致しました(--;
+このPQputline()でエラーが返ってくるのは、HOSTからLOCALへPQgetline()で
+データを取ってきて、自身に（LOCAL）にPQputline()を行うのですが、
+2000件程で（全体で３０００件程度です）エラーとなって返ってきます。
+１０００件で１秒のsleep()を入れることにより回避されるのですが、
+なにか、使用方法等に問題があるのでしょうか？
+以下にテーブルとプログラムとデータ（これは添付としました）
+を載せます。
+宜しくお願いいたします。
+
+−−−テーブルです−−−
+CREATE TABLE test (
+  a         numeric(6),
+  b         smallint,
+  c         smallint,
+  d         smallint,
+  e         smallint,
+  f         char(13),
+  g         numeric(6),
+  h         smallint,
+  i         smallint,
+  j         varchar(68),
+  PRIMARY KEY (a,b,c)
+);
+
+−−−データです−−−
+(See attached file: test_data.txt)
+
+−−−プログラムです−−−
+#include "postgres.h"
+#include "libpq-fe.h"
+#include &lt;stdio.h&gt;
+#include &lt;time.h&gt;
+
+void
+exit_func(PGconn* conn)
+{
+   if(conn)
+      PQfinish(conn);
+}
+
+int
+main()
+{
+   PGconn *con;
+   PGconn *srx;
+   PGresult *res;
+   time_t start,finish;
+   int i = 0;
+   char sql[10000];
+
+   srx = PQsetdbLogin("172.24.1.1",0,0,0,"test","postgres","postgres");
+   if(PQstatus(srx) == CONNECTION_BAD)
+   {
+      printf("Connection to database failed\n");
+      printf("%s",PQerrorMessage(srx));
+      exit_func(srx);
+      exit(1);
+   }
+   con = PQsetdb(0,0,0,0,"tpr_db");
+   if(PQstatus(con) == CONNECTION_BAD)
+   {
+      printf("Connection to database failed\n");
+      printf("%s",PQerrorMessage(con));
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   printf("Connection to database!!\n");
+   time(&amp;start);
+   res = PQexec(con,"copy test from stdin");
+   if(PQresultStatus(res) != PGRES_COPY_IN)
+   {
+      printf("%s",PQerrorMessage(con));
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   PQclear(res);
+   res = PQexec(srx,"copy test to stdin");
+   if(PQresultStatus(res) != PGRES_COPY_OUT)
+   {
+      printf("%s",PQerrorMessage(con));
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   PQclear(res);
+   while(1) {
+     memset(sql,0x0,sizeof(sql));
+     if(PQgetline(srx,sql,sizeof(sql))) {
+       printf("PQgetline failed\n");
+       exit_func(con);
+       exit_func(srx);
+       exit(1);
+     }
+     strcat(sql,"\n");
+     if(!strncmp(&amp;sql[0],"\\.",2))
+       break;
+//     i++;              // この先頭５行のコメントをはずすとPQputlineでエラーと
+ならない
+//     if(i &gt; 1000) {
+//       i=0;
+//       sleep(1);
+//     }
+     if(PQputline(con, sql)) {
+       printf("PQputline failed: %s\n", sql);
+       exit_func(con);
+       exit_func(srx);
+       exit(1);
+     }
+   }
+   if(PQendcopy(srx)) {
+      printf("PQendcopy failed\n");
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   if(PQputline(con,"\\.\n")) {
+      printf("very last PQputline failed\n");
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   if(PQendcopy(con)) {
+      printf("PQendcopy failed\n");
+      exit_func(con);
+      exit_func(srx);
+      exit(1);
+   }
+   time(&amp;finish);
+   printf("time : %.2f\n",difftime(finish,start));
+   exit_func(con);
+   exit_func(srx);
+   exit(0);
+}
+</PRE>
+<P><A HREF="bin00003.bin"> Text - character set unknown</A></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00433" HREF="msg00433.html">[pgsql-jp 21388] Re: コピーコマンドについて</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00413" HREF="msg00413.html">[pgsql-jp 21368] Re: コピーコマンドについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 21364] Re: postmaster の自動起動</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00411.html">[pgsql-jp 21366] RE: postmaster の自動起動</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00411.html">[pgsql-jp 21366] RE: postmaster の自動起動</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00413.html">[pgsql-jp 21368] Re: コピーコマンドについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00410"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00410"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

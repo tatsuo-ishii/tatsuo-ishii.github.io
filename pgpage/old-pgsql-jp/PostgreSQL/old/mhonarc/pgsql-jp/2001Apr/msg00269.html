@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20844] ACCESS2000 でODBC接続時のBOOL型の取り扱い -->
+<!--X-From: "Kamada Takehiro" <kamada@hct.zaq.ne.jp> -->
+<!--X-Date: Tue, 24 Apr 2001 15:11:16 +0900 -->
+<!--X-Message-Id: 003801c0cc85$5f35c550$0b00a8c0@twotop -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20844] ACCESS2000 でODBC接続時のBOOL型の取り扱い </TITLE>
+<LINK REV="made" HREF="mailto:kamada@hct.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00271.html">Date Prev</A>][<A HREF="msg00270.html">Date Next</A>][<A HREF="msg00345.html">Thread Prev</A>][<A HREF="msg00286.html">Thread Next</A>][<A HREF="index.html#00269">Date Index</A>][<A HREF="threads.html#00269">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20844] ACCESS2000 でODBC接続時のBOOL型の取り扱い</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kamada Takehiro" &lt;<A HREF="mailto:kamada@hct.zaq.ne.jp">kamada@hct.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 24 Apr 2001 15:11:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。鎌田と申します。
+現在PostgreSQLの学習を目的に、以前にACCESS2000で作った
+販売システムの部分移植を行っています。
+テーブルを移行し、トリガーなどでサーバー側に処理を移せるものを
+移し、テスト動作を開始したところ、BOOL型の項目で下記の問題が
+発生し、対応策を検討しています。
+ACCESS2000(JET4.0)の動作に主因がありますが、どなたかよい
+解決法をご存知ないでしょうか。
+
+--[環境]--
+[Server]
+PostgreSQL 7.0.3
+Vine Linux 2.1.5 (X86)
+[Cilent]
+MS-ACCESS2000 SP-2
+日本語ODBCドライバ 7.01.0004
+    (主な設定)
+    disable_optimizer=1, ksqo=1, unique_index=1, use_declarefetch=0
+    text_as_longvarchar=1, unknowns_as_longvarchar=0, bools_as_char=1
+    (bools_as_charをOFFでもテスト)
+Windows2000 SP-1
+
+--[問題点]--
+問題は、次の例のようにACCESS側のローカルテーブルとPostgreSQL側のテーブル
+を結合する、ACCESSの異種結合クエリーにおいて発生します。
+( T_TF倉庫別在庫 ... ACCESS側ローカルテーブル )
+( t_f履歴在庫残高 ... PostgreSQL側のテーブル(ACCESSでリンク済み) )
+( B品, b品, 棚卸区分 ... BOOL型列 )
+
+UPDATE T_TF倉庫別在庫 AS L INNER JOIN t_f履歴在庫残高 AS f
+  ON (L.倉庫CD = f.倉庫cd) AND (L.B品 = f.b品) AND (L.商品CD = f.商品cd)
+  SET L.在庫数 = f.在庫数
+  WHERE f.処理月=#2000/6/30# AND f.棚卸区分=True;
+
+[1] bools_as_charをOFFにしてリンクした場合
+  ACCESSがサーバー側テーブルのBOOL型をBOOL型として扱ってくれる
+  ので、テーブルを結合する (L.B品 = f.b品) の部分は意図とおりに動作して
+  くれます。
+  が、f.棚卸区分=True の部分が 棚卸区分 = 1 という状態でPostgreSQLに
+  送信され、エラーになります。
+  ODBCドライバのCommLogで確認したところ、次の状況でした。
+  (ACCESSが異種結合のために上記クエリーを分解して作成したSQL文です
+
+...ひどい...)
+conn=188953816, query='
+SELECT "商品cd" ,"b品" ,"倉庫cd" ,"処理月" ,"棚卸区分" ,"f"."商品
+cd","f"."b品",
+    "f"."倉庫cd","f"."処理月","f"."棚卸区分" FROM "t_f履歴在庫残高" "f"
+  WHERE (("処理月" =  '2000-06-30 00:00:00' ) AND ("棚卸区分" = 1) )
+AND
+    ("商品cd" = 'A101-12' AND "b品" = '0' AND "倉庫cd" = '001')'
+
+ERROR from backend during send_query: 'ERROR:  Unable to identify an
+operator '='
+   for types 'bool' and 'int4'
+  ローカルテーブルのB品と結合したJOIN条件の方は "b品" = '0'  と期待とお
+りの
+  動作ですが、("棚卸区分" = 1)  の部分は '1' とはなってくれません。
+
+  ACCESSのSQL文で f.棚卸区分='t' や = '1' にすると、今度はACCESS側の型
+  チェックに引っかかります。
+
+[2] bools_as_charをONにしてリンクした場合
+  この場合は、ACCESSのSQL文で f.棚卸区分='t' と書けるのですが、今度は
+  テーブルを結合する (L.B品 = f.b品) がACCESSの型チェックに引っかかり
+  実行できません。
+  ACCESSのSQL文で無理に (L.B品 = CBOOL(f.b品)) とすると、クエリーの実行
+  はできますが、JOIN結果のレコード件数が0になってしまい正しい結合結果を
+  得ることはできませんでした。
+
+
+ACCESSが吐き出す異種結合SQL文の効率を考えると、PostgreSQLの
+SQL文をODBCDirectやパススルークエリーで書き出して、レコードセットを得、
+コードでローカルテーブルに書き出すのがよさそうですが、異種結合クエリー
+がそのまま使えると移行作業が楽なので、対応策を求めています。
+
+--
+鎌田　武弘 kamada@hct.zaq.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00286" HREF="msg00286.html">[pgsql-jp 20861] Re: ACCESS2000 でODBC接続時のBOOL型の取り扱い</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Sugawara &lt;rk73@echna.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 20846] Re: pg_dump とdatetime型の精度</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 20845] PostgreSQL 7.1 release info</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00345.html">[pgsql-jp 20920] Re: PostgreSQL 7.1 release info</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00286.html">[pgsql-jp 20861] Re: ACCESS2000 でODBC接続時のBOOL型の取り扱い</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00269"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00269"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

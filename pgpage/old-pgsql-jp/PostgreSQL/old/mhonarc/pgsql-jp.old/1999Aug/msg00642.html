@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10492] Re: Nullなら0を返す関数 -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Tue, 31 Aug 1999 09:41:09 +0900 -->
+<!--X-Message-Id: v04010106b3f0d52503bb@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37C76C8932.2218ENAEC2@mail.asr&#45;osk.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10492] Re: Nullなら0を返す関数 </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00641.html">Date Prev</A>][<A HREF="msg00643.html">Date Next</A>][<A HREF="msg00627.html">Thread Prev</A>][<A HREF="msg00643.html">Thread Next</A>][<A HREF="index.html#00642">Date Index</A>][<A HREF="threads.html#00642">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10492] Re: Nullなら0を返す関数</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 31 Aug 1999 09:41:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。
+
+At 13:58 +0900 99.8.28, 山口　敏広 wrote:
+&gt; 本当に簡単な質問で申し訳ないのですが。
+&gt; Oracleを使っていたときDecode関数を使ってNullを0にしてSQL分を作成
+&gt; してたのですが、PostgreSQLにも同じ様な動きをする関数はないのでしょうか。
+
+なければ作るということで、
+「postgres95 ユーザ・マニュアル日本語版」より
+(どこから入手したか、忘れました。)
+
+&gt;7.1.1.  基本型での SQL 関数
+&gt;
+&gt;もっとも簡単な SQL 関数は引数を持たず，ただ単に int4 のような基本型を
+&gt;返すものです：
+&gt;
+&gt;         CREATE FUNCTION one() RETURNS int4
+&gt;              AS 'SELECT 1 as RESULT' LANGUAGE 'sql';
+&gt;
+&gt;
+&gt;         SELECT one() AS answer;
+&gt;
+&gt;
+&gt;         +-------+
+&gt;         |answer |
+&gt;         +-------+
+&gt;         |1      |
+&gt;         +-------+
+&gt;
+&gt;注目すべきことは，(RESULT という名前で)ターゲットリストを関数に定義し
+&gt;ましたが，関数を起動した問い合わせのターゲットリストが関数のターゲット
+&gt;リストに取って代ることです．したがって，結果は one の代わりに answer
+&gt;とラベル付けされます．
+
+で、NULL を0 にする関数ですが、例えば次のように作れます。
+(コーディングの効率の善し悪しはおいといてと。)
+
+CREATE FUNCTION NotNull(text) RETURNS int4
+AS ' (SELECT 1 as RESULT where $1 is not NULL) union
+     (SELECT 0 as RESULT where $1 is NULL)
+ ' LANGUAGE 'sql';
+
+
+例として、次のようなSQL 文を実行してみます。
+
+create table test (
+  a int4,
+  b text
+);
+insert into test values ( 1, 'NOT NULL' );
+insert into test values ( 2, NULL );
+
+CREATE FUNCTION NotNull(text) RETURNS int4
+AS ' (SELECT 1 as RESULT where $1 is not NULL) union
+     (SELECT 0 as RESULT where $1 is NULL)
+ ' LANGUAGE 'sql';
+
+select a, NotNull(b) from test;
+
+
+結果:
+そのままカット＆ペーストしたら、ちょっと見にくくなりましたが、
+こんなふうになります。
+
+postgres=&gt; create table test (
+postgres-&gt;   a int4,
+postgres-&gt;   b text
+postgres-&gt; );
+;
+
+CREATE FUNCTION NotNull(text) RETURNS int4
+AS ' (SELECT 1 as RESULT where $1 is not NULL) union
+     (SELECT 0 as RESCREATE
+postgres=&gt; insert into test values ( 1, 'NOT NULL' );
+INSERT 1191370 1
+postgres=&gt; insert into test values ( 2, NULL );
+INSERT 1191371 1
+postgres=&gt;
+postgres=&gt; CREATE FUNCTION NotNull(text) RETURNS int4
+postgres-&gt; AS ' (SELECT 1 as RESULT where $1 is not NULL) union
+postgres'&gt;      (SELECT 0 as RESULT where $1 is NULL)
+postgres'&gt;  ' LANGUAGE 'sql';
+CREATE
+postgres=&gt;
+postgres=&gt; select a, NotNull(b) from test;
+a|notnull
+-+-------
+1|      1
+2|      0
+(2 rows)
+
+postgres=&gt;
+
+
+--
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00643" HREF="msg00643.html">[pgsql-jp 10493] Re: Nullなら0を返す関数</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00627" HREF="msg00627.html">[pgsql-jp 10477] Nullなら0を返す関数</A></STRONG>
+<UL><LI><EM>From:</EM> 山口　敏広 &lt;enaec2@asr-osk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00641.html">[pgsql-jp 10491] PostgreSQL6.5.1用JDBCドライバの日本語対応パッチ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00643.html">[pgsql-jp 10493] Re: Nullなら0を返す関数</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00627.html">[pgsql-jp 10477] Nullなら0を返す関数</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00643.html">[pgsql-jp 10493] Re: Nullなら0を返す関数</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00642"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00642"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,189 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3840] Re: [QUESTIONS] PostgreSQL v6.3.2 released... -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Mon, 20 Apr 1998 23:15:25 +0900 -->
+<!--X-Message-Id: 19980420231525S.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804200308.MAA23910@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3840] Re: [QUESTIONS] PostgreSQL v6.3.2 released... </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00138.html">Date Prev</A>][<A HREF="msg00140.html">Date Next</A>][<A HREF="msg00136.html">Thread Prev</A>][<A HREF="msg00145.html">Thread Next</A>][<A HREF="index.html#00139">Date Index</A>][<A HREF="threads.html#00139">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3840] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 20 Apr 1998 23:15:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00136.html">199804200308.MAA23910@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．(6.3.1 のインストールが終わったと思いきや ^^)
+
+&gt; 石井です。PostgreSQL 6.3.2 が出ました。下記の ftp サイトのほか、
+&gt; <A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.3.2/">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.3.2/</A>
+&gt; にもあります。とりあえず Solaris2.6, MkLinux pre-DR3, Linux/X86,
+&gt; FreeBSD でテスト中。今回から configure で template を聞かなくなりまし
+&gt; たが、FreeBSD 以外ではまともな template を探してくれないようなので、
+&gt; 自分で適切な template を指定する必要があります。
+
+6.3.2 を HP-UX の上にのせました．6.3.1 もそうでしたが，
+shared library 関係でトラブルがあるため，適当にだまして
+コンパイルをしています:
+
+(1) libpq.sl に x permission が付いていないので，インストールした
+    プログラムが dld.sl (HP の shared library loader です) が mmap
+    できないといってこけてしまう．
+
+ ==&gt; chmod a+x lib*.sl
+
+(2) HP-UX の shared library については詳しくないので何とも言えない
+    のですが，dld.sl がコンパイル時のライブラリを探しに行ってしまう
+    ようで，以下のようなメッセージでこけてしまいます:
+
+    % psql
+    dld.sl: ../../interfaces/libpq/libpq.sl not found
+    (ちょっと怪しいですが，こんな感じです．)
+
+ ==&gt;
+    gcc とのからみや，リンクオプションなどとの関係も考えられますし，
+    私自身の誤解もあるかもしれないので，もうちょっと調べてみます．
+
+    いまのところは，一度，make all; make install をした後，
+    Makefile.custom の LIBPQDIR=... のコメントを外して
+    src/bin の下だけ再度コンパイルする，という荒っぽいやり方で
+    対応しています．これですと library の探索が絶対パスで
+    行われるために問題が避けられます．この時，ヘッダファイルの
+    探索でこけてしまうので，一部 symbolic link で逃げています．
+
+蛇足です: pgaccess の 0.86 がバンドルされていますが，
+こちらは以前この ML に流れていた日本語パッチを適当に切り貼り
+して動かしています．一応快適に動作するようです．
+(tcl は 7.6jp; tk は 4.2jp です．)
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+
+-------%&lt; WISC-BENCH ----------------------------------------
+
+CONFIG. OPTION: 
+	--prefix=/home3/home30/ichikawa/postgres/6.3.2 \
+        --with-template=hpux-gcc --enable-hba --enable-locale
+
+Makefile.custom: ちょっと小細工しています．
+	MB=EUC_JP
+	LDFLAGS += -lxnet
+	#
+	# Dirty trick: This may be done after installing the whole library and
+	# include files _before_ compiling binaries.
+	#
+	#LIBPQDIR=$(POSTGRESDIR)/lib
+
+
+SYSTEM: HP 715/100XC
+OS: HP-UX B.10.20
+MM: 128M
+HD: RAID 5 (ext. disk array)
+
+query  0:   0.002 real   0.010 user   0.000 sys
+query  1:   0.713 real   0.190 user   0.030 sys
+query  2:   5.768 real   0.610 user   0.310 sys
+query  3:   0.474 real   0.180 user   0.000 sys
+query  4:   2.322 real   0.590 user   0.280 sys
+query  5:   0.315 real   0.160 user   0.010 sys
+query  6:   0.683 real   0.480 user   0.010 sys
+query  7:   0.053 real   0.030 user   0.000 sys
+query  8:   0.756 real   0.700 user   0.000 sys
+query  9:   2.093 real   1.580 user   0.050 sys
+query 10:   6.417 real   4.520 user   0.120 sys
+query 11:   2.589 real   2.070 user   0.040 sys
+query 12:   2.579 real   1.560 user   0.050 sys
+query 13:   6.311 real   4.510 user   0.120 sys
+query 14:   2.598 real   2.100 user   0.040 sys
+query 15:   7.060 real   1.860 user   0.680 sys
+query 16:   6.464 real   4.490 user   0.130 sys
+query 17:   5.933 real   2.330 user   0.650 sys
+query 18:   3.605 real   2.230 user   0.140 sys
+query 19:   0.623 real   0.420 user   0.020 sys
+query 20:   0.001 real   0.000 user   0.000 sys
+query 21:   0.001 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.000 sys
+query 23:   0.001 real   0.000 user   0.000 sys
+query 24:   0.001 real   0.000 user   0.010 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.001 real   0.010 user   0.000 sys
+query 27:   0.015 real   0.010 user   0.000 sys
+query 28:   0.168 real   0.060 user   0.010 sys
+query 29:   0.001 real   0.000 user   0.000 sys
+query 30:   0.013 real   0.010 user   0.000 sys
+query 31:   0.130 real   0.060 user   0.000 sys
+query 32:   0.155 real   0.040 user   0.000 sys
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00233" HREF="msg00233.html">[pgsql-jp 3935] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</A></STRONG>
+<UL><LI><EM>From:</EM> Yuji Yamano &lt;u90156@uis-inf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00145" HREF="msg00145.html">[pgsql-jp 3846] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00136" HREF="msg00136.html">[pgsql-jp 3837] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00138.html">[pgsql-jp 3839] Re: apacheインストールできず</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00140.html">[pgsql-jp 3841] RE: Q:How to compile postgres and php/fi interface as apache module</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 3837] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00145.html">[pgsql-jp 3846] Re: [QUESTIONS] PostgreSQL v6.3.2 released...</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00139"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00139"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

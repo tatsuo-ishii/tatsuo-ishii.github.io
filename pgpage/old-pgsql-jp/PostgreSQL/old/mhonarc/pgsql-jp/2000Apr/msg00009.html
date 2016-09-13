@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13712] pg_dumpall & pg_dump error solution. -->
+<!--X-From: "Nozomu MATSUI" <nozomu@yy.cs.keio.ac.jp> -->
+<!--X-Date: Mon, 3 Apr 2000 01:36:40 +0900 -->
+<!--X-Message-Id: 002301bf9cc1$b53788c0$0100a8c0@nozomu.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13712] pg_dumpall &amp; pg_dump error solution. </TITLE>
+<LINK REV="made" HREF="mailto:nozomu@yy.cs.keio.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00008.html">Date Prev</A>][<A HREF="msg00010.html">Date Next</A>][<A HREF="msg00072.html">Thread Prev</A>][<A HREF="msg00008.html">Thread Next</A>][<A HREF="index.html#00009">Date Index</A>][<A HREF="threads.html#00009">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13712] pg_dumpall &amp; pg_dump error solution.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Nozomu MATSUI" &lt;<A HREF="mailto:nozomu@yy.cs.keio.ac.jp">nozomu@yy.cs.keio.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 3 Apr 2000 01:36:40 +0900</LI>
+<LI><em>Organization</em>: KEIO Univ.</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。慶應の松井と申します。
+
+FreeBSD-3.3RマシンにPostgres-6.5.3をinstallしてWEB Databese
+を構築しようとしています。Postgresは初心者です。
+現在はWindowsのODBC経由でFreeBSD上のPostgres DBをAccessから
+編集する方法で利用しています。
+
+少し使えるように慣れてきたらやはりバックアップを取りたいと思
+います。しかし man をみてpg_dumpとpg_dumpallが利用できること
+が分かっても今まで正常に動作しませんでした。その際にエラー
+メッセージ、および解決に至るまでの作業内容をまとめてみまし
+た。
+
+問題はpg_dumpallができないことでした。その時のエラー内容は
+    % pg_dumpall &gt; test.pg_dump
+    ERROR:  parser: parse error at or near "70"
+    ERROR:  COPY command failed.  Class tmp_pg_shadow does
+not exist.
+    ERROR:  Relation 'tmp_pg_shadow' does not exist
+    pg_dump: couldn't find the template1 database.  You are
+really hosed.
+    Giving up.
+    pg_dump failed on automobile, exiting
+
+というもので何がなんだか、理由がさっぱりわからないので 石井
+さんのWeb pageからたどり着いた 6.5.3のpatch をしらみつぶしに
+当ててみてもだめでした。
+
+何か過去の事例はないかと、箕畑 典男さんのMLアーカイブ検索
+ページから [pgsql-jp 12497] [pgsql-jp 12504] [pgsql-jp
+12523]などを見つけて、pg_databaseのエントリを確認しようと
+
+    % psql -d template1
+    template1 =&gt; select oid, * from pg_database;
+
+してみると 次の通りtemplate1 のエントリが重複して存在してい
+ることが分かりました。
+     oid|datname   |datdba|encoding|datpath
+    -----+----------+------+--------+----------
+    17120|template1 | 16353|       0|template1
+    18496|automobile| 16353|       0|automobile
+    19264|template1 |    70|       0|template1
+    (3 rows)
+
+詳しいことはよくわからないにしても、pg_databaseは多分
+Postgresがデータベースを識別する際にしているのだろうを考え、
+重複するものは取り除くことにしました。
+
+    template1 =&gt; delete from pg_database where oid='17120';
+
+これだけでpg_dumpall及びpg_dumpが正常に動作するようになりま
+した。
+
+また、ODBC経由でAccessからテーブルのリンクをする際に起きてい
+たおかしな現象（各テーブル、フィールドが２つずつ見える）も解
+消されました。
+
+上記の問題は私の場合、すでにpg_databaseが存在するのに誤って
+initdbしたことが原因であると考えられます。
+
+以上、結局解決に至ったと言う過去のMLアーカイブが見つからな
+かったので自分で結論を投稿することにした私の失敗談をまとめて
+みました。（サブジェクトって信用なりませんね。解決するのにま
+るまる1週間費やしました）
+
+これからもよろしくお願いいたします。
+-
+nozomu matsui
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 13711] RE: [pgsql-jp 13680] アップレットとPGSQLの接続エラーについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 13713] Re: アップレットとPGSQLの接続エラーについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 13775] Re: postgreSQL-7.0 のMacOSXServerへのインストールについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 13711] RE: [pgsql-jp 13680] アップレットとPGSQLの接続エラーについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00009"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00009"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

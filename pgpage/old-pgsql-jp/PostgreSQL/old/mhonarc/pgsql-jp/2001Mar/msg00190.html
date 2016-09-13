@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20324] Re: ロック検出時のnot&#45;wait動作について -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Wed, 14 Mar 2001 01:48:07 +0900 -->
+<!--X-Message-Id: 3AAE4F47.6E996FC7@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010312105112.409E.K&#45;KAWAHARA@use&#45;eng.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20324] Re: ロック検出時のnot-wait動作について </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00189.html">Date Prev</A>][<A HREF="msg00191.html">Date Next</A>][<A HREF="msg00156.html">Thread Prev</A>][<A HREF="msg00200.html">Thread Next</A>][<A HREF="index.html#00190">Date Index</A>][<A HREF="threads.html#00190">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20324] Re: ロック検出時のnot-wait動作について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Mar 2001 01:48:07 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00156.html">20010312105112.409E.K-KAWAHARA@use-eng.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+# フォローがつかないようなので、*元*Informix
+# 愛好家として、あまり役に立たない情報を。
+
+Kiichiro Kawahara wrote:
+&gt; 
+&gt; はじめまして
+&gt; 最近 PostgreSQL をさわり始めた 川原＠ユース と申します
+&gt; 
+&gt; 早速ですが、お聞きしたいことがあります
+&gt; 
+&gt; INFORMIX でいうところの
+&gt; "SET LOCK MODE TO NOT WAIT" は可能なのでしょうか？
+
+# 懐しいですね。昔々のversion ではよく使いました。
+
+PostgreSQL の LOCK TABLE にはタイムアウトの
+設定はないみたいですね。  ＞詳しい方教えて下さい。
+
+試しに、２つのプロセスで同じ表に LOCK TABLE をして、
+そのままCOMMIT/ROLLBACK しないでいると、後の方の
+プロセスは、何時間でも待たされています。
+
+DEAD LOCK の場合は、PostgreSQL が検知して、片方の処理
+を強制終了してくれます。詳しくはマニュアルを。
+
+次のようなメッセージです。PostgreSQL 7.0.2
+
+Warning:  PostgreSQL query failed:  ERROR:  WaitOnLock: 
+     error on wakeup - Aborting this transaction
+ in /jj/vvv/php/dead.lock.test.php on line 14
+ERROR:  WaitOnLock: error on wakeup - Aborting this transaction
+
+
+---------------- マニュアル抜粋 -------------------
+| Note:  Postgres  does detect deadlocks and will rollback
+| at least one waiting transaction to  resolve  the  dead-
+| lock.
+--------------------- 引用終り ---------------------
+
+ただ、PostgreSQL では、というか、今時の RDB は、
+SET ISOLATION LEVEL で、SERIALIZE を指定できる
+ので、LOCK TABLE を使う必要性はあまりないように
+思います。
+
+特に、PostgreSQL は、１トランザクション中に大量の
+処理が入っても、行ロックが表ロックに自動格上される
+ということがないし、MVCC ですから、EXCLUSIVE MODE で、
+テーブルロック中でも、整合性のある(DIRTY READ でない)
+読取りができます。
+
+&gt; 
+&gt; どういうことかというと...
+&gt; 
+&gt; 通常(初期状態)動作の場合は
+&gt;   他のユーザがロック中のデータに対して、更新などの操作を行うと
+&gt;   他のユーザのロックが解除されるのを待った後、自分の更新作業が行われる
+&gt; 
+&gt; "SET LOCK MODE TO NOT WAIT"動作の場合は
+&gt;   他のユーザがロック中のデータに対して、更新などの操作を行うと
+&gt;   "他のユーザが使用中です"といったステータスを戻し、更新は行われない
+&gt; 
+&gt; と、いったものです。
+
+う〜〜ん。これは、対話型処理で、ユーザーがキーボード
+からデーター入力してからDB更新するまでの全処理を、
+単一トランザクションにしてしまうというような場合
+なんでしょうかね。
+
+バッチ処理なんかではこういうことをする必要は
+ないですね。
+
+# Informix の SET LOCK MODE は、行ロックにも
+# 対応しているんでした。
+
+キーボード入力のような、時間のかかる(場合によって
+は、終了しないで食事にでもいってしまうかもしれない)
+処理は、トランザクションの中に入れるべきではないで
+しょう。
+
+私は、こういう必要がる場合は、表に "使用中" という
+ようなDB列を定義しておいて、最初のユーザーがアクセス
+したときに、ON にして、キーボード入力前に COMMIT して
+しまいます。これが ON になっていると、他のユーザー
+には、『 hogehoge さんが使用中です 』というような
+メッセージをだすようにしています。
+
+誰が使用中かわかるので、終了処理をしないで、お茶でも
+のみに行ったりすると、後で袋叩に。。。(爆笑)
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+           PostgreSQL 汎用DB検索ツール デモ  
+      <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00200" HREF="msg00200.html">[pgsql-jp 20334] Re: ロック検出時のnot-wait動作について</A></STRONG>
+<UL><LI><EM>From:</EM> Kiichiro Kawahara &lt;k-kawahara@use-eng.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00156" HREF="msg00156.html">[pgsql-jp 20290] ロック検出時のnot-wait動作について</A></STRONG>
+<UL><LI><EM>From:</EM> Kiichiro Kawahara &lt;k-kawahara@use-eng.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 20323] Re: DB のアクセス制限につきまして。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 20290] ロック検出時のnot-wait動作について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00200.html">[pgsql-jp 20334] Re: ロック検出時のnot-wait動作について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00190"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00190"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

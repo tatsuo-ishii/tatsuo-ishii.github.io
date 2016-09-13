@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 813] error of initdb (Postgres95 1.07 + jp&#45;patch 1.06) -->
+<!--X-From: Hajime BABA <baba@kusastro.kyoto&#45;u.ac.jp> -->
+<!--X-Date: Sun, 06 Oct 1996 21:25:10 +0900 -->
+<!--X-Message-Id: 199610061225.VAA04456@sabrina.kusastro.kyoto&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 813] error of initdb (Postgres95 1.07 + jp-patch 1.06) </TITLE>
+<LINK REV="made" HREF="mailto:baba@kusastro.kyoto-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00021.html">Date Next</A>][<A HREF="msg00033.html">Thread Prev</A>][<A HREF="msg00025.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 813] error of initdb (Postgres95 1.07 + jp-patch 1.06)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hajime BABA &lt;<A HREF="mailto:baba@kusastro.kyoto-u.ac.jp">baba@kusastro.kyoto-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 06 Oct 1996 21:25:10 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+馬場＠京大宇宙物理 です。
+
+Linux-1.3.100 + gcc-2.7.0 でPostgres95-1.07 + jp-patch for 1.06 を
+インストールしたのですが、initdb で
+
+  Failed Assertion("!(reldesc):(null)", File:"/usr/src/postgres95/ \
+    src/backend/bootstrap/bootstrap.c", Line: 435)
+  !(reldesc) (0) [No such file or directory]
+
+というエラーを出して止まってしまいます。
+bootstrap.c のソースは見ましたが、ちょっと意味がわかりませんでした。
+
+FAQ や過去の ML のログを見ても、こういう問題については触れられてい
+ないようですが、どなたか解決策をご存知ではないでしょうか。
+
+よろしくお願いします。
+--
+馬場  肇 ( Hajime BABA )                  E-mail: baba@kusastro.kyoto-u.ac.jp
+京都大学理学部宇宙物理学教室 修士課程２回生
+--
+
+以下は、インストールの際にやったことです。
+
+
+実は、GNU readline が必要だった。(ま、option で設定できるようですが)
+＃ 途中でコンパイルが止まったので、急遽インストールしたという... ^^;)
+
+ 0. ソース展開
+ 1. ./configure; make
+ 2. make install はなんか変だったので、手動で
+      cp libreadline.a /usr/local/lib
+      mkdir /usr/local/include/readline; cp *.h /usr/local/include/readline/
+    した。
+
+Postgres95 本体のインストール。
+
+ 0. ソース展開
+ 1. cd /usr/src/postgres95
+ 2. patch -p &lt; jp.patch
+ 3. less INSTALL
+ 4. vipw, 
+      postgres:*:21:0:postgres95 user:/usr/local/postgres95:/bin/tcsh
+ 5. cd src
+ 6. vi Makefile.global
+      INSTALL に従って、PORTNAME=linux,SRCDIR=/usr/src/postgres95/src,
+      POSTGRESDIR=/usr/local/postgres95 とした。
+ 7. make
+      cast による warning と、prototype 宣言不一致の warning 以外は
+      エラーなし。
+ 8. su; make install
+ 9. cd /usr/local; chown -R postgres postgres95
+
+以下は、ユーザ postgres で作業した。が、いきなりエラー。
+
+  /usr/local/postgres95[1]% initdb -v
+  initdb: verbose mode on
+  initdb: using /usr/local/postgres95/data/files/local1_template1.bki
+  initdb: using /usr/local/postgres95/data/files/global1.bki
+  initdb: creating SHARED relations in /usr/local/postgres95/data
+  initdb: creating template database in /usr/local/postgres95/data/base/template1
+  postgres -boot -C -F -Q template1 &lt; /usr/local/postgres95/data/files/local1_temp
+  late1.bki
+  postgres -boot -C -F -Q template1 &lt; /usr/local/postgres95/data/files/global1.bki
+  postgres -boot -C -F -Q template1 &lt; /tmp/create.4135
+  Failed Assertion("!(reldesc):(null)", File: "/usr/src/postgres95/src/backend/boo
+  tstrap/bootstrap.c", Line: 435)
+  !(reldesc) (0) [No such file or directory]
+  initdb: could not log template database
+  initdb: cleaning up.
+
+また、initdb によって生成されるテンポラリファイルが消去されていなかった。
+中身はこんなの。
+
+  /usr/local/postgres95[2]% cat /tmp/create.4135
+  open pg_database
+  insert (template1 21 template1)
+  close pg_database
+
+いちおう、/usr/local/postgres95/data/ のファイルをチェックした。
+＃ 日本語 FAQ (2.3)にはサイズ0でなければならないとあるが、いいのか？
+
+  /usr/local/postgres95[3]% ls -lR data/
+  total 1
+  drwxr-xr-x   2 postgres root         1024 Oct  6 05:20 files
+  
+  /usr/local/postgres95/data/files:
+  total 4
+  -r--r--r--   1 postgres root         1088 Oct  6 05:20 global1.bki
+  -r--r--r--   1 postgres root         1091 Oct  6 05:20 global1.bki.source
+  -r--r--r--   1 postgres root            0 Oct  6 05:20 local1_template1.bki
+  -r--r--r--   1 postgres root            0 Oct  6 05:20 local1_template1.bki.source
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[postgres95 819] Re: error of initdb (Postgres95 1.07 + jp-patch 1.06)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[postgres95 812] self introduction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00021.html">[postgres95 815] 1.0.8 compiled on DEC OSF/1.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00033.html">[postgres95 827] Re: Get ver 1.0.8 from ftp.jaist.ac.jp</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00025.html">[postgres95 819] Re: error of initdb (Postgres95 1.07 + jp-patch 1.06)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

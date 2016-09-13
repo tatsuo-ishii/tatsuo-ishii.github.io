@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16454] Re: Perl + DBI で使用する環境変数 -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Thu, 03 Aug 2000 16:17:40 +0900 -->
+<!--X-Message-Id: 200008030717.QAA04875@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3989166512C.8E23DAISAITO@pop.lares.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16454] Re: Perl + DBI で使用する環境変数 </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00068.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16454] Re: Perl + DBI で使用する環境変数</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Aug 2000 16:17:40 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00068.html">3989166512C.8E23DAISAITO@pop.lares.dti.ne.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) WEMI/1.13.4 (Nishi-Yaizu)FLIM/1.12.7 (Y&umacr;zaki) MULE XEmacs/21.1 (patch 9)(Canyonlands) (i386--freebsd)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+At Thu, 03 Aug 2000 15:51:17 +0900,
+SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt; wrote:
+&gt; 
+&gt; Postgres7.0.2 + FreeBSD4.0R を使っています。
+&gt; 今回、Perl5.005_03 + DBI + DBD::Pg を導入しようとして
+&gt; DBDとDBIのインストールはうまくいきましたが、
+&gt; postgresユーザー以外ではデータベースに接続ができません。
+&gt; 
+&gt; 状況としては、ユーザーfooで接続しようとすると、次のようなエラーが出ます。
+&gt; 
+&gt; install_driver(Pg) failed: Can't load '/usr/local/lib/perl5/
+&gt; site_perl/5.005/i386-freebsd/auto/DBD/Pg/Pg.so' for module 
+&gt; DBD::Pg: Shared object "libpq.so.2" not found at /usr/libdata/perl/
+&gt; 5.00503/DynaLoader.pm line 169.
+
+これは PostgreSQL の共有ライブラリを見つけられていないためですね…
+
+
+&gt; で、スクリプトは下記の通りです。
+&gt; 
+&gt; #!/usr/local/bin/perl
+&gt;  use DBI;
+&gt;  $ENV{'POSTGRES_HOME'} = '/usr/local/pgsql';
+&gt;  $ENV{'PGLIB'} = '/usr/local/pgsql/lib';
+&gt;  $ENV{'PGDATA'} = '/usr/local/pgsql/data';
+&gt;  $ENV{'LD_LIBRARY_PATH'} .= '/usr/local/pgsql/lib';
+
+LD_LIBRARY_PATH は Perl スクリプトを起動させる前に、すでに設定されている
+必要があります。(そのため、上の設定を Perl script 中の BEGIN{ } の中に
+入れたとしても NG です)
+
+簡単な解決方法は、ldcondig で PostgreSQL の共有ライブラリを格納してある
+ディレクトリをサーチパスに入れてあげることです。
+  man ldconfig
+  jman ldconfig  ← 日本語マニュアルを入れている場合
+
+※ports で入れると、startup script で ldconfig でライブラリへのパスを
+  セットしているのがわかります。
+     /sbin/ldconfig -m /usr/local/pgsql/lib
+  /usr/ports/databases/postgresql7/files/pgsql.sh.tmpl を見ると、だいた
+  いどんな塩梅かわかるとおもいますので、参照してみて下さい。 
+
+
+&gt; なお、perldoc DBD::Pgにあった下記の環境変数は
+&gt; セットしたらpostgresユーザーでも接続できなくなったので
+&gt; やめました。
+&gt; 
+&gt; parameter  environment variable  hard coded default
+&gt; --------------------------------------------------
+&gt; dbname     PGDATABASE            current userid
+&gt; host       PGHOST                localhost
+&gt; port       PGPORT                5432
+&gt; options    PGOPTIONS             ""
+&gt; tty        PGTTY                 ""
+&gt; username   PGUSER                current userid
+&gt; password   PGPASSWORD            ""
+
+このあたりはインストールされた環境に依存しますので、適切に設定すれば
+ちゃんと接続できるとは思いますが…
+
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00233" HREF="msg00233.html">[pgsql-jp 16619] pg_connect()でエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "TomoFujimoto" &lt;fujimoto@eni.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[pgsql-jp 16458] Re: Perl + DBI で使用する環境変数</A></STRONG>
+<UL><LI><EM>From:</EM> SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00068" HREF="msg00068.html">[pgsql-jp 16453] Perl + DBI で使用する環境変数</A></STRONG>
+<UL><LI><EM>From:</EM> SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 16453] Perl + DBI で使用する環境変数</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 16455] apache+php3+postgresにSSL追加インストール？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 16453] Perl + DBI で使用する環境変数</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 16458] Re: Perl + DBI で使用する環境変数</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,223 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1391] Re: [Q] table design -->
+<!--X-From: Tanaka Minoru <green@keiken.co.jp> -->
+<!--X-Date: Sat, 15 Feb 1997 19:39:21 +0900 -->
+<!--X-Message-Id: 9702151039.AA01138@onbashira -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199702141431.XAA00695@tatsu.kane.shimosuwa.nagano.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1391] Re: [Q] table design </TITLE>
+<LINK REV="made" HREF="mailto:green@keiken.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00100.html">Date Prev</A>][<A HREF="msg00102.html">Date Next</A>][<A HREF="msg00102.html">Thread Prev</A>][<A HREF="msg00105.html">Thread Next</A>][<A HREF="index.html#00103">Date Index</A>][<A HREF="threads.html#00103">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1391] Re: [Q] table design</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tanaka Minoru &lt;<A HREF="mailto:green@keiken.co.jp">green@keiken.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 15 Feb 1997 19:39:21 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00098.html">199702141431.XAA00695@tatsu.kane.shimosuwa.nagano.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田仲@ケイケンです。
+最近、postgres使う暇がなくて悲しい。
+
+Hideki KANEBAKO &lt;kane@kane.shimosuwa.nagano.jp&gt;さん：
+kane&gt; 金箱と申します。
+kane&gt; 
+kane&gt; SQL はまだ始めたばかりです。
+
+データベースのメーリングリスト db_ml に出てきそうな質問です
+ね。あやうく、「使用しているDBはなんですか」と書いて顰蹙を買
+うところでした。
+
+kane&gt; いま、製品とそこに使われている材料およびその使用量のデータベースを
+kane&gt; 作ろうと思っているのですが、どのようなテーブルにしたらよいのか悩んでい
+kane&gt; ます。
+...
+kane&gt; このような要求にはどのように TABLE を構成したら良いのでしょう？
+kane&gt; 
+kane&gt; どなたかアドバイスお願いします。
+
+postgres(バージョンがえらく古いまま)で試そうとしたのですが、いろい
+ろ引っかかってしまったので、別のでやってみました。
+
+テーブル構成は、「製品」と「材料」と「使用材料(製品構成? 材
+料構成?)」に分けるのが普通だと思います。
+
+
+32* display 製品;
+***  Table: 製品  ***
+
+  Attributes:
+    名                                char(10,1)
+
+33* display 使用材料;
+***  Table: 使用材料  ***
+
+  Attributes:
+    製品名                            char(10,1)
+    材料名                            char(10,1)
+    使用量                            int
+
+材料テーブルは、省略しました。説明抜きでカット&amp;ペーストして
+ますけど、だいたい意味わかりますよね ^_^;)
+
+テーブル内容は、以下のとおりです。
+
+34* select from 製品;
+名
+
+A
+B
+
+35* select from 使用材料;
+製品名      材料名      使用量
+
+A           a               10
+A           b               10
+A           c               10
+B           a               50
+B           c                5
+B           d                5
+B           e                5
+
+
+kane&gt; にしてしまうと、材料A と 材料B を使っている製品は？との問で
+
+これには、
+38* select distinct 製品名 from 使用材料 where 材料名 = 'a' or 材料名 = 'b' ;
+製品名
+
+A
+B
+
+ですね。ほんとは「材料名 in ('a', 'b')」と書きたいところです
+が postgres には in とか、リストを返す関数は無いですね(ほん
+とかな?)。
+
+kane&gt; このデータベースでは主に、材料A をxxx以上、材料C をxxx以下使っている
+kane&gt; 製品は？ との問に答えたいのです。
+
+こちらは次のようにしてみました(複雑…)。
+
+39* select 名 from 製品
+      where
+      exists ( select 材料名 from 使用材料 
+                where 製品名 = 製品.名 and 材料名 = 'a' and 使用量 &gt;= 30)
+      and 
+      exists ( select 材料名 from 使用材料 
+                where 製品名 = 製品.名 and 材料名 = 'c' and 使用量 &lt;= 10) ;
+
+名
+
+B
+
+もっと他にもやりかたがあるかも知れません。この方法を 
+postgres でやるには上のサブセレクトのところを関数にする必要
+がありますね。
+	exists ( select ...) 
+というのは 
+	0 &lt; ( select count ... )
+というのと同じ(選択条件に合致するものが存在する)です。
+
+おっと、馬目さんのメールが…
+MANOME Tomonori &lt;manome@itlb.te.noda.sut.ac.jp&gt;さん：
+manome&gt; 馬目％訂正です。
+...
+manome&gt; このような問い合わせであれば、元のテーブルのままで、テーブル
+manome&gt; 自己自身とのジョインをとってやればいいと思います。
+manome&gt; 
+manome&gt; SELECT a.product FROM Samples a, Samples b
+manome&gt;      WHERE a.product = b.product
+manome&gt;        AND a.material = '材料A'
+manome&gt;        AND a.quantity &gt;= ?????
+manome&gt;        AND b.material = '材料C'
+manome&gt;        AND b.quantity &lt;= ?????;
+manome&gt; 
+manome&gt; です。
+
+やってみました。
+
+43* run;
+select a.製品名 from 使用材料 a, 使用材料 b
+where
+a.製品名 = b.製品名
+and a.材料名 = 'a' and a.使用量 &gt;= 30
+and b.材料名 = 'c' and b.使用量 &lt;= 10 ;
+
+製品名
+
+B
+
+はい、OKです。実は、この方法も試したんだけどうまくできません
+でした(修行が足りん!)。この方が、余計な手間がなくてすっきり
+してますね。比較する「材料」が増えると、ちょっと複雑かな(負
+け惜しみ)。
+
+なお、postgres で試した時は、&lt;= や &gt;= がfloat8型をサポートし
+てない、というようなエラーが出ました。演算子のテーブルを見た
+ら、float4 &lt;= float8 のように使うらしい(なぜ ?_?)。
+-
+田仲 稔 (Tanaka Minoru)  （株）ケイケンエンジニアリングシステム 諏訪支社
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00105" HREF="msg00105.html">[postgres95 1393] Re: [Q] table design</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00098" HREF="msg00098.html">[postgres95 1386] [Q] table design</A></STRONG>
+<UL><LI><EM>From:</EM> Hideki KANEBAKO &lt;kane@kane.shimosuwa.nagano.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00100.html">[postgres95 1388] Re: [Q] table design</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00102.html">[postgres95 1390] Re: [Q] table design</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00102.html">[postgres95 1390] Re: [Q] table design</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00105.html">[postgres95 1393] Re: [Q] table design</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00103"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00103"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

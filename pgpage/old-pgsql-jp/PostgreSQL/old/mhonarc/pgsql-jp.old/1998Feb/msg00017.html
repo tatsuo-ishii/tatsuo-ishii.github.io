@@ -1,0 +1,212 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3326] Re: about EUC -->
+<!--X-From: hyoshiok@jp.oracle.com -->
+<!--X-Date: Thu, 5 Feb 1998 17:17:17 &#45;0800 -->
+<!--X-Message-Id: 199802060117.RAA14027@dlsun329.oracle.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3326] Re: about EUC </TITLE>
+<LINK REV="made" HREF="mailto:hyoshiok@jp.oracle.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00016.html">Date Prev</A>][<A HREF="msg00018.html">Date Next</A>][<A HREF="msg00021.html">Thread Prev</A>][<A HREF="msg00018.html">Thread Next</A>][<A HREF="index.html#00017">Date Index</A>][<A HREF="threads.html#00017">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3326] Re: about EUC</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+<LI><em>Date</em>: Thu, 5 Feb 1998 17:17:17 -0800</LI>
+<LI><em>CC</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしおかです．
+
+&gt; 石井です。ちょっと長いです。
+
+どうも，丁寧な解説ありがとうございます．
+
+ベンダーで実装なんかしていると，他のＲＤＢＭＳがどーゆー実装しているか，
+興味がどうしても，わいてきちゃうんですよね．聞くだけで，全然情報を提供
+できなくて，ごめんなさいなのです．
+
+&gt; PostgreSQL は、いわゆるクライアント／サーバ方式で実装されており、クラ
+&gt; イアントが入力した SQL 文は socket 通信を通じてサーバに渡され、
+&gt; parser-&gt;planner/optimizer-&gt;executor の順で処理されて、結果がクライアン
+&gt; トに返って来ます。文字コードの扱いで言うと、1文字 = 7 bit ASCII を前提
+&gt; にしてますが、ほとんどの所は 8 bit が通ります。例外は正規表現と like 
+&gt; の処理で、逆に言うとここを直せば、ASCII 以外は 8 bit 目が立ってるよう
+&gt; なコード系、たとえば EUC や UTF-8、mule internal code はとりあえずその
+&gt; まま通ります。
+
+なるほど，like の処理は大変なやましいですね．
+
+&gt; 1. サーバプロセスの内部コード、およびデータベースにデータを格納すると
+&gt; きのコードは 1 種類(EUC、UTF-8、mule internal code のどれか)とする。
+
+ふむふむ．
+
+わたしの興味は，内部コードと処理スピードの関連です．
+例えば，likeのコストが内部コードの差によって，どのように変化するのか，
+しないのか？
+
+mule は表現力がリッチな分，内部コードがASCII以外は一文字あたり1-2バイ
+ト増えていますが，その処理のオーバヘッドがどのくらいあるのか興味深いと
+ころです．
+
+&gt; 2. クライアントは原則として 1 と同じコードを使うが、可能ならば 1 と異
+&gt; なったコードを使い、サーバ側でコード変換することも考慮する(たとえば、
+&gt; クライアント側が EUC-jp、サーバ側が UTF-8 など)。
+
+なるほど．スケーラビリティのことを考えると，クライアント側でコード変換
+するといいかもしれないですね．でも，最初はいいかな．
+
+&gt; &gt;1) プロセスに一つのグローバルな環境変数によって決める．
+&gt; &gt;   たとえば， locale のようなもの．
+&gt; &gt;2) 実装に一つ，コンパイル時に，日本語版とか，中国語版とかを決める．
+&gt; 
+&gt; 今のところ 2 です。1 にしなかったのは、単に効率を考えてのことで、論理
+&gt; 的には 1 も可能です。
+
+データベースの処理がプロセスに依存する変数によって影響をうけるというの
+は，ちょっと気持ち悪いので，1)をしないのは見識かなと思います．
+
+&gt; &gt;3) 各データベース毎に，文字集合を規定できる．
+&gt; &gt;   たとえば，データベースを生成するときに，日本語の文字とか．
+&gt; 
+&gt; これはなかなか魅力的ですね。ただ、カタログの拡張が必要になりますけど。
+
+たしかにカタログに文字集合の属性を持たせる必要がありますね．
+
+&gt; &gt;4) 各表ごとに，文字集合を規定できる．
+&gt; &gt;5) 各列ごとに，文字集合を規定できる．
+&gt; &gt;   create table foo(bar char(10) character set euc-jp);
+&gt; 
+&gt; 実は、4, 5 はあんまり意味がないような気がしてます。実際問題として、
+&gt; 
+&gt; create table foo(bar char(10) character set euc-jp
+&gt;                buz char(10) character set euc-china);
+&gt; 
+&gt; とかやっちゃったら、一体どうやって insert の SQL 文を書くのか疑問だし。
+
+ソースコードを表現する文字集合とデータベースの文字集合が同じでなければ
+ならないということはないです．ＳＱＬ９２自身そこらへんがちょっとはっき
+りしていないのですけど，リテラルの表現方式として，
+
+_&lt;character-set-name&gt;'literal'
+
+というシンタックスがあります．上記の例でいうと
+insert into foo values( _euc-jp'xxx', _euc-china'yyy' );
+みたいな感じになって，ソースコード文字集合は，別途他の文字集合でもいい
+わけです．
+
+paser のリテラル処理の部分にコード変換的な拡張が必要になりますけど．
+
+JavaのプログラムはASCIIで書くけど，Unicodeを埋めるときは \uXXXXと
+表現するみたいなイメージでしょうか．
+
+とはいうものの確かに，5)は，あんまり使いやすいとは言えないですね．
+
+&gt; また、各国語を混ぜて使いたいという要求であれば、UTF-8 とか、mule
+&gt; internal code をつかえば対応できますし。(それどころか、列の中に複数の
+&gt; 文字集合を混在させることも出来る)
+
+UTF8は一つの文字集合だけど，マルチスクリプトですよね．一方，mule のコー
+ドは確かに複数の文字集合を混在させることはできますね．ただそうすると，
+GBで書いた(中国漢字スクリプト)の毛沢東とJISで書いた毛沢東をマッチさせ
+たいとかいうのが，UTF8ではできるけど，muleでは，ちょっと面倒ですね．
+
+データベースエンジンをスクラッチから書くのなら，内部コードを固定長にし
+て，いくのが簡単そうな気がしてますけど，既存のコードの拡張だと，なかな
+かそうもいかづなやましいですね．
+
+&gt; &gt;文字集合に関する数々の暗黙の仮定をとっぱらって，文字集合独立の実装をつ
+&gt; &gt;くると美しいと思うです．そーゆーのであれば，２バイトだろうが，４バイト
+&gt; &gt;であろうが，ＵＣＳ−２であろうがサポートできるような気がします．
+&gt; 
+&gt; でも、結局どっかで「1文字」を切り出して来る処理が必要になりますよね。
+&gt; それは文字集合独立にはならない。
+&gt; # もちろん、そこの部分をユーザ定義関数などを使って拡張可能にする戦略は
+&gt; # 考えられます。
+
+わたしの言っている文字集合依存というのは，ソースコードの中に文字集合に
+関する情報を埋めこむという実装で，新しい文字集合をサポートする時に，ソー
+スの変更を伴わない形で，それのサポートが可能なら文字集合独立と言えるの
+ではと思ってます．
+
+その意味でいうと，mule などは，文字集合の意味を，ソースコードの中に埋
+め込まないで，ジェネリックな処理をするエンジンなので，文字集合独立な実
+装ですね．
+
+ＲＤＢＭＳもシステムテーブルになんらかの形で文字集合の属性を格納してお
+いて，例えば，一文字のバイト数とか，コードの範囲とか，そのテーブルを参
+照するかたちで，文字処理を行なえば，文字集合独立の実装ができます．
+
+問題はその処理速度でしょうね．テーブル駆動にしないまでも，ユーザ定義関
+数などを利用して実装するというのは，現実的な案かもしれないです．
+
+&gt; &gt;文字列に，null とか仮定しているのかなあ？
+&gt; 
+&gt; 残念ながら、PostgreSQL にはそういうのがそこら中にあります。
+
+うわー，やっぱりそうですか．そうすると，ＵＣＳ−２なんかは，ちょっとめ
+んどくさそうですね．
+
+いづれにせよ，国際化拡張が，どのくらいパフォーマンスに影響するか，非常
+に興味があります．
+
+よ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00018" HREF="msg00018.html">[pgsql-jp 3327] Re: about EUC</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 3325] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 3327] Re: about EUC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 3330] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 3327] Re: about EUC</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00017"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00017"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

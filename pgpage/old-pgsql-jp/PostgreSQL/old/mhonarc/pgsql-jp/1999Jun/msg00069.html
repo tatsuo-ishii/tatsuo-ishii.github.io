@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8635] Re: ld.so failed: Undefined symbol "_FailedAssertion" -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Thu, 03 Jun 1999 19:54:43 +0900 -->
+<!--X-Message-Id: 199906031054.TAA15939@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199906030359.MAA24778@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8635] Re: ld.so failed: Undefined symbol "_FailedAssertion" </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00070.html">Thread Prev</A>][<A HREF="msg00111.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8635] Re: ld.so failed: Undefined symbol "_FailedAssertion"</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Jun 1999 19:54:43 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00046.html">199906030359.MAA24778@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。現実逃避;)でちょっとやってみました。
+
+解決法の探求まではやっている暇がないので、状況の報告のみで御容赦を。
+
+&gt;&gt;&gt;&gt; On Thu, 03 Jun 1999 12:59:15 +0900,
+&gt;&gt;&gt;&gt; 	Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt;&gt; 塩崎です。06/01版のsnapshotを--enable-cassertつきでコンパイルしたら、
+&gt;&gt; コンパイルやインストール自体は通るのですが、initdbが
+&gt;&gt; 
+&gt;&gt; ========================================================================
+&gt;&gt; ld.so failed: Undefined symbol "_FailedAssertion" in
+&gt;&gt; pg_encoding:/usr/local/pgsq l/lib/libpq.so.2.0
+&lt;snip)
+
+t-ishii&gt; 今最新のソースを引っ張って来てコンパイルしてみました。--
+t-ishii&gt; enable-cassert付でも問題ないようです。直ったのかな？ちなみに
+t-ishii&gt; 環境は RedHat 5.2 日本語版(x86)です。
+
+FreeBSD 2.2.8R上で、数時間前に
+<A HREF="ftp://mirror.nucba.ac.jp/mirror/postgresql/pubから持ってきた">ftp://mirror.nucba.ac.jp/mirror/postgresql/pubから持ってきた</A>
+
+MD5 (postgresql.snapshot.tar.gz) = 4e4c86b7e8c55bd6007fca8f28f55e53
+(5972118 bytes)
+
+で再現しました。ただし、ld.so failedは1回しか出ません。
+
+どこで出ているかというと、initdbの中でpg_idを実行した時に出ています。
+
+libpqの中で、どれがFailedAssertionを参照しているかというと、
+interfaces/libpq/Makefileの中でbackend/lib/dllist.cを引っ張ってきて
+libpqに突っ込んでいるのですが、そのdllist.cから参照されています。
+
+ならば、行方不明のFailedAssertionはどこにあるかというと、
+backend/utils/error/excid.cにあって、makeされることによって
+backend/utils/SUBSYS.oに取り込まれ、postgresなどの場合はリンク時に
+これが組み込まれて自分で抱えています。
+
+ところが、pg_idにはutils/error/excid.c起源のオブジェクトは含まれないの
+で、ld.soがlibpqを持ってきて動的リンクをしたときに、libpq内から参照さ
+れるFailedAssertionを解決しようとして、「見つからないぞ、をら」という
+ことになっているようです。
+
+謎なのは、塩崎さんが実行すると2回出て、私がやると1回しか出ないのはなぜ
+か？ということと、石井さんがRedHutでやるとすんなり通るのはなぜか？とい
+うことなんですが…
+
+まあ、私が持ってきたのはmirrorからなので、更新が遅れているだけ…という
+可能性は考えられます。
+
+ld.soでエラーが出るっていうのは、configureでできたヘッダシンボルを元に
+ソースの#ifdefであれこれするのを間違ってるか、Makefile(のテンプレート?)
+が間違ってるか、まあそのくらいしか考えられないので、直すのはそれほど困
+難ではないと思うのですが、逃避でちょっと調べてみただけなので、申し訳あ
+りませんが私には今そこまでやってる時間がないです。(_ _)
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 8677] Re: ld.so failed: Undefined symbol "_FailedAssertion"</A></STRONG>
+<UL><LI><EM>From:</EM> takayasu@wendy.perfect-liberty.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00046" HREF="msg00046.html">[pgsql-jp 8612] Re: ld.so failed: Undefined symbol "_FailedAssertion"</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 8634] Re: Solaris 2.6のインストール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 8636] Re: ld.so failed: Undefined symbol "_FailedAssertion"</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 8636] Re: ld.so failed: Undefined symbol "_FailedAssertion"</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 8677] Re: ld.so failed: Undefined symbol "_FailedAssertion"</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

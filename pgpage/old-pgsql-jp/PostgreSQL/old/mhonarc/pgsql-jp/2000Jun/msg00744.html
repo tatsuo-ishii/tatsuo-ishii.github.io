@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15708] 削除トリガのまとめ -->
+<!--X-From: 佐藤　充男 <satou@osk.3web.ne.jp> -->
+<!--X-Date: Thu, 29 Jun 2000 10:39:58 +0900 -->
+<!--X-Message-Id: 395AA8EE2E4.224ASATOU@mx1.osk.3web.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15708] 削除トリガのまとめ </TITLE>
+<LINK REV="made" HREF="mailto:satou@osk.3web.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00743.html">Date Prev</A>][<A HREF="msg00745.html">Date Next</A>][<A HREF="msg00756.html">Thread Prev</A>][<A HREF="msg00757.html">Thread Next</A>][<A HREF="index.html#00744">Date Index</A>][<A HREF="threads.html#00744">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15708] 削除トリガのまとめ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤　充男 &lt;<A HREF="mailto:satou@osk.3web.ne.jp">satou@osk.3web.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 29 Jun 2000 10:39:58 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ども、佐藤です。
+
+削除トリガで行の削除が出来ない、ログへ記録出来ないケースがある
+のでまとめてみました。お役に立てば幸いです。
+
+テスト環境
+　PotsgreSQL 7.0.0
+
+【テスト１】
+drop table test;
+create table test (
+        id              int4,
+        name            text
+);
+drop table test_log;
+create table test_log (
+        id              int4,
+        name            text
+);
+drop function func_test();
+create function func_test() returns opaque as '
+begin
+  insert into test_log
+    select test.id, test.name from test where test.id = old.id;
+--  return new;
+  return old;
+end;
+' language 'plpgsql';
+create trigger tg_test before delete
+  on test for each row execute procedure func_test();
+-- create trigger tg_test after delete
+--   on test for each row execute procedure func_test();
+
+insert into test(id,name) values(1,'テスト１');
+insert into test(id,name) values(2,'テスト２');
+insert into test(id,name) values(3,'テスト３');
+
+
+１．after delete ＋ reteurn old;
+　　削除OKでログ記録に失敗
+２．before delete ＋ reteurn old;
+　　削除OKでログ記録に成功
+３．after delete ＋ reteurn new;
+　　削除OKでログ記録に失敗
+４．before delete ＋ reteurn new;
+　　削除NGでログ記録に成功
+
+
+　after delete 後の削除行参照はできないようです。
+
+
+【テスト２】
+function部を以下のように変更。
+
+create function func_test() returns opaque as '
+begin
+  insert into test_log(id, name) values(old.id, old.name);
+--  return new;
+  return old;
+end;
+
+
+１．after delete ＋ reteurn old;
+　　削除OKでログ記録も成功
+２．before delete ＋ reteurn old;
+　　削除OKでログ記録も成功
+３．after delete ＋ reteurn new;
+　　削除OKでログ記録も成功
+４．before delete ＋ reteurn new;
+　　削除NGでログ記録に成功
+
+
+　old.xxx を利用すれば、after delete でも削除データにアクセス可能。
+
+
+【まとめ】
+　before delete ＋ reteurn new;の組み合わせに注意。この場合は削除
+　をキャンセルする動作になるようです。
+
+佐藤　充男
+satou@osk.3web.ne.jp
+LDM03756@nifty.ne.jp
+<A HREF="http://www.threeweb.ad.jp/~satou/">http://www.threeweb.ad.jp/~satou/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00757" HREF="msg00757.html">[pgsql-jp 15721] RE: 削除トリガのまとめ</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00743.html">[pgsql-jp 15707] Re: テーブル設計での正規化とパフォーマンス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00745.html">[pgsql-jp 15709] Re: テーブル設計での正規化とパフォーマンス</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00756.html">[pgsql-jp 15720] Re[2]: initdb でのoidvector エラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00757.html">[pgsql-jp 15721] RE: 削除トリガのまとめ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00744"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00744"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

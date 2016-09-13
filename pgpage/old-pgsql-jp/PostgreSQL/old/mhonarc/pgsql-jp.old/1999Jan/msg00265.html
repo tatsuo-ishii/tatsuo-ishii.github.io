@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6678] Re: [Q] icreate index of text -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 18 Jan 1999 22:59:53 +0900 -->
+<!--X-Message-Id: 199901181359.WAA00599@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901181148.UAA20488@kiki.asahi&#45;net.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6678] Re: [Q] icreate index of text </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00264.html">Date Prev</A>][<A HREF="msg00266.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00283.html">Thread Next</A>][<A HREF="index.html#00265">Date Index</A>][<A HREF="threads.html#00265">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6678] Re: [Q] icreate index of text</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 18 Jan 1999 22:59:53 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 池内と申します。
+&gt; 
+&gt; PostgreSQL完全攻略ガイド購入しました!!。
+
+ありがとうございます。
+
+&gt; 以前やろうとして挫折した、Tcl/Tkによる全文検索システムが、具
+&gt; 体的に解説されていて感激です。CDROMまで付いており、石井さん
+&gt; に抱きついてチューの連続をプレゼントしたい気分です。
+
+それはちょっと遠慮させていただきます:-)
+
+&gt; 以下の環境でこの4-1章を体験することが出来ました。
+&gt; 
+&gt;   OS      Linux-2.0.34(Slackware-3.5)
+&gt;   CPU     Pentium2/266MHz
+&gt;   Memory  256MB
+&gt;   HD      10.1GB
+&gt;   PostgreSQL-6.4.2 + jumbo.patch
+&gt; 
+&gt; 1000件ほどで実験をし、perlやtcl/tkのソースも解説付きで載って
+&gt; いたので、自分の使い易い様にいじることも出来ました。
+&gt; 
+&gt; 次に、ニュース本文全てをtext型に登録しようとして、挫折しました。
+&gt; create indexが、下記の様に「予期せぬ事故で接続が切れましたよ」
+&gt; となります。
+&gt; 
+&gt;   =&gt; create index bodyindex on header using btree (body);
+&gt;      pqReadData() -- backend closed the channel unexpectedly.
+&gt;      This probably means the backend terminated abnormally
+&gt;      before or while processing the request.
+&gt;      We have lost the connection to the backend, so further
+&gt;      processing is impossible.  Terminating.
+&gt; 
+&gt; テーブルは、下記の様に作成しました。
+&gt;   =&gt; create table header (hfrom text, subject text, date datetime, body text);
+&gt; ＃大きいニュースはperlで分割して、bodyに格納しています。
+&gt; 
+&gt;  1.データ登録1000件、約20,000件共結果は同じです。
+&gt;  2.textデータのサイズ(bytes)
+&gt;     1000,2000 -- create index OK!
+&gt;     3000      -- create index OK! vacuumでNG!
+&gt;     4000,8000 -- create index NG!
+
+ふむふむ。
+
+&gt;  3.varchar(4096),char(4096)でもNG!
+&gt;  4.テーブルをbody textのみにしてもNG!
+&gt;  5.% postmaster -B 1024 にしてもNG!
+&gt;  6.postgreSQL-6.3.2 にしてもNG!
+&gt;  7.kernelを2.0.32 にしてもNG!
+
+このあたりはすべて関係ないと思います。
+
+&gt;  8.FAQやdoc、kernelのdoc(メモリが足りないのか？)なども見まし
+&gt;    たが、よくわかりません。
+&gt; 
+&gt; といろいろやったのですが、お手上げの状態になりました。
+&gt; １件のデータのバイト数が多いとダメなのでしょうか？
+&gt; 同じ様な経験をされた方はどのように解決したのでしょうか？
+
+やはり適当な大きさで分割しているようです。なお、3k, 4k のテキストでも 
+NG になる原因は良く分かりませんが、多分バグでしょう。時間があれば調べ
+てみます。
+
+# ところで、まさかとは思いますが、perl プログラムが日本語1語の上位バイ
+# トと下位バイトを分断しているなんてことはないですよね？
+
+&gt; bodyを2000バイトに制限し、20,000件以上登録した時の次の検索で
+&gt; は、約1分20秒ほどかかりました。
+&gt; 
+&gt;  =&gt;select distinct subject, hfrom, body, date from header 
+&gt;    where body ~* '日本語'  order by subject
+
+これは絶対遅いですよ。grep しているのと変わりません。そのためにあえて
+単語に分割しているわけです。
+
+&gt; 予定では、１件8000バイトにし、ニュース、メール、Niftyのログ
+&gt; など全て(十万件以上?)登録したいのです.....。
+
+この位の件数だとスピード的にもディスクスペース的にも「なまず」のような
+専用の全文検索システムの方が絶対良いですよ。
+
+参考文献：「日本語全文検索システムの構築と活用」馬場肇／ソフトバンク
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00283" HREF="msg00283.html">[pgsql-jp 6696] Re: [Q] icreate index of text</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshinao Ikeuchi &lt;el4y-ikuc@asahi-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00260" HREF="msg00260.html">[pgsql-jp 6673] [Q] icreate index of text</A></STRONG>
+<UL><LI><EM>From:</EM> Ikeuchi &lt;ikeuchi@asahi.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 6677] patched-XXX-patch.gz?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 6679] Re: patched-XXX-patch.gz?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 6673] [Q] icreate index of text</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 6696] Re: [Q] icreate index of text</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00265"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00265"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

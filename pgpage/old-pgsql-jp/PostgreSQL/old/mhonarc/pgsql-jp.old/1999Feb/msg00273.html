@@ -1,0 +1,143 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7147] Re: semget failed (No space left on device) が出る -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 19 Feb 1999 23:13:50 +0900 -->
+<!--X-Message-Id: 199902191413.XAA00662@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902190132.KAA22602@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7147] Re: semget failed (No space left on device) が出る </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00271.html">Date Prev</A>][<A HREF="msg00272.html">Date Next</A>][<A HREF="msg00269.html">Thread Prev</A>][<A HREF="msg00230.html">Thread Next</A>][<A HREF="index.html#00273">Date Index</A>][<A HREF="threads.html#00273">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7147] Re: semget failed (No space left on device) が出る</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 Feb 1999 23:13:50 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 塩崎です。
+&gt; 本家の方ではこの手の話題も出てましたよね。Solaris 7が元ネタでしたが、
+&gt; それに特化した話でもないと思うので、引用しておきます。
+
+以下で "Is this correct?" なんてボケてるのは私です:-)このスレッドから
+分かったのは、
+
+o バックエンド1本に付きセマフォが1個必要
+o PostgreSQL は 16 個単位でセマフォを取る
+o SEMMNI は セマフォ数の 1/16 あれば足りる
+
+ということでした。でも、
+
+&gt;　このメールを書いている間にエラーが起きていました(^^;)。それで、
+&gt;SEMMNIを11から51に増やしたらエラーが出なくなりました。が、
+&gt;以前出ていたbackendのdiscardingなんとかというエラーが出ました。
+
+という話が出てましたね。SEMMNS = 101 だということですから、
+
+&gt; &gt;options		SEMMNS=101	# 増やした
+
+上の理屈から言うと、SEMMNS = 11 で足りるはずなんですがね...
+
+&gt; |&gt;&gt;These settings are far too small if you hope to go beyond a couple dozen
+&gt; |&gt;&gt;Postgres backends.  Postgres requires one semaphore per backend, which
+&gt; |&gt;&gt;it (presently) allocates in groups of 16.  Thus you cannot get past 48
+&gt; |&gt;&gt;backends with these kernel settings --- starting the 49th backend requires
+&gt; |&gt;&gt;allocating semaphores 49-64, but your system is set up to allow only 60
+&gt; |&gt;&gt;semas total.
+&gt; |&gt;&gt;
+&gt; |&gt;&gt;(If your platform doesn't have a TEST_AND_SET implementation then
+&gt; |&gt;&gt;several more semas are needed for spinlock emulation, but I assume
+&gt; |&gt;&gt;that's not a problem on Solaris.)
+&gt; |&gt;&gt;
+&gt; |&gt;&gt;SEMMNI should also be bumped up, since you could not get past 10*16
+&gt; |&gt;&gt;backends with it set at 10 --- and that's not allowing for anything
+&gt; |&gt;&gt;else to be using semaphores!  It'd be foolish not to leave at least
+&gt; |&gt;&gt;a couple dozen semas and sema IDs free at Postgres' peak usage.
+&gt; |&gt;&gt;
+&gt; |&gt;&gt;I dunno what SEMMAP is (no such parameter in my kernel) but it
+&gt; |&gt;&gt;probably needs to be at least as large as SEMMNI, possibly larger.
+&gt; |&gt;
+&gt; |&gt;Ok. If I consider 64 backends, at least following settings would be
+&gt; |&gt;required from your suggestion:
+&gt; |&gt;
+&gt; |&gt;64  entries in semaphore map (SEMMAP)
+&gt; |&gt;64  semaphore identifiers (SEMMNI)
+&gt; |&gt;64  semaphores in system (SEMMNS)
+&gt; |&gt;25  max semaphores per id (SEMMSL)
+&gt; |&gt;
+&gt; |&gt;Is this correct?
+&gt; |&gt;
+&gt; |No.  You do need SEMMNS &gt;= 64 of course, but Postgres only needs a
+&gt; |sema identifier for each block of 16 semas, so SEMMNI &gt;= 4 will work.
+&gt; |According to my references, the recommended value of SEMMAP is SEMMNI+2
+&gt; |(it's for keeping track of unused "holes" between allocated sema-ID
+&gt; |groups, so that seems like it ought to be enough).  SEMMSL could be as
+&gt; |low as 16, though I see no reason to reduce the default value.
+&gt; |
+&gt; |In reality, of course, you had better leave some slop for other Unix
+&gt; |programs to be able to grab semas of their own.  I'd suggest at least
+&gt; |doubling the minimum SEMMNS and SEMMNI.  (On my HP box, ipcs shows
+&gt; |various root-owned subsystems using 6 sema IDs with a total of 8 semas.
+&gt; |So I'd need at least SEMMNS = 72, SEMMNI = 10 to run 64 backends ---
+&gt; |with no margin for error.)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00269" HREF="msg00269.html">[pgsql-jp 7144] Re: semget failed (No space left on device) が出る</A></STRONG>
+<UL><LI><EM>From:</EM> takehi-s@ascii.co.jp (SHIOZAKI Takehiko)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 7146] [Q] query optimize</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 7148] Re: [Q] query optimize</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00269.html">[pgsql-jp 7144] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00230.html">[pgsql-jp 7105] semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00273"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00273"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

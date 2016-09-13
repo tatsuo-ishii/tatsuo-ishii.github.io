@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4438] Re: How to set sequnce&#45;numner automatically -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 12 Jun 1998 15:15:12 +0900 -->
+<!--X-Message-Id: 199806120615.PAA04400@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 010701bd95c1$c7cefda0$64020180@mcad100 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4438] Re: How to set sequnce-numner automatically </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00166.html">Date Prev</A>][<A HREF="msg00169.html">Date Next</A>][<A HREF="msg00166.html">Thread Prev</A>][<A HREF="msg00164.html">Thread Next</A>][<A HREF="index.html#00168">Date Index</A>][<A HREF="threads.html#00168">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4438] Re: How to set sequnce-numner automatically</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 12 Jun 1998 15:15:12 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;井上＠セーレンです。
+[略]
+&gt;&gt;すぐに戻って来ない件ですが、declare cursor を使っていないせいでは？単
+&gt;&gt;独の select だとbackend から検索結果を全部 frontend に転送してからやっ
+&gt;&gt;と psql が表示を開始するので、それまで待たされてしまいます。
+&gt;&gt;
+&gt;そうでしたか、どこで勘違いしたんでしょう。
+&gt;以前のテストはdeclare/fetchをredirectでやっていたのかもしれません。
+&gt;SET QUERYLIMITのパッチをあてれば、単なるselectでも違いがわかりますね。
+
+そうですね。
+
+&gt;&gt;[略]
+&gt;&gt;&gt;ところで、select/fetchでは一切ロックをかけないというオプション
+&gt;&gt;&gt;みたいなものはありませんか？
+&gt;&gt;
+&gt;&gt;いわゆる dirty read ですね(用語は合っているかな？間違っていたら突っ込
+&gt;&gt;んで下さい)。PostgreSQL には無かったと思います。
+&gt;&gt;これを許すようにするのは簡単にできそうですが、SQL92 の標準ではどういう
+&gt;&gt;構文になるんでしょうか？
+&gt;&gt;---
+&gt;不勉強でdirty readとははじめて聞く言葉です。
+
+"Transaction Processing" (Jim Gray)に出て来たのですが、あるトランザク
+ション T1 がトランザクション T2 によって書き込まれたデータを読んだ後で、
+T2 がこのデータを更新した場合 Dirty read と言うのだそうです。
+
+&gt;この機会にと、幸い近くにあった「ＳＱＬ９２完全ガイド」をひもといて
+&gt;調べてみました。以下あまりあてにしないで読んでください。
+&gt;
+&gt;トランザクション管理のアイソレーションレベルがそれにあたるようです。
+&gt;    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+
+おお、そういえばこういうのがありましたね。(早く SQL92完全ガイドを買っ
+て来なくちゃ)
+
+&gt;が dirty read（が発生するかも）に該当するみたいですね。
+&gt;しかし、このレベルはデータベースの更新処理を許さないとあります。
+
+更新処理を許さないのはシステム全体に対してですか、それとも該当トランザ
+クションもしくはセッションに対してですか？
+
+&gt;    SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+&gt;このレベルはdirty readは発生しないけれども、Non-repeatable-read
+&gt;は発生するかもということなのでこのあたりが落とし所のような？。
+
+ふむふむ。
+
+&gt;更新中のデータは読んではいけないみたいだから実装は難しいのかな。
+&gt;タイムトラベルの名残りが残っているとすると、更新中でも更新前データ
+&gt;が読めるのかもしれないと考えたりもしてしまいます。
+
+うーん、良く分かりません。まだ修行が足りません:-)
+
+&gt;このように検索時のロックにこだわるというのは、要するに、
+&gt;大規模で複雑なシステムを実現しようとすると、ロックの時間と範囲を
+&gt;極力へらす必要があると思うのですが、ＰｏｓｔｇｒｅＳＱＬのように検索系
+&gt;のコマンド（広範囲になりがち、当然時間もかかる）でも必ずロックが
+&gt;かかってしまうのでは（たとえrow-levelのロックになっても）苦しいな
+&gt;というのが実感なんですが。
+
+これはちょっと疑問。まず、read だけを考えるなら、今でも PostgreSQL の
+トランザクションは shared lock ですから、複数の read only transaction 
+が並行して走れます。
+
+次に write トランザクションもある場合。今のように table 単位のロックで
+は確かに苦しいのですが、row-level ロックが実現すれば問題無いのではない
+かと思います。SELECT * のようにテーブル全体をなめるようなトランザクショ
+ンと 1 レコードだけ update するトランザクションがあったとして、競合状
+態が発生するのはその 1 レコードを同時に読もう／書こうとしたときだけで
+すよね。
+
+なんか勘違いしているかな？
+
+&gt;このあたりは詳しいかたに正しい解釈／姿勢を講義していただけると
+&gt;ありがたいんだけど。
+
+同じく。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp 4436] Re: How to set sequnce-numner automatically</A></STRONG>
+<UL><LI><EM>From:</EM> inoue@seiren.co.jp (Hiroshi Inoue)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00166.html">[pgsql-jp 4436] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00169.html">[pgsql-jp 4439] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00166.html">[pgsql-jp 4436] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 4434] can't load library</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00168"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00168"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

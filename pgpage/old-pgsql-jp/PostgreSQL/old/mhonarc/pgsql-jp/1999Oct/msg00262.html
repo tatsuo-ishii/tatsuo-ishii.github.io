@@ -1,0 +1,184 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11236] Re: The fastest way to find max()/min() -->
+<!--X-From: tesh Nakamura <tesh@alifegarden.com> -->
+<!--X-Date: Tue, 19 Oct 1999 21:10:43 +0900 (JST) -->
+<!--X-Message-Id: 19991019211043N.tesh@alifegarden.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991012221857N.tesh@alifegarden.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11236] Re: The fastest way to find max()/min() </TITLE>
+<LINK REV="made" HREF="mailto:tesh@alifegarden.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00260.html">Date Prev</A>][<A HREF="msg00263.html">Date Next</A>][<A HREF="msg00192.html">Thread Prev</A>][<A HREF="msg00264.html">Thread Next</A>][<A HREF="index.html#00262">Date Index</A>][<A HREF="threads.html#00262">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11236] Re: The fastest way to find max()/min()</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: tesh Nakamura &lt;<A HREF="mailto:tesh@alifegarden.com">tesh@alifegarden.com</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 Oct 1999 21:10:43 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00192.html">19991012221857N.tesh@alifegarden.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: tesh Nakamura &lt;tesh@alifegarden.com&gt;
+Subject: [pgsql-jp 11153] The fastest way to find max()/min()
+Date: Tue, 12 Oct 1999 22:18:57 +0900 (JST)
+
+こんにちは。中村＠ALife Gardenです。
+
+＃ 残念ながらレスをいただけなかったので、
+＃ 自分なりに試行錯誤しているの図を報告＆質問
+
+その後、「苦手」と言っていたruleとtriggerを使って、
+色々試していますが、お手上げです。
+
+ruleを使ってキーとmax値を持ったもう一つのテーブルを
+作ることを考えました。
+
+	CREATE TABLE t1 (id int , val int);		＃データ
+	CREATE TABLE t2 (id int unique, max int);	＃max用テーブル
+
+t2は、t1にイベントが発生したときにruleから書き換えられ、
+「常にidに対応したmax値をもっている」状態にしようと
+思っています。
+
+そこで、insert, updateそれぞれについて、次のような
+ruleを定義しました。
+	
+	CREATE RULE max_ins AS ON  insert TO t1
+		WHERE exists (select * from t2 where id=new.id)
+		DO update t2 set max=new.val where id=new.id and new.val&gt;max;
+
+	
+	CREATE RULE max_ins2 AS ON insert TO t1
+		WHERE NOT EXISTS (select * from t2 where id=new.id)
+		DO insert into t2 values (new.id, new.val);
+
+ここまではうまくいったのですが、問題はdeleteの場合です。
+「t1にdeleteが起こった場合、そのvalがidの中のmax値であれば、
+t1から２番目に大きなものを見付けて、t2のidが同じタプル
+をupdateする」
+という表現ができません。
+ 
+しかたがないので、２段階に分けて、「t2から削除」「t2に
+削除が起こったらt1からmaxをselectしてt2にinsert」という
+ださいやりかたも考えたのですが、これはなぜか空行が増えて
+いきます。
+
+
+	CREATE RULE max_del AS ON delete TO t1
+		WHERE old.val=(select max from t2 where id=old.id)
+		DO delete from t2 where id=old.id;
+
+	CREATE RULE max_del2 AS ON delete TO t2
+		WHERE exists ( select * from t1 where id=new.id)
+		DO insert into t2 select id,max(val) from t1 where id=new.id group by id; 
+
+自分なりにまとめますと、
+
+＊ひとつのruleでt2を更新する方法があるだろうか？
+＊update の"set"項にselectが使えたらなぁ。(これはせめて
+	２段階ダサダサ法を実現させるため)
+＊(今回書きませんでしたが)triggerでlibpgsql+Cで書いた
+関数を呼ぶ場合、デッドロックは大丈夫？(別のトランザクション
+になるような気がする)
+
+いわゆるaggregate関数を高速に、という考えはそれほど特殊だと
+は思えないのですが、私の頭では結構難問です。
+
+どなたか、よろしくお願いします。
+
+
+&gt; PostgreSQLの話題なのかどうかわからなくて恐縮なのですが、
+&gt; 次のような疑問があります。
+&gt; 
+&gt; あるテーブル(タプル数839606)に"db_id"というint4のカラムがあり、
+&gt; その値のmax()を取りたいとします。
+&gt; 
+&gt; このフィールドにはbtreeのindexがあります。
+&gt; 	CREATE  INDEX "history_db_id" on "history" 
+&gt; 		using btree ( "db_id" "int4_ops" );
+&gt; 
+&gt; ここで、
+&gt; 	explain select max(db_id) from history;
+&gt; の結果を見ると、
+&gt; 	Aggregate  (cost=37476.45 rows=837559 width=4)
+&gt;   -&gt;  Seq Scan on history  (cost=37476.45 rows=837559 width=4)
+&gt; 
+&gt; どうやら、indexは使われていないようで、costが37475.45にも
+&gt; なっています。
+&gt; 
+&gt; 質問(１)btreeの性質上、maxの検索にbtreeを使うことは可能で
+&gt; 	あるような気がするのですが、何か使われない理由が
+&gt; 	あるのでしょうか？
+&gt; 質問(２)もし、indexを使って高速化、という目論見が不可能
+&gt; 	であるとすれば、max()を速く見付けるための一番いい
+&gt; 	方法って何が考えられますか？
+&gt; 
+&gt; 質問(２)については別のテーブルにmax値を持つようにして、
+&gt; ruleだか、triggerなりでupdate/insert/deleteがあったときに
+&gt; 更新するという方法もあると思うのですが、何しろ、ruleや
+&gt; triggerについて、全く不勉強なもので。。。
+&gt; 
+&gt; 以上、どなたか御教授よろしくお願いいたします。
+&gt; 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp 11238] Re: The fastest way to find max()/min()</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00192" HREF="msg00192.html">[pgsql-jp 11153] The fastest way to find max()/min()</A></STRONG>
+<UL><LI><EM>From:</EM> tesh Nakamura &lt;tesh@alifegarden.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 11234] Re: 大量のデータをCOPY(import)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp 11237] Re: Q) limit - offset</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 11153] The fastest way to find max()/min()</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 11238] Re: The fastest way to find max()/min()</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00262"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00262"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

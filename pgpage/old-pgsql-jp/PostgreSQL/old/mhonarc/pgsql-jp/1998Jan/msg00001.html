@@ -1,0 +1,207 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3214] Re: PostgreSQLでMLアーカイバ -->
+<!--X-From: minohata@com&#45;net.co.jp (minohata) -->
+<!--X-Date: Mon, 05 Jan 1998 11:23:53 +0900 -->
+<!--X-Message-Id: 34B04439.602E@com&#45;net.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199712301416.XAA01783@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3214] Re: PostgreSQLでMLアーカイバ </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00003.html">Date Next</A>][<A HREF="msg00031.html">Thread Prev</A>][<A HREF="msg00006.html">Thread Next</A>][<A HREF="index.html#00001">Date Index</A>][<A HREF="threads.html#00001">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3214] Re: PostgreSQLでMLアーカイバ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A> (minohata)</LI>
+<LI><em>Date</em>: Mon, 05 Jan 1998 11:23:53 +0900</LI>
+<LI><em>References</em>: &lt;199712301416.XAA01783@meshsv26.tk.mesh.ad.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+書き初めです。
+暇だったのでだらだらと長文になりました。すみません。m(__)m
+
+
+&gt; 早速使ってみました。かなり検索が高速な印象を受けました。
+
+他のデータベースを使ったことがないので速いのか遅いのか何ともいえ
+ませんが、Perl5 ＋ PostgresPerlモジュール だと、モジュールを読込
+んで初期化してPostgreSQLに接続するだけで、既に0.3秒程度はかかって
+しまいます。
+
+
+&gt; よろしかったらスキーマ定義など見せて頂けたら参考になるのですが...
+
+今回作成したMLアーカイバでは、データ操作は全てPerlで行い、
+PostgreSQLはデータを詰め込む箱程度の非常に低い扱いになってます。
+(関数とかラージオブジェクトとか、きちんと理解できていないので)
+そういうわけで、スキーマ定義は非常にテキトーです。
+
+table ml_list (
+        seq             int4,
+        parent_seq      int4,
+        root_seq        int4,
+        message_id      varchar(64),
+        subject_head    varchar(64),
+        subject_body    varchar(128),
+        from_name       varchar(32),
+        from_adrs       varchar(128),
+        date            abstime
+)
+table ml_body (
+        seq     int4,
+        page    int2,
+        body    varchar(2048)
+)
+
+ml_listは、各記事のヘッダ情報を格納するテーブルです。
+例えば "[pgsql-jp 9999] Re: SQLについて" という記事の場合、
+        seq             = 9999
+        parent_seq      = 親記事のseq
+        root_seq        = 親の親の...ご先祖様のseq
+        subject_head    = '[pgsql-jp 9999] Re:'
+        subject_body    = 'SQLについて'
+        from_name       = '山田 太郎'
+        from_adrs       = 'tarou@yamada.com'
+        date            = Dateヘッダに記された日時
+となります。
+ml_bodyは、各記事の本体を格納するテーブルです。
+ラージオブジェクトの使い方をまだ知らないのでこんなのにしちゃいました。
+各記事を2KB毎のブロックに分割し、ページ番号をつけて保存しています。
+
+インデックスは以下の通り。
+index ml_list_seq_b  on ml_list using btree(seq int4_ops )
+index ml_list_mid_h  on ml_list using hash (message_id varchar_ops)
+index ml_list_sub_h  on ml_list using hash (subject_body varchar_ops)
+index ml_list_frma_h on ml_list using hash (from_adrs varchar_ops)
+index ml_list_date_b on ml_list using btree(date abstime_ops)
+index ml_body_seq_h  on ml_body using hash (seq int4_ops )
+
+
+&gt; それと、前にも話題になったのですが、この種のシステムがどの程度の
+&gt; 同時アクセスに耐えられるかが興味のあるところです。ここは箕畑さんに
+&gt; 実験台になっていただき:-)、x月x日x時x分をもって全国からいっせいに
+&gt; アクセス...という新年特別規格は如何でしょう？
+
+私はいいんですが、今のサーバは極細の専用回線で外界に繋がってますので、
+サーバ負荷よりも回線がボトルネックになってしまいそうです。なので、自
+分で実験した結果を以下に貼り付けます。
+サーバ環境は、Pentium166MHz、2nd-Chache 512k、SDRAM 64MB、
+FreeBSD 2.1.7.1、PostgreSQL 6.2.1、Apache、Perl 5.004です。
+
+
+--検索スピードについて--
+ml_listのレコード数が3200(つまり3200記事に対する検索)、検索結果を
+100記事ずつコメントツリー表示する設定で、シェル上でCGIスクリプトを
+実行させてtimeコマンドで計測してみました。
+
+1.(全ての記事がマッチするように)1994年〜1999年で範囲検索
+        0.475u 0.061s 0:02.84 18.6% 541+1122k 0+2io 0pf+0w
+
+2.日時や通し番号で(600程度の記事がマッチするような)範囲検索
+        0.465u 0.071s 0:00.89 59.5% 528+1089k 0+2io 0pf+0w
+
+3.日時や通し番号で(5程度の記事がマッチするような)範囲検索
+        0.404u 0.039s 0:00.64 67.1% 532+948k 0+1io 0pf+0w
+
+4.'t-ishii@sra.co.jp'でメールアドレス完全一致検索(630程度の記事がマッチ)
+        0.483u 0.055s 0:01.06 50.0% 525+1090k 0+2io 0pf+0w
+
+5.'minohata@com-net.co.jp'でメールアドレス完全一致検索(5記事がマッチ)
+        0.380u 0.060s 0:00.62 70.9% 539+986k 0+1io 0pf+0w
+
+6.'ishii'でメールアドレスの正規表現一致検索(640程度の記事がマッチ)
+        0.482u 0.056s 0:01.49 35.5% 514+1055k 0+2io 0pf+0w
+
+7.'minohata'でメールアドレスの正規表現一致検索(5記事がマッチ)
+        0.405u 0.024s 0:01.30 32.3% 526+920k 0+1io 0pf+0w
+
+次に、ブラウザからCGIにアクセスして検索ボタンを連打して、複数の
+検索プロセスを同時走行させてみました。すると、実行時間が2倍〜5倍
+程度まで延びました。psコマンドで見てみると、バックエンドプロセス
+一つにつき2〜3MBの実メモリ、CGIスクリプト(連想配列をガバガバ使っ
+てる ^^;)一つにつき2MB程度の実メモリを消費していて、みんなでCPU
+を奪い合っています。連打しすぎると仮想メモリを使うようになって
+もっと時間がかかるようになり、ついには no more process 状態に陥り
+数十秒サーバの応答がなくなってしまいます。
+
+
+--記事内容の表示スピード--
+検索結果画面では記事のタイトルが一覧表示されてて、タイトルから記
+事内容を表示するCGIにリンクしてます。この記事内容表示CGIがタコ助
+で、前後の記事や親子記事のデータを得る為に select コマンドを数回
+発行してますので少し遅いです。シェル上からtimeコマンドで計測して
+みたら、0.7秒くらいかかってます。
+
+
+--感想等--
+同時アクセスが頻発するようになると結構厳しいみたいですね。
+ハードディスクへのアクセスが律速になってるみたいなので、メモリを
+増設して、データベースディレクトリを丸ごとメモリファイルシステム
+に入れたら、もっと早くなるかもしれません(^^;。あるいは、PostgreSQL
+を動かすサーバと、httpd,cgiを動かすサーバを別にしたら結構いけそう
+な気もします。
+
+
+--
+旭紙業株式会社,有限会社IPC
+　箕畑典男 &lt;minohata@com-net.co.jp&gt;
+PostgreSQL+PerlのMLアーカイバ(実験中)
+  <A HREF="http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html">http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00006" HREF="msg00006.html">[pgsql-jp 3219] Re: PostgreSQLでMLアーカイバ</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 3215] インストールページ作りました。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 3216] postgreSQL のユーザ認証など</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 3244] Re: postgreSQL のユーザ認証など</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 3219] Re: PostgreSQLでMLアーカイバ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00001"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00001"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

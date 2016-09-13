@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17786] Re: レコード数に制限 -->
+<!--X-From: ryo@4dmatrix.com -->
+<!--X-Date: Tue, 19 Sep 2000 04:49:38 &#45;0700 -->
+<!--X-Message-Id: 20000919044938P.ryo@ryo.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200009181408.XAA26448@mail2.rim.or.jp -->
+<!--X-Reference-Id: 39C6437C6E.EA19JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 200009191037.TAA09863@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17786] Re: レコード数に制限 </TITLE>
+<LINK REV="made" HREF="mailto:ryo@4dmatrix.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00454.html">Date Prev</A>][<A HREF="msg00456.html">Date Next</A>][<A HREF="msg00467.html">Thread Prev</A>][<A HREF="msg00465.html">Thread Next</A>][<A HREF="index.html#00455">Date Index</A>][<A HREF="threads.html#00455">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17786] Re: レコード数に制限</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:ryo@4dmatrix.com">ryo@4dmatrix.com</A></LI>
+<LI><em>Date</em>: Tue, 19 Sep 2000 04:49:38 -0700</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00415.html">200009181408.XAA26448@mail2.rim.or.jp</A>&gt;&lt;<A HREF="msg00421.html">39C6437C6E.EA19JUN-N@mail.ga2.so-net.ne.jp</A>&gt;&lt;<A HREF="msg00452.html">200009191037.TAA09863@coke.bsd1.kbnes.nec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ほそいです
+
+From: Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;
+Subject: [pgsql-jp 17783] Re: レコード数に制限 
+Date: Tue, 19 Sep 2000 19:37:40 +0900
+Message-ID: &lt;<A HREF="msg00452.html">200009191037.TAA09863@coke.bsd1.kbnes.nec.co.jp</A>&gt;
+
+&gt; でですね、さっき思い付いたんですけど、初心に戻って(?)考えてみると、
+&gt; 一枚のチケットって一つのタプルとみなすことができますよね?
+
+僕はいつもそういう感じで設計します。
+
+&gt; そういう意味ではあらかじめ枚数分のレコードを用意しておき、
+&gt; 予約されるたびに順に予約済み指定して行くという方法もいいのでは?
+&gt; と思ったのですが、現実的でないですかね? こんな感じでしょうか...
+
+現実的でなくもないですよ。僕のつくった某ショップでの在庫管理は
+ アイテム.在庫数
+という表形式ではなく、アイテム、在庫をわけてます。
+すると、売れ行きなんかが細かくデータマイニングできたりします。
+
+
+ぱっと思いつくのを一つ
+
+CREATE TABLE チケット (
+  チケットID    int4 primary key
+, チケット種別  text
+);
+
+CREATE SEQUENCE チケットID;
+
+
+CREATE TABLE チケット予約状況 (
+  チケットID    int4 primary key
+, 予約状況      char default '0'
+  -- 0: 無し
+  -- 1: 予約済み
+);
+
+CREATE TABLE チケット予約 (
+  チケット予約ID  int4 primary key
+, チケットID      int4 not null
+, 予約者          text
+);
+
+CREATE SEQUENCE チケット予約ID;
+
+こんな感じです。
+チケット予約.チケットIDはuniq indexをつくるべきですね。
+7.xなら外部キーもはるべきですね。
+
+# Oracleなどの外部結合がつかえるものなら、「チケット予約状況」は
+# 省略したりします。
+
+あと、こういう設計のとき、RULEをトリガ変りにして
+
+CREATE RULE チケット予約状況_チケット_I AS ON INSERT TO チケット
+DO INSERT INTO チケット予約状況 SELECT NEW.チケットID, '0';
+
+なんてしたとき、NEW.チケットID がRULE実行中にも評価されるので、
+チケット.チケットIDにserialをつかったり
+INSERT INTO チケット SELECT NEXTVAL('チケットID'), 'おれのコンサート';
+とかするとマズイことになります。
+
+-- 
+ Ryosuke Hosoi  ryo@4dmatrix.com  <A HREF="http://www.4dmatrix.com/">http://www.4dmatrix.com/</A>
+ D A T A B A S E  E N G I N E E R  F O R  4 D M A T R I X
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00465" HREF="msg00465.html">[pgsql-jp 17796] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00415" HREF="msg00415.html">[pgsql-jp 17746] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00421" HREF="msg00421.html">[pgsql-jp 17752] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00452" HREF="msg00452.html">[pgsql-jp 17783] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00454.html">[pgsql-jp 17785] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 17787] Re: libpq を使っての排他制御</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00467.html">[pgsql-jp 17798] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00465.html">[pgsql-jp 17796] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00455"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00455"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

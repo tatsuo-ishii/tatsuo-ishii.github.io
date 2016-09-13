@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20197] datetime 型の行にFunctional INDEX を貼りたいのですが。 -->
+<!--X-From: "Shohei Sato" <shohei@shohei.ota.tokyo.jp> -->
+<!--X-Date: Mon, 5 Mar 2001 07:11:40 +0900 -->
+<!--X-Message-Id: 002901c0a4f8$175c1810$6510a8c0@shohei.ota.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20197] datetime 型の行にFunctional INDEX を貼りたいのですが。 </TITLE>
+<LINK REV="made" HREF="mailto:shohei@shohei.ota.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00062.html">Date Prev</A>][<A HREF="msg00064.html">Date Next</A>][<A HREF="msg00109.html">Thread Prev</A>][<A HREF="msg00064.html">Thread Next</A>][<A HREF="index.html#00063">Date Index</A>][<A HREF="threads.html#00063">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20197] datetime 型の行にFunctional INDEX を貼りたいのですが。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Shohei Sato" &lt;<A HREF="mailto:shohei@shohei.ota.tokyo.jp">shohei@shohei.ota.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 5 Mar 2001 07:11:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠でぶちん です。
+
+datetime型の行に Functional INDEXを貼る方法がわからずに困っております。
+使用しているPostgreSQL のバージョンは 7.0.3 なので datetime型は timestamp型
+として扱われているようですが、以下のような表と問い合わせを行っていたところを
+Functional INDEX を使用して高速な問い合わせを行いたいと思っております。
+
+表の例:
+create table sample_tbl(
+id int primary key,
+value varchar(256),
+dt datetime
+);
+
+問い合わせ:
+SELECT id,value FROM sample_tbl
+WHERE date_part('year',dt)=yyyy AND date_part('month',dt)=mm;
+(yyyy及びmmは任意の数字)
+
+この問い合わせに Functional INDEXを組み込むため、date_partに変わる何か引数
+が一つの関数がないものかと思い、7.0.3のパッケージに含まれていた
+contrib/datetime/datetime_functions を組み込みました。この結果、上記問い合
+わせの date_part('yyyy',dt) の部分を date_year(dt)と置き換えて検索できるよ
+うになりました。
+
+しかし、この関数を Functional INDEXにしようと以下の SQL 文を実行したところ
+"DefineIndex: function 'date_year(timestamp)' does not exist" とエラーが発
+生しINDEXを作成できませんでした。
+
+FUNCTIONAL INDEX の作成:
+CREATE INDEX inx_smp ON sample_tbl
+using btree(date_year(dt) int4_ops);
+
+エラーの内容からして、引数の方が違うのではないかと想像していますが、ちょっ
+と調べた限りでは Cの関数を作成する場合に timestamp型がCのどの型に置き換えら
+れ
+るのか分からなかったため、はっきりした原因はわからずにおります。
+この関数を上記表のFunctional INDEXに割り当てる方法がありましたら、教えてく
+ださい。Functional INDEXを作成するときに明示的に型キャストとかができれば
+いいのですが。
+
+そこで、別の手段として、重い腰を上げてC関数でも書くかと試みたのですが、
+
+#include "postgres.h"
+
+int4 to_year(DateTime * date)
+{
+....
+....
+}
+
+の DateTimeのところでエラーとなってしまいました。C関数の引数も DateTimeでは
+なくなってしまったのでしょうか？
+C関数で datetimeまたはtimestampを引数とする関数の書き方のサンプルみたいなも
+のはありませんでしょうか？
+
+以上、よろしくお願いします。
+
+////////
+// Shohei Sato
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00067" HREF="msg00067.html">[pgsql-jp 20201] Re: datetime 型の行にFunctional INDEX を貼りたいのですが。</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[pgsql-jp 20198] Re: datetime 型の行にFunctional INDEX を貼りたいのですが。</A></STRONG>
+<UL><LI><EM>From:</EM> HOSOKAWA Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 20196] Re: INSERT  で挿入した件数を、UPDATEで他の表に保存するには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00064.html">[pgsql-jp 20198] Re: datetime 型の行にFunctional INDEX を貼りたいのですが。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00109.html">[pgsql-jp 20243] RE: transaction がうまくいきません</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00064.html">[pgsql-jp 20198] Re: datetime 型の行にFunctional INDEX を貼りたいのですが。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00063"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00063"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,168 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22601] Re: 郵便番号による住所判定 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Fri, 27 Jul 2001 11:22:14 +0900 -->
+<!--X-Message-Id: 3B60D056.49069C5A@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010727104405.25984872.hotta@net&#45;newbie.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22601] Re: 郵便番号による住所判定 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00463.html">Date Prev</A>][<A HREF="msg00465.html">Date Next</A>][<A HREF="msg00461.html">Thread Prev</A>][<A HREF="msg00484.html">Thread Next</A>][<A HREF="index.html#00464">Date Index</A>][<A HREF="threads.html#00464">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22601] Re: 郵便番号による住所判定</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 27 Jul 2001 11:22:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00461.html">20010727104405.25984872.hotta@net-newbie.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+住所からのしぼり込は、DM 関係で結構苦労して
+きたので参考までに。
+
+HOTTA Michihide wrote:
+&gt; 
+&gt; 堀田＠諫早市％オフ会メール歓迎:-)です。
+&gt; 
+&gt; 住所録みたいなテーブルから、住所（都道府県名 or 都道府県名＋
+&gt; 市町村名）による絞り込みを行おうとしています。住所録の住所フ
+&gt; ィールドはあまり信用できないと考え、郵便番号により住所を特定
+&gt; しようとしています。
+&gt; 
+&gt; --  住所録テーブル
+(snip)
+&gt;     zip         text,       --  郵便番号(XXX-YYYY)
+(snip)
+
+&gt; --  郵便番号テーブル
+&gt; CREATE  TABLE   zip  (
+&gt;     no          int,        --  全国地方公共団体コード(JIS X0401、X0402)
+&gt;     head        text,       --  現郵便番号(5桁)
+&gt;     zip         text,       --  新郵便番号(7桁)
+(snip)
+
+&gt; explain select * from applier
+&gt;         where translate(applier.zip, '-', '')
+&gt;         in (select zip from zip where zip.kj_kenmei = '長崎県')
+&gt;         order by seq
+
+translate(applier.zip, '-', '') をしていますが、
+高速化するには、データ─格納時に形式を合わせて
+おくのが一番です。
+
+translate 使わずにデータ─フォーマットを合わせて
+explain してみたらいかがでしょう。
+
+IN より EXISTS の方が早いのは、最新バージョン
+でも同じかな。
+
+私は、郵便番号は、char(8)のハイフォン付きと、
+char(7)のハイフォンなし文字列、
+int4 の整数型の３つを必ず持っていて、
+相手のデータ─形式にあった方で検索します。
+
+SJIS の場合は、ハイフォンが半角カナ長音になら
+ないようにチェックとか。text 型だと、全角文字
+でマイナス記号など入れると長さ制限ないからはい
+ってしまうので要注意です。
+
+
+&gt; なお、都道府県を特定する際、最初は各都道府県の開始／終了郵便番号
+&gt; だけを知っていれば特定できるものと思っていましたが、事はそう単純
+&gt; でもないようです。
+
+都道府県を特定するだけなら、JIS の都道府県コード
+に変換して入れておくのが簡単。郵便番号表を検索
+して都道府県をとりだしても十分早いです。
+# そういう話とはちがうのかな。
+
+蛇足ですが、郵便番号以外の住所部分でのしぼり込み
+はけっこう面倒です。なんとかつかえたのが、番地
+の数字の部分だけです。ハイフォンとか『五の六』
+とかの 『の』とかの処理をきちんとしてやれば、
+ある程度の精度はでるみたいです。
+# 番地がなくて小字だけのとこはしかたないですが、
+# DM だとそういうところは少いのでなんとかなった
+# りします。
+
+市町村レベルまでなら割合簡単なんですが、それでも
+住所表記の変更や、市町村の合併などで、けっこう
+名前がかわってます。誤字脱字なども考慮したシノニム
+辞書を作っておいて、変換してから使用するのがいい
+と思います。
+
+# 古い住所や誤字があっても郵便は届くけど、
+# コンピューターでは Unmatch になっちゃうので(^_^)。
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+    2001-07-28 PHP カンファレンス 2001 無料セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00484" HREF="msg00484.html">[pgsql-jp 22621] Re: 郵便番号による住所判定</A></STRONG>
+<UL><LI><EM>From:</EM> 松嶋祥文&lt;mats@itboost.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00461" HREF="msg00461.html">[pgsql-jp 22598] 郵便番号による住所判定</A></STRONG>
+<UL><LI><EM>From:</EM> HOTTA Michihide &lt;hotta@net-newbie.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00463.html">[pgsql-jp 22600] OID が2^31を超えたテーブルへのCREATE RULE が失敗する</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00465.html">[pgsql-jp 22602] Re: 郵便番号による住所判定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00461.html">[pgsql-jp 22598] 郵便番号による住所判定</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00484.html">[pgsql-jp 22621] Re: 郵便番号による住所判定</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00464"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00464"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

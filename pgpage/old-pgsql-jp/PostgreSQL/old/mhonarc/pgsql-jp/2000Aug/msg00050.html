@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16434] Re: PHPLib のbackendclosed, プロセス溢れについて -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Thu, 03 Aug 2000 09:42:43 +0900 -->
+<!--X-Message-Id: 200008030042.JAA22648@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 398848BA3A2.9869RUI@ns.cyberstep.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16434] Re: PHPLib のbackendclosed, プロセス溢れについて </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00049.html">Date Prev</A>][<A HREF="msg00051.html">Date Next</A>][<A HREF="msg00045.html">Thread Prev</A>][<A HREF="msg00037.html">Thread Next</A>][<A HREF="index.html#00050">Date Index</A>][<A HREF="threads.html#00050">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16434] Re: PHPLib のbackendclosed, プロセス溢れについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Aug 2000 09:42:43 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00041.html">398848BA3A2.9869RUI@ns.cyberstep.com</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) WEMI/1.13.4 (Nishi-Yaizu)FLIM/1.12.7 (Y&umacr;zaki) MULE XEmacs/21.1 (patch 9)(Canyonlands) (i386--freebsd)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+At Thu, 03 Aug 2000 01:13:46 +0900,
+SATO Rui &lt;rui@cyberstep.com&gt; wrote:
+&gt; 
+&gt; FreeBSD3.4 + Postgre6.5.3 + PHP3(日本語対応版) + PHPLibを使用し、
+&gt; 会員専用サイトの構築を行っているのですが、会員専用サイトにログインし、
+&gt; いくつかのページを移動していると以下のエラーが出てしまいます。
+&gt; 
+&gt; Warning: PostgresSQL query failed: pqReadData() -- backend closed the channel
+&gt; unexpectedly. This probably means the backend terminated abnormally before or
+&gt; while processing the request. in db_pgsql.inc on line 52
+&gt; Database error: Invalid SQL: select val from active_sessions where sid =
+&gt; 'fde64daf2d2ca4b9f1f0c9c26c57a625' and name = 'FOO_Session'
+&gt; PostgreSQL Error: 1 (pqReadData() -- backend closed the channel unexpectedly.
+&gt; This probably means the backend terminated abnormally before or while
+&gt; processing the request. )
+&gt; Session halted.
+
+エラーを見ると、PostgreSQL との接続が予期せず切られてしまった、とのこと
+なのですが、このとき
+
+ * PostgreSQL 自体は生き残っていますか？
+   (別のユーザは login して使い続けられますか？)
+   → NG なら PostgreSQL の backend 自体が落ちてしまっているので、
+      FreeBSD4.x + PostgreSQL6.5.3 で backend が消失する問題が該当する
+      かもしれません↓
+      [pgsql-jp 11783] Re: FreeBSD 3.3 でpostmaster が消失
+      <A HREF="http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2939">http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2939</A>
+
+
+&gt; また、会員として専用ページにログインするたびにプロセスが増え、最終的には
+&gt; 「これ以上プロセスが増やせないからページが開けない」となってしまいました。
+
+こちらは、persistent database connection (データベースへの継続接続) のた
+めに PostgreSQL への最大接続数が限界になっているからだと思います。
+FreeBSD-3.4 + PostgreSQL6.5.x でのカーネルのチューニングのサマリを
+参考にしてカーネルパラメタをチューニングしてみて下さい↓
+  [pgsql-jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について
+  <A HREF="http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=8615">http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=8615</A>
+
+カーネルをチューニングしてみたら、PostgreSQL 起動時の option で接続数の
+制限を変更してみてください。
+
+postmaster 起動時の定番のパラメータは 
+
+  -N 128 
+        バックエンド数(同時接続クライアント数、デフォルト 32) 
+  -B 256 
+        System V の共有メモリ上にとられるバッファサイズ(デフォルト 64)
+        -N で指定した値の__少なくとも__2倍 
+  -o "-F -S 1024" 
+        親玉の postmaster から各子プロセスの postgres に渡されるパラメータ 
+              -F : 更新データの非同期書き込み
+              -S 1024 : ソートメモリ(SysV 共有メモリ外にとる、デフォルト512k) 
+
+  起動オプションの指定方法例： 
+    /usr/local/pgsql/bin/postmaster -B 256 -N 128 -i -o -F -S
+
+
+実際のメモリ量や接続数などの設定は、接続ユーザ数見合いで考えることになり
+ますので、環境にあわせて適宜変更してみてください。
+
+&gt; # PHP-jpにも投げてしまっていますm(_ _)m
+
+過去ログの検索の時あったほうがよいと思うので、PHP-jp にも上記の内容で
+reply しておきました。
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00041" HREF="msg00041.html">[pgsql-jp 16425] PHPLibのbackend closed,プロセス溢れについて</A></STRONG>
+<UL><LI><EM>From:</EM> SATO Rui &lt;rui@cyberstep.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00049.html">[pgsql-jp 16433] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 16435] Re: シリアル型で作られるシ ーケンス名のサイズ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 16429] Re: PHPLibのbackend closed,プロセス溢れについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 16421] シリアル型で作られるシーケンス名のサイズ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00050"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00050"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

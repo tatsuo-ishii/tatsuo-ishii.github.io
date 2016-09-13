@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12993] Re: Re:テーブルのDeadlock -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 01 Feb 2000 17:00:31 +0900 -->
+<!--X-Message-Id: 20000201170031D.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 01af01bf6c85$9b436a40$8fcf8dcb@usenet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12993] Re: Re:テーブルのDeadlock </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00032.html">Date Prev</A>][<A HREF="msg00036.html">Date Next</A>][<A HREF="msg00030.html">Thread Prev</A>][<A HREF="msg00040.html">Thread Next</A>][<A HREF="index.html#00035">Date Index</A>][<A HREF="threads.html#00035">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12993] Re: Re:テーブルのDeadlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Feb 2000 17:00:31 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00030.html">01af01bf6c85$9b436a40$8fcf8dcb@usenet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; &gt; Session-1
+&gt; &gt; begin;
+&gt; &gt; SELECT ..FROM A ...;
+&gt; &gt; 
+&gt; &gt; Session-2
+&gt; &gt; begin;
+&gt; &gt; SELECT .. FROM A ..;
+&gt; &gt; 
+&gt; &gt; Session-1
+&gt; &gt; UPDATE A .. ;
+&gt; &gt; 
+&gt; &gt; Session-2
+&gt; &gt; UPDATE A ..;
+&gt; &gt; 
+&gt; &gt; このパターンはごく普通に発生するもので避けようがありません。
+&gt; &gt; ということでLOCKコマンドが必要になったのだと推測しています。
+&gt; 
+&gt; 
+&gt;     Session-1            |     Session-2
+&gt; -------------------------------------
+&gt; begin                       |   begin
+&gt; SELECT ..FROM A...   |   SELECT ..FROM A...
+&gt; UPDATE A ..             |    UPDATE A ..
+&gt; end                         |    end
+&gt; 
+&gt; ということですね。SELECT によって共有ロックした瞬間に他の
+&gt; プロセスの UPDATE による排他ロックが掛かると、 その排他
+&gt; ロックによって SELECT もロックするし、共有ロックによって
+&gt; UPDATE もロックして、結果デッドロックが発生するということで
+&gt; しょうか。
+&gt; でもこれはテーブルが共有ロックされていても別のプロセスから
+&gt; そのテーブルを排他ロックできることが前提になってしまいますが、
+&gt; そういうものなのでしょうか？
+
+というか、この場合セッション2はすでに共有ロックを獲得していますから、
+それが排他ロックにエスカレーションできるわけです。
+
+S1: begin;
+S2: begin;
+S1: select * from a ...
+S2: select * from a ...
+S2: update set A ...	-- ブロックされる (deadlock)
+S1: select * from a ...	-- select もできない
+:
+:
+
+セッション2が共有ロックを獲得していない場合は、セッション1がコミットor
+アボートするまでセッション2は排他ロックを獲得できません。
+
+S1: begin;
+S2: begin;
+S1: select * from a ...
+S2: update set A ...	-- S2排他ロックを獲得できず、待たされる
+S1: select * from a ...	-- S1の共有ロック有効。S1 は何回でもSELECTできる
+S1: end;
+S2: update set A の再開
+:
+:
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00041" HREF="msg00041.html">[pgsql-jp 13000] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Ogiso" &lt;ogiso@use-net.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00040" HREF="msg00040.html">[pgsql-jp 12999] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Ogiso" &lt;ogiso@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00030" HREF="msg00030.html">[pgsql-jp 12988] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Ogiso" &lt;ogiso@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00032.html">[pgsql-jp 12990] Re: Free Solaris7 (Sparc)日本語版へのインストール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 12995] Re: testlibpq3.cコンパイルエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 12988] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 12999] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00035"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00035"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

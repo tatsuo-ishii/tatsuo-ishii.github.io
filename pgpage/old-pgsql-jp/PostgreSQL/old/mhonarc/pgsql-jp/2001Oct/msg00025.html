@@ -1,0 +1,128 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23280] Re: 「階層問い合せ（Connect By 句）」は？ -->
+<!--X-From: yosidam@bell24.co.jp -->
+<!--X-Date: Tue, 2 Oct 2001 18:03:04 +0900  -->
+<!--X-Message-Id: F1AF4AA92A61D5118EE100105A069AD02CBDFF@mailtokyo.bell24.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23280] Re: 「階層問い合せ（Connect By 句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:yosidam@bell24.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00026.html">Date Prev</A>][<A HREF="msg00027.html">Date Next</A>][<A HREF="msg00027.html">Thread Prev</A>][<A HREF="msg00028.html">Thread Next</A>][<A HREF="index.html#00025">Date Index</A>][<A HREF="threads.html#00025">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23280] Re: 「階層問い合せ（Connect By 句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yosidam@bell24.co.jp">yosidam@bell24.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 2 Oct 2001 18:03:04 +0900 </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは和田さん。
+
+&gt; 北村さんのを参考にして作ってみました。
+
+ありがとうございます。
+Oracleの時もストアドプロシージャは今まで避けてきたので、サンプルを
+いただき大変参考になります。
+
+&gt; 考え方としては、各社員について、上司が検索中の上司でなければ
+&gt; 上司の上司を調べる、といったぐあいです。
+&gt; もうちょっとすっきり書けそうな気もしますが...
+&gt; テーブルがtKaisouで固定なのに引数にidが必要なのが感じ悪い。
+
+和田さんのを参考におそれ多くも、関数に手を入れてみました。
+「SELECT pid FROM tKaisou WHERE id = wkid INTO wkid;」で、
+パラメータで渡ってくるchildは必ず存在するとの仮定のもと
+４つあったSelect文を1つにしてみました。
+
+create function isAncestorOf2(int2, int2) returns boolean as
+'
+DECLARE
+  target ALIAS FOR $1;
+  child ALIAS FOR $2;
+  wkid int2;
+BEGIN
+  wkid := child;
+  LOOP
+    SELECT pid FROM tKaisou WHERE id = wkid INTO wkid;
+    IF wkid IS NULL THEN
+      return false;
+    END IF;
+    IF wkid = target THEN
+      return true;
+    END IF;
+  END LOOP;
+END;
+'
+language 'plpgsql';
+
+結果は同じように出ているようです。このようなものでも問題ないでしょうか？
+
+北村さんに提示していただいた方法に比べると作業表を使わないのでぐっと
+シンプルになっています。ただアプリケーションから、
+
+「select * from tKaisou where isAncestorOf($親,id);」とSQLを発行した
+場合、主キー指定とはいえ、（tKaisouの全行数(ｎ)×平均の祖先の数）回の
+Ｓｅｌｅｃｔ文が発行されるのが気になるところではあります。ｎ２乗のオーダー
+でないことが救いですが．．．。
+もう少し研究してみます。
+
+吉田　雅樹　yosidam@bell24.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00029" HREF="msg00029.html">[pgsql-jp 23284] Re: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 23283] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 23281] 半角カナの入ったCSVデータをEUCでinsertしたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 23282] Re: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 23282] Re: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 23283] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00025"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00025"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

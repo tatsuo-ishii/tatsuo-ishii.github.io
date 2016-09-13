@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27752] Re: Timestamp型で60 秒？ -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Fri, 25 Oct 2002 23:51:41 +0900 (JST) -->
+<!--X-Message-Id: 20021025.235141.71110884.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001401c27c0e$b6bad880$6a790f0a@HCM312 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27752] Re: Timestamp型で60 秒？ </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00253.html">Date Prev</A>][<A HREF="msg00255.html">Date Next</A>][<A HREF="msg00247.html">Thread Prev</A>][<A HREF="msg00244.html">Thread Next</A>][<A HREF="index.html#00254">Date Index</A>][<A HREF="threads.html#00254">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27752] Re: Timestamp型で60 秒？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 25 Oct 2002 23:51:41 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00247.html">001401c27c0e$b6bad880$6a790f0a@HCM312</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "Takashi Ishii" &lt;t-ishii97@hitachi-kenki.co.jp&gt;
+Subject: [pgsql-jp: 27745] Timestamp型で60 秒？
+Date: Fri, 25 Oct 2002 19:10:15 +0900
+
+;;; RedHatLinux6.2J+PostgreSQL7.1.3
+;;; でTimestamp型のところに
+;;; '2002-10-28 18:00:59.997'を挿入して検索すると
+;;; '2002-10-28 18:00:60'になってしまいます。
+;;; data_part関数でミリ秒を検索すると’997’ときちんと表示
+;;; されるのになぜでしょうか?
+;;; 
+;;; 59秒997近辺はこの現象が出ます。
+;;; 
+;;; この状態でpg_dumpコマンドでバックアップをして
+;;; リストアしようとしても出来なくなってしまいます。
+
+  関連するところを全部見ていませんので、大まかにですが、7.2 以降を真似て、以下
+ のような修正が必要ですね。
+
+    ==== src/backend/utils/adt/datetime.c
+
+    int
+    EncodeDateTime(struct tm * tm, double fsec, int *tzp, char **tzn, int style, char *str)
+    {
+	int         day,
+		    hour,
+		    min;
+	double      sec;
+
+	fprintf(stderr, "DEBUG: EncodeDateTime: Entering\n");
+	if ((tm-&gt;tm_mon &lt; 1) || (tm-&gt;tm_mon &gt; 12))
+	    return -1;
+
+	sec = (tm-&gt;tm_sec + fsec);
+
+	switch (style)
+	{
+		/* compatible with ISO date formats */
+
+	    case USE_ISO_DATES:
+		if (tm-&gt;tm_year &gt; 0)
+		{
+		    sprintf(str, "%04d-%02d-%02d %02d:%02d:",
+			    tm-&gt;tm_year, tm-&gt;tm_mon, tm-&gt;tm_mday, tm-&gt;tm_hour, tm-&gt;tm_min);
+    #if 1
+		    sprintf((str + 17), ((fsec != 0) ? "%013.10f" : "%02.0f"), sec);
+		    /* ここで、7.2 の TrimTrailingZeros と同じことをする */
+    #else
+		    sprintf((str + 17), ((fsec != 0) ? "%05.2f" : "%02.0f"), sec);
+    #endif
+
+とすると、+09 となるのが、7.2 以降と違うのを別として、
+
+    =# select version();
+				   version                               
+    ---------------------------------------------------------------------
+     PostgreSQL 7.1.3 on i686-pc-linux-gnu, compiled by GCC egcs-2.91.66
+    (1 row)
+
+    sugita=# select t::timestamp from class1 ;
+	      ?column?          
+    ----------------------------
+     2002-10-28 18:00:59.997+09
+    (1 row)
+
+    sugita=# 
+
+
+Kenji Sugita
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00247" HREF="msg00247.html">[pgsql-jp: 27745] Timestamp型で60秒？</A></STRONG>
+<UL><LI><EM>From:</EM> "Takashi Ishii" &lt;t-ishii97@hitachi-kenki.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00253.html">[pgsql-jp: 27751] Re: WebSphere4.0.3からPostgresql7.2.1へ接続に失敗?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00255.html">[pgsql-jp: 27753] Re: 継承を使った標準化の是非</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp: 27745] Timestamp型で60秒？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00244.html">[pgsql-jp: 27742] ODBC経由での日本語表示とCygwin上での日本語表示</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00254"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00254"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

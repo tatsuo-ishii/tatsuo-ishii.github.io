@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16469] Re: 「NOTICE:BeginTransactionBlock and not in default state」の表示を止めたい -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Fri, 04 Aug 2000 10:07:26 +0900 -->
+<!--X-Message-Id: 200008040107.KAA29752@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200008040037.JAA26677@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16469] Re: 「NOTICE:BeginTransactionBlock and not in default s </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00083.html">Date Prev</A>][<A HREF="msg00082.html">Date Next</A>][<A HREF="msg00080.html">Thread Prev</A>][<A HREF="msg00100.html">Thread Next</A>][<A HREF="index.html#00084">Date Index</A>][<A HREF="threads.html#00084">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16469] Re: 「NOTICE:BeginTransactionBlock and not in default state」の表示を止めたい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 04 Aug 2000 10:07:26 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00080.html">200008040037.JAA26677@sraigw.sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) WEMI/1.13.4 (Nishi-Yaizu)FLIM/1.12.7 (Y&umacr;zaki) MULE XEmacs/21.1 (patch 9)(Canyonlands) (i386--freebsd)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+At Fri, 4 Aug 2000 09:37:02 +0900 (JST),
+zero4649 &lt;zero4649@mx1.freecom.ne.jp&gt; wrote:
+&gt; 
+&gt; 内山＠クリックです。
+&gt; cronに登録したジョブの中でＤＢ（PostgreSQL 6.5.3)にアクセスして
+&gt; いるのですが，次のメールが管理者宛にで送られてきます。
+&gt; 
+&gt; 「NOTICE:  BeginTransactionBlock and not in default state」
+&gt; 
+&gt; このメールを送られなくする方法，もしくは，そもそも「NOTICE: 〜」が
+&gt; 表示されなくする方法をご存知の方，ご教授下さい。
+
+cron script のどこでこのメッセージがでているか確認してみてください。
+順番を追ってみていけばわかるとは思いますが…
+
+で、対処ですが
+
+1. cron スクリプト自体で postgresql に関する処理部分の標準出力／エラー出
+   力などをそのまま管理者にメールするように書いていませんか？
+
+   → cron script で postgresql の標準出力／エラー出力を /dev/null に
+      リダイレクトすれば、メッセージは捨てられます
+
+2. cron での標準出力／エラー出力などをそのまま管理者にメールするように
+   crontab に書いていませんか？
+
+   → crontab で cron スクリプトの標準出力／エラー出力を /dev/null に
+      リダイレクトすれば、メッセージは捨てられます
+
+3. 管理者ユーザで cron を動かしていて、標準出力／エラー出力をどこにもリ
+   ダイレクトしていない、ということはありませんか？
+
+   → cron は、cron 処理で標準出力／エラー出力があった場合、cron 実行
+      したユーザにその内容をメールします。
+      crontab で cron スクリプトの標準出力／エラー出力を /dev/null に
+      リダイレクトすれば、メッセージは捨てられます
+
+実際のリダイレクトの方法は、こんな感じです。たとえば crontab であれば
+  40 3 15 * * (cd /usr/local/pgsql/batch; ./daily_cron.sh) 1&gt;/dev/null 2&gt;&amp;1
+みたいになります。
+
+
+以下余談：
+
+ただ、実行結果がエラーだったりした場合、そのメッセージは管理者宛に
+mail したかったりする場合は、全部そのまま /dev/null に送ってしまうと
+エラーが検知できなくなってしまうので、直接 /dev/null に送るのではなく、
+grep などで特定文字列を取得する／捨てるなどして、必要に応じて mail を
+飛ばすなど、きちんと処理してあげる必要があります。
+
+cron script の個々の処理内容が、実行コマンドの返り値で成功／失敗が
+とれる場合はそれで判定してもよいですが、cron の中で複数の sql 文を順番に
+実行したりする場合は、どこでエラーになったかも取得したかったりするので、
+自分はいつも DBD::Pg で Perl で cron 処理させてます。
+＃ただし pg_dump と vaccum は /bin/sh でやらせています。
+
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00080" HREF="msg00080.html">[pgsql-jp 16465] 「NOTICE:  BeginTransactionBlock and not in default state」の表示を止めたい</A></STRONG>
+<UL><LI><EM>From:</EM> zero4649 &lt;zero4649@mx1.freecom.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00083.html">[pgsql-jp 16468] Re: JDBCドライバを使って</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00082.html">[pgsql-jp 16467] Re: pg_ctl 強制終了</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00080.html">[pgsql-jp 16465] 「NOTICE:  BeginTransactionBlock and not in default state」の表示を止めたい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 16486] Re: 「NOTICE:  BeginTransactionBlock and not in default state」の表示を止めたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00084"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00084"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3509] LIKE patch -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Tue, 10 Mar 1998 18:30:42 +0900 -->
+<!--X-Message-Id: 199803100930.SAA25473@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3509] LIKE patch </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00076.html">Date Prev</A>][<A HREF="msg00078.html">Date Next</A>][<A HREF="msg00201.html">Thread Prev</A>][<A HREF="msg00076.html">Thread Next</A>][<A HREF="index.html#00077">Date Index</A>][<A HREF="threads.html#00077">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3509] LIKE patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 10 Mar 1998 18:30:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+6.2.1 の時にも問題になっていた LIKE のバグ修正パッチです。本家にも送っ
+てあるのですが、なかなか official patch として出て来ないので、しびれを
+切らしてリリースします。
+同じものが
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.3/patches/like.patch">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.3/patches/like.patch</A>
+にも置いてあります。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+To: pgsql-patches@postgreSQL.org
+Subject: [PATCHES] 6.3 LIKE oddness
+From: t-ishii@sra.co.jp
+Date: Thu, 05 Mar 1998 13:34:38 +0900
+Sender: owner-pgsql-patches@hub.org
+Precedence: bulk
+
+It seems that LIKE command in 6.3 does not behave as it should be. In
+the current implementation of makeIndexable() in gram.y, consecutive
+underscores ('__') are treated as a single '_'. This is not consistent
+with the implementation of utils/adt/like.c. Moreover if '__' is
+regarded as a single '_', there will be no way to represent "two any
+consecutive letters" using LIKE command. Included patches should fix
+the problem.
+
+Tatsuo Ishii
+t-ishii@sra.co.jp
+--------------------------- cut here ---------------------------
+Index: postgresql-6.3/src/backend/parser/gram.y
+diff -c postgresql-6.3/src/backend/parser/gram.y:1.1.1.1 postgresql-6.3/src/backend/parser/gram.y:1.1.1.1.4.1
+*** postgresql-6.3/src/backend/parser/gram.y:1.1.1.1	Tue Mar  3 10:53:10 1998
+--- postgresql-6.3/src/backend/parser/gram.y	Thu Mar  5 12:52:20 1998
+***************
+*** 4835,4849 ****
+  	
+  			for (pos = 0; n-&gt;val.val.str[pos]; pos++)
+  			{
+! 				if ((n-&gt;val.val.str[pos] == '%' &amp;&amp;
+! 					 n-&gt;val.val.str[pos+1] != '%') ||
+! 				    (n-&gt;val.val.str[pos] == '_' &amp;&amp;
+! 		     		 n-&gt;val.val.str[pos+1] != '_'))
+! 		     		break;
+! 		     	if (n-&gt;val.val.str[pos] == '%' ||
+! 				    n-&gt;val.val.str[pos] == '_' ||
+! 				    n-&gt;val.val.str[pos] == '\\')
+  					pos++;
+  				match_least[match_pos] = n-&gt;val.val.str[pos];
+  				match_most[match_pos++] = n-&gt;val.val.str[pos];
+  			}
+--- 4835,4850 ----
+  	
+  			for (pos = 0; n-&gt;val.val.str[pos]; pos++)
+  			{
+! 				if (n-&gt;val.val.str[pos] == '%' &amp;&amp;
+! 					 n-&gt;val.val.str[pos+1] != '%')
+! 					break;
+! 				if(n-&gt;val.val.str[pos] == '_')
+! 			     		break;
+! 			     	if (n-&gt;val.val.str[pos] == '\\' ||
+! 				     	n-&gt;val.val.str[pos] == '%')
+  					pos++;
++ 				if (n-&gt;val.val.str[pos] == '\0')
++ 					break;
+  				match_least[match_pos] = n-&gt;val.val.str[pos];
+  				match_most[match_pos++] = n-&gt;val.val.str[pos];
+  			}
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 3508] 6.3mbPL2 patch</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 3510] postgresql-6.3 install</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 3633] Re: postgresql-6.3 install</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 3508] 6.3mbPL2 patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00077"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00077"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

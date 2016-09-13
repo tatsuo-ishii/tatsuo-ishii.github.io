@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15607] Re: Shockwaveムービーの扱い -->
+<!--X-From: HanRanho <g9763010@dokkyo.ac.jp> -->
+<!--X-Date: Mon, 26 Jun 2000 16:25:40 +0900 -->
+<!--X-Message-Id: 200006260727.QAA19012@dokkyo.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15607] Re: Shockwaveムービーの扱い </TITLE>
+<LINK REV="made" HREF="mailto:g9763010@dokkyo.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00645.html">Date Prev</A>][<A HREF="msg00647.html">Date Next</A>][<A HREF="msg00656.html">Thread Prev</A>][<A HREF="msg00654.html">Thread Next</A>][<A HREF="index.html#00646">Date Index</A>][<A HREF="threads.html#00646">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15607] Re: Shockwaveムービーの扱い</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HanRanho &lt;<A HREF="mailto:g9763010@dokkyo.ac.jp">g9763010@dokkyo.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Jun 2000 16:25:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+At 14:46 00/06/22 +0900, you wrote:
+&gt; 馬場と申します。
+  馬場さん、早速のメール、ありがとうございました。
+ 
+&gt; この場合、「ラージオブジェクト」を使用するのではないでしょうか。
+&gt; 
+&gt; <A HREF="http://www.remus.dti.ne.jp/~sim/postgres/man/man3/">http://www.remus.dti.ne.jp/~sim/postgres/man/man3/</A>
+&gt; の、「large_objects.3」や、
+&gt; <A HREF="http://www.pjam.jpweb.net/pgsql-doc/ej/programmer/programmer.htm">http://www.pjam.jpweb.net/pgsql-doc/ej/programmer/programmer.htm</A>
+&gt; をご覧になればよろしいかと思います。
+&gt; 
+ホームページを見て、ちょっと試してみました。
+
+まず、ムービーのテーブルをつくって、ムービーファイルをinsertしました。
+
+	=&gt;CREATE TABLE movie (
+    		name            text,
+    		raster          oid);
+	=&gt;INSERT INTO movie VALUES ('test1', lo_import('ucw.dcr'));
+
+実行した結果は：
+
+	You must have Postgres superuser privilege to use server-side lo_import()
+	Anyone can use the client-side lo_import() provided by libpq
+
+  サーバ側のsuperuserの権限を持っていません。client-sideから考えると、
+　libpqを利用すれば、client-sideからLargeObjectの関数を使えると思いますが、
+　それはユーザ側からラージオブジェクトとして扱いたいムービー（uploadファイル
+で）を提出して、
+　サーバ側では、提出したファイルをfopen、freadして、
+　作ったラージオブジェクトに書きこめることと考えておりますが、
+　以上のメッセージから理解したことが当てますか？
+
+　その考えでちょっと試しましたが、HTMLをもちいてformでshockwaveムービー($user
+file)を提出します。
+	&lt;form enctype="multipart/form-data" action="test.php3" method="post"&gt;
+	&lt;input name="userfile" type="file" size="70"&gt;
+	&lt;input type="submit" value="Submit"&gt;
+	&lt;/form&gt;
+
+　つぎはPHP(test.php3)をつかってラージオブジェクトにアクセスします。
+	$oid=pg_locreate($con);
+	$lobj=pg_loopen($con,$oid,"w");
+	$fd=fopen($userfile,"r");
+	$mov=fread($fd,filesize($userfile));
+	pg_lowrite($lobj,$mov);
+	pg_loclose($lobj);
+	$query="insert into movie values('test1',$oid)";
+	$rtn=pg_exec($con,$query);
+
+作成したラージオブジェクトに書き込んで実行した結果は、
+	=&gt;select * from movie;
+	name | raster
+	test1| 158177
+
+ですが、それはinsertSQLを成功したと思うけど（当てますか？）、
+shockwaveムービーをdisplay(show.php3)しようと思ったら、
+Warning メッセージが出てしまって、ムービーをショーできませんでした。
+	Warning: Unable to open PostgresSQL large object in show.php3 on line 18
+	Warning: 0 is not a PostgresSQL large object index in show.php3 on line 19
+	Warning: 0 is not a PostgresSQL large object index in show.php3 on line 20
+
+show.php3の18から20行のprogramは、
+	18:$fd=pg_loopen($con,$oid,"r");
+	19:pg_loreadall($fd);
+	20:pg_loclose($fd);
+
+ですが、どこかが間違っています？ご存知の方は教えていただけますか？
+長くなりました、申し訳ありません。どうぞよろしくお願いいたします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00654" HREF="msg00654.html">[pgsql-jp 15615] Re: Shockwaveムービーの扱い</A></STRONG>
+<UL><LI><EM>From:</EM> baba takanori &lt;baba@tfive.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00645.html">[pgsql-jp 15606] RE: UNIQUEインデックスがあるのに重複挿入可能</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00647.html">[pgsql-jp 15608] AccessODBCが遅い？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00656.html">[pgsql-jp 15617] RE: AccessODBCが遅い？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00654.html">[pgsql-jp 15615] Re: Shockwaveムービーの扱い</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00646"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00646"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

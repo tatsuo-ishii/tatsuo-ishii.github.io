@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21661] 7.0.x <&#45;> 7.1 でのSQL解釈の違い -->
+<!--X-From: 松嶋祥文<mats@itboost.co.jp> -->
+<!--X-Date: Mon, 04 Jun 2001 13:48:21 +0900 -->
+<!--X-Message-Id: 20010604134821ZSLn'3@itboost.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21661] 7.0.x &lt;-&gt; 7.1 でのSQL解釈の違い </TITLE>
+<LINK REV="made" HREF="mailto:mats@itboost.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00039.html">Date Prev</A>][<A HREF="msg00041.html">Date Next</A>][<A HREF="msg00044.html">Thread Prev</A>][<A HREF="msg00039.html">Thread Next</A>][<A HREF="index.html#00040">Date Index</A>][<A HREF="threads.html#00040">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21661] 7.0.x &lt;-&gt; 7.1 でのSQL解釈の違い</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 松嶋祥文&lt;<A HREF="mailto:mats@itboost.co.jp">mats@itboost.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 04 Jun 2001 13:48:21 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松嶋＠ITBoost です。
+
+あまり価値のない情報ですが、
+PostgreSQL 7.0.2, 7.0.3 -&gt; 7.1.1 に移行した際、
+SQL の解釈の違いに気づきましたので一応ポストして
+おきます。
+
+例であげたのは UNION だけですが、UNION|INTERSECT|EXCEPT
+と ORDER BY の組み合わせで発生します。
+
+というか、
+<A HREF="http://osb.sra.co.jp/PostgreSQL/7.1/changes.html">http://osb.sra.co.jp/PostgreSQL/7.1/changes.html</A>
+を見る限り 7.0.x では本来 UNION などと ORDER BY を
+一緒に使うことはできないはずなのに、使えてしまって
+いた、というところでしょうか？
+
+このような SQL を発行するアプリを作成した記憶が
+あり、7.1.1 だけで NG な SQL に違和感がない方は、
+移行の際ご注意ください。
+
+---------------------------------------- テストテーブル
+CREATE TABLE hoge (a int4);
+INSERT INTO hoge VALUES (1);
+INSERT INTO hoge VALUES (2);
+
+------------------------------------- 7.1.1 だけで NG
+
+SELECT hoge.a FROM hoge WHERE a=1
+UNION
+SELECT hoge.a FROM hoge WHERE a=2
+ORDER BY hoge.a;
+
+&gt;&gt; ERROR:  ORDER BY on a UNION/INTERSECT/EXCEPT
+&gt;&gt;       result must be on one of the result columns
+
+SELECT t.a FROM hoge t WHERE a=1
+UNION
+SELECT t.a FROM hoge t WHERE a=2
+ORDER BY t.a;
+
+&gt;&gt; ERROR:  Relation 't' does not exist
+
+SELECT t.a AS foo FROM hoge t WHERE a=1
+UNION
+SELECT t.a AS foo FROM hoge t WHERE a=2
+ORDER BY a;
+
+&gt;&gt; ERROR:  Attribute 'a' not found
+
+--------------------------------------------- 両方 OK
+SELECT a FROM hoge WHERE a=1
+UNION
+SELECT a FROM hoge WHERE a=2
+ORDER BY a;
+
+SELECT hoge.a FROM hoge WHERE a=1
+UNION
+SELECT hoge.a FROM hoge WHERE a=2
+ORDER BY a;
+
+SELECT t.a FROM hoge t WHERE a=1
+UNION
+SELECT t.a FROM hoge t WHERE a=2
+ORDER BY a;
+
+SELECT t.a AS foo FROM hoge t WHERE a=1
+UNION
+SELECT t.a AS foo FROM hoge t WHERE a=2
+ORDER BY foo;
+
+SELECT t.a as a FROM hoge t WHERE t.a=1
+UNION
+SELECT t2.a as a FROM hoge t2 WHERE t2.a=2
+ORDER BY a;
+
+--------------------------------------------- 両方 NG
+（当然といえば当然です）
+
+SELECT t.a FROM hoge t WHERE a=1
+UNION
+SELECT t2.a FROM hoge t2 WHERE a=2
+ORDER BY t2.a;
+
+&gt;&gt; ERROR:  Relation 't2' does not exist
+
+-- 
+<A HREF="http://www.itboost.co.jp/">http://www.itboost.co.jp/</A>
+  PHP, Perl, PostgreSQL, Apache, Java 他、いろいろあります。
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+株式会社 IT Boost／アイティーブースト
+松嶋 祥文
+mats@itboost.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 21659] pgimage 2.0 released</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00041.html">[pgsql-jp 21662] Re: Pg.pm のインストール</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00044.html">[pgsql-jp 21665] Re: Pg.pm のインストール</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 21659] pgimage 2.0 released</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00040"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00040"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

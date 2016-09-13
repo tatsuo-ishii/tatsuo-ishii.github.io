@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22881] Re: intersect の使い方について -->
+<!--X-From: Mitsuhisa TANAKA <mitsu@tanazo.com> -->
+<!--X-Date: Mon, 27 Aug 2001 15:42:32 +0900 -->
+<!--X-Message-Id: 20010827154232E.mitsu@tanazo.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010824185947A.mitsu@tanazo.com -->
+<!--X-Reference-Id: 20010824230147.A33F.RK73@echna.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22881] Re: intersect の使い方について </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tanazo.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00217.html">Date Prev</A>][<A HREF="msg00219.html">Date Next</A>][<A HREF="msg00212.html">Thread Prev</A>][<A HREF="msg00206.html">Thread Next</A>][<A HREF="index.html#00218">Date Index</A>][<A HREF="threads.html#00218">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22881] Re: intersect の使い方について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhisa TANAKA &lt;<A HREF="mailto:mitsu@tanazo.com">mitsu@tanazo.com</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 27 Aug 2001 15:42:32 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:mitsu@tanazo.com">mitsu@tanazo.com</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00208.html">20010824185947A.mitsu@tanazo.com</A>&gt;&lt;<A HREF="msg00212.html">20010824230147.A33F.RK73@echna.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中です。
+
+すがわら/ＲＫ７３ さん、有難うございます。
+
+From: Masaru Sugawara &lt;rk73@echna.ne.jp&gt;
+Subject: [pgsql-jp 22875] Re: intersect の使い方について 
+Date: Fri, 24 Aug 2001 23:28:35 +0900
+
+&gt; &gt; 基本型のまま、検証するのは少し大変なので、
+&gt; &gt; (1)select count(id) from account where id in (
+&gt; &gt;    select id from account
+&gt; &gt;    intersect ( A intersect B intersect C));
+&gt; &gt; として、件数で、SQL文を評価しました。
+&gt; &gt; この結果が、予想した数値より大幅に小さいので、
+&gt; &gt; 条件の順番を入れ換えてみると、例えば
+&gt; &gt; (2)select count(id) from account where id in (
+&gt; &gt;    select id from account
+&gt; &gt;    intersect ( C intersect B intersect A));
+&gt; &gt; を試すと、結果が異なります。
+&gt; &gt; と言う不可解(集合論で考えれば一致するはずなのに)な状況です。
+&gt; 
+&gt;   たぶん、postgreSQLが田中さんのような使用方法を想定して
+&gt;   いないため、正しく構文解析していないだけではないでしょうか。
+
+PostgreSQL のバグなのかなと思っているのですが、
+
+翻訳されたマニュアルの INTERSECT句の説明には、以下のように有り
+ます。
+「......
+同じ SELECT 文の中の複数の INTERSECT 演算子は、カッコで 別の
+指定がない限り左から右に評価されます。INTERSECT はUNION より
+更に固く結びつけます。つまり A UNION B INTERSECT C はカッコで
+別の指定がない限り A UNION (B INTERSECT C) として読まれます。
+......」
+( <A HREF="http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/sql-select.html#SQL-INTERSECT">http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/sql-select.html#SQL-INTERSECT</A> から引用 )
+
+つまり、
+
+A intersect B intersect C の結果と
+C intersect B intersect A の結果が異なります。
+また、
+A intersect (B intersect C),
+B intersect (A intersect C),
+C intersect (A intersect B)
+の各々の結果は一致します。
+また、条件が二つの時は
+A intersect B = B intersect A
+の関係が(調べた範囲では)成り立っています。
+従って、
+A intersect (B intersect C) = A intersect (C intersect B)
+等は、成立しています。
+条件を 4つ以上にした場合も、
+A intersect (B intersect (C intersect D))
+の様に、右の条件から処理するように () を使って優先順位を明示
+的に指定すると
+B intersect (C intersect (D intersect A)),
+C intersect (D intersect (A intersect B))
+の様に順番を入れ換えても結果は一致します。
+
+intersect のみを使用している場合は、上記のように処理する順番
+を強制的に左から処理をするようにすれば、簡単に問題解決できる
+のですが、union が混在して、条件式が複雑化してくると正しい結
+果の把握と、そのためにどの様な条件式を与えれば良いのか、解り
+にくい状況に陥ってしまいました。
+
+おまけに、制作中のアプリケーションは、条件式 A が更に
+a intersect b intersect c intersect d
+のような構造になっていて、二重構造になっているために話を更に
+複雑にしています。
+
+と言うような状況なので、アプリケーションは intersect / union
+を利用せずに、サブクエリで処理する方針に変えました。
+
+が、この問題に関しては引き続き情報収集を続けたいので、同様の
+現象に関して、ご意見ご経験が等有る方は情報提供いただければ、
+と思います。
+
+-----------------------------------------------
+TANAZO Limited Partnership / Mitsuhisa TANAKA
+<A HREF="http://www.tanazo.com/">http://www.tanazo.com/</A>   I'm not a cyborg :-(
+<A HREF="http://www.tama-oss.org/">http://www.tama-oss.org/</A> [tama open system studio]
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00208" HREF="msg00208.html">[pgsql-jp 22871] intersect の使い方について</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhisa TANAKA &lt;mitsu@tanazo.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 22875] Re: intersect の使い方について</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Sugawara &lt;rk73@echna.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 22880] Re: windows2000 + PostgreSQL 7.1.3 + cygwin1.3.2-1でコンパイルできません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00219.html">[pgsql-jp 22882] Re: windows2000 + PostgreSQL 7.1.3 + cygwin1.3.2-1でコンパイルできません。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 22875] Re: intersect の使い方について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 22869] テキストデータの、postgreSQL へのインポート</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00218"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00218"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

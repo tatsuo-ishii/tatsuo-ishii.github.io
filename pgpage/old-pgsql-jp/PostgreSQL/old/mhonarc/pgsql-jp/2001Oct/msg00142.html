@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23411] Re: SQL  についていろいろ質問です -->
+<!--X-From: Takeshi Miyakawa <tak@hdt.co.jp> -->
+<!--X-Date: Thu, 11 Oct 2001 10:54:10 +0900 -->
+<!--X-Message-Id: 4.3.2&#45;J.20011011103003.00befdd0@ms.hdt.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011010231525.E745.MLIST@myrealbox.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23411] Re: SQL  についていろいろ質問です </TITLE>
+<LINK REV="made" HREF="mailto:tak@hdt.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00143.html">Date Prev</A>][<A HREF="msg00144.html">Date Next</A>][<A HREF="msg00141.html">Thread Prev</A>][<A HREF="msg00135.html">Thread Next</A>][<A HREF="index.html#00142">Date Index</A>][<A HREF="threads.html#00142">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23411] Re: SQL  についていろいろ質問です</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Miyakawa &lt;<A HREF="mailto:tak@hdt.co.jp">tak@hdt.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 11 Oct 2001 10:54:10 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　みやかわ＠ホビー・データです。
+
+　具体的にテーブルの定義と実行したいＳＱＬ文、うまくいかなかった事例を
+端的に書いてくれるとうれしいです。というか、メール長すぎ。
+
+At 午前 12:22 01/10/11 +0900, TB wrote:
+&gt;以下のテーブルでの質問です
+&gt;
+&gt;
+&gt;すべてinteger
+&gt;┌─────────────┐┌──────────────┐
+&gt;│仕入テーブル:siire        ││売上テーブル:uriage         │
+&gt;├─────────────┤├──────────────┤
+&gt;│仕入伝票ID:siiredenpyou_id││売上伝票ID:uriagedenpyou_id │
+&gt;├─────────────┤├──────────────┤
+&gt;│商品ID:syouhin_id         ││商品ID:syouhin_id           │
+&gt;├─────────────┤├──────────────┤
+&gt;│個数:kosuu                ││個数:kosuu                  │
+&gt;├─────────────┤└──────────────┘
+&gt;│金額:kingaku              │
+&gt;└─────────────┘
+&gt;
+&gt;/*　いらないと思われるが一応
+&gt;┌─────────────┐┌──────────────┐
+&gt;│仕入:siire                ││売上:uriage                 │
+&gt;├─────────────┤├──────────────┤
+&gt;│仕入伝票ID:siiredenpyou_id││売上伝票ID:uriagedenpyou_id │serial
+&gt;├─────────────┤├──────────────┤
+&gt;│仕入日:siirebi            ││売上日:uriagebi             │date
+&gt;├─────────────┤├──────────────┤
+&gt;│仕入先ID:siiresaki_id     ││商品ID:syouhin_id           │integer
+&gt;└─────────────┘└──────────────┘
+&gt;*/
+
+　こんな風に書かれてもなんだかサパーリって感じですね。
+　むしろ、テーブルを定義するときに書いたSQL文を素直に書いてくれるとうれしいです。
+
+# もっとも、このテーブルのサマリーを見ているかぎり、正規化されていない気配が...。
+
+&gt;WEBブラウザでユーザーが商品をあるキーワードで検索し，その結果を表示する．
+&gt;このとき，在庫が０より多い商品だけを表示しなければならない．
+&gt;  [ 仕入テーブル.個数 - 売上テーブル.個数 = 在庫数 ]
+&gt;なので，これが０より大きい場合，表示するようにしようとした．
+&gt;
+&gt;# 商品マスタテーブルに在庫数を持たせるべきなのでしょうか・・・
+
+　（パフォーマンスのためなど、やむを得ない理由がないかぎり）
+導出値は列として持つべきではないと思います。正規化の勉強をしてください。
+
+&gt;そこで，仕入れた商品が商品ID：３　と　商品ID：９　の２つあるとする．
+&gt;それぞれ，仕入数は，１００個（商品ID：３），１０個（商品ID：９）である．
+&gt;売上が　商品ID:９　５個　とする．
+&gt;
+&gt;この場合，以下のことがいえる．
+&gt;
+&gt;商品ID：３　について
+&gt;　仕入数（１００個） − 売上数（０個） ＝ 在庫数（１００個）
+&gt;商品ID：９　について
+&gt;　仕入数（１０個） − 売上数（５個）＝ 在庫数（５個）
+&gt;
+&gt;テーブルは以下のようになる．
+&gt;
+&gt;仕入テーブル:siire
+&gt;siiredenpyou_id         syouhin_id      kosuu   kingaku
+&gt;               1                 3         100       100
+&gt;               2                 9          10        20
+
+　これは簡略化した表ですね？　仕入日とか仕入先とかの情報を省略した結果ですよね。
+
+
+&gt;売上テーブル:uriage
+&gt;uriagedenpyou_id        syouhin_id      kosuu
+&gt;               1                 9           5
+
+　これも同様。
+
+&gt;SELECT * FROM syouhin_master AS SM WHERE 0 &lt; ( (SELECT SUM(S.kosuu) FROM
+&gt;siire AS S WHERE S.syouhin_id = SM.syouhin_id GROUP BY S.syouhin_id) -
+&gt;(SELECT CASE SUM(U.kosuu) WHEN NULL THEN 0 ELSE SUM(U.kosuu) END FROM
+&gt;uriage AS U WHERE U.syouhin_id = SM.syouhin_id GROUP BY U.syouhin_id) )
+&gt;
+&gt;商品マスターテーブルから 0より大きい 仕入数-売上数 のものを取り出す
+&gt;#とてつもなく変な事してますか？SQLよくわかってないんで（ToT
+
+　読みにくいですねえ。
+
+SELECT *
+   FROM syouhin_master AS SM
+  WHERE 0 &lt; ( (SELECT SUM(S.kosuu)
+                 FROM siire AS S
+                WHERE S.syouhin_id = SM.syouhin_id
+                GROUP BY S.syouhin_id) -
+              (SELECT CASE SUM(U.kosuu)
+                        WHEN NULL THEN 0
+                        ELSE SUM(U.kosuu)
+                      END
+                 FROM uriage AS U
+                WHERE U.syohin_id = SM.syouhin_id
+                GROUP BY U.syouhin_id)
+            )
+
+　って感じですかね。
+
+　とりあえず思うことは、GROUP BY句は要らないですよね。WHERE句で限定しているん 
+だから。
+
+# ついでにいうと、アドホックな解決だけど、
+# すべての商品IDについて0個の売上の行をINSERTしておくという手はあるね。
+
+&gt;しかし，仕入情報，売上情報を追加した場合，ビューが更新されないという問題
+&gt;が生じた．
+&gt;ドキュメント（PostgreSQL 7.1.3 ドキュメント(日本語版 1.6)）では
+&gt;　&gt;&gt;現在のところビューは読み取り専用です。
+&gt;となっているので更新は不可能ということでしょうか．
+&gt;# ruleを使えばいいのでしょうか？ruleがよくわからないのです
+&gt;# SUMを使っているのでさらにわからないです
+&gt;
+&gt;
+&gt;
+&gt;以上のような状況です．
+&gt;
+&gt;現在は，DROP VIEW をして，CREATE VIEW をして，無理矢理やっていますが，
+&gt;データ数が多くなれば，遅くなってしまうので，違う方法があればと思います．
+
+　もし、それが事実だとすると、PostgreSQLのバグ臭い気が...。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00139" HREF="msg00139.html">[pgsql-jp 23408] SQL についていろいろ質問です</A></STRONG>
+<UL><LI><EM>From:</EM> TB &lt;MList@myrealbox.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 23412] RE: SQL についていろいろ質問です</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 23413] Re: SQL についていろいろ質問です</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 23410] Re: SQL についていろいろ質問です(取引データから結果をもとめる)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 23404] postmaster 起動時のエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00142"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00142"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

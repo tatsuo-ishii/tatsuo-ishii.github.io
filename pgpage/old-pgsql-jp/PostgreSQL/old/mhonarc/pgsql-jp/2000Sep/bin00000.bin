@@ -1,0 +1,49 @@
+#!/usr/bin/perl
+use Pg;
+system("dropdb test_db");
+system("createdb test_db");
+$conn = Pg::connectdb("dbname=test_db");
+$sql = "create table t1(" .
+	"id int, " .
+	"aa int, " .
+	"bb int" .
+");";
+$conn->exec($sql);
+$sql = "create table t2(" .
+	"id int, " .
+	"cc int, " .
+	"dd int, " .
+	"ee int" .
+");";
+$conn->exec($sql);
+$conn->exec("copy t1 from stdin;");
+for ($i = 1; $i <= 40000; $i++) {
+	$conn->putline($i*8 . "	\\N	\\N\n");
+}
+$conn->putline("\\.\n");
+$conn->endcopy;
+$conn->exec("copy t2 from stdin;");
+for ($i = 1; $i <= 200000; $i++) {
+	$conn->putline("$i	\\N	\\N	\\N\n");
+}
+$conn->putline("\\.\n");
+$conn->endcopy;
+$conn->exec("update t1 set aa=(random()*100)::int, bb=(random()*100)::int;");
+$conn->exec("update t2 set cc=(random()*100)::int, dd=(random()*100)::int, ee=(random()*100)::int;");
+$conn->exec("create unique index pk_t1 on t1(id);");
+$conn->exec("create unique index pk_t2 on t2(id);");
+$conn->exec("create index idx_group2 on t2(ee);");
+$conn->exec("vacuum;");
+$sql = "select t1.aa, t1.bb, t2.cc, sum(t2.dd) " .
+    "from t1, t2 " .
+    "where t1.id = t2.id and t2.ee = 1::int2 " .
+    "group by t1.aa, t1.bb, t2.cc " .
+"union all select t1.aa, t1.bb, null, null " .
+    "from t1 where not exists (select * from t2 where t1.id = t2.id);";
+print time() . "\n";
+$conn->exec($sql);
+$conn->exec($sql);
+$conn->exec($sql);
+$conn->exec($sql);
+$conn->exec($sql);
+print time() . "\n";

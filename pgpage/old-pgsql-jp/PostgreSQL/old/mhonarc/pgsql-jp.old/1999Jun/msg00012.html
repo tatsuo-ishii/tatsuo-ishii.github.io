@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8578] Re: stuck spinlock -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 02 Jun 1999 09:06:52 +0900 -->
+<!--X-Message-Id: 199906020006.JAA01513@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199905261139.UAA09366@yokohama.ooi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8578] Re: stuck spinlock </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00011.html">Date Prev</A>][<A HREF="msg00013.html">Date Next</A>][<A HREF="msg00031.html">Thread Prev</A>][<A HREF="msg00013.html">Thread Next</A>][<A HREF="index.html#00012">Date Index</A>][<A HREF="threads.html#00012">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8578] Re: stuck spinlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Jun 1999 09:06:52 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 　こんばんは、渡辺 学といいます。
+&gt; 
+&gt; 　[pgsql-jp 8360] で質問したままになってしまいました。この件ではハー
+&gt; ドウェア障害が起きている事が判明し、マシンを交換する事で現象は起き
+&gt; なくなりました。
+&gt; 
+&gt; 　ところが本当の原因は他にあったようで、バックエンドが以下のような
+&gt; エラーメッセージを残して core dumped するようになりました。
+&gt; 
+&gt; 
+&gt; NOTICE:  Message from PostgreSQL backend:
+&gt;         The Postmaster has informed me that some other backend died abnormally 
+&gt;         and possibly corrupted shared memory.
+&gt;         I have rolled back the current transaction and am going to terminate your 
+&gt;         database system connection and exit.
+&gt;         Please reconnect to the database system and repeat your query.
+&gt; exit(0)
+&gt; 
+&gt; FATAL: s_lock(28001065) at spin.c:125, stuck spinlock. Aborting.
+&gt; 
+&gt; FATAL: s_lock(28001065) at spin.c:125, stuck spinlock. Aborting.
+&gt; 
+&gt; 
+&gt; 　メーリングリストを検索してみたところ、 [pgsql-jp 5581, 5585, 
+&gt; 5596] で同じエラーメッセージについての話題がありましたが、解決には
+&gt; 至っていないようです。このエラーの原因が分かる方がいらっしゃいまし
+&gt; たら、ご教授願えないでしょうか。
+&gt; 
+&gt; 
+&gt; FreeBSD 2.2.8-RELEASE
+&gt; PostgreSQL 6.4.2(99/4/14パッチ)
+&gt; Apache1.3.3 + PHP3.0.5
+
+stuck spin lock メッセージが出るのは、明らかに障害が発生していることを
+示しています。コアダンプするのは仕様:-)です。
+
+	FATAL: s_lock(28001065) at spin.c:125, stuck spinlock. Aborting.
+
+が出るとPostgreSQLは abort() を呼び出すためです。
+
+ところで、この問題が発生する原因はいくつかあって、
+
+o システムのリソースの不足
+
+特に FreeBSD では、セマフォやファイルテーブルのエントリがデフォルト設
+定のままのカーネルでは、同時接続数が多い場合に問題が発生します。まずこ
+の点を見直して下さい。
+
+o バグ
+
+6.5 の開発中に、この問題を引き起こすバグが見付かっています。6.4.2(パッ
+チバージョン含む)にも同じ問題があるかどうかは分かりませんが、この場合、
+
+	FATAL: s_lock(28001065) at spin.c:125, stuck spinlock. Aborting.
+
+に至る前に、他のエラーメッセージ(ERROR)やNOTICEが出ているはずです。
+
+えーと他にも何かあったかな...
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00017" HREF="msg00017.html">[pgsql-jp 8583] Re: stuck spinlock</A></STRONG>
+<UL><LI><EM>From:</EM> yutaka tanida &lt;yutaka@marin.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00013" HREF="msg00013.html">[pgsql-jp 8579] Re: stuck spinlock</A></STRONG>
+<UL><LI><EM>From:</EM> Manabu Watanabe &lt;manyabu.nabe@ooi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 8577] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 8579] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 8597] Re: データのインポート</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 8579] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00012"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00012"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

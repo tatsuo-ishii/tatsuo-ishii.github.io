@@ -1,0 +1,183 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16975] Re: tcpwrappersの設定について -->
+<!--X-From: Hajimu UMEMOTO (梅本 肇)<ume@bisd.hitachi.co.jp> -->
+<!--X-Date: Thu, 24 Aug 2000 19:25:50 +0900 -->
+<!--X-Message-Id: 200008241025.e7OAPo717965@plum.ssr.bisd.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000824131632J.tak@arcadia -->
+<!--X-Reference-Id: 200008240840.e7O8eO717450@plum.ssr.bisd.hitachi.co.jp -->
+<!--X-Reference-Id: 39A4EFD5104.6F4DYOKOI@coral -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16975] Re: tcpwrappersの設定について </TITLE>
+<LINK REV="made" HREF="mailto:ume@bisd.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00583.html">Date Prev</A>][<A HREF="msg00585.html">Date Next</A>][<A HREF="msg00580.html">Thread Prev</A>][<A HREF="msg00568.html">Thread Next</A>][<A HREF="index.html#00584">Date Index</A>][<A HREF="threads.html#00584">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16975] Re: tcpwrappersの設定について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hajimu UMEMOTO (梅本 肇)&lt;<A HREF="mailto:ume@bisd.hitachi.co.jp">ume@bisd.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 24 Aug 2000 19:25:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00565.html">20000824131632J.tak@arcadia</A>&gt;&lt;<A HREF="msg00576.html">200008240840.e7O8eO717450@plum.ssr.bisd.hitachi.co.jp</A>&gt;&lt;<A HREF="msg00580.html">39A4EFD5104.6F4DYOKOI@coral</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  梅本＠日立です。
+
+&gt;&gt;&gt;&gt;&gt; On Thu, 24 Aug 2000 18:50:13 +0900
+&gt;&gt;&gt;&gt;&gt; yokoi@cti.co.jp (yokoi) said:
+
+&gt;   ひょっとしたら、postgreSQL でも libwrap を組み込んで嬉しい局面があるか
+&gt; も知れません。
+yokoi&gt; との事ですので、PostgreSQL のほうで既に組み込める準備が
+yokoi&gt; されていれば別ですが、されていなければ
+yokoi&gt; 山田さん、PostgreSQL に組み込んでみてください。
+
+  言いっぱなしだとなんなので、ちょっと書いてみました。多分これでいけると
+思いますが、手元に今試せる環境がないので、実際にコンパイル及び実行はやっ
+ていません。誰か試して頂けるとありがたいです。ダメだったらごめんなさい。
+  LIBWRAP が define されていると有効になるようにしてあります。取り敢えずは、
+backend/postmaster/Makefile に CFLAGS+=-DLIBWRAP を指定して、どっかで 
+-lwrap してやれば良いでしょう。どこで -lwrap すれば良いかちょっと追っか
+け切れてません。
+  configure --with-libwrap で Makefile なり config.h に定義するようにする
+ようすれば良いと思いますが、その辺はやってません。
+  なお、hosts.allow の左辺は取り敢えず postmaster になるようにしてあります。
+
+Index: postgresql-7.0.2/src/backend/postmaster/postmaster.c
+diff -u postgresql-7.0.2/src/backend/postmaster/postmaster.c.orig postgresql-7.0.2/src/backend/postmaster/postmaster.c
+--- postgresql-7.0.2/src/backend/postmaster/postmaster.c.orig	Fri May 26 10:38:08 2000
++++ postgresql-7.0.2/src/backend/postmaster/postmaster.c	Thu Aug 24 18:59:37 2000
+@@ -68,6 +68,13 @@
+ #include &lt;sys/select.h&gt;
+ #endif
+ 
++#ifdef LIBWRAP
++#include &lt;tcpd.h&gt;
++#include &lt;syslog.h&gt;
++static int allow_severity = LOG_INFO;
++static int deny_severity = LOG_WARNING;
++#endif
++
+ #ifdef HAVE_GETOPT_H
+ #include "getopt.h"
+ #endif
+@@ -722,6 +729,10 @@
+ 
+ 	StartupPID = StartupDataBase();
+ 
++#ifdef LIBWRAP
++	(void) openlog("postmaster", LOG_PID, LOG_AUTH);
++#endif
++
+ 	status = ServerLoop();
+ 
+ 	ExitPostmaster(status != STATUS_OK);
+@@ -1279,6 +1290,9 @@
+ ConnCreate(int serverFd)
+ {
+ 	Port	   *port;
++#ifdef LIBWRAP
++	struct request_info req;
++#endif
+ 
+ 	if (!(port = (Port *) calloc(1, sizeof(Port))))
+ 	{
+@@ -1292,14 +1306,27 @@
+ 	{
+ 		StreamClose(port-&gt;sock);
+ 		ConnFree(port);
+-		port = NULL;
++		return NULL;
+ 	}
+-	else
+-	{
+-		DLAddHead(PortList, DLNewElem(port));
+-		RandomSalt(port-&gt;salt);
+-		port-&gt;pktInfo.state = Idle;
++
++#ifdef LIBWRAP
++	request_init(&amp;req, RQ_DAEMON, "postmaster", RQ_FILE, port-&gt;sock, NULL);
++	fromhost(&amp;req);
++	if (!hosts_access(&amp;req)) {
++		syslog(deny_severity,
++		       "refused connect from %.500s", eval_client(&amp;req));
++		if (req.sink)
++			req.sink(req.fd);
++		StreamClose(port-&gt;sock);
++		ConnFree(port);
++		return NULL;
+ 	}
++	syslog(allow_severity, "connection from %.500s", eval_client(&amp;req));
++#endif
++
++	DLAddHead(PortList, DLNewElem(port));
++	RandomSalt(port-&gt;salt);
++	port-&gt;pktInfo.state = Idle;
+ 
+ 	return port;
+ }
+
+--
+梅本 肇＠（株）日立製作所 ビジネスソリューション開発本部
+E-Mail: ume@bisd.hitachi.co.jp ume@mahoroba.org ume@{,jp.}FreeBSD.org
+URL: <A HREF="http://www.imasy.org/~ume/">http://www.imasy.org/~ume/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00565" HREF="msg00565.html">[pgsql-jp 16955] Re: tcpwrappersの設定について</A></STRONG>
+<UL><LI><EM>From:</EM> takeshi MIYAKAWA &lt;tak@hdt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00576" HREF="msg00576.html">[pgsql-jp 16967] Re: tcpwrappersの設定について</A></STRONG>
+<UL><LI><EM>From:</EM> Hajimu UMEMOTO (梅本 肇)&lt;ume@bisd.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00580" HREF="msg00580.html">[pgsql-jp 16971] Re: tcpwrappersの設定について</A></STRONG>
+<UL><LI><EM>From:</EM> yokoi &lt;yokoi@cti.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00583.html">[pgsql-jp 16974] Re: tcp wrappersの設定について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00585.html">[pgsql-jp 16976] ＳＱＬ文を使ってフィールド名やフィールドタイプなどのテーブル情報</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00580.html">[pgsql-jp 16971] Re: tcpwrappersの設定について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00568.html">[pgsql-jp 16959] Re: tcp wrappersの設定について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00584"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00584"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

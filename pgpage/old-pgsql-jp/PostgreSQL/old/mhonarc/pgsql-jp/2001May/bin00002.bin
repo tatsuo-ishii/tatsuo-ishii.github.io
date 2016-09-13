@@ -1,0 +1,99 @@
+diff -uNr postgresql-7.1.1.orig/src/bin/psqlj/command.c postgresql-7.1.1/src/bin/psqlj/command.c
+--- postgresql-7.1.1.orig/src/bin/psqlj/command.c	Wed May  9 23:00:05 2001
++++ postgresql-7.1.1/src/bin/psqlj/command.c	Wed May  9 23:04:36 2001
+@@ -3,7 +3,7 @@
+  *
+  * Copyright 2000 by PostgreSQL Global Development Group
+  *
+- * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/command.c,v 1.48 2001/03/22 04:00:18 momjian Exp $
++ * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/command.c,v 1.49 2001/04/18 20:53:08 petere Exp $
+  */
+ #include "postgres_fe.h"
+ #include "command.h"
+@@ -139,7 +139,7 @@
+ 		new_cmd[0] = my_line[0];
+ 		new_cmd[1] = '\0';
+ 
+-		status = exec_command(new_cmd, my_line + 1, &continue_parse, query_buf);
++		status = exec_command(new_cmd, line + 1, &continue_parse, query_buf);
+ 
+ #if 0							/* turned out to be too annoying */
+ 		if (status != CMD_UNKNOWN && isalpha((unsigned char) new_cmd[0]))
+@@ -1189,8 +1189,8 @@
+  * The new user can be NULL. A db name of "-" is the same as the old one.
+  * (That is, the one currently in pset. But pset.db can also be NULL. A NULL
+  * dbname is handled by libpq.)
+- * Returns true if all ok, false if the new connection couldn't be established
+- * but the old one was set back. Otherwise it terminates the program.
++ * Returns true if all ok, false if the new connection couldn't be established.
++ * The old connection will be kept if the session is interactive.
+  */
+ static bool
+ do_connect(const char *new_dbname, const char *new_user)
+diff -uNr postgresql-7.1.1.orig/src/bin/psqlj/common.c postgresql-7.1.1/src/bin/psqlj/common.c
+--- postgresql-7.1.1.orig/src/bin/psqlj/common.c	Wed May  9 23:00:05 2001
++++ postgresql-7.1.1/src/bin/psqlj/common.c	Wed May  9 23:04:36 2001
+@@ -3,7 +3,7 @@
+  *
+  * Copyright 2000 by PostgreSQL Global Development Group
+  *
+- * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/common.c,v 1.31 2001/03/01 18:34:29 tgl Exp $
++ * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/common.c,v 1.32 2001/04/15 00:43:37 petere Exp $
+  */
+ #include "postgres_fe.h"
+ 
+@@ -208,7 +208,7 @@
+ 	if (!echo)
+ 	{
+ 		tcsetattr(0, TCSADRAIN, &t_orig);
+-		puts("");
++		fputs("\n", stderr);
+ 	}
+ #endif
+ 
+diff -uNr postgresql-7.1.1.orig/src/bin/psqlj/sql_help.h postgresql-7.1.1/src/bin/psqlj/sql_help.h
+--- postgresql-7.1.1.orig/src/bin/psqlj/sql_help.h	Wed May  9 23:00:05 2001
++++ postgresql-7.1.1/src/bin/psqlj/sql_help.h	Wed May  9 23:04:36 2001
+@@ -105,7 +105,7 @@
+ 
+     { "CREATE TABLE",
+       "新しいテーブルを作成する",
+-      "CREATE [ TEMPORARY | TEMP ] TABLE テーブル名 (\n    { カラム名 型 [ カラム制約条件 [ ... ] ]\n      | テーブル制約条件 }  [, ... ]\n    ) [ INHERITS ( 継承されたテーブル [, ... ] ) ]\n\nカラム制約条件としては：\n[ CONSTRAINT 制約条件名 ]\n{ NOT NULL | NULL | UNIQUE | PRIMARY KEY | DEFAULT デフォルト値 | CHECK (条件) |\n  REFERENCES テーブル名 [ ( カラム ) ] [ MATCH FULL | MATCH PARTIAL ]\n   [ ON DELETE アクション ] [ ON UPDATE アクション ]\n   [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]\n}\n\nここで、テーブルの制約条件としては：\n[ CONSTRAINT 制約条件名 ]\n{ UNIQUE ( カラム名 [, ... ] ) |\n  PRIMARY KEY ( カラム名 [, ... ] ) |\n  CHECK ( 条件 ) |\n  FOREIGN KEY ( カラム名 [, ... ] ) REFERENCES テーブル名 [ ( カラム名 [, ... ] ) ]\n   [ MATCH FULL | MATCH PARTIAL ] [ ON DELETE アクション ] [ ON UPDATE アクション ]\n   [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]\n}" },
++      "CREATE [ TEMPORARY | TEMP ] TABLE テーブル名 (\n    { カラム名 型 [ カラム制約条件 [ ... ] ]\n      | テーブル制約条件 }  [, ... ]\n    ) [ INHERITS ( 親テーブル [, ... ] ) ]\n\nカラム制約条件としては：\n[ CONSTRAINT 制約条件名 ]\n{ NOT NULL | NULL | UNIQUE | PRIMARY KEY | DEFAULT デフォルト値 | CHECK (条件) |\n  REFERENCES テーブル名 [ ( カラム ) ] [ MATCH FULL | MATCH PARTIAL ]\n   [ ON DELETE アクション ] [ ON UPDATE アクション ]\n   [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]\n}\n\nここで、テーブルの制約条件としては：\n[ CONSTRAINT 制約条件名 ]\n{ UNIQUE ( カラム名 [, ... ] ) |\n  PRIMARY KEY ( カラム名 [, ... ] ) |\n  CHECK ( 条件 ) |\n  FOREIGN KEY ( カラム名 [, ... ] ) REFERENCES テーブル名 [ ( カラム名 [, ... ] ) ]\n   [ MATCH FULL | MATCH PARTIAL ] [ ON DELETE アクション ] [ ON UPDATE アクション ]\n   [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]\n}" },
+ 
+     { "CREATE TABLE AS",
+       "SELECT の結果から新しいテーブルを作成する",
+diff -uNr postgresql-7.1.1.orig/src/bin/psqlj/tab-complete.c postgresql-7.1.1/src/bin/psqlj/tab-complete.c
+--- postgresql-7.1.1.orig/src/bin/psqlj/tab-complete.c	Wed May  9 23:00:05 2001
++++ postgresql-7.1.1/src/bin/psqlj/tab-complete.c	Wed May  9 23:04:36 2001
+@@ -3,7 +3,7 @@
+  *
+  * Copyright 2000 by PostgreSQL Global Development Group
+  *
+- * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/tab-complete.c,v 1.29 2001/03/30 04:50:47 tgl Exp $
++ * $Header: /home/projects/pgsql/cvsroot/pgsql/src/bin/psql/tab-complete.c,v 1.30 2001/04/14 22:55:02 petere Exp $
+  */
+ 
+ /*----------------------------------------------------------------------
+@@ -60,9 +60,10 @@
+ #include "common.h"
+ #include "settings.h"
+ 
+-#ifndef HAVE_FILENAME_COMPLETION_FUNCTION_DECL
+-char	   *filename_completion_function(char *, int);
++extern char *filename_completion_function();
+ 
++#ifdef HAVE_RL_COMPLETION_MATCHES
++#define completion_matches(x, y) rl_completion_matches((x), ((rl_compentry_func_t *)(y)))
+ #endif
+ 
+ #define BUF_SIZE 2048
+@@ -100,7 +101,7 @@
+ initialize_readline(void)
+ {
+ 	rl_readline_name = pset.progname;
+-	rl_attempted_completion_function = psql_completion;
++	rl_attempted_completion_function = (void *)psql_completion;
+ 
+ 	rl_basic_word_break_characters = "\t\n@$><=;|&{( ";
+ 

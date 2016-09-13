@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26739] Re: Likeの部分一致で検索 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Thu, 18 Jul 2002 01:26:01 +0900 -->
+<!--X-Message-Id: 3D359A99.10006@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020716211319.B367.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-Reference-Id: 0d0901c22d3a$60dca060$0300a8c0@lucy2k -->
+<!--X-Reference-Id: 20020717113640.1C1A.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26739] Re: Likeの部分一致で検索 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00189.html">Date Prev</A>][<A HREF="msg00191.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00144.html">Thread Next</A>][<A HREF="index.html#00190">Date Index</A>][<A HREF="threads.html#00190">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26739] Re: Likeの部分一致で検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 18 Jul 2002 01:26:01 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00154.html">20020716211319.B367.HASHIMOTO-M@comtecc.net</A>&gt; &lt;<A HREF="msg00157.html">0d0901c22d3a$60dca060$0300a8c0@lucy2k</A>&gt; &lt;<A HREF="msg00159.html">20020717113640.1C1A.HASHIMOTO-M@comtecc.net</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; ja-JP; rv:1.0.0) Gecko/20020529</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Hashimoto, Masaru wrote:
+&gt; 橋本です。
+....略.....
+
+&gt; 長くなってしまいましたが、以下に実際のSQL文を記述します。
+&gt; 
+&gt; ・キーワードは[windows][ウィンドウズ][ウインドウズ]です。
+&gt; ・すべてORで検索しています。
+&gt; ・キーワードにひとつでもアルファベットがあったらILIKEにしています。
+&gt; ・このテーブルにインデックスは張っていません。
+&gt; ・ちなみに、キーワードを[windows]だけにしてみると、
+&gt; 　カウントとレコード取得であわせて5秒くらいで帰ってきます。
+....略.....
+
+18 もの列に OR で 前方一致以外の検索をしたら遅く　
+なるのはあたりまえですね。
+データーの中身がわからないとなんとも言えないので
+すが、思いつくままに列挙すると、
+
+(a) 長い文章なら全文検索エンジンを使う。
+
+(b) 会社名など固有名詞や短い単語ならば、
+　　本来の列の他に、シソーラス辞書で変換した検索
+　　専用の列だけの表を別に作り、検索専用表で検索
+　　を実行する。検索結果は、PRIMARY KEY 又は
+    OID で本来の表と JOIN できるようにする。
+
+　　keyword1 〜 18 を INSERT/UPDATE するときに、
+　　シソーラス辞書で、例えば、
+
+    ウィンドウズ    ==&gt;  WINDOWS
+    ウィンドーズ    ==&gt;  WINDOWS
+　　　　　とか
+    ジャパン        ==&gt; 日本
+    JAPAN           ==&gt; 日本
+　　ニッポン　　　　==&gt; 日本
+
+    というように変換して、検索専用の表に格納する。
+　　また、英字大文字小文字、片仮名の大文字小文字、
+　　異字体や、類似の文字、アラビア数字漢数字等々
+　　の文字単位の変換もして統一しておく。
+
+　　#　異字体： "亞", "亜"  "藝", "芸" "齊", "斉"
+    #  類似文字  ニ　二　（'に'の片仮名と漢数字の２)
+　　　類似文字は用途によって使用の可否を判断すること。
+
+　　#　JIS 規格の 異字体なら C のプログラムがあります
+　　#　ので無保証でよければ差し上げます。
+
+　　ユーザー入力の検索語も同様に変換するので、例題
+　　のように３種類の OR ではなく、LIKE '%WINDOWS%'
+    だけですむので検索量が減る。
+
+　　# 全件検索になってしまうと ILIKE と LIKE の差は
+    # ほとんどないかもしれません。
+
+
+(c) 前日データーの検索でもかまわなければ、夜間バッチ
+　　で、通常のテキストファイルに落として、grep 等で
+　　検索する。
+
+(d) １文字毎にビットマップインデックスをつくり、検索
+　　文字でビットの AND をとって行を絞り込む。(列の
+　　文字数が短い場合)。
+
+他にもいい方法があると思います。
+
+ただ、データー件数が数万件とひどく少ないですから、
+各列の長さが短かければ、数GBの主記憶を搭載すれば、
+解決かもしれませんね。
+
+....略.....
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp
+<A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>      <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+2002-07-27(土)14:00-16;30 JPUG 業務アプリ分科会 セミナー/勉強会
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00154" HREF="msg00154.html">[pgsql-jp: 26703] Likeの部分一致で検索</A></STRONG>
+<UL><LI><EM>From:</EM> "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00157" HREF="msg00157.html">[pgsql-jp: 26706] Re: Likeの部分一致で検索</A></STRONG>
+<UL><LI><EM>From:</EM> "ARAI Shunichi" &lt;arai@mellowtone.org&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00159" HREF="msg00159.html">[pgsql-jp: 26708] Re: Likeの部分一致で検索</A></STRONG>
+<UL><LI><EM>From:</EM> "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp: 26738] Re: \copyで一括アップ後新規登録が出来ない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp: 26740] Re: \copyで一括アップ後新規登録が出来ない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp: 26735] Re: Likeの部分一致で検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00144.html">[pgsql-jp: 26693] encoding PGSQLとServlet</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00190"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00190"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

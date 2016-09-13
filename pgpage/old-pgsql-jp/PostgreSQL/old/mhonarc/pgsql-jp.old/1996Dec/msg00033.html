@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1124] Re: KANJI&#45;CODE on Postgres95 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 06 Dec 1996 12:00:35 +0900 -->
+<!--X-Message-Id: 199612060300.MAA19746@srashc.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9612051439.AA28263@mugi.cec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1124] Re: KANJI-CODE on Postgres95 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00023.html">Date Prev</A>][<A HREF="msg00034.html">Date Next</A>][<A HREF="msg00031.html">Thread Prev</A>][<A HREF="msg00034.html">Thread Next</A>][<A HREF="index.html#00033">Date Index</A>][<A HREF="threads.html#00033">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1124] Re: KANJI-CODE on Postgres95</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 06 Dec 1996 12:00:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。盛り上がっていますね、PHP/FI。
+ところで、PHP における日本語の扱いですが、
+
+&gt;です。ひょっとして、この"ESC $ B ; n 8 3 ESC ( B"ってのの、
+&gt;$BがPHP/FIのインタプリタ(っていうのでしょうか)に
+&gt;変数として解釈されてしまっているのでは?
+
+そうですね。フォームからの入力だけでなく、PHP/FI インタプリタの日本語
+化も必要と思います。方針としては、内部で処理するコードを EUC に統一し、
+スクリプトの読み込み、POST/GET データの読み込みのところで自動的に EUC 
+に変換するっていうのはどうでしょう。で、出力の時には、JIS にすると。
+で、ちょっとコードを見てみたのですが、
+
+o PHP のスクリプトの読み込みは lex.c で定義されている 
+
+	void ParserInit(int fd, long file_size, int nh, char *fbuf)
+
+で行なわれている。ParserInit は fd が指すところからスクリプトを読み込
+んでいる。したがって、ここで一挙に EUC にしてしまえば良いと思われる。
+(mmap で読むケースもありますが、これも適当に誤魔化せると思う）
+
+o POST/GET/Cookie データの読み込みは、post.c で定義されている 
+TreatData() で行なわれている。ここで EUC にしておくだけで後はうまくい
+きそうだ。
+
+という感触を得ました。後はこの方針でコードを書けば良いのですが、某誌の〆
+切がきつくて時間が...
+
+P.S.	ちょうど今 PHP/FI 2.0b9 のリリースアナウンスが届きました。
+
+斜め読みしてみると、
+
+o mysql および Solid というデータベースエンジンへのインターフェイスが
+追加されたそうです。
+
+o Apache 1.2b1 で動くようになった
+
+というのがとりあえず目に付きました。以下、アナウンスを引用しておきます。
+
+-------------------------------------------------------------------------
+Version 2.0b9 is available.  There are two new database engines supported
+in this release.  mysql available from <A HREF="http://www.tcx.se/">http://www.tcx.se/</A> and Solid
+available at <A HREF="http://solid.digiface.nl/">http://solid.digiface.nl/</A>
+
+This release also supports the new Apache 1.2b1 release.  Apache 1.2 now
+includes a regular expression library written by Henry Spencer.  As of 
+PHP 2.0b7 I switched to using this library in preparation for this.  There
+were some growing pains associated with this, but hopefully that should be
+behind us.  From the various bug reports and from my own testing, it appears
+that with Apache 1.1.1 you need to your system's regex library if you have
+one.  If you try to use the bundled library with PHP you will have problems.
+With Apache 1.2 you can use either the bundled library or your system's
+library.  You will be asked to choose when you run the install program.
+If you choose to use the bundled library, then you have to set the
+WANTHSREGEX option to Yes in the Apache 1.2 Configuration file.  If you choose
+not to use the bundled library you have to set the WANTHSREGEX option to No.
+
+As usual, the distribution is available in the PHP file archive at
+<A HREF="http://www.vex.net/php/">http://www.vex.net/php/</A> or on one of the ftp mirror sites listed there.
+
+Here is a complete list of changes since 2.0b8:
+
+- Document msql_close function
+- Fix large int bug introduced in b8
+- Fix decimal point bug introduced in b8
+- Fix 'h' Date() problem 00 should be 12
+- Fix floating point bug introduced in b8
+- Fix some Irix compiler warnings
+- Add UniqId() function &lt;ssb@guardian.no&gt;
+- Add initial rough mysql support &lt;eugene@acenet.com.sg&gt;
+- Fix memmove compile problem for SunOS4
+- Remove tmagic.c file - an idea that never went anywhere
+- By popular demand, values with leading zeroes received through
+  GET/POST/COOKIE data are now typed as strings
+- Add bitwise XOR (^) and bitwise NOT (~) operators to parser
+- Add mysql documentation to doc.html
+- Add some helpful hints regarding libgd and libregex to install/Makefile.in
+- Fix core dump which happened when going off the end of a deleted array
+- Add very limited Windows 95/NT support &lt;je-blanc@uniandes.edu.co&gt;
+- Add initial support for the Solid SQL Engine &lt;jvdmost@digiface.digiface.nl&gt;
+- Add Mail function &lt;jvdmost@digiface.digiface.nl&gt;
+- Add mSQL 2.0 specific support
+- Add MsqlListIndex() function for mSQL 2.0
+
+-Rasmus
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00049" HREF="msg00049.html">[postgres95 1140] Re: KANJI-CODE on Postgres95</A></STRONG>
+<UL><LI><EM>From:</EM> Rui Hirokawa &lt;louis@city.fujisawa.kanagawa.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[postgres95 1128] Re: KANJI-CODE on Postgres95</A></STRONG>
+<UL><LI><EM>From:</EM> minematu@aimcom.co.jp (Hiroki Minematu)</LI></UL></LI>
+<LI><STRONG><A NAME="00034" HREF="msg00034.html">[postgres95 1125] Re: KANJI-CODE on Postgres95</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00031" HREF="msg00031.html">[postgres95 1122] Re: KANJI-CODE on Postgres95</A></STRONG>
+<UL><LI><EM>From:</EM> sakamoto@cec.co.jp (Kazuki Sakamoto)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00023.html">[postgres95 1114] Re: KANJI-CODE on Postgres95</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00034.html">[postgres95 1125] Re: KANJI-CODE on Postgres95</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00031.html">[postgres95 1122] Re: KANJI-CODE on Postgres95</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00034.html">[postgres95 1125] Re: KANJI-CODE on Postgres95</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00033"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00033"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,419 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19322] 外部結合を実現しようとしたが、結果が返らない -->
+<!--X-From: ka&#45;araki@hitachi&#45;system.co.jp (荒木 一彦) -->
+<!--X-Date: Wed, 03 Jan 2001 17:13:33 +0900 -->
+<!--X-Message-Id: 200101030813.AA00752@87001&#45;araki.hitachi&#45;system.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19322] 外部結合を実現しようとしたが、結果が返らない </TITLE>
+<LINK REV="made" HREF="mailto:ka-araki@hitachi-system.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00032.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19322] 外部結合を実現しようとしたが、結果が返らない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:ka-araki@hitachi-system.co.jp">ka-araki@hitachi-system.co.jp</A> (荒木 一彦)</LI>
+<LI><em>Date</em>: Wed, 03 Jan 2001 17:13:33 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+荒木と申します。
+「postmasterが起動しない」では、お世話になりました。
+今回は、SQLで悩んでいます。
+PostgreSQL7.0.2、PostgreSQL7.0.2-JDBC、JBuilder3.00にて開発を
+行っていますが、JDBC経由でSELECT文を流した場合に結果が返らない。
+PSQLで同じ文を流した場合に、結果が違うという問題にぶち当たっています。
+どなたか、この辺りの情報をご存知の方がいらっしゃいますか。
+
+以下、長文です。
+
+解説
+ a,b,c,b,eのテーブルからデータを外部結合と同じ結果となるようにデータを取得する。
+ aのテーブルに対して、関連付けられるデータを持つcがある。しかし、cにはaに関連付
+けられるデータの存在しない場合もあり、aを表示した際に、cにその関連データが存在し
+ない場合の結果をnullで表示したい。
+ 表示項目はcのマスタとなるdから、データの名称を表示する。
+ a：基本データ
+ b：aのマスタデータ
+ c：a関連データ
+ d：cのマスタデータ
+ e：a,c共通のマスタデータ
+
+実験
+ sel1：実行したいSQL文：データにnot existsで指定されたSELECT文に該当するデータが
+　　　存在しない場合はうまくいく。
+ sel2：なぜか期待通りの結果を返すSQL文：PSQLからは常にOK（なぜOKになる？ not existsで
+　　　指定されたSELECT文にはFrom句がないのに）。JBuilderではテストはOKだが実行してみる
+　　　と結果が０件となる（PSQLでは該当するデータをUNIONにて結合した件数分のデータが返っ
+　　　てくる）。
+ sel3：キーとなるテーブル名を指定し、項目をワイルドカードで指定したもの：sel1と同じ結果
+　　　だが、bについて指定の必要はないのか？
+ sel4：sel1からFrom句を抜いたもの:「Wildcard with no tables specified not allowed」と
+　　　なりうまく行かない。（正しい。sel2はなぜうまく行く？）
+
+疑問
+１．existの定義はどのレコードに対して行われるのか？
+２．なぜ、From句がない場合の文法が通るのか、また、その場合は意図した結果が帰ってくるのか？
+３．JDBCを介してJBuilderのQueryDataSetでデータを受けた場合、sel2の結果が0件になるのはなぜか？
+
+
+aのデータサンプル
+a1	a2		a3	a4	a5	a6		a7
+KEY	午前 11:00:00	1	1	a	午前 11:00:00	null
+KEY	午前 11:00:00	2	1	a	午前 11:00:00	null
+
+※上のデータがcの関連を持つデータ。下のデータがcの関連を持たないデータ。
+上を消すと、sel１の文で、関連を持たないデータも表示するが、２件同時では表示できない。
+
+bのデータサンプル
+b1	b2
+a	午前 11:00:00
+
+cのデータサンプル
+c1	c2	c3		c4		c5	c6	c7
+KEY	1	午前 11:00:00	午前 11:00:00	1	1	null
+
+dのデータサンプル
+d1	d2		d3
+1	午前 11:00:00	test
+
+eのデータサンプル
+e1	e2
+KEY	午前 11:00:00
+
+###　SEL1のSELECT文
+SELECT
+ a.a1,
+ b.b1,
+ d.d3,
+ e.e1
+FROM a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND a.a5 = b.b1
+ AND a.a6 = b.b2
+ AND c.c1 = e.e1
+ AND c.c4 = e.e2
+ AND a1 = 'KEY' 
+
+union all
+
+SELECT
+ a.a1,
+ b.b1,
+ null as d3,
+ e.e1
+FROM a,b,e
+
+WHERE
+     a.a1 = e.e1
+ AND a.a2 = e.e2
+ AND a.a7 Is Null
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND a1 = 'KEY'
+
+ AND not exists
+ (
+SELECT
+ *
+From a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND c.c4 = e.e2
+ AND c.c1 = e.e1
+ AND a1 = 'KEY'
+);
+
+###　SEL2のSELECT文
+SELECT
+ a.a1,
+ b.b1,
+ d.d3,
+ e.e1
+FROM a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND a.a5 = b.b1
+ AND a.a6 = b.b2
+ AND c.c1 = e.e1
+ AND c.c4 = e.e2
+ AND a1 = 'KEY' 
+
+union all
+
+SELECT
+ a.a1,
+ b.b1,
+ null as d3,
+ e.e1
+FROM a,b,e
+
+WHERE
+     a.a1 = e.e1
+ AND a.a2 = e.e2
+ AND a.a7 Is Null
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND a1 = 'KEY'
+
+ AND not exists
+ (
+SELECT
+ a.*,c.*
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND c.c4 = e.e2
+ AND c.c1 = e.e1
+ AND a1 = 'KEY'
+);
+
+###　SEL3のSELECT文
+SELECT
+ a.a1,
+ b.b1,
+ d.d3,
+ e.e1
+FROM a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND a.a5 = b.b1
+ AND a.a6 = b.b2
+ AND c.c1 = e.e1
+ AND c.c4 = e.e2
+ AND a1 = 'KEY' 
+
+union all
+
+SELECT
+ a.a1,
+ b.b1,
+ null as d3,
+ e.e1
+FROM a,b,e
+
+WHERE
+     a.a1 = e.e1
+ AND a.a2 = e.e2
+ AND a.a7 Is Null
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND a1 = 'KEY'
+
+ AND not exists
+ (
+SELECT
+ a.*,c.*
+FROM a,d,c,b,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND c.c4 = e.e2
+ AND c.c1 = e.e1
+ AND a1 = 'KEY'
+)
+
+###　SEL4のSELECT文
+SELECT
+ a.a1,
+ b.b1,
+ d.d3,
+ e.e1
+FROM a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND a.a5 = b.b1
+ AND a.a6 = b.b2
+ AND c.c1 = e.e1
+ AND c.c4 = e.e2
+ AND a1 = 'KEY' 
+
+union all
+
+SELECT
+ a.a1,
+ b.b1,
+ null as d3,
+ e.e1
+FROM a,b,e
+
+WHERE
+     a.a1 = e.e1
+ AND a.a2 = e.e2
+ AND a.a7 Is Null
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND a1 = 'KEY'
+
+ AND not exists
+ (
+SELECT
+ *
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND c.c4 = e.e2
+ AND c.c1 = e.e1
+ AND a1 = 'KEY'
+)
+
+###　各テーブルのCREATE文
+CREATE TABLE "a" (
+	"a1" character varying(13) NOT NULL,
+	"a2" timestamp NOT NULL,
+	"a3" int4 NOT NULL,
+	"a4" int4 NOT NULL,
+	"a5" character varying(13),
+	"a6" timestamp,
+	"a7" timestamp,
+	PRIMARY KEY ("a1", "a2", "a3", "a4")
+);
+CREATE TABLE "b" (
+	"b1" character varying(13) NOT NULL,
+	"b2" timestamp NOT NULL,
+	PRIMARY KEY ("b1", "b2")
+);
+CREATE TABLE "c" (
+	"c1" character varying(13) NOT NULL,
+	"c2" int4 NOT NULL,
+	"c3" timestamp,
+	"c4" timestamp NOT NULL,
+	"c5" int4 NOT NULL,
+	"c6" character varying(5),
+	"c7" timestamp,
+	PRIMARY KEY ("c1", "c2", "c4", "c5")
+);
+CREATE TABLE "d" (
+	"d1" character varying(5) NOT NULL,
+	"d2" timestamp NOT NULL,
+	"d3" character varying(5),
+	PRIMARY KEY ("d1", "d2")
+);
+CREATE TABLE "e" (
+	"e1" character varying(13) NOT NULL,
+	"e2" timestamp NOT NULL,
+	PRIMARY KEY ("e1", "e2")
+);
+
+/*-----------------------------------------------------------------*/
+/* (株)日立システムアンドサービス　荒木　一彦  　　　　　　　　　  */
+/* [E-mail] ka-araki@hitachi-system.co.jp                     　 　*/
+/*-----------------------------------------------------------------*/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00032" HREF="msg00032.html">[pgsql-jp 19339] Re: 外部結合を実現しようとしたが、結果が返らない</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 19321] &lt;no subject&gt;</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 19323] date_part()の出力で日がずれる</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 19329] datetime 型へのINSERTで時刻のずれ(Re: date_part()の出力で日がずれる)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00032.html">[pgsql-jp 19339] Re: 外部結合を実現しようとしたが、結果が返らない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

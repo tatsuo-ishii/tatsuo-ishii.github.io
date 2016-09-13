@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9847] Re: 6.3.2→6.5.1のデータ移動 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 01 Aug 1999 09:24:06 +0900 -->
+<!--X-Message-Id: 199908010024.JAA04971@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 379FDAA512C.F3B7IWANAMI@postman.jah.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9847] Re: 6.3.2→6.5.1のデータ移動 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00004.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00025.html">Thread Next</A>][<A HREF="index.html#00003">Date Index</A>][<A HREF="threads.html#00003">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9847] Re: 6.3.2→6.5.1のデータ移動</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 01 Aug 1999 09:24:06 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 予約語リストというものはどこかにないのかと思い、
+&gt; postgresql-6.5.1/src/backend/parse.h と
+&gt; postgresql-6.3.2/src/backend/parser/parse.h を
+&gt; 比較しましたら、6.3.2の方にはNAMESというdefine文はありませんでし
+&gt; た。
+
+User's Guide の "SQL Syntax" の章に予約語のリストがあります。
+
+&gt;今後SQLの実装が進んで今まで使えていたものを新たに予約語とした
+&gt; 場合に、その予約語をもしテーブル定義などに使っていた場合、psqlがイ
+&gt; ンポート処理を中止してメッセージを出してくれると有り難いです(そも
+&gt; そも予約語になりそうな単語を使わなければすみそうですが :-P)。
+&gt; # namesというフィールド名は name_s などと逃げてなんとかしましたが、
+&gt; # 100本近いperlソースをいちいち直すのがしんどいです。
+
+names -&gt; "names" とすれば names というカラム名を使えないこともありませ
+んが、アプリケーションのソースを直さなければならないのは変わりませんね。
+
+&gt; もう一つ、上記のnamesの問題を直してもなお psql -e dbname &lt;
+&gt; dbname.dump の実行で最後に segmentation fault となってしまいました。
+&gt; もっともデータはすべて取り込まれているようでした。
+
+これは不可解。seg fault になるのは psql ですか、それともバックエンドで
+すか？
+
+&gt; 私が試したのは、
+&gt; /usr/local/pgsql/bin/postmaster -S -D/usr/local/pgsql/data -i'と起
+&gt; 動して、pg_dump -d dbname &gt; dump_file で insert文で書き出したもの
+&gt; をgrepなどでいくつかのファイルに分割して、1つずつインポート(psql
+&gt; -e dbname &lt; dump_file)していきました。
+&gt; 
+&gt; データはcreate文もinsert文も入れて約80000行(dumpファイルの大きさは
+&gt; 12MB程度でした。-dオプションをつけないときは8Mくらいありました)、
+&gt; テーブル数は約20個です。 1つのテーブルだけ大きく、60000行ほどのデー
+&gt; タが入っています。
+&gt; 
+&gt; insert文を立て続けに実行するとメモリ不足になってしまうのでしょうか。
+
+ここが良く分からないのですが、pg_dump のファイルを分割した理由は、
+
+1. 普通に pg_dump したものを psql に喰わせたら seg fault になった
+2. そこで pg_dump -d し、dump ファイルを分割して psql に喰わせた
+
+ですよね？
+
+&gt; insert文を立て続けに実行するとメモリ不足になってしまうのでしょうか。
+
+にうまくつながらないのですが？
+
+&gt; ハードはIntelPentiumII450MHz、メモリ256M、9G*8連のRAID5システムに
+&gt; データが乗っています。
+
+ちなみに、当方では10万レコードのテーブルをpg_dumpし、psql に喰わせて復
+元してみましたが、特に問題ありませんでした。このとき pg_dump が生成し
+た dump file の大きさは12MB近くありました。次に、pg_dump -d で insert 
+文の形で dump file を作り、psql に喰わせてみました。dump file は 18MB 
+以上ありましたが、これも特に問題ありませんでした。
+
+まあ、マシンスペックは関係ないと思いますが、一応
+
+RedHat Linux 6.0
+PentiumIII 500MHz x 2
+メモリ 512MB
+ディスクは 9G*4連なんですが、まだRAIDの設定をしていないので普通のディ
+スクの上にデータが乗っています。
+
+です。postmaster は
+
+-B 1024 -N 64 -o '-F' -S -i
+
+で起動しています。
+
+&gt; # 余談ですが、pg_dumpしたファイルの中には、grant文が入らないのです
+&gt; # ね。移動するたびに別ファイルにとっておいたgrant文を実行しなけれ
+&gt; # ばならないので、ちょっと不便です。
+
+そんなことはないです。
+
+o 6.4.2 までは、-z オプションを使用して grant で設定した権限が保存される
+o 6.5 からはデフォルトで -z を使用したのと同じ効果が得られる
+
+ということになっています。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00515" HREF="msg00515.html">[pgsql-jp 10361] Re: 6.3.2→ 6.5.1のデータ移動</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Iwanami &lt;iwanami@pslab.gr.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[pgsql-jp 9869] install error</A></STRONG>
+<UL><LI><EM>From:</EM> aoki@takilab.k.dendai.ac.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 9846] Re: Q)漢字の処理</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 9848] Re: Q)漢字の処理</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 9848] Re: Q)漢字の処理</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 9869] install error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00003"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00003"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

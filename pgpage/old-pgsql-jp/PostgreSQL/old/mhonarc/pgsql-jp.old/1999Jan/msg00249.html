@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6662] Re: select内のデータ型変換 -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Sat, 16 Jan 1999 20:56:47 +0900 -->
+<!--X-Message-Id: 19990116205647H.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901150242.LAA00480@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6662] Re: select内のデータ型変換 </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00248.html">Date Prev</A>][<A HREF="msg00250.html">Date Next</A>][<A HREF="msg00243.html">Thread Prev</A>][<A HREF="msg00193.html">Thread Next</A>][<A HREF="index.html#00249">Date Index</A>][<A HREF="threads.html#00249">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6662] Re: select内のデータ型変換</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 16 Jan 1999 20:56:47 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00243.html">199901150242.LAA00480@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+On Fri, 15 Jan 1999 11:42:15 +0900, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+&gt; 石井です。
+&gt; 
+&gt; &gt; 村田＠ネクステージです。
+&gt; &gt; 
+&gt; &gt; 以下のようなテーブルがあったとき、
+&gt; &gt; create table main (id char(4), sub_id char(4), caption char(10));
+&gt; &gt; create table sub (sub_id varchar(10), sub_caption varchar(10));
+&gt; &gt; 
+&gt; &gt; sub_idを使って検索したいのですが、型が違う、という場合です。
+&gt; &gt; そのままやってしまうと、
+&gt; &gt; 
+&gt; &gt; select main.id, sub.sub_caption, main.caption from main, sub
+&gt; &gt; 	where main.sub_id=sub.sub_id;
+&gt; &gt; 
+&gt; &gt; ERROR:  There is no operator '=' for types 'bpchar' and 'varchar'
+&gt; &gt;         You will either have to retype this query using an explicit cast,
+&gt; &gt;         or you will have to define the operator using CREATE OPERATOR
+&gt; &gt; 
+&gt; &gt; と、おこられます。
+&gt; &gt; こういった場合どうやって型変換すればよいのでしょうか？
+&gt; &gt; もともとの設計（型の指定）が悪いと言ってしまえばそれまでなんですが、
+&gt; &gt; 型変換の方法がマニュアル等で見つからなかったものですから、
+&gt; &gt; ご存知の方、お願いいたします。
+&gt; 
+&gt; 6.4.2 でやってみました。
+&gt; 
+&gt; ERROR:  There is more than one possible operator '=' for types 'bpchar' and 'varchar'
+&gt; 	You will have to retype this query using an explicit cast
+&gt; 
+&gt; ちょっとメッセージが違いますが、やはりエラーです。そこで、型指定(CAST)
+&gt; をしてみました。CAST は :: を使う方法と、cast(...)を使う方法があります。
+
+ということですが，6.4.2 から内部的な cast をかけていて，そこの
+実装に少々問題があるようです．
+
+なお，"more than one possble operator" と出るのは，
+bpchar とvarchar が compatible であると内部で認識しているために，
+
+     (=) : (bpchar, bpchar) -&gt; bool
+     (=) : (varchar, varchar) -&gt; bool
+
+のどちらを選択したら良いかが曖昧になったためのエラーのようで，
+6.3 のケースとは少し異なりますね．
+
+&gt; 両方やってみましたが、
+...
+&gt; なんか全然 cast されてないですね。バグかな？
+
+バグのようです．cast(e as varchar) は varchar(e) に置き換えられた
+上で処理されるのですが，bpchar と varchar が compatible であると認識
+しているために，varchar(e) を単純に e に置き換えているようです．
+
+計算に関してはこれでも良いのですが，e のタイプを bpchar から
+varchar に置き換えていないため cast がまったくされていない
+状態になり，以降の型チェックに type cast が反映されなく
+なってしまうようです．
+
+# 関数や演算の探索でチェックするから良いと考えているのか，それとも
+# ただ忘れているのか ...
+
+センター試験の試験監督の合間であまりきちんと調べていないのですが，
+ざっと見た限りでは，parse_func.c がどうも怪しい感じですね:
+
+   271              /*
+   272               * See if this is a single argument function with the function
+   273               * name also a type name and the input argument and type name
+   274               * binary compatible...
+   275               */
+   276              if ((HeapTupleIsValid(tp = SearchSysCacheTuple(TYPNAME,
+   277                                                 PointerGetDatum(funcname),
+   278                                                             0, 0, 0)))
+   279                  &amp;&amp; IS_BINARY_COMPATIBLE(typeTypeId(tp), basetype))
+   280                  return ((Node *) lfirst(fargs));
+
+ちょっといじってみました:
+
+   272              /*
+   273               * See if this is a single argument function with the function
+   274               * name also a type name and the input argument and type name
+   275               * binary compatible...
+   276               */
+   277              if ((HeapTupleIsValid(tp = SearchSysCacheTuple(TYPNAME,
+   278                                                 PointerGetDatum(funcname),
+   279                                                             0, 0, 0)))
+   280                  &amp;&amp; IS_BINARY_COMPATIBLE(typeTypeId(tp), basetype)) {
+   281                  Oid *typep;
+   282                  extern Oid exprTypeP(Node *, Oid **);
+   283                  exprTypeP((Node *) lfirst(fargs), &amp;typep);
+   284                  if (typep == NULL) {
+   285                      elog(ERROR, "ParseFuncOrColumn: fatal error, cannot continue.");
+   286                  }
+   287                  *typep = typeTypeId(tp);
+   288                  return ((Node *) lfirst(fargs));
+   289              }
+
+やっていることは単純でノードの型情報を強制的に書換えているだけです．
+なお，exprTypeP() は parse_expr.c 中の exprType() をハッキングして作っています．
+
+もうちょっと調べてうまくいくようでしたら，パッチにしてみます．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00243" HREF="msg00243.html">[pgsql-jp 6656] Re: select内のデータ型変換</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 6661] RE: Re: grant でNobodyについてエラーが出ます。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 6663] Re: Perl-I/Fでの起動オプションの設定方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00243.html">[pgsql-jp 6656] Re: select内のデータ型変換</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 6606] FreeBSD Bench ＰｏｓｔｇｒｅＳＱＬ６．４．２</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00249"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00249"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

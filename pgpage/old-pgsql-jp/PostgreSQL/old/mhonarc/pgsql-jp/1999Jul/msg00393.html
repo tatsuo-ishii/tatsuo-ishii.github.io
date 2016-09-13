@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9590] はじめまして＆ODBCでのBLOBの問題 -->
+<!--X-From: "BABA" <baba@mori.co.jp> -->
+<!--X-Date: Thu, 22 Jul 1999 14:47:49 +0900 -->
+<!--X-Message-Id: 000d01bed405$bd5f0a80$860110ac@baba.mori.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9590] はじめまして＆ODBCでのBLOBの問題 </TITLE>
+<LINK REV="made" HREF="mailto:baba@mori.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00392.html">Date Prev</A>][<A HREF="msg00394.html">Date Next</A>][<A HREF="msg00398.html">Thread Prev</A>][<A HREF="msg00405.html">Thread Next</A>][<A HREF="index.html#00393">Date Index</A>][<A HREF="threads.html#00393">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9590] はじめまして＆ODBCでのBLOBの問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "BABA" &lt;<A HREF="mailto:baba@mori.co.jp">baba@mori.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 22 Jul 1999 14:47:49 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　初めまして、馬場と申します。
+今年になって、Linux と PostgreSQL を始めた、まだ駆出し者です。
+仕事で使っている DBMS は、「Ingres」という、PostgreSQL の
+名前の由来ともなった(?)ものですが、日本では、数少ないユーザーの
+一つではないかと思います。
+Linux で動く商用 DBMS もいろいろ使ってみましたが、個人的には、
+オープンソースの PostgreSQL には、それ以上に、大変興味を引かれました。
+
+話は変わりますが、勉強のつもりで、ODBC の BLOB の扱いについて
+調べていましたところ、問題点が見つかりましたので、ご報告致します。
+
+-----------------------------------------------------------------------
+
+  現在、BLOB を ODBC で扱おうとすると、lo_open() 中の lo_lseek() で、
+エラーとなります。これは、非トランザクション中で、BLOB を扱った為に
+起こっているように思われます。
+これを回避するには、以下の様なコードを追加すれば良いと思われます。
+（エラー処理は省いています）
+
+  lo_creat() または、lo_open() の直前
+
+    if( !CC_is_in_trans( stmt-&gt;hdbc ) ) {
+        CC_send_query( stmt-&gt;hdbc, "BEGIN", NULL);
+        CC_set_in_trans( stmt-&gt;hdbc ) ;
+    }
+
+  lo_close() の直後
+
+    if( CC_is_in_trans( stmt-&gt;hdbc ) &amp;&amp; CC_is_in_autocommit( stmt-&gt;hdbc ) )
+{
+        CC_send_query( stmt-&gt;hdbc, "COMMIT", NULL);
+        CC_set_no_trans( stmt-&gt;hdbc );
+    }
+
+また、この他に、SQLFreeStmt() 時にエラーとなります。
+これは、execute.c の SQLPutData() 関数内で、
+
+    current_param-&gt;EXEC_buffer = (char *) &amp;current_param-&gt;lobj_oid;
+
+としているのが原因で、
+
+    current_param-&gt;EXEC_buffer = malloc( sizeof( int ) );
+    *(int *)current_param-&gt;EXEC_buffer = current_param-&gt;lobj_oid;
+
+のように直して、無事に動きました。
+
+-----------------------------------------------------------------------
+
+以上のような変更をとりあえず加えた所、Access97 でも OLE データを
+扱えるようになりました。（PostgreSQL 6.5、ODBC 6.40.00.06）
+全体を理解している訳ではございませんので、識者の方で、きちんとした
+コードに訂正の上、変更していただければありがたいと思います。
+
+では、今後ともよろしくお願い致します。
+
+          馬場  二郎
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00405" HREF="msg00405.html">[pgsql-jp 9602] RE: はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 9589] Re: pqbash</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00394.html">[pgsql-jp 9591] ★御礼★　機能比較：Oracle等既存DBMSとの比較</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00398.html">[pgsql-jp 9595] Re: 「はじめまして」と「solaris2.6（sparc）でｃｏｎｆｉｇｕｒｅエラー」</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00405.html">[pgsql-jp 9602] RE: はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00393"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00393"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

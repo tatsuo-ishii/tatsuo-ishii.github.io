@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27180] Re: インデックスが使われない -->
+<!--X-From: tamagawa ryuji <tamagawa@sts.co.jp> -->
+<!--X-Date: Wed, 28 Aug 2002 15:30:58 +0900 -->
+<!--X-Message-Id: 3D6C6E22.6050306@sts.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 5.0.2.5.2.20020828110410.00c61c68@pop.zc5.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 5.0.2.5.2.20020828121327.00bd10c8@pop.zc5.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 3D6C63F4.4050300@sts.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27180] Re: インデックスが使われない </TITLE>
+<LINK REV="made" HREF="mailto:tamagawa@sts.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00311.html">Date Prev</A>][<A HREF="msg00313.html">Date Next</A>][<A HREF="msg00310.html">Thread Prev</A>][<A HREF="msg00300.html">Thread Next</A>][<A HREF="index.html#00312">Date Index</A>][<A HREF="threads.html#00312">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27180] Re: インデックスが使われない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: tamagawa ryuji &lt;<A HREF="mailto:tamagawa@sts.co.jp">tamagawa@sts.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 Aug 2002 15:30:58 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00304.html">5.0.2.5.2.20020828110410.00c61c68@pop.zc5.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00304.html">5.0.2.5.2.20020828110410.00c61c68@pop.zc5.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00308.html">5.0.2.5.2.20020828121327.00bd10c8@pop.zc5.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00310.html">3D6C63F4.4050300@sts.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (Windows; U; Windows NT 5.0; en-US; rv:1.1) Gecko/20020826</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+再度玉川です。こんな感じでどうでしょう？
+
+SELECT TO_CHAR(最初のアクセス,'YYYY/MM/DD'), COUNT(ユーザー名)
+FROM	(SELECT MIN(アクセス時刻) as 最初のアクセス, ユーザー名
+	FROM Table T1
+	WHERE アクセス時刻 BETWEEN 出力開始日 AND 出力終了日
+	      AND NOT EXISTS (SELECT * FROM Table T2
+				where T2.アクセス時刻 &lt; 出力開始日
+				      T1.ユーザー名=T2.ユーザー名　）
+	GROUP BY ユーザー名) as t
+GROUP BY TO_CHAR(最初のアクセス,'YYYY/MM/DD')
+ORDER BY 1 DESC
+
+キモになるのは、SELECT MIN(アクセス時刻) as 最初のアクセス, ユーザー名
+をテーブル全体にかけず、まずは指定された期間に対してかけていることです。
+ここでアクセス時刻のインデックスで絞り込めるはずです（ただし、全体に
+対して指定期間が比較的短い場合だけかも）。
+
+で、これだけだと指定期間内にアクセスがあり、なおかつ指定期間前にもアク
+セスしてきているユーザーが紛れ込んでしまうので、not exists以下でこの
+分を除外します。このときには、ユーザー名のインデックスを使ってくれる
+のではないかと。もしかしたら、ユーザー名+アクセス時刻の複合インデックス
+を作っておいた方がいいかもしれません。
+
+--
+玉川@STS
+
+tamagawa ryuji wrote:
+&gt; 久々の書き込みです。玉川です。
+&gt; 
+&gt; 大まかな数字でかまいませんが、
+&gt; ・ユーザーは何人くらいで
+&gt; ・検索対象のテーブルには何件くらいのレコードがあって
+&gt; ・テーブル全体ではどのくらいの期間にわたってレコードが
+&gt; 　あって
+&gt; ・検索対象になるのどのくらいの期間
+&gt; 
+&gt; なのでしょうか？このあたりの情報によっては、むしろ
+&gt; インデックスを使わない方が速いケースも出てくるはず
+&gt; です。
+&gt; 
+&gt; それと、
+&gt; 
+&gt; vaccumedb &lt;データベース名&gt; --analyze
+&gt; 
+&gt; はしてみましたか？これをやって、データの分布統計をとると
+&gt; アクセスパターンが変わることがありますよ。
+&gt; --
+&gt; 玉川@STS
+&gt; 
+&gt; みつき wrote:
+&gt; 
+&gt;&gt;&gt;「アクセス時刻」と「アクセス日」は違うものででしょうか。
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;同じものです。書き間違えました。
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;&gt;サブクエリ部分はテーブルの全件を対象としている
+&gt;&gt;&gt;ので、indexは使われないんじゃないでしょうか。
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;&gt;　一度
+&gt;&gt;&gt;
+&gt;&gt;&gt;set enable_seqscan to 'OFF';
+&gt;&gt;&gt;
+&gt;&gt;&gt;　を発行して強制的にindexを使用するようにして、速度を比較してみては
+&gt;&gt;&gt;どうでしょう。
+&gt;&gt;
+&gt;&gt;システム権限のせいで、試せませんでした。
+&gt;&gt;
+&gt;&gt;SQL部分をプログラムで置き換えてみて、
+&gt;&gt;速度の違いを測ってみようと思います。
+&gt;&gt;
+&gt;&gt;結果が分かりましたら、発表したいと思います。
+&gt;&gt;
+&gt;&gt;みつき＠
+&gt;&gt;mitsuki@zc5.so-net.ne.jp
+&gt;&gt;
+&gt;&gt;
+&gt; 
+&gt; 
+&gt; 
+&gt; 
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00304" HREF="msg00304.html">[pgsql-jp: 27172] Re: インデックスが使われない</A></STRONG>
+<UL><LI><EM>From:</EM> みつき&lt;mitsuki@zc5.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00308" HREF="msg00308.html">[pgsql-jp: 27176] Re: インデックスが使われない</A></STRONG>
+<UL><LI><EM>From:</EM> みつき&lt;mitsuki@zc5.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp: 27178] Re: インデックスが使われない</A></STRONG>
+<UL><LI><EM>From:</EM> tamagawa ryuji &lt;tamagawa@sts.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00311.html">[pgsql-jp: 27179] Re: インデックスが使われない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00313.html">[pgsql-jp: 27181] JDBC経由のバキュームの方法についての質問です。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00310.html">[pgsql-jp: 27178] Re: インデックスが使われない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00300.html">[pgsql-jp: 27168] インデックスが使われない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00312"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00312"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

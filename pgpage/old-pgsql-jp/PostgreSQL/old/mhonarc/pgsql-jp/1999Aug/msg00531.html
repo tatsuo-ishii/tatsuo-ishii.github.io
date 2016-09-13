@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10379] Re: pgbench -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 23 Aug 1999 15:40:20 +0900 -->
+<!--X-Message-Id: 199908230640.PAA03880@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199908221427.XAA03654@mail.st.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10379] Re: pgbench </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00530.html">Date Prev</A>][<A HREF="msg00532.html">Date Next</A>][<A HREF="msg00518.html">Thread Prev</A>][<A HREF="msg00592.html">Thread Next</A>][<A HREF="index.html#00531">Date Index</A>][<A HREF="threads.html#00531">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10379] Re: pgbench</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Aug 1999 15:40:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。夜遅くだと言うのに、皆様βテストに御協力頂きありがとうござい
+ます。まとめてフォローさせて頂きます。なお、御指摘の問題点を修正した 
+pgbench-1.0b2.tar.gz を
+
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/pgbench/">ftp://ftp.sra.co.jp/pub/cmd/postgres/pgbench/</A>
+
+に置きました。今回からは configure してから make を行なって下さい。ま
+た、データを生成する部分に問題が見つかったので修正を加えました。もう一
+度pgbench -i でデータを作り直したほうが良いでしょう。
+
+&gt; いわきりです
+&gt; 
+&gt; Tatsuo Ishiiさんの&lt;<A HREF="msg00512.html">199908221229.VAA00974@ext16.sra.co.jp</A>&gt;から
+&gt;  &gt;石井です。PostgreSQLのベンチマークテスト用に作った小さなツールを公開し
+&gt;  &gt;ます。まだβ程度の品質ですが、人柱になっても良いと言う方はどうぞ。
+&gt; 
+&gt; 早速試しました。
+&gt; FreeBSD 3.2-RELEASEではmakeが通りません。(^^;
+&gt; #include &lt;errno.h&gt;
+&gt; を追加すれば問題無しです。
+
+どうも済みませんです。他の方からも指摘されていますが、早速修正します。
+
+&gt; Let's note S51 (CF-S51)
+&gt; CPU Mobile PentiumII 266MHz
+&gt; だと、こんなものでした。
+&gt; #石井さんのマシンは5倍強速いですね。なにをご使用なの
+&gt; でしょう。
+
+PowerBook 2400c/180(メモリ 80MB) + LinuxPPC R4(+kernel 2.2.1)です。後
+は postmaster 起動時に -o '-F' してます。これが効いているのでしょう。
+
+&gt;こんにちわ。本田です。
+&gt;私も試しました。
+&gt;
+&gt;UnixWare7
+&gt;Solaris2.6X86
+&gt;いずれも、コンパイルするには
+&gt;
+&gt;From: Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;
+&gt;Subject: [pgsql-jp 10359] Re: pgbench
+&gt;Date: Sun, 22 Aug 1999 23:27:15 +0900
+&gt;
+&gt;&gt; #include &lt;errno.h&gt;
+&gt;&gt; を追加すれば問題無しです。
+&gt;と同様の変更と、Makefileに
+&gt;stones.my.domain% diff Makefile.DIST Makefile
+&gt;5c5
+&gt;&lt; OPTLIBS = -lcrypt
+&gt;---
+&gt;&gt; OPTLIBS = -lcrypt -lsocket -lnsl
+&gt;とフラグの追加が必要でした。
+
+うーむ。やっぱり configure しないと駄目ですね。手抜きで済みません。
+
+&gt;藤原です。
+&gt;ベンチマークテストは、大変意義あることだと思います．
+&gt;評価基準が定まることで、進歩することがいっぱいあります。
+&gt;さて、小生勉強不足で、定義の意味がはっきりわかりません。
+&gt;もう少し、細かく教えていただけませんか？
+&gt;
+&gt;ここでいうトランザクションとは、１レコード単位のやり取り、ですか？
+
+どうも説明不足で申し訳ありません。まず前提となるテーブルですが、以下の
+4つです。
+
+create table branches(bid int, primary key(bid),bbalance int,filler
+char(88));
+(初期状態1レコード)
+
+create table tellers(tid int, primary key(tid),bid int,tbalance
+int,filler char(84));
+(初期状態10レコード)
+
+create table accounts(aid int,primary key(aid),bid int,abalance
+int,filler char(84));
+(初期状態100000レコード)
+
+create table history(tid int,bid int,aid int,delta int,time
+timestamp,filler char(22));
+(初期状態0レコード)
+
+なお、ソースコードの頭のほうにある
+
+#define tps		1
+
+の値をnに変更すると、それぞれレコード数がn倍されます。
+
+で、本題のトランザクションの定義ですが、以下のシーケンスを全部完了して
+1トランザクションと数えています。
+
+(1) begin;
+
+(2) update accounts set abalance = abalance + :delta where aid = :aid;
+    ここで、:deltaは1から1000までの値を取る乱数、:aid は 1から100000まで
+    の値を取る乱数です。以下、乱数の値はそれぞれこのトランザクションの
+    中では同じ値を使います。
+
+(3) select abalance from accounts where aid = :aid;
+    ここでは1件だけ検索されます。
+
+(4) update tellers set tbalance = tbalance + :delta where tid = :tid;
+    ここで :tid は 1から10の間の値をとる乱数です。
+
+(5) update branches set bbalance = bbalance + :delta where bid = :bid;
+    ここで :bidは乱数ですが、現状では1固定です。
+
+(6) insert into history(tid,bid,aid,delta) values(:tid,:bid,:aid,:delta);
+
+(7) end;
+
+以上の説明は README にも付けるようにします。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00592" HREF="msg00592.html">[pgsql-jp 10441] Re: pgbench</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00513" HREF="msg00513.html">[pgsql-jp 10359] Re: pgbench</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00530.html">[pgsql-jp 10378] Re: Sorry for not only postgres matter.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00532.html">[pgsql-jp 10380] Re: Sorry for not only postgres matter.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00518.html">[pgsql-jp 10365] Re: pgbench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00592.html">[pgsql-jp 10441] Re: pgbench</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00531"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00531"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

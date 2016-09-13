@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19336] Re: 処理停止？ -->
+<!--X-From: Michihide Hotta <hotta@net&#45;newbie.com> -->
+<!--X-Date: Fri, 5 Jan 2001 11:19:43 +0900 -->
+<!--X-Message-Id: 20010105111943.5a4cb471.hotta@net&#45;newbie.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200101030958388.SM00202@goodday -->
+<!--X-Reference-Id: 20010103113515K.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200101031213595.SM00202@goodday -->
+<!--X-Reference-Id: 20010103122821W.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200101031355437.SM00202@goodday -->
+<!--X-Reference-Id: 20010104141436.09eab906.hotta@net&#45;newbie.com -->
+<!--X-Reference-Id: 200101050906665.SM00202@goodday -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19336] Re: 処理停止？ </TITLE>
+<LINK REV="made" HREF="mailto:hotta@net-newbie.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00028.html">Date Prev</A>][<A HREF="msg00030.html">Date Next</A>][<A HREF="msg00028.html">Thread Prev</A>][<A HREF="msg00030.html">Thread Next</A>][<A HREF="index.html#00029">Date Index</A>][<A HREF="threads.html#00029">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19336] Re: 処理停止？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michihide Hotta &lt;<A HREF="mailto:hotta@net-newbie.com">hotta@net-newbie.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 5 Jan 2001 11:19:43 +0900</LI>
+<LI><em>Organization</em>: Linux Users KYushu  -- るぅきぃ</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00010.html">200101030958388.SM00202@goodday</A>&gt;&lt;<A HREF="msg00013.html">20010103113515K.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00014.html">200101031213595.SM00202@goodday</A>&gt;&lt;<A HREF="msg00015.html">20010103122821W.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00016.html">200101031355437.SM00202@goodday</A>&gt;&lt;<A HREF="msg00021.html">20010104141436.09eab906.hotta@net-newbie.com</A>&gt;&lt;<A HREF="msg00028.html">200101050906665.SM00202@goodday</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+堀田＠諌早市です。
+
+On Fri, 5 Jan 2001 09:13:13 +0900
+Subject: [pgsql-jp 19335] Re: 処理停止？ 
+Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt; wrote:
+&gt; いえいえ、こんな感じです。
+&gt; 
+&gt; test=&gt; insert into t_test values('B0');
+&gt; INSERT 25257 1
+&gt; test=&gt; insert into t_test values('B1');
+&gt; INSERT 25258 1
+&gt; test=&gt; select * from t_test;
+&gt;  val  
+&gt; ------
+&gt;  X'0'
+&gt;  X'8'
+&gt; (2 rows)
+&gt; 
+&gt; たぶん、私がbit型を良く知らないと言うだけなのかも知れないですが、これで
+&gt; 正解でしょうか？
+&gt; と、言う意味でした。
+
+大変失礼いたしました。確かになんだか変ですね。
+ごねごねやってたら、いくらか意味のある値が出たようです。
+
+select * from pg_type where typname like '%bit%';
+
+して varbit という型を見つけました。
+
+hotta=# create table bittest (id int, val varbit);
+CREATE
+hotta=# insert into bittest values (1, 'X0');
+INSERT 29107 1
+hotta=# insert into bittest values (2, 'X1');
+INSERT 29108 1
+hotta=# insert into bittest values (3, 'X2');
+INSERT 29109 1
+hotta=# select * from bittest;
+ id |   val   
+----+---------
+  1 | B'0000'
+  2 | B'0001'
+  3 | B'0010'
+(3 rows)
+
+hotta=# insert into bittest values (3, 'XF');
+INSERT 29110 1
+hotta=# insert into bittest values (3, 'XFF');
+ERROR:  varbit_in: bit string of size 8 cannot be written into varying
+bits(1)
+
+5 bit 以上は配列で取らないといけない？
+
+hotta=# drop table bittest;
+DROP
+hotta=# create table bittest (id int, val varbit[2]);
+CREATE
+hotta=# insert into bittest values (3, 'X3F');
+ERROR:  array_in: Need to specify dimension
+hotta=# insert into bittest values (3, '{X3,XF}');
+INSERT 29121 1
+hotta=# select * from bittest;
+ id |          val          
+----+-----------------------
+  3 | {"B'0011'","B'1111'"}
+(1 row)
+
+使い勝手はあんまりよくなさげですね。
+
+-- 
+堀田　倫英（メール／ホームページアドレスが変わりました。）
+Official : hotta@18software.co.jp  / Private : hotta@net-newbie.com
+Web  : <A HREF="http://www.net-newbie.com">http://www.net-newbie.com</A>   
+今年の課題：「IPを消すにはどうしたらいいですか？」
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00030" HREF="msg00030.html">[pgsql-jp 19337] BIT data types</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[pgsql-jp 19313] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00013" HREF="msg00013.html">[pgsql-jp 19316] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00014" HREF="msg00014.html">[pgsql-jp 19317] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00015" HREF="msg00015.html">[pgsql-jp 19318] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00016" HREF="msg00016.html">[pgsql-jp 19319] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 19324] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;hotta@net-newbie.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 19335] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 19335] Re: 処理停止？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 19337] BIT data types</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 19335] Re: 処理停止？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 19337] BIT data types</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00029"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00029"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

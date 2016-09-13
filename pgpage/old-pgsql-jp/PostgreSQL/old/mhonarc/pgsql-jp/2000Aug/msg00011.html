@@ -1,0 +1,211 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16395] Re: libpq でmalloc した時の問題 -->
+<!--X-From: Akihiro Tsukamoto <atsuka@be.mbn.or.jp> -->
+<!--X-Date: Tue, 01 Aug 2000 19:40:00 +0900 -->
+<!--X-Message-Id: 20000801193829.B415.ATSUKA@be.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000731161641.52B7.ATSUKA@be.mbn.or.jp -->
+<!--X-Reference-Id: 20000731165414X.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16395] Re: libpq でmalloc した時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:atsuka@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00010.html">Date Prev</A>][<A HREF="msg00012.html">Date Next</A>][<A HREF="msg00039.html">Thread Prev</A>][<A HREF="msg00049.html">Thread Next</A>][<A HREF="index.html#00011">Date Index</A>][<A HREF="threads.html#00011">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16395] Re: libpq でmalloc した時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akihiro Tsukamoto &lt;<A HREF="mailto:atsuka@be.mbn.or.jp">atsuka@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Aug 2000 19:40:00 +0900</LI>
+<LI><em>References</em>: &lt;20000731161641.52B7.ATSUKA@be.mbn.or.jp&gt; &lt;20000731165414X.t-ishii@sra.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塚本です。
+
+（昨日の夕方に送信したつもりだったのですが、配信されないのでもう一度。
+  --&gt; ２重に配信されてしまっていたらすみません。）
+
+&gt; おっかしーな、そうなりませんよ。
+むむむ。何度やってもそうなってしまいます。
+今までいくつかPostgreSQLとApacheを使ってアプリケーションを作ってきたので
+すがうまくいっていました。今回、初めてFILEを操作しながらCGIを出力するも
+のを作っていて、このような事態に陥りました。
+
+&gt; そうだと思います。もう一度そのMakefileとソースをみせてもらえませんか。
+よろしくお願いいたします。
+---- Makefile -------
+POSTGRESHOME  = /usr/local/pgsql
+
+CC = gcc
+#CC = cc
+
+COMINC =
+
+COMOBJ =
+
+CFLAGS = -c -g -Wall -O2 \
+         -Wmissing-prototypes \
+         -Wmissing-declarations
+
+INCS   = -I$(POSTGRESHOME)/include
+
+DEFS   =
+
+LIBS   = -L$(POSTGRESHOME)/lib -lpq
+
+MYLOAD = work.cgi
+
+MYOBJS = work.o
+
+MYINCS =
+
+COMOBJS =
+
+COMINCS =
+
+all: $(MYLOAD)
+
+$(MYLOAD): $(MYOBJS)
+        $(CC) $(MYOBJS) $(COMOBJS) -o $@ $(LIBS)
+
+$(MYOBJS): $(MYINCS) $(COMINCS)
+
+.c.o:
+        $(CC) $(CFLAGS) $(DEFS) $(INCS) $&lt;
+
+ALL:
+        @rm -f $(MYOBJS) $(MYLOAD)
+        make
+
+----- work.c --------
+/*---------------------------*/
+/* include                   */
+/*---------------------------*/
+#include &lt;stdio.h&gt;
+#include "postgres.h"
+#include "libpq-fe.h"
+
+void main(void)
+{
+    PGconn   *conn1;
+    PGresult *res;
+    char   *work_p;
+    FILE *fp;
+    char read_buf[2048];
+    char w_sql[1024];
+
+    conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+
+    strcpy(w_sql, "BEGIN");
+    res = PQexec(conn1, w_sql);
+
+    PQclear(res);
+
+    strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+    strcat(w_sql, "SELECT * FROM work_tbl ");
+
+    res = PQexec(conn1, w_sql);
+    PQclear(res);
+
+    strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+    res = PQexec(conn1, w_sql);
+    printf("res: %x\n",res);
+    printf("val: %s\n", (char *)PQgetvalue(res, 0, 0));
+
+    work_p = malloc(2048);
+    printf("work_p: %x\n",work_p);
+    memset(work_p, 0x0, 2048);
+    printf("res: %x\n",res);      &lt;--- （＊）
+    printf("val: %s\n", (char *)PQgetvalue(res, 0, 0));
+}
+
+（＊）の行を残しておくと、PQgetvalue()がうまくいきます。
+
+makefileの方は、他から流用したものなので、あまり自信が無いので石井さんに
+教えていただいたように、以下のようにコンパイルをしてみました。
+
+gcc -I/usr/local/pgsql/include \
+    -g \
+    -O2 \
+    -m486 \
+    -pipe \
+    -Wall \
+    -Wmissing-prototypes \
+    -Wmissing-declarations \
+    -L/usr/local/pgsql/lib -lpq work.c
+
+結果は、makeしたものと、上のgccをたたいたものとで同じでした。
+
+やはり私の環境ではprintfをすべてコメントアウトしてコンパイルすると、res
+が0x0になってしまいます。
+
+再度、私の環境を書かせていただきます。
+
+OS  FreeBSD2.2.8
+DB  PostgreSQL 7.0.2
+gcc 2.7.2.1
+
+今、ふと思い付いたのですが、6.5.2をversion upして、7.0.2にしました。何か
+関係が有るでしょうか？
+
+よろしくお願いいたします。
+
+-------------------------------------------------------------
+塚本 明博
+atsuka@be.mbn.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00049" HREF="msg00049.html">[pgsql-jp 16433] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> nora@mx4.mesh.ne.jp (nora nora)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 16394] 最大テーブル数</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 16396] Re: [pgsql-jp 16393] Re: postgresSQL6.3.5xのrpmパッケージ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 16423] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00049.html">[pgsql-jp 16433] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00011"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00011"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

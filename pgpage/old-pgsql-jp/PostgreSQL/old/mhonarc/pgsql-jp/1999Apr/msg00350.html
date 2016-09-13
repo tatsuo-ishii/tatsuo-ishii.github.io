@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8159] Re: float4 &#45;> float8 convertion probrem -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Wed, 21 Apr 1999 12:25:36 +0900 -->
+<!--X-Message-Id: 371D45303CA.7AD0SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 01BE8B95.FB307F00@jf0nzu02 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8159] Re: float4 -&gt; float8 convertion probrem </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00349.html">Date Prev</A>][<A HREF="msg00351.html">Date Next</A>][<A HREF="msg00348.html">Thread Prev</A>][<A HREF="msg00351.html">Thread Next</A>][<A HREF="index.html#00350">Date Index</A>][<A HREF="threads.html#00350">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8159] Re: float4 -&gt; float8 convertion probrem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Apr 1999 12:25:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00348.html">01BE8B95.FB307F00@jf0nzu02</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Wed, 21 Apr 1999 01:14:29 +0900
+Ikuo Tanaka &lt;ikuo_ml@sannet.ne.jp&gt; さん wrote:
+&gt; 田中いくおです。
+&gt; 
+&gt; &gt; 市川＠お茶大です．ちょっと面白そうなんで少しだけ調べてみました．
+&gt; 
+&gt; &gt;&gt; --- v6.4.2の場合 ---
+&gt; &gt;..
+&gt; &gt;&gt; testdb=&gt; select field_a - 1.23, field_b - 1.23 from test_table;
+&gt; &gt;&gt;             ?column?|?column?
+&gt; &gt;&gt; --------------------+--------
+&gt; &gt;&gt; 1.90734863458886e-08|       0
+&gt; &gt;&gt; (1 row)
+&gt; &gt;
+&gt; &gt;float から double への値変換で発生する誤差ではないかと
+&gt; &gt;思います．(おまけ参照下さい．)
+&gt; 確かに。
+&gt; 10進←→2進変換では、整数部は割り切れるが、小数部は
+&gt; 割り切れませんからね。なんとなくそんな気がしていました。
+&gt; (「割り切れる」という表現が適切かどうかは？？？)
+&gt;
+
+　C言語(gcc)ですと、
+　float   a=1.23;
+  double  b;
+  b = a - 1.23;
+  とすると b は 1.90734863458886e-08 です。
+
+　postgresql 6.4.2 は C言語と同じ実装なんですね。
+
+
+&gt; &gt;&gt; --- v6.3.2の場合 ---
+&gt; &gt;&gt; (途中 上と同じなので略)
+&gt; &gt;&gt; 
+&gt; &gt;&gt; (ケース2: ok)
+&gt; &gt;&gt; testdb=&gt; select field_a - 1.23,field_b - 1.23 from test_table;
+&gt; &gt;&gt; ?column?|?column?
+&gt; &gt;&gt; --------+--------
+&gt; &gt;&gt;        0|       0
+&gt; &gt;&gt; (1 row)
+&gt; &gt;
+&gt; &gt;こちらは顕在化しなかっただけでしょうか (? ?)
+&gt; 推測するに、v6.3.2では、float4項目＆定数の計算の場合、
+&gt; 定数をfloat4にしてfloat4同士で計算していたのが、v6.4.2になって、
+&gt; 浮動小数点項目を含む計算の場合は全ての項目をfloat8に変換してから計算するように
+&gt; 変わってしまったのかもしれません。．．．と、考えているのですが．．．
+
+　6.3.2が無いので推測ですが..
+
+　6.3.2で結果が０になった原因としては、 田中さん、市川さんの
+おっしゃるように両方の原因が考えられます。
+　1. psqlの出力時に単精度にしたため顕在化しなかった。
+　2. 定数をfloat4にして単精度の計算をした。
+　  (または計算は倍精度で行ったが結果を単精度にして返した）
+
+
+  原因が 2 とすると、6.3.2 はそれなりに正しいと思います。例
+えば、Fortran言語(Sun f77)の場合は
+　real*4  a 
+  real*8  b
+  a = 1.23
+  b = a - 1.23
+  とすると、b は 0 ですから。
+
+# 昔のSQLは、親言語として Fortran, COBOL, Pascal, PL/I しか
+　定義されてないなかったのだー-(^^;; なんて言っても始まらな
+　いね。
+
+--
+SAKAIDA Masaaki( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00354" HREF="msg00354.html">[pgsql-jp 8163] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00353" HREF="msg00353.html">[pgsql-jp 8162] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00351" HREF="msg00351.html">[pgsql-jp 8160] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00348" HREF="msg00348.html">[pgsql-jp 8156] RE: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> Ikuo Tanaka &lt;ikuo_ml@sannet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 8158] RE: data define command</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 8160] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00348.html">[pgsql-jp 8156] RE: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 8160] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00350"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00350"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

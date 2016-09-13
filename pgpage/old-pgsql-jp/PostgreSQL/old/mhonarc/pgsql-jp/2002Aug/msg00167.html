@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27035] Re: usogresの仕様について質問がございます。 -->
+<!--X-From: Hiroyuki OYAMA <oyama@crayfish.co.jp> -->
+<!--X-Date: Wed, 14 Aug 2002 16:03:25 +0900 -->
+<!--X-Message-Id: 20020814150732.0E4D.OYAMA@crayfish.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: FIEHKIKOAAFPNLNEMNOMEEDKCGAA.hnakano@fastnet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27035] Re: usogresの仕様について質問がございます。 </TITLE>
+<LINK REV="made" HREF="mailto:oyama@crayfish.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00166.html">Date Prev</A>][<A HREF="msg00168.html">Date Next</A>][<A HREF="msg00152.html">Thread Prev</A>][<A HREF="msg00149.html">Thread Next</A>][<A HREF="index.html#00167">Date Index</A>][<A HREF="threads.html#00167">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27035] Re: usogresの仕様について質問がございます。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroyuki OYAMA &lt;<A HREF="mailto:oyama@crayfish.co.jp">oyama@crayfish.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Aug 2002 16:03:25 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00152.html">FIEHKIKOAAFPNLNEMNOMEEDKCGAA.hnakano@fastnet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+クレイフィッシュの小山です。
+
+usogresの仕様と言うよりは、postmasterとusogresが設定したと
+おりに動作した結果こうなっています。
+
+On Wed, 14 Aug 2002 11:27:49 +0900
+"nakanohideyuki" &lt;hnakano@fastnet.co.jp&gt; wrote:
+&gt; 'psql -h 192.168.1.11 -p 5432'　では正常に起動できますが、
+&gt; 
+&gt; 'psql -h localhost -p 5432'  では以下のエラーメッセージがでて
+&gt; 接続できません。
+&gt; 
+&gt; --------------- エラーメッセージ ------------------------
+&gt; %psql -h localhost -p 5432
+&gt; psql: could not connect to server: Connection refused
+&gt;         Is the server running on host localhost and accepting
+&gt;         TCP/IP connections on port 5432?
+&gt; -----------------------------------------------------
+&gt; 
+&gt; usogresを介さない接続ですと、
+&gt; 'psql -h 192.168.1.11 -p 5432'
+&gt; 'psql -h localhost -p 5432'
+&gt; とも正常に接続できます。
+&gt; 
+&gt; 上記の現象は、usogresの仕様なのでしょうか？
+
+
+恐らくusogresrcで以下のように記述すれば期待する動作をする
+と思います。
+
+host = "0.0.0.0"
+
+# 私はusogresを使ったことは有りませんし、usogresのコードも
+# 流し読みしただけですので検証してません。
+
+
+ちなみにpostmasterは明示的にIPアドレスを指定しない場合、
+INADDR_ANY(0.0.0.0)にbindして全てのインターフェイスで
+clientからの接続を受け付けるようにしています。
+
+   libpq/pqconn.c:238
+
+        if (family == AF_INET)
+        {
+                /* TCP/IP socket */
+                if (hostName[0] == '\0')
+                        saddr.in.sin_addr.s_addr = htonl(INADDR_ANY);
+
+このため、(設定されない限り)そのマシンに存在する全てのイン
+ターフェイスでclientの要求を受け付ける事になります。
+
+そしてusogresはusogresrcで指定されたインターフェイスにbind
+するので、結果このような動作の差異が生じます。
+# usogres も'host'が未定義の場合はINADDR_ANYにbindするのかな？
+
+
+この辺について詳しくはSocketに関する文献ををご参照ください。
+あとはこのへんとか。
+	<A HREF="http://www.kt.rim.or.jp/~ksk/sock-faq/unix-socket-faq-ja-4.html#ss4.12">http://www.kt.rim.or.jp/~ksk/sock-faq/unix-socket-faq-ja-4.html#ss4.12</A>
+
+___
+ちなみに localhost = 127.0.0.1 ではないホストも有り得るの
+で
+	<A HREF="http://usogres.good-day.net/install.php3">http://usogres.good-day.net/install.php3</A>
+
+の記述例はちょっぴりアレかもしれませんね。
+______________
+Hiroyuki OYAMA &lt;oyama@crayfish.co.jp&gt;
+System Operations Dept.
+Crayfish Co.,Ltd. &lt;<A HREF="http://Crayfish.CO.JP/">http://Crayfish.CO.JP/</A>&gt;
+  "PerlとRubyでYahoo!Messenger"
+   -&gt; <A HREF="http://ymca.infoware.ne.jp/">http://ymca.infoware.ne.jp/</A>
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00152" HREF="msg00152.html">[pgsql-jp: 27020] usogresの仕様について質問がございます。</A></STRONG>
+<UL><LI><EM>From:</EM> "nakanohideyuki" &lt;hnakano@fastnet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00166.html">[pgsql-jp: 27034] Re: pgstattuple の登録でエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00168.html">[pgsql-jp: 27036] Re: pgstattuple の登録でエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00152.html">[pgsql-jp: 27020] usogresの仕様について質問がございます。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00149.html">[pgsql-jp: 27017] JavaプログラムからUNIXコマンド実行できるか</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00167"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00167"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

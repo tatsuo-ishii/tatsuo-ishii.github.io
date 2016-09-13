@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4093] Re: [Q] attr. order in select & create index etc. -->
+<!--X-From: Yoshio Funaki <yoshio@Air.akita&#45;u.ac.jp> -->
+<!--X-Date: Tue, 19 May 1998 09:23:48 +0900 -->
+<!--X-Message-Id: 9805190023.AA00268@mebius.air.akita&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805180914.SAA14480@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4093] Re: [Q] attr. order in select &amp; create index etc. </TITLE>
+<LINK REV="made" HREF="mailto:yoshio@Air.akita-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00154.html">Date Prev</A>][<A HREF="msg00156.html">Date Next</A>][<A HREF="msg00150.html">Thread Prev</A>][<A HREF="msg00156.html">Thread Next</A>][<A HREF="index.html#00155">Date Index</A>][<A HREF="threads.html#00155">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4093] Re: [Q] attr. order in select &amp; create index etc.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshio Funaki &lt;<A HREF="mailto:yoshio@Air.akita-u.ac.jp">yoshio@Air.akita-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 May 1998 09:23:48 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+船木＠秋田県立図書館です。いつもいつもお世話になります。
+
+&gt;石井です。総タプル数が 1000万というのは、PostgreSQL の応用例としては最
+&gt;大規模だと思うので、興味を持っています。
+
+がんばりますっ！　m(_ _)m
+
+「すっぱり略」
+
+&gt;&gt;lib=&gt; drop index id25xa;
+&gt;&gt;DROP
+&gt;&gt;lib=&gt; vacuum;
+&gt;&gt;VACUUM
+&gt;&gt;lib=&gt; create index id25xa on d25xa using btree(title_code,tag,num);
+&gt;&gt;CREATE
+&gt;
+&gt;vacuum と create index の順番は逆の方が良いです。
+
+分かりました。試してみます。
+
+&gt;&gt;となってlの検索にインデックスを使うようになります。そこで質問なのですが
+&gt;&gt;１）select .... in　の場合、アトリビュートの順番を事前に考え、クエリーを
+&gt;&gt;　　書くのが普通なのでしょうか。
+&gt;&gt;２）create index ..... ( )をする場合、どの順序でセレクトするかを事前に
+&gt;&gt;　　考え（）内の順番を決めるのでしょうか。
+&gt;
+&gt;1 と 2 は関連してると思います。船木さんが
+&gt;create index id25xa on d25xa using btree(title_code,tag,num);
+&gt;で作ったインデックスは複合インデックスで、実際には title_code+tag+num
+&gt;がデータとして使われています。この場合、title_code,tag,num が同時に問
+&gt;い合わせ条件に現れると、このインデックスが使われます。問題は 
+&gt;title_code,tag,num の出現順序で、船木さんの例を見る限り、postgres は複
+&gt;合インデックスを作成した順序通りに問い合わせ対象の column が現れないと
+&gt;インデックスを使ってくれないようですね。
+&gt;他のDBではどうなのかは知りませんが。
+
+この複合インデックスについては意図して作成しました。ただ、石井さんの
+おっしゃる通り、select文内のattr.の順にクエリーが左右されると言う
+実装についてはいろんな本をあさっても（図書館に勤めてるんで職権乱用）
+特に記述がなかったので、postgreSQL特有と言うことで納得します。
+
+&gt;# それにしても、a770b にインデックスが定義されていないのはなぜ？
+一応ついてます。書き忘れです。
+
+&gt;&gt;３）この例のように、個別のクエリーと副問い合わせのクエリーはちがうアルゴリズム
+&gt;&gt;　　が採用されるのでしょうか。
+&gt;
+&gt;というか、問題は in だと思います。in は実際には or に展開されます。で、
+&gt;これは前から言われているのですが、postgres では or は非常に遅いです。
+&gt;遅いばかりか、or で連結される対象が多いと(私の実験では 20 以上位)、実
+&gt;用にならないくらい遅いか、あるいはメモリを使い果たしてしまいます。した
+&gt;がって、現状では in を使わないように問い合わせを書き換えるしかないと思
+&gt;います。
+分かりました。だんまりモードに入るという報告を致しましたが、検索結果が
+411個にもなりますんで、ご指摘の「メモリ使い果たし」状態だと思います。
+
+「略」
+
+&gt;今一つテーブルの意味が良く分からないのですが、
+&gt;
+&gt;select l.data from d25xa l where l.tag='251A' and l.num='001' and
+&gt;l.title_code in (select distinct m.title_code from a770b m where
+&gt;m.data like 'ほげほげ%'
+&gt;
+&gt;は
+&gt;
+&gt;select distinct l.data from d25xa l,a770b m where l.tag='251A' and
+&gt;l.num='001' and l.title_code = m.title_code and m.data like 'ほげほげ%'
+&gt;
+&gt;とは書き換えられませんか？
+&gt;
+
+やってみた結果を後ほど報告いたします（本日出張モード）
+
+「略」
+&gt;&gt;５）　本当は出版社が”「ほげほげ」で、副書名が「ほにゃらら」、著者が「ほにゃ」
+の
+&gt;&gt;　　　書名を引っ張ってくる”というクエリーが必要なんですが、postgreSQLでは
+&gt;&gt;　　　intersectをサポートしていないようなので、良い方法が思い浮かびません。
+&gt;&gt;　　　先達のご示唆をお願いいたします。
+&gt;
+&gt;前にも書きましたが、テーブルの意味が良く分からないので、なんともお答で
+&gt;きません。
+これについては長くなりそうなんで別スレッドで投稿します。
+
+船木　喜夫　yoshio@air.akita-u.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 4088] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 4092] Re: benchmark on G3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 4094] Re: [Q] usage of multi select(sub query)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 4088] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 4094] Re: [Q] usage of multi select(sub query)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00155"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00155"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

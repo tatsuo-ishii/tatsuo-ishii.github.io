@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10352] Re: large_object and Transaction -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Sun, 22 Aug 1999 14:17:41 +0900 -->
+<!--X-Message-Id: 37BF87F5186.1D40NKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37BECA03276.882FNKON@mail.shonan.ne.jp -->
+<!--X-Reference-Id: 37BF7156334.9FBCSAKAIDA@smtp.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10352] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00504.html">Date Prev</A>][<A HREF="msg00505.html">Date Next</A>][<A HREF="msg00504.html">Thread Prev</A>][<A HREF="msg00507.html">Thread Next</A>][<A HREF="index.html#00506">Date Index</A>][<A HREF="threads.html#00506">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10352] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 22 Aug 1999 14:17:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00503.html">37BECA03276.882FNKON@mail.shonan.ne.jp</A>&gt; &lt;<A HREF="msg00504.html">37BF7156334.9FBCSAKAIDA@smtp.psn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+On Sun, 22 Aug 1999 12:41:10 +0900
+SAKAIDA &lt;sakaida@psn.ne.jp&gt; wrote:
+
+&gt; 境田です。
+&gt; 
+&gt; On Sun, 22 Aug 1999 00:47:15 +0900
+&gt; Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt; さん wrote:
+&gt; &gt; ソフト工房の近藤です。
+&gt; &gt; 
+&gt; &gt; &gt;   PostgreSQL-6.5.1では、トランザクション内でDMLのエラーが発生
+&gt; &gt; &gt; すると、例えキー重複エラーでも、次の DMLを受け付けない状態 + 
+&gt; &gt; &gt; commitもできない状態(ABORT)になります。
+&gt; &gt; 
+&gt; &gt; &gt;   エラーを起こした１つのDMLだけが無効になるのではなく、トラン
+&gt; &gt; &gt; ザクション内の全ての更新が無効になります。これって非常にまずい
+&gt; &gt; &gt; と思うのですが、あまり話題にならないですね。(FAQ とかに載って
+&gt; &gt; &gt; ました？)
+&gt; &gt; &gt; 
+&gt; &gt; &gt;   このままだと、本格的なトランザクション処理プログラムは作成
+&gt; &gt; &gt; できないと思うのですが..??
+&gt; &gt; 
+&gt; &gt; 確認ですが、ROLLBACK はできるんですね。それなら
+&gt; &gt; 問題ないでしょう。
+&gt; &gt;
+&gt; &gt; トランザクション内でエラーが発生したら、ROLLBACK
+&gt; &gt; して、トランザクション内の全ての処理がなかったこと
+&gt; &gt; にするのが、本来の処理なんで何も問題ないのでは
+&gt; 
+&gt; 　rollbackできます。というかrollbackしかできません。
+&gt; 
+&gt; 　トランザクション内でエラーが発生したときに、「rollbackする、
+&gt; commitする、もしくはその DMLだけを無効にするかは、ユーザが決
+&gt; 定できる」というのが、普通だと思うのですが...　 （メジャーな
+&gt; 商用DBではこのような仕様になってます）
+
+確かに、Informix ONLINE version4.2、7.2 でも、SQL 
+ERROR 発生後にどうするかはプログラマーの責任にな
+っています。うろ覚えですが、当該 DML だけを無効に
+するか否かの選択は、できなかったように思います。
+例えば、100 行 INSERT 済で、101行目で、エラーにな
+った場合、 COMMIT したら 100行の INSERT は有効に
+なるか否かですね。(Single Transaction なら、自動
+的に ROLLBACK です）。ISOLATION LEVEL で違ったよう
+な気もするけど覚えてないです。Oracle や Sybase は
+どうなんでしょう。
+
+&gt; &gt; 重複キーエラーを避けるには、同一トランザクション内で、
+&gt; &gt; 挿入キーが存在しないことを確認してから INSERT です。
+。。略。。
+
+&gt;   「キー重複、データ型不一致、check句の制約..（他にもいろいろ
+&gt; あります）が、これをユーザアプリ側で全て確認した後に、insert/
+&gt; updateを行う」ってとても不便です。
+&gt; 
+&gt; 　特に、check句などの'制約'に関しては、CREATE TABLE文で定義し
+&gt; たcheck句と同様の内容をユーザアプリでも記述しなければなりませ
+&gt; ん。
+&gt; 
+&gt; 　これらのエラーは backendが検知してユーザアプリ側に知らせてく
+&gt; れるものですよね。実際、PostgreSQLもそれを知らせてくれます。
+&gt; （問題なのは、トランザクションがABORTすることです。）
+
+私は、アプリでチェックするのが当り前だと思っている
+ので、臨時処理なんかで手抜きがしにくいぐらいにしか、
+思っていません。
+
+実際、制約条件違反とか、データー型不一致でエラーに
+なったら、結局、ROLLBACK して、データーの入力から
+やり直すしかないのでは？。それなら、SQL 文発行する
+前に、データー入力段階でエラーにしてあげた方がユーザー
+の使い勝手がいいでしょう。
+
+制約条件違反とか、データー型不一致エラーなどで、
+ROLLBACK しないで処理を進めるメリットってどういう
+ものがあるのでしょうか？。是非、具体的にお教えいた
+だけませんか。
+
+私は、SQL ERROR になって、ROLLBACK しない場合は、
+INSERT して、重複キーになったら UPDATE するという例
+くらいしか思い付かないのですが。
+
+
+&gt; &gt; ANSI SQL92 の規定ではどうなってましたっけ。ここまで
+&gt; &gt; 細部の処理は実装に任せてると思ったけど違うかな。
+&gt; 
+&gt; 　今、手元に本が無いのですが、「トランザクション内でエラーが
+&gt; 発生したときは、トランザクションを無効にする」と言葉だったと
+&gt; 思います。
+&gt; 
+&gt; 　しかし、この'エラー'というのはネットワーク障害、ハードウェ
+&gt; ア障害およびソフトウェアの致命的なエラーなど「トランザクショ
+&gt; ンを継続できないエラー」を意味していると解釈しています。
+
+私も手元に本がないのでわかりません。誰か知らないかな？。
+
+ただどちらにせよ、商用ＤＢでそういう書方をしてきた
+場合は、PostgreSQL への移植工数が増えるということで
+すね。SQL ERROR で、ROLLBACK しないプログラムを書く
+人って多いんですかね？。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00509" HREF="msg00509.html">[pgsql-jp 10355] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00508" HREF="msg00508.html">[pgsql-jp 10354] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00507" HREF="msg00507.html">[pgsql-jp 10353] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Norio Kasahara &lt;kasa@air.linkclub.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00503" HREF="msg00503.html">[pgsql-jp 10349] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00504" HREF="msg00504.html">[pgsql-jp 10350] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00504.html">[pgsql-jp 10350] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00505.html">[pgsql-jp 10351] 新旧郵便番号検索システム[大口事業所対応パッチ]</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00504.html">[pgsql-jp 10350] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00507.html">[pgsql-jp 10353] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00506"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00506"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

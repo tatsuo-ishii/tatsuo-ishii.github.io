@@ -1,0 +1,134 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26099] Re: コンカレントバキュームについて -->
+<!--X-From: Jun Kitamura <kitamura@zoozee.jp> -->
+<!--X-Date: Thu, 23 May 2002 22:38:08 +0900 -->
+<!--X-Message-Id: 3CECF0C0A.E808KITAMURA@mail.ayu.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3CD55F5B32.BC53KITAMURA@mail.ayu.ne.jp -->
+<!--X-Reference-Id: 20020523.205902.74748964.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26099] Re: コンカレントバキュームについて </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@zoozee.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00333.html">Date Prev</A>][<A HREF="msg00335.html">Date Next</A>][<A HREF="msg00330.html">Thread Prev</A>][<A HREF="msg00337.html">Thread Next</A>][<A HREF="index.html#00334">Date Index</A>][<A HREF="threads.html#00334">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26099] Re: コンカレントバキュームについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@zoozee.jp">kitamura@zoozee.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 23 May 2002 22:38:08 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00069.html">3CD55F5B32.BC53KITAMURA@mail.ayu.ne.jp</A>&gt; &lt;<A HREF="msg00330.html">20020523.205902.74748964.sugita@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠zoozee です。
+
+杉田さん、色々とご教示ありがとうございます。助かります。
+
+&gt; ;;; 明示的に XID を FrozenXID(=2) にする(現在のトランザクションより前のトラン
+&gt; ;;; ザクションを XID=2 にする)ためには、 VACUUM FREEZE を行なえとありますが、
+&gt; ;;; 一日一回 VACUUM すれば問題無いような。
+&gt; 
+&gt;   余裕を持って 5 億トランザクションごとがお勧めで、そうしていれば VACUUM
+&gt; FREEZE はしなくてもよいです。VACUUM をするのは、
+&gt; 
+&gt;         postgres=# select datname, datfrozenxid, age(datfrozenxid) from
+&gt;         pg_database;
+&gt;           datname  | datfrozenxid |    age     
+&gt;         -----------+--------------+------------
+&gt;          postgres  |   3221229343 | 1073741874
+&gt;          template1 |           49 |       3872
+&gt;          template0 |           49 |       3872
+&gt;         (3 rows)
+&gt; 
+&gt;         postgres=# 
+&gt; 
+&gt; この age が 15 億になった辺りが、引数なしの VACUUM を行う目安です。15 億古いの
+&gt; ができたので、その中の 10 億より前のを FrozenXID に固めます。
+
+age 15億が目安というのは、2^31 が約20億だから、5億余裕を見て・・というこ
+とですね。なるほど。
+
+PostgreSQL は、 2^31トランザクションまで実行可能(vacuum をかけない場合)と
+いうことですね？
+
+ちょっと微妙に勘違いしてるかもしれないのですが、22億(2^31より大きい)レコー
+ドあるテーブルに、(begin,commit を使わずに)
+update t1 set hizuke = now();
+として更新をかけても、これは「1トランザクション」ですよね？？ 
+1レコードづつキーを指定しながら22億ループさせて update をかけた場合、
+「22億トランザクション」ですよね？
+22億ループを begin,commit で囲んでも、「22億(+1)トランザクション」ですよ
+ね？(+1)は begin,commit分です。
+
+間違ってたらご指摘お願いしたいのですが・・・(結構重要だったり)
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00337" HREF="msg00337.html">[pgsql-jp: 26102] Re: コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00069" HREF="msg00069.html">[pgsql-jp: 25834] Re: コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@zoozee.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00330" HREF="msg00330.html">[pgsql-jp: 26095] Re: コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00333.html">[pgsql-jp: 26098] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00335.html">[pgsql-jp: 26100] Re: \i によるインポートで文字列リテラルのエスケープが正常に解釈されない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00330.html">[pgsql-jp: 26095] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00337.html">[pgsql-jp: 26102] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00334"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00334"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

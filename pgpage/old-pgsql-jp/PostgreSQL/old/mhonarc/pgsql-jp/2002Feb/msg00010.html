@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24605] ecpg でカーソルを使うとsql err -->
+<!--X-From: Hirokazu Hara <zoi@zoi.to> -->
+<!--X-Date: Sat, 2 Feb 2002 23:09:50 +0900 (JST) -->
+<!--X-Message-Id: 200202021409.g12E9oJ57619@uld.home.zoi.to -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24605] ecpg でカーソルを使うとsql err </TITLE>
+<LINK REV="made" HREF="mailto:zoi@zoi.to">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00009.html">Date Prev</A>][<A HREF="msg00011.html">Date Next</A>][<A HREF="msg00013.html">Thread Prev</A>][<A HREF="msg00017.html">Thread Next</A>][<A HREF="index.html#00010">Date Index</A>][<A HREF="threads.html#00010">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24605] ecpg でカーソルを使うとsql err</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hirokazu Hara &lt;<A HREF="mailto:zoi@zoi.to">zoi@zoi.to</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 2 Feb 2002 23:09:50 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして　原と申します。
+
+いままでperlではpostgreSQLのアクセスをしていたのですが
+それをC言語版に改版しようと思ってecpgをつかって
+プログラミングしていたのですが以下のようなエラーが
+でて困っています。以前にも同じようなエラーが
+あがっていましたが、どうも違う理由により出ているように
+おもったのでご指導をお願いしたいと思います。
+
+エラー内容は
+----------------------------------------------------------------------
+[55772]: ECPGexecute line 50: QUERY: fetch anime on connection anime
+[55772]: ECPGexecute line 50: Error: FATAL 1:  Socket command type s unknown
+pqReadData() -- backend closed the channel unexpectedly.
+This probably means the backend terminated abnormally
+before or while processing the request.
+[55772]: ECPGexecute line 52: QUERY: close anime on connection anime
+[55772]: ECPGexecute line 52: error: PQsendQuery() -- There is no connection to the backend.
+[55772]: ECPGtrans line 53 action = commit connection = anime
+[55772]: ecpg_finish: finishing anime.
+----------------------------------------------------------------------
+2行目の Socket command type s unknown
+                           ^^^
+													 これなんなんでしょうかね？なぜ's'？
+PHPのはなしでここが'2'なんてものが話題に上がっていましたが、
+3行目の backend closed the channel unexpectedly
+についても話題に上がっていましたが、postgresql7.0にて
+解消されているという話のほうですし、 pgsql-jp 13581の
+話題では or をたくさん使ったときにメモリーを食いつぶすという
+ものですよね？私の環境では実メモリーは確かに少ないのですが
+（約9M)仮想メモリーのほうはまったく使われてなく254Mがフリーです。
+
+でソースは
+EXEC SQL declare anime cursor for select * from titles order by id;
+EXEC SQL OPEN anime;
+EXEC SQL FETCH anime INTO :PG_ID, :PG_TITLE, :PG_CHAPTER, :PG_DISKS,
+:PG_OWNER, :PG_NOTE;
+while ( beforeid != PG_ID ) {
+	beforeid = PG_ID;
+	printf("id=%d title=%s cap=%d disks=%d owner=%s note=%s",
+	PG_ID, PG_TITLE.arr, PG_CHAPTER, PG_DISKS, PG_OWNER.arr, PG_NOTE.arr );
+	EXEC SQL FETCH anime INTO :PG_ID, :PG_TITLE, :PG_CHAPTER, :PG_DISKS,
+		:PG_OWNER, :PG_NOTE;
+}
+EXEC SQL CLOSE ANIME;
+EXEC SQL COMMIT;
+
+line 50というのは
+  EXEC SQL FETCH anime INTO :PG_ID, :PG_TITLE, :PG_CHAPTER, :PG_DISKS,
+		:PG_OWNER, :PG_NOTE;
+になります。fetchするときにエラーが出ているようです。
+
+テーブルとカラムの情報
+--------------------------------------------------------------------------
+ Attribute |   Type   |                     Modifier
+-----------+----------+---------------------------------------------------
+ id        | integer  | not null default nextval('"titles_id_seq"'::text)
+ title     | text     |
+ chapter   | smallint |
+ disks     | smallint |
+ owner     | text     |
+ note      | text     |
+ Index: titles_pkey
+--------------------------------------------------------------------------
+
+idはシリアル方なので今まで削除して番号が飛んでいます。
+登録されている件数は138件です。（sql使うほどでもない件数ですが。。。）
+エラーが出ているのは id=44(37件)にてとまってしまっています。
+それぞれカラムの条件として id,title,chapter,disks,ownerは
+NULLのことはありえないのですが、noteはNULLの可能性があります。
+
+ecpgを使い始めて間がないので間違いがあるかと思います。
+ご指摘ご指導よろしくお願いします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00017" HREF="msg00017.html">[pgsql-jp 24612] Re: ecpg でカーソルを使うとsql err</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 24604] Re: postgreSQL のメンテナンス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24606] Re: postgreSQL のメンテナンス</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 24608] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 24612] Re: ecpg でカーソルを使うとsql err</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00010"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00010"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

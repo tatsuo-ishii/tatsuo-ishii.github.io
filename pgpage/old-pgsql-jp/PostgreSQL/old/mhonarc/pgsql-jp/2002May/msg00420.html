@@ -1,0 +1,127 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26185] Re: 集約関数と副問い合わせ -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Wed, 29 May 2002 11:13:26 +0900 -->
+<!--X-Message-Id: 3CF43946.932DF1FF@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020528224009.1157.MITSUKI@zc5.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 20020529003357.1161.MITSUKI@zc5.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26185] Re: 集約関数と副問い合わせ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00419.html">Date Prev</A>][<A HREF="msg00421.html">Date Next</A>][<A HREF="msg00416.html">Thread Prev</A>][<A HREF="msg00425.html">Thread Next</A>][<A HREF="index.html#00420">Date Index</A>][<A HREF="threads.html#00420">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26185] Re: 集約関数と副問い合わせ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 May 2002 11:13:26 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00405.html">20020528224009.1157.MITSUKI@zc5.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00407.html">20020529003357.1161.MITSUKI@zc5.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+高森　みつき wrote:
+&gt; 
+&gt; 日付がTIMESTAMP型でしたので、
+&gt; ２つ目のＳＱＬ文の
+&gt; BETWEEN ’2002/1/1’ AND ’2002/1/31’を
+&gt; BETWEEN '2002-1-1 00:00:00' AND '2002-1-31 23:59:59'と修正し、
+&gt; 
+&gt; Select count(time) from (Select name, min(time) from
+&gt; database group by name) WHERE time BETWEEN ’2002/1/1’ AND ’2002/1/31’
+&gt; ;としました。
+
+修正が入ってませんが？
+
+&gt; これでPostgresqlは「その人の最も古いアクセス日時を拾ってきて、
+&gt; 日付範囲の中だったらカウントする」と解釈してくれないのでしょうか？
+
+件数を数えるだけなら count(*) の方がいい
+サブクエリにはASが必要
+サブクエリにtimeというカラムがない
+
+ということで、
+select count(*) from
+ (select name,min(time) as time from database group by name) as t
+where time between '2002-1-1 00:00:00' AND '2002-1-31 23:59:59'
+てなもんでしょうか。
+
+月だけ見ればいいケースなので、betweenよりもto_charを使って文字列に
+してしまった方が簡単。（date_truncというのもありますが）
+select month,count(*) from
+ (select name,min(to_char(time,'YYYY-MM')) as month
+  from database group by name) as t 
+group by month
+のようにすれば、複数月をまとめてもできます。
+
+和田
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00425" HREF="msg00425.html">[pgsql-jp: 26190] Re: 集約関数と副問い合わせ</A></STRONG>
+<UL><LI><EM>From:</EM> Mashiki &lt;mashiki@yanah.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00405" HREF="msg00405.html">[pgsql-jp: 26170] 集約関数と副問い合わせ</A></STRONG>
+<UL><LI><EM>From:</EM> 高森　みつき&lt;mitsuki@zc5.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00407" HREF="msg00407.html">[pgsql-jp: 26172] Re: 集約関数と副問い合わせ</A></STRONG>
+<UL><LI><EM>From:</EM> 高森　みつき&lt;mitsuki@zc5.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00419.html">[pgsql-jp: 26184] Re: pg_dumpが途中終了します</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00421.html">[pgsql-jp: 26186] Re: SELECT TIMESTAMP(CURRENT_DATE, CURRENT_TIME) について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00416.html">[pgsql-jp: 26181] Re: 集約関数と副問い合わせ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00425.html">[pgsql-jp: 26190] Re: 集約関数と副問い合わせ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00420"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00420"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

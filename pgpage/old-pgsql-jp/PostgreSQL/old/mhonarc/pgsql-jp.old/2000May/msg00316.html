@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14605] 特定のポートでのみpostmasterが落ち、立ち上がらない -->
+<!--X-From: Michiko Tomobe <michiko@palnet.co.jp> -->
+<!--X-Date: Fri, 19 May 2000 11:36:05 +0900 -->
+<!--X-Message-Id: 20000519113605W.michiko@palnet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14605] 特定のポートでのみpostmasterが落ち、立ち上がらない </TITLE>
+<LINK REV="made" HREF="mailto:michiko@palnet.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00315.html">Date Prev</A>][<A HREF="msg00317.html">Date Next</A>][<A HREF="msg00317.html">Thread Prev</A>][<A HREF="msg00319.html">Thread Next</A>][<A HREF="index.html#00316">Date Index</A>][<A HREF="threads.html#00316">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14605] 特定のポートでのみpostmasterが落ち、立ち上がらない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michiko Tomobe &lt;<A HREF="mailto:michiko@palnet.co.jp">michiko@palnet.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 May 2000 11:36:05 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+友部＠パルネットといいます。たいへんお世話になっております。
+
+現在、以下の環境で2本のpostmasterを走らせています。
+●環境
+----------
+OS：        TurboLinux日本語版(すみません今わからないのですが多分v4)
+                 (Linux version 2.2.9)
+PostgreSQL: 6.5.3
+-------
+●1つ目のpostmaster
+postmaster -D/usr/local/pgsql/data -i -B 256 -p 5432 -d 3 $PGLOG 2&gt;&amp;1 &amp;
+
+-------
+●2つ目のpostmaster
+postmaster -D/usr/local/pgsql/data -i -B 256 -p 5433 -d 3 $PGLOG 2&gt;&amp;1 &amp;
+
+ところが、5433ポートで動かしているほうのpostmasterがときどき落ちます。
+
+１時間ごとに「postmasterが落ちていたら再起動するcron」を動かしているのですが、
+落ちたあと、この再起動ができなくなってしまうときがあります。
+
+再起動ができなくなったとき、マニュアルでコマンドラインから
+postmaster -p 5433 &amp;
+
+と命令すると
+IpcMemoryCreate: shmget failed (Identifier removed) key=5433010, size=120, permission=700
+IpcMemoryIdGet: shmget failed (Identifier removed) key=5433010, size=120, permission=0
+IpcMemoryAttach: shmat failed (Invalid argument) id=-2
+FATAL 1:  AttachSLockMemory: could not attach segment
+となって起動できません。
+
+しかし全く別のポート
+postmaster -p 5434 &amp;
+は問題なく起動できます。
+
+/temp/にある.s.PGSQL.5433=は残っていたら削除するように、cronで動かしてるscriptの中で
+処理しています。
+
+このマシンは実験用なので、postmasterへのアクセス数は
+(感覚的な言い方ですみませんが)全然多くありません。
+
+どのような状況で落ちるのか、どのぐらいの頻度か、
+ちゃんと調べてなくて質問してしまって申し訳ないのですが
+おそらく１ヵ月に２〜３度ぐらい落ちていて、３回に１回ぐらい再起動できなくなります。
+
+マシンをrebootすると5433ポートでも起動できるようになるのです。
+
+なんで落ちるのか、もいずれ解明しないといけないんですが、
+とりあえず、なぜ、(rebootしない限り)特定のポートでだけ起動できなくなるのか、
+どなたか教えていただけないでしょうか。
+
+-d 3で起動してるのでデバッグメッセージがファイルに残っています。
+落ちたと思われるあたり、再起動できなかったあたり、のメッセージを下記につけます。
+
+デバッグメッセージの読み方が全然判らなくて、この辺かなあと思うのですが、
+違ったらすみません。
+
+--------------------
+/usr/local/pgsql/bin/postmaster: reaping dead processes...
+/usr/local/pgsql/bin/postmaster: CleanupProc: pid 2023 exited with status 0
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+/usr/local/pgsql/bin/postmaster: reaping dead processes...
+/usr/local/pgsql/bin/postmaster: CleanupProc: pid 1921 exited with status 0
+
+Session terminated, killing shell...pmdie 15
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+ ...killed.
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+binding ShmemCreate(key=52e6a9, size=2661376)
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FATAL: StreamServerPort: bind() failed: Address already in use
+        Is another postmaster already running on that port?
+        If not, wait a few seconds and retry.
+/usr/local/pgsql/bin/postmaster: cannot create INET stream port
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FATAL: StreamServerPort: bind() failed: Address already in use
+        Is another postmaster already running on that port?
+        If not, wait a few seconds and retry.
+/usr/local/pgsql/bin/postmaster: cannot create INET stream port
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FATAL: StreamServerPort: bind() failed: Address already in use
+        Is another postmaster already running on that port?
+        If not, wait a few seconds and retry.
+/usr/local/pgsql/bin/postmaster: cannot create INET stream port
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FATAL: StreamServerPort: bind() failed: Address already in use
+        Is another postmaster already running on that port?
+        If not, wait a few seconds and retry.
+/usr/local/pgsql/bin/postmaster: cannot create INET stream port
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00319" HREF="msg00319.html">[pgsql-jp 14608] Re: 特定のポートでのみpostmaster が落ち、立ち上がらない</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00315.html">[pgsql-jp 14604] Re: 7.0 psqlのcopyでエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00317.html">[pgsql-jp 14606] Re: 7.0 psqlのcopyでエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00317.html">[pgsql-jp 14606] Re: 7.0 psqlのcopyでエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00319.html">[pgsql-jp 14608] Re: 特定のポートでのみpostmaster が落ち、立ち上がらない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00316"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00316"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

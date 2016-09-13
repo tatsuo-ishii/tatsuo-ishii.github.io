@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13091] Re: クライアントが異常終了した時の動作 -->
+<!--X-From: Ikuo Tanaka <ikuo_ml@sannet.ne.jp> -->
+<!--X-Date: Thu, 10 Feb 2000 00:17:42 +0900 -->
+<!--X-Message-Id: 200002091517.AAA22215@svan17.sannet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000208120926F.kan@mech.rd.sanyo.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13091] Re: クライアントが異常終了した時の動作 </TITLE>
+<LINK REV="made" HREF="mailto:ikuo_ml@sannet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00130.html">Date Prev</A>][<A HREF="msg00132.html">Date Next</A>][<A HREF="msg00110.html">Thread Prev</A>][<A HREF="msg00159.html">Thread Next</A>][<A HREF="index.html#00131">Date Index</A>][<A HREF="threads.html#00131">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13091] Re: クライアントが異常終了した時の動作</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ikuo Tanaka &lt;<A HREF="mailto:ikuo_ml@sannet.ne.jp">ikuo_ml@sannet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 10 Feb 2000 00:17:42 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00110.html">20000208120926F.kan@mech.rd.sanyo.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中です。
+
+&gt; サーバがFreeBSD2.2.8 + PostgreSQL6.5.3で、OS-9から
+&gt; データベースにアクセスしています(libpqを使っています)。
+&gt; 
+&gt; クライアントのプログラムでは、起動時にデータベースに
+&gt; つながって、その後は定期的にデータを更新しています。
+&gt; 
+&gt; このクライアントは、いきなり電源が切られるような運用
+&gt; なのですが、そうすると、サーバには、  
+&gt; 
+&gt; 346  ??  I      0:00.07 /usr/local/pgsql/bin/postgres kan 134.180.105.223 foo idle
+&gt; 
+&gt; というように、かすが残ってしまいます。
+
+OS-9は使ったことはないのですが、
+サーバ：Slackware 3.5.0(Linux kernel 2.0.36) + PostgreSQL 6.5.3
+クライアント：Windows95 + libpq(Win32) + psql(Win32)
+の環境で、クライアントからPostgresqlへアクセスしに行き、
+アクセス中にいきなりPCカード(LANカード)を抜きました。
+
+いつまでもサーバ側にプロセスが残りますね。
+ソース見たわけでないので判りませんが、こういうものなのでしょう。
+
+&gt; かすが残っていると資源を無駄に使ってしまい、最終的には使い尽くして
+&gt; おかしな動作になってしまいます。
+&gt; 
+&gt; これは、仕方無いのでしょうか？
+
+資源を使い尽くすくらい大量のプロセスが残るというのが良く分かりませんが
+
+１． 1日の間に「電源ばち！！」を何十回も繰り返した
+２． 数ヶ月運用するうちにごみプロセスが次第に溜まっていった
+３． テーブルをロック中にクライアントの電源を切ってしまった
+
+の、いずれかでしょうか。
+
+いきなり電源を切ること自体良いこととは思えない気がしますが．．．
+
+２．のケースなら、目的のクライアントマシンのIPアドレスが固定なら、
+支障の無い時間帯にcronなどで毎日、(バックエンド
+プロセスと同じユーザIDで)
+
+kill -TERM `ps awx | 
+      grep 'postgres.*134\.180\.105\.223.*idle' | 
+      sed -e 's/^ *//' -e 's/ .*//'`
+
+自動実行するとか．．．
+もちろん接続を切ってから電源を切る方が良いに超したことはありません。
+
+３．の場合、かなり深刻です。
+
+例えば、
+
+クライアントマシンA
+begin;
+select * from test_table for update;
+(何らかの結果が返ってくる。自動でロックがかかる)
+[ここで、いきなりクライアントマシンの電源を切る。
+　ロックしたままのプロセスが残る]
+
+
+クライアントマシンB
+begin;
+update test_table set field_a = 'hogehoge';
+[クライアントAのごみプロセスの為に、永久に待たされる]
+
+極端な話、「ロックの競合相手は、過去に自分自身が残したゴーストだった」
+なんて、笑えない事態も．．．
+
+原因となるPIDが判っていれば、そのプロセスをkillすれば良いのですが、
+利用者が大勢いて、誰が原因か分からない場合、
+(サーバ上にpostgresプロセスが山ほどある場合)
+どのプロセスをkillすれば良いのか判りませんね。
+
+ロック中のテーブルとプロセスIDが判るツールがあるといいのですが．．．
+
+PIDが判っても、手動でkillしない限りテーブルは開放されませんが．．．
+
+# 結局、クライアントマシンの「電源バチ！」は、御法度というところに
+# 行き着くようで。
+
+----------------------------------------
+Ikuo Tanaka      ikuo_ml@sannet.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00159" HREF="msg00159.html">[pgsql-jp 13119] Re: クライアントが異常終了した時の動作</A></STRONG>
+<UL><LI><EM>From:</EM> Osamu Kanbara &lt;kan@mech.rd.sanyo.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00110" HREF="msg00110.html">[pgsql-jp 13070] クライアントが異常終了した時の動作</A></STRONG>
+<UL><LI><EM>From:</EM> Osamu Kanbara &lt;kan@mech.rd.sanyo.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 13090] Re: postmasterの起動状態及び停止方法？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 13092] RE: [pgsql-jp 13090] Re: postmasterの起動状態及び停止方法？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 13070] クライアントが異常終了した時の動作</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 13119] Re: クライアントが異常終了した時の動作</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00131"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00131"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

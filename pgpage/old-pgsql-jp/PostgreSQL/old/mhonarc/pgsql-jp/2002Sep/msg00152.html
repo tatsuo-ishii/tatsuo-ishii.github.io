@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27379] Re: 外部キーの設定確認方法 -->
+<!--X-From: Wataru Kojima <kojima@ase.co.jp> -->
+<!--X-Date: Wed, 11 Sep 2002 14:06:17 +0900 -->
+<!--X-Message-Id: 20020911140230.8A65.KOJIMA@ase.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200209110247.LAA15221@nikongw.nikon.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27379] Re: 外部キーの設定確認方法 </TITLE>
+<LINK REV="made" HREF="mailto:kojima@ase.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00151.html">Date Prev</A>][<A HREF="msg00153.html">Date Next</A>][<A HREF="msg00151.html">Thread Prev</A>][<A HREF="msg00154.html">Thread Next</A>][<A HREF="index.html#00152">Date Index</A>][<A HREF="threads.html#00152">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27379] Re: 外部キーの設定確認方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Wataru Kojima &lt;<A HREF="mailto:kojima@ase.co.jp">kojima@ase.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 11 Sep 2002 14:06:17 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00151.html">200209110247.LAA15221@nikongw.nikon.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+児島と申します。
+
+On Wed, 11 Sep 2002 11:46:54 +0900
+吉塚 陽子 &lt;yoshizuka.wakaba@nikon.co.jp&gt; wrote:
+
+&gt; 吉塚と申します。PostgreSQL７.1.3にて開発しています。
+&gt; システムカタログにて、外部キーの設定状況を知ることはできるでしょうか？
+&gt; 
+&gt; たとえば、以下の2つの表が親子関係にあったとします。
+&gt; 
+&gt; 親：scott表
+&gt; crate table scott
+&gt; (
+&gt;     id   int4 not null,
+&gt;     name text,
+&gt; );
+&gt; 
+&gt; 子：sample表
+&gt; create table sample
+&gt; (
+&gt;     id     int4 not null,
+&gt;     name 　text
+&gt;     u_id   int4 not null,
+&gt;     foreign key (u_id) references scott(id)
+&gt; );
+
+scott.id に対して外部参照とするには
+scott.id に UNIQUE か PRIMARY KEY を指定する必要があると思います。
+
+上記のまま create table sample を実行すると、以下のエラーが出ます。
+
+ERROR:  UNIQUE constraint matching given keys for referenced table "scott" not found
+
+&gt; sample表のどの列が、どの親表のどの列を外部参照しているか知りたいのです。
+&gt; pg_class, pg_attribute, pg_type, pg_inheritsあたりをどうにかすればよいのでし
+&gt; ょうが、
+&gt; いまいちよく判りません。
+&gt; 簡単にできるものであれば、教えていただきたいのですが。
+
+sample テーブルを create したときに
+
+NOTICE:  CREATE TABLE will create implicit trigger(s) for FOREIGN KEY check(s)
+
+というメッセージが出ますので、pg_trigger と pg_class を参照すると
+
+SELECT tgargs FROM pg_trigger WHERE tgrelid =
+    (SELECT relfilenode FROM pg_class WHERE relname = 'sample');
+
+                            tgargs
+---------------------------------------------------------------
+ &lt;unnamed&gt;\000sample\000scott\000UNSPECIFIED\000u_id\000id\000
+(1 row)
+
+といった結果が得られます。
+なお、pg_trigger.tgargs は、
+
+　"トリガーに渡されるそれぞれ NULL で終結した引数文字列"
+
+とマニュアルに記載されています。
+
+この引数文字列をパースすることで、
+外部参照の情報を得ることができそうです。
+
+＃もっといい方法がありそう。。。
+
+-- 
+Wataru Kojima &lt;kojima@ase.co.jp&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00154" HREF="msg00154.html">[pgsql-jp: 27381] Re: 外部キーの設定確認方法</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00151" HREF="msg00151.html">[pgsql-jp: 27378] 外部キーの設定確認方法</A></STRONG>
+<UL><LI><EM>From:</EM> 吉塚 陽子&lt;yoshizuka.wakaba@nikon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp: 27378] 外部キーの設定確認方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00153.html">[pgsql-jp: 27380] Re: 複数条件の一致検索について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00151.html">[pgsql-jp: 27378] 外部キーの設定確認方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00154.html">[pgsql-jp: 27381] Re: 外部キーの設定確認方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00152"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00152"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

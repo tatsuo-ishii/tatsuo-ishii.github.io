@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19694] Re: is it bad to make DSO ? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 26 Jan 2001 07:23:44 +0900 -->
+<!--X-Message-Id: 20010126072344J.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010124170131B.tito@miraclelinux.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19694] Re: is it bad to make DSO ? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00385.html">Date Prev</A>][<A HREF="msg00387.html">Date Next</A>][<A HREF="msg00356.html">Thread Prev</A>][<A HREF="msg00387.html">Thread Next</A>][<A HREF="index.html#00386">Date Index</A>][<A HREF="threads.html#00386">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19694] Re: is it bad to make DSO ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Jan 2001 07:23:44 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00356.html">20010124170131B.tito@miraclelinux.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; こんにちは、伊東です。
+&gt; 
+&gt; postgresql 7.0.3 を適用したマシンで php の rpm を作成していたところ、
+&gt; どうもうまくいかず、その原因を調査すると、
+&gt; postgresql 7.0.3 で作成される linux 用の DSO が linux の library の作法として
+&gt; 正しく作成されていないことを発見しました。
+&gt; 
+&gt; それを修正する patch を作成したので、添付します。
+&gt; もしよければお使い下さい。
+&gt; 
+&gt; Best Regards,
+&gt; 
+&gt; tito@miraclelinux.com
+&gt; 
+&gt; === investigation begin ===
+&gt; 
+&gt; [不具合の現象]
+&gt;  postgresql 7.x を適用したマシン環境で php の rpm を作成すると、
+&gt;  postgresql 連係で使用される pgsql.so (php で提供する DSO)が 
+&gt;  libpq.so (postgresql で提供している DSO) を dynamic link するので、
+&gt;  libpq.so が php rpm パッケージの require としてあげられる。
+&gt;  しかし libpq.so が正しく作成されていないため、
+&gt;  作成した php の rpm を適用すると、libpq.so が存在しているのに、
+&gt;  libpq.so が必要であるというエラーになる。
+&gt; 
+&gt; [原因]
+&gt;  通常 linux の DSO は以下のように作成する。
+&gt; 
+&gt;      (例)
+&gt;      libhoge.so                          ... (A)
+&gt;      libhoge.so.1                        ... (B)
+&gt;      libhoge.so.1.2 (or libhoge-1.2.so)  ... (C)
+&gt; 
+&gt;  (C) のみ実体として存在する。(B) は (C) へ symbolic link する。
+&gt;  また (A) は (B) へ symbolic link する。
+&gt;  (C) を ld で作成するときには、-soname オプションの引数として (B) の名前
+&gt;  を渡し(この例の場合、libhoge.so.1)、作成する。
+&gt; 
+&gt;  現状の postgresql 7.0.3 は次ののようになっている。
+&gt;  (C) のみ実体として存在し、(B) は (C) へ symbolic link するが、
+&gt;  (A) は (C) へ 直接 symbolic link する。
+&gt;  また (C) を ld で作成するときには、-soname オプションを使用していない。
+&gt;  この場合、libhoge.so を link する rpm package を作成した場合、
+&gt;  libhoge.so そのものが require として挙げられ、実際にその rpm を適用するときに、
+&gt;  依存関係が解決されない。
+
+そうなんですか? 7.0.3でmakeすると，
+
+ld -Bdynamic -shared -soname libpq.so.2.1 -o libpq.so.2.1 fe-auth.o fe-connect.o fe-exec.o fe-misc.o fe-print.o fe-lobj.o pqexpbuffer.o dllist.o pqsignal.o   common.o wchar.o conv.o big5.o -lcrypt -lc
+
+ってなって，-sonameで(C)を指定しているように見えます．
+
+実際，objdumpで見ると，
+
+$ objdump -p libpq.so.2.1 |grep SONAME
+  SONAME      libpq.so.2.1
+
+ってなってますが... もしかして，7.0.3 のRPM固有の問題?
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00398" HREF="msg00398.html">[pgsql-jp 19706] Re: is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ito &lt;tito@miraclelinux.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00387" HREF="msg00387.html">[pgsql-jp 19695] Re: is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> "Hisao SHIBUYA" &lt;shibuya@alpha.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00356" HREF="msg00356.html">[pgsql-jp 19663] is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ito &lt;tito@miraclelinux.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00385.html">[pgsql-jp 19693] Pg.pm のインストール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00387.html">[pgsql-jp 19695] Re: is it bad to make DSO ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 19663] is it bad to make DSO ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00387.html">[pgsql-jp 19695] Re: is it bad to make DSO ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00386"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00386"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

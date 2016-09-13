@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23278] Re: 「階層問い合せ（Co	nnect By 	句）」は？ -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Tue, 02 Oct 2001 15:12:00 +0900 -->
+<!--X-Message-Id: 3BB95AB0.1CC85146@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23278] Re: 「階層問い合せ（Co	nnect By 	句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00022.html">Date Prev</A>][<A HREF="msg00024.html">Date Next</A>][<A HREF="msg00018.html">Thread Prev</A>][<A HREF="msg00037.html">Thread Next</A>][<A HREF="index.html#00023">Date Index</A>][<A HREF="threads.html#00023">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23278] Re: 「階層問い合せ（Co	nnect By 	句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 02 Oct 2001 15:12:00 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00012.html">F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+yosidam@bell24.co.jp wrote:
+
+&gt; Oracleでは
+&gt; 
+&gt; 　select 社員番号, 社員名, 上司の社員番号, 職種, 入社日
+&gt; 　 from 人事表
+&gt; 　 start with 社員番号='xxxx'
+&gt; 　 connect by prior 社員番号=上司の社員番号
+&gt; 　 order by 入社日
+&gt; 
+&gt; のSQLで社員番号xxxxの部下を再起的に検索することができま
+&gt; した。
+
+北村さんのを参考にして作ってみました。
+考え方としては、各社員について、上司が検索中の上司でなければ
+上司の上司を調べる、といったぐあいです。
+
+create function isAncestorOf(int2, int2) returns boolean as
+'
+DECLARE
+  parent ALIAS FOR $1;
+  child ALIAS FOR $2;
+  n int4;
+BEGIN
+  LOOP
+    IF (SELECT count(*) FROM tKaisou 
+        WHERE id = child AND pid = parent) &gt; 0 THEN
+      return true;
+    ELSE
+      IF (SELECT count(*) FROM tKaisou WHERE id = child) &gt; 0 THEN
+        SELECT pid FROM tKaisou WHERE id = child INTO child;
+      ELSE
+        return false;
+      END IF;
+    END IF;
+  END LOOP;
+END;
+'
+language 'plpgsql';
+
+実行結果
+=&gt; select * from tKaisou where isAncestorOf(0,id);
+ id | pid |   val
+----+-----+---------
+  2 |   0 | 0-2
+  4 |   2 | 0-2-4
+  6 |   4 | 0-2-4-6
+(3 rows)
+※この関数だと北村さんのと違って自分自身は含まれません。
+
+もうちょっとすっきり書けそうな気もしますが...
+テーブルがtKaisouで固定なのに引数にidが必要なのが感じ悪い。
+
+和田＠pgsql修行中
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 23267] 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 23277] Re: テキストファイルのコピー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00024.html">[pgsql-jp 23279] Re: テキストファイルのコピー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 23273] Re: 「階層問い合せ（Connect By 句）」は？(長文注意)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 23292] Re: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00023"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00023"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

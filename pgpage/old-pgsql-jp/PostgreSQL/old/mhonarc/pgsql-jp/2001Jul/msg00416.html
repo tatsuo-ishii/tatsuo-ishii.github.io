@@ -1,0 +1,126 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22551] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない -->
+<!--X-From: Ryouichi Matsuda <r&#45;matuda@sra.co.jp> -->
+<!--X-Date: Tue, 24 Jul 2001 14:25:17 +0900 -->
+<!--X-Message-Id: 20010724142429.812C.R&#45;MATUDA@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010722125845M.lapis@dameda.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22551] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが </TITLE>
+<LINK REV="made" HREF="mailto:r-matuda@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00415.html">Date Prev</A>][<A HREF="msg00417.html">Date Next</A>][<A HREF="msg00368.html">Thread Prev</A>][<A HREF="msg00422.html">Thread Next</A>][<A HREF="index.html#00416">Date Index</A>][<A HREF="threads.html#00416">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22551] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ryouichi Matsuda &lt;<A HREF="mailto:r-matuda@sra.co.jp">r-matuda@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 24 Jul 2001 14:25:17 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00368.html">20010722125845M.lapis@dameda.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松田亮一です。
+
+On Sun, 22 Jul 2001 12:58:45 +0900, Hiroki Tateno wrote:
+&gt; このin.read()の返り値はintで、0x00-0xffを返した場合はデータ本体、-1を
+&gt; 返した場合はファイルの終端、となるのが正しいはずなので、JDBCのコード
+&gt; を見てみたところ、org/postgresql/largeobject/BlobInputStream#read()が
+&gt; 以下のようになってました。
+
+たしか，本家のJDBC-MLにも，この話題があったような気がします。
+
+<A HREF="ftp://ring.asahi-net.or.jp/pub/misc/db/postgresql/dev/">ftp://ring.asahi-net.or.jp/pub/misc/db/postgresql/dev/</A> にある，
+snapshotのソースを見たところ，次のように変更されていました。
+
+
+  public int read() throws java.io.IOException {
+    try {
+      if (buffer == null || bpos &gt;= buffer.length) {
+        buffer=lo.read(bsize);
+        bpos=0;
+      }
+
+      // Handle EOF
+      if(bpos &gt;= buffer.length) {
+        return -1;
+      }
+
+      int ret = (buffer[bpos] &amp; 0x7F);
+      if ((buffer[bpos] &amp;0x80) == 0x80) {
+        ret |= 0x80;
+      }
+
+      bpos++;
+
+      return ret;
+    } catch(SQLException se) {
+      throw new IOException(se.toString());
+    }
+  }
+
+
+私はテストしていませんが，たぶん動くんじゃないかな。
+
+___________________________________________________________
+ Ryouichi Matsuda  (<A HREF="http://www.sra.co.jp/people/r-matuda/">http://www.sra.co.jp/people/r-matuda/</A>)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00422" HREF="msg00422.html">[pgsql-jp 22557] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroki Tateno &lt;lapis@dameda.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00368" HREF="msg00368.html">[pgsql-jp 22503] 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroki Tateno &lt;lapis@dameda.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 22550] Re: 教祖も老婆も神もいない(と思う)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00417.html">[pgsql-jp 22552] Smalltalk interface</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00368.html">[pgsql-jp 22503] 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00422.html">[pgsql-jp 22557] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00416"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00416"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

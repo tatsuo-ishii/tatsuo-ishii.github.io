@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2405] Re: [Q] NOTICE: BufferSync: content of block42(xx)changedwhile flushing -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Thu, 28 Aug 1997 10:31:13 +0900 -->
+<!--X-Message-Id: 199708280131.KAA17351@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708280029.JAA15590@hibari.rsl.crl.fujixerox.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2405] Re: [Q] NOTICE: BufferSync: content of block42(xx)change </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00129.html">Date Prev</A>][<A HREF="msg00132.html">Date Next</A>][<A HREF="msg00126.html">Thread Prev</A>][<A HREF="msg00124.html">Thread Next</A>][<A HREF="index.html#00131">Date Index</A>][<A HREF="threads.html#00131">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2405] Re: [Q] NOTICE: BufferSync: content of block42(xx)changedwhile flushing</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Thu, 28 Aug 1997 10:31:13 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;奥村＠富士ゼロックスです。
+
+&gt;&gt; 明示的なトランザクションを使っていないのですね。
+&gt;
+&gt;えーとですね、
+&gt;At 1:37 PM 97.8.27, Tatsuo Ishii wrote:
+&gt;&gt; というふうにトランザクションブロックに入れなくても、単一の select 文で
+&gt;&gt; いけると思うのですが。
+&gt;
+&gt;というお話だったので、実はもともと明示的なトランザクションを使っていない方法
+&gt;でやってました、というつもりで書きました。前記症状がでたので、さすがにトラン
+&gt;ザクションなしじゃこちらに非があるかなあと思ってbegin/endを使ったのですが、
+&gt;症状はまるで同じでした（最初のメールよりも前の話です）。そんなわけで、内部的
+&gt;には同じ処理をしているのだと理解しています。select文もアトミックトランザクシ
+&gt;ョン１個じゃすまなさそうですし。
+&gt;
+&gt;私が単一の select 文の意味を取り違えているかもしれません。
+&gt;
+&gt;&gt; abort を発行しているのですか？ begin をともなわない abort ってできるん
+&gt;&gt; でしょうか？
+&gt;
+&gt;ワークアラウンドの方はもちろんbeginでトランザクションを開始してabortしています。
+&gt;
+&gt;混乱させて申し訳ありませんでした。
+
+了解しました。こちらこそはやとちりで済みませんでした。
+
+&gt;[問題点]
+&gt;複数*のコネクションで同一のデータベースに接続し、ビジーな要求をだすと、
+&gt;NOTICE: BufferSync: content of block42(pg_log) changed while flushing
+&gt;といわれてしまう。
+&gt;
+&gt;case 1.
+&gt;単一のselect文を複数コネクションからどんどん送る
+&gt;PQexec("select * from xxx where xxx = xxx");
+&gt;→上記問題点が発生。
+&gt;
+&gt;case 2.
+&gt;明示的にトランザクションを使って見る
+&gt;PQexec("begin");
+&gt;PQexec("select * from xxx where xxx = xxx");
+&gt;PQexec("end");
+&gt;→上記問題点が同様に発生。変化なし。
+&gt;
+&gt;case 3.
+&gt;ログの書き込みをあきらめてabortしてみる。
+&gt;PQexec("begin");
+&gt;PQexec("select * from xxx where xxx = xxx");
+&gt;PQexec("abort");
+&gt;→上記問題点は解決、ただしメモリリーク？が発生。
+&gt;
+&gt;*)Solaris 2.5.1 on SS20(75MHzx2,128M, gcc made)で四つから五つ、FreeBSD on
+&gt;P5-200/64Mで二つから三つぐらい。
+
+こちらの FreeBSD マシンで試して見ました。
+
+FreeBSD 2.2.1-RELEASE(shared memory の大きさは標準のまま)
+Pentium Pro 200MHz/64M
+PostgreSQL 6.1.1+jp patch
+
+select * from foo where a = 'bar';
+
+のような select 文を無限に psql に与える下記 shell script を 同時に 5 
+本走らせてみました。
+
+while :
+do
+	echo "select * from foo where a = 'bar';"
+	sleep 1
+done|psql test
+
+なお、foo テーブルのレコード数は 2400 ほど、select に結果返る行は 1 で
+す。
+
+結果は.... 問題なしです。で、次に条件を厳しくし、
+
+	echo "select * from foo where a ~ 'bar';"
+
+とし、結果が 460 ほど返るように select 文を修正して 5 本実行しましたが、
+やはり問題は起きませんでした。(このケースでは、あきらかに複数のトラン
+ザクションが同時に走っていると思います)
+
+念の為、同じようなテストを 249927 レコードの比較的大きなテーブルでやっ
+てみましたが、やはり問題なしでした。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00126" HREF="msg00126.html">[pgsql-jp 2400] Re: [Q] NOTICE: BufferSync: content ofblock42(xx)changedwhile flushing</A></STRONG>
+<UL><LI><EM>From:</EM> okumura@rsl.crl.fujixerox.co.jp (Yo Okumura)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00129.html">[pgsql-jp 2403] Re:  self introduction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 2406] Re: self introduction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 2400] Re: [Q] NOTICE: BufferSync: content ofblock42(xx)changedwhile flushing</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 2398] 自己紹介</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00131"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00131"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

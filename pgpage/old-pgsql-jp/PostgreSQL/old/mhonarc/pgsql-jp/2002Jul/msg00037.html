@@ -1,0 +1,262 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26586] Re: PL/pgSQLで関数を作成したい -->
+<!--X-From: 羽生　章洋<habu@air&#45;beat.com> -->
+<!--X-Date: Fri, 5 Jul 2002 15:30:05 +0900 -->
+<!--X-Message-Id: JP20020705153005.21203549@air&#45;beat.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200207050344.AA00912@kazz.ms.kit&#45;e.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26586] Re: PL/pgSQLで関数を作成したい </TITLE>
+<LINK REV="made" HREF="mailto:habu@air-beat.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00035.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00036.html">Thread Prev</A>][<A HREF="msg00038.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26586] Re: PL/pgSQLで関数を作成したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 羽生　章洋&lt;<A HREF="mailto:habu@air-beat.com">habu@air-beat.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 5 Jul 2002 15:30:05 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00036.html">200207050344.AA00912@kazz.ms.kit-e.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Kazusi Nakamura &lt;kazz@emsg.jp&gt;さん：
+
+&gt; ありがとうございました。バージョンアップを検討してみます。
+
+UPされていたコードを元に作ってみました。適当に修正して
+使ってください。
+
+尚、一時テーブルを使用しているのですが、一度セッションが切れると
+再度作成しなおす必要があるので、実行時にはご注意ください。
+
+一時テーブルの作成は、
+create temporary table tmp(empty_id integer);
+とします。
+
+＃　この辺は適当にもっと上手い方法を探してください。
+
+■ストアドファンクション
+
+create or replace function GetEmptyID(int, int)
+ returns REFCURSOR as '
+    declare
+        i_fromID alias for $1;
+        i_toID alias for $2;
+        cnttbl integer;
+        EmptyID integer := 0;
+        m_ID record;
+        ret REFCURSOR;
+    begin
+
+        delete from tmp;
+
+        FOR m_ID IN SELECT id FROM a
+        WHERE id BETWEEN i_fromID AND i_toID LOOP
+            IF(EmptyID = m_ID.id) THEN
+                EmptyID := EmptyID + 1;
+            ELSE
+                WHILE (EmptyID &lt; m_ID.id) LOOP
+                    INSERT INTO tmp VALUES (EmptyID);
+                    EmptyID := EmptyID + 1;
+                END LOOP;
+                EmptyID := EmptyID + 1;
+            END IF;
+        END LOOP;
+
+        OPEN ret FOR select * from tmp;
+        RETURN ret;
+     end;
+' LANGUAGE 'plpgsql';
+
+■実行のしかた（PSQLより）
+
+$ psql iruka
+
+iruka=# create temporary table tmp(empty_id integer);
+CREATE
+iruka=# begin;
+BEGIN
+iruka=# select GetEmptyID(1,10);
+     getemptyid
+--------------------
+ &lt;unnamed cursor 6&gt;
+(1 row)
+
+iruka=# fetch all in "&lt;unnamed cursor 6&gt;";
+ empty_id
+----------
+        0
+        2
+        3
+        6
+        7
+        9
+(6 rows)
+
+iruka=# select GetEmptyID(1,10);
+     getemptyid
+--------------------
+ &lt;unnamed cursor 8&gt;
+(1 row)
+
+iruka=# fetch all in "&lt;unnamed cursor 8&gt;";
+ empty_id
+----------
+        0
+        2
+        3
+        6
+        7
+        9
+(6 rows)
+
+iruka=# end;
+COMMIT
+iruka=# \q
+
+
+■注意点
+
+最初にゼロが入ってしまいますが、この辺はカーソルを開くときの
+SELECT文にWHEREをつけるなどして回避してください。
+
+カーソル名は明示せずに毎回取得したものを使うようにしています。
+呼び出すホスト言語側でハンドリングしてください。
+
+
+■おまけ：呼び出すJavaのソースコード例
+
+import java.sql.*;
+
+public class test {
+  public static void main(String[] args) {
+      try {
+          Class.forName("org.postgresql.Driver");
+      } catch (Exception ex) {}
+
+      try {
+        Connection conn =
+              DriverManager.getConnection(
+              "jdbc:postgresql://localhost/iruka",
+              "iruka",
+              ""
+              );
+
+      Statement stmt = conn.createStatement();
+      ResultSet rs;
+
+      String sql = "begin; select GetEmptyID(1,10)";
+      rs = stmt.executeQuery(sql);
+      rs.next();
+      String cursorName = rs.getString(1);
+      sql = "fetch all in \"" + cursorName + "\"; ";
+      rs = stmt.executeQuery(sql);
+
+      int c1;
+      String c2;
+
+      while(rs.next()) {
+        c1 = rs.getInt("c1");
+        c2 = rs.getString("c2");
+        System.out.println(c1 + " : " + c2);
+      }
+      sql = "end;";
+      stmt.execute(sql);
+      rs.close();
+      stmt.close();
+      conn.close();
+    }
+    catch(SQLException ex){
+      ex.printStackTrace();
+    }
+    catch(Exception ex){
+      ex.printStackTrace();
+    }
+
+  }
+}
+
+ストアドファンクションを呼び出すときの引数は直値にしてしまってるので、
+変数に変えてください。
+
+・・・以上、参考になれば幸いです。
+
+
+================================================================
+★ワクワク音楽体験サイト　それが【エア・ビート・ドットコム】！★
+================================================================
+有限会社エア・ビート(<A HREF="http://www.air-beat.com/">http://www.air-beat.com/</A>)
+取締役兼CEO　羽生　章洋(<A HREF="mailto:habu@air-beat.com">mailto:habu@air-beat.com</A>)
+================================================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00040" HREF="msg00040.html">[pgsql-jp: 26589] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00039" HREF="msg00039.html">[pgsql-jp: 26588] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> 羽生　章洋&lt;habu@air-beat.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00038" HREF="msg00038.html">[pgsql-jp: 26587] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> 羽生　章洋&lt;habu@air-beat.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00036" HREF="msg00036.html">[pgsql-jp: 26585] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> Kazusi Nakamura &lt;kazz@emsg.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00035.html">[pgsql-jp: 26584] Re: Solaris8へのインストールについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp: 26587] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00036.html">[pgsql-jp: 26585] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00038.html">[pgsql-jp: 26587] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

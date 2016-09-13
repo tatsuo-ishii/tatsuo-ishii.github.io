@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23141] Re: BLOB のバックアップとリストア -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Mon, 17 Sep 2001 09:52:31 +0900 -->
+<!--X-Message-Id: 3BA5494F.42316CAE@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3BA21682.4066AC44@kinol.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23141] Re: BLOB のバックアップとリストア </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00181.html">Date Prev</A>][<A HREF="msg00183.html">Date Next</A>][<A HREF="msg00173.html">Thread Prev</A>][<A HREF="msg00183.html">Thread Next</A>][<A HREF="index.html#00182">Date Index</A>][<A HREF="threads.html#00182">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23141] Re: BLOB のバックアップとリストア</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 17 Sep 2001 09:52:31 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00173.html">3BA21682.4066AC44@kinol.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+Minoru Fukuda wrote:
+&gt; 
+&gt; こんばんは、福田＠キノルと申します。
+&gt; 
+&gt; BLOB を含んだデータベースのバックアップ/リストアが、どうもうまく
+&gt; いかないので、相談に乗ってください。
+&gt; 環境は以下のとおりです。
+&gt; 
+&gt; PostgreSQL 7.1.3
+&gt; RedHat Linux 7.1
+&gt; 
+&gt; クライアントはWin2Kで ODBC により接続しており、OLEデータをBLOB
+&gt; で保存しています。またBLOB は以下の形式で作成しています。
+&gt; 
+&gt; create type lo (
+&gt; internallength=4, externallength=10,
+&gt; input=int4in, output=int4out,
+&gt; default='', passedbyvalue);
+&gt; 
+&gt; このタイプをあるテーブル(tableBLOB とします。)で使っているのですが
+&gt; リストアしたデータベースを開いて、このテーブルをODBC経由で開こうとすると
+&gt; 以下のエラーが出力されてしまいます。
+&gt; 
+&gt; Couldnt open large object for reading.
+&gt; ERROR: inv_open: large object 793629 not found.
+
+現在のpg_restoreはlo型を考慮していません。
+次のパッチをあててみてください。実質１行のパッチです
+のでぴったりあたらない場合でも手で簡単に修正できる
+と思います。
+
+*** pg_backup_db.c.orig Fri Mar 23 13:49:55 2001
+--- pg_backup_db.c      Mon Sep 17 09:41:55 2001
+***************
+*** 627,633 ****
+
+        appendPQExpBuffer(tblQry, "SELECT a.attname FROM pg_class c,
+pg_attribute a, pg_type t "
+         " WHERE a.attnum &gt; 0 AND a.attrelid = c.oid AND a.atttypid =
+t.oid "
+!                         " AND t.typname = 'oid' AND c.relname =
+'%s';", tablename);
+
+        res = PQexec(AH-&gt;blobConnection, tblQry-&gt;data);
+        if (!res)
+--- 627,633 ----
+
+        appendPQExpBuffer(tblQry, "SELECT a.attname FROM pg_class c,
+pg_attribute a, pg_type t "
+         " WHERE a.attnum &gt; 0 AND a.attrelid = c.oid AND a.atttypid =
+t.oid "
+!                         " AND t.typname in ('oid', 'lo') AND c.relname
+= '%s';", tablename);
+
+        res = PQexec(AH-&gt;blobConnection, tblQry-&gt;data);
+        if (!res)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00183" HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Fukuda &lt;fukuda@kinol.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 23132] BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Fukuda &lt;fukuda@kinol.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00181.html">[pgsql-jp 23140] Re: WEB 経由での利用におけるブラウザ毎の違い？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 23132] BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00182"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00182"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

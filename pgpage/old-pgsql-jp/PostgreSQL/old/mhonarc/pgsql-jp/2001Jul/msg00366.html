@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) -->
+<!--X-From: Yutaka tanida <yutaka@hi&#45;net.zaq.ne.jp> -->
+<!--X-Date: Sat, 21 Jul 2001 23:00:06 +0900 -->
+<!--X-Message-Id: 20010721223553.2ADE.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: JE20010721151137.76216443@ats&#45;japan.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@hi-net.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00365.html">Date Prev</A>][<A HREF="msg00367.html">Date Next</A>][<A HREF="msg00363.html">Thread Prev</A>][<A HREF="msg00371.html">Thread Next</A>][<A HREF="index.html#00366">Date Index</A>][<A HREF="threads.html#00366">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yutaka tanida &lt;<A HREF="mailto:yutaka@hi-net.zaq.ne.jp">yutaka@hi-net.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 21 Jul 2001 23:00:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00363.html">JE20010721151137.76216443@ats-japan.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+On Sat, 21 Jul 2001 15:11:37 +0900
+"r.mi.ats" &lt;mizoguti@ats-japan.co.jp&gt; wrote:
+
+&gt; 問題：
+&gt;     PostgreSQL 7.1.2 のデータベース( UNICODE )に JDBC で接続して、
+&gt;     ResultSet#getString() を実行すると、日本語のデータだけが取得
+&gt;     できない。
+&gt;     
+&gt; 環境：
+&gt;     OS → RedHat Linux 7J
+&gt;     Servlet Engine → Tomcat 3.2.3 ( JVM 1.3.1 )
+
+確認させていただきたいのですが、このVMはどこのベンダーの物でしょうか？
+また、国際化対応であることを確認されていますでしょうか？
+
+&gt;     DB → PostgreSQL 7.1.2 (文字コードを "UNICODE" にしてあります)
+
+また、このPostgreSQLは--enable-unicode-conversion付きでconfigureされた物
+ですか？
+
+&gt;     JDBC Driver → PostgreSQL 7.1.2 付属のものを Ant でビルドしました。
+&gt;                    ( ビルド環境 windows2000 JDK1.3.1 )
+&gt; 
+&gt; 現象：
+&gt;     getString("カラム名") の返り値が ""(空文字) になる。
+
+&gt; this_row[] には 取得したカラムごとのデータがバイト配列で入っています。
+&gt; また encoding には "UTF8" という文字列が入ります。
+
+encodingには実際にはサーバー側の文字エンコーディング(show
+databaseencoding()の出力に相当するJavaのエンコーディング)が入っています。
+
+&gt; ここで仮に、this_row[columnIndex - 1] に "溝口令雄" という文字列の
+&gt; バイト配列が入っているとき、
+&gt; 
+&gt; if ( encoding == null )
+&gt; 
+&gt; は false なので、new String(this_row[columnIndex - 1], encoding) が
+&gt; 返されるのですが、これはバグではないでしょうか？
+
+<A HREF="http://java.sun.com/j2se/1.3/ja/docs/ja/api/java/lang/String.html#String">http://java.sun.com/j2se/1.3/ja/docs/ja/api/java/lang/String.html#String</A>(byte[], java.lang.String)
+
+によるとこのコンストラクタはバイト列を指定エンコーディングで文字列化する
+ということですから、何ら問題があるように思えません。
+
+&gt; new String(this_row[columnIndex - 1]) を返すようにするとちゃんと
+&gt; 日本語を返してくれます。
+
+逆に、この方法でうまくいくというのであれば、エンコーディングがUTF-8でな
+くデフォルトエンコーディング(Linuxの場合EUC_JP)で渡されていることになり
+ますが。
+
+&gt; 文字エンコーディングに対しての知識に自身が無い事と、
+&gt; プログラミングの経験が浅いため、このようなときにどうしたらよいのか分からなかったので、
+&gt; 御意見・アドバイスを頂けると幸いです。
+
+ひょっとしてコネクションを張るごとに
+
+set client_encoding='UTF8'
+
+を実行するとこのパッチ無しに症状が回復しますか？
+
+
+---
+Yutaka tanida&lt;yutaka@hi-net.zaq.ne.jp&gt;
+謎のWebsite <A HREF="http://www.hi-net.zaq.ne.jp/yutaka/">http://www.hi-net.zaq.ne.jp/yutaka/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00371" HREF="msg00371.html">[pgsql-jp 22506] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> mizoguchi_reo &lt;r-mi2002@mx5.nisiq.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00363" HREF="msg00363.html">[pgsql-jp 22498] PostgreSQL JDBC バグ？(ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> "r.mi.ats" &lt;mizoguti@ats-japan.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 22500] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00367.html">[pgsql-jp 22502] Re: 老婆はいらない(Re:補足: 博多オフ7/20 19:00より「たまりながや」)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00363.html">[pgsql-jp 22498] PostgreSQL JDBC バグ？(ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00371.html">[pgsql-jp 22506] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00366"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00366"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

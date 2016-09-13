@@ -1,0 +1,198 @@
+<A NAME="3">
+<PRE><B>
+From: t-ishii@sra.co.jp (Tatsuo Ishii)
+Date: Fri, 8 Dec 1995 23:04:50 +0900
+Subject: [postgres95 289] Re: pg95 on BSD/OS 2.0
+Message-Id: &lt;199512081404.XAA17255@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠SRAです。ようこそpostgres95 ML へいらっしゃいませ。
+
+At  4:50 PM 95.12.8 +0900, Masaharu Onishi wrote:
+&gt;大西＠ノヴァです。
+&gt;
+&gt;BSD/OS 2.0 で postgres95 を使用しはじめたわけですが、
+&gt;どうも挙動がおかしいようです。
+&gt;
+&gt;環境
+&gt;        OS:             BSD/OS 2.0
+&gt;        CC:             付属の gcc 2.6.3
+&gt;        flex:           flex 2.5.2
+&gt;        dld:            dld 3.2.7
+&gt;        option:         -O2 -m486
+&gt;
+&gt;ブツ
+&gt;        postgres95-1.0.tar.gz
+&gt;        公式パッチ      1-14
+&gt;        jp.patch
+&gt;        bsdi-patch
+&gt;
+&gt;regression test の結果が若干おかしいのです。
+&gt;該当する部分を抜きだして単独テストを行なってみたのですが、
+&gt;以下のような状況になります。
+&gt;
+&gt;1. createdb foo
+&gt;
+&gt;2. psql foo
+&gt;
+&gt;   CREATE TABLE CHAR8_TBL(f1 char8);
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('ABCDEFGH');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('abcdefgh');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('ZYWZ410-');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('343f%2a');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('d34aas');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('');
+&gt;   INSERT INTO CHAR8_TBL(f1) VALUES ('1234567890');
+&gt;
+&gt;上記の状態で、
+&gt;
+&gt;   SELECT '' AS four, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '[0-9]';
+&gt;   SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+&gt;
+&gt;を行なうと２つめの結果に 'ZYWZ410-' が含まれてしまいます。
+&gt;この状態で psql を終了して再び psql を起動し、今度は２つめの
+&gt;
+&gt;   SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+&gt;
+&gt;だけを行なうと正しい結果が得られます。
+&gt;
+&gt;これ以上の追求は暇をみてぼちぼちやろうと思いますが、
+&gt;なにかお分かりになる方はいらっしゃいますか？
+
+詳しく調べたわけではないのですが、正規表現を使った検索では、
+正規表現をコンパイルした結果をキャッシュしておいて
+再利用するようになっています。直感的にはこの辺にバグが潜んでいるのでは、
+という気がします。（コードを見る暇が無いので、あくまで推測です）
+調べるとしたら、src/backend/utils/adt （だったと思う）の
+あたりでしょうね。
+---
+石井達夫
+Tstsuo Ishii      t-ishii@sra.co.jp
+
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Masaharu Onishi &lt;onishi@nova.co.jp&gt;
+Date: Fri, 08 Dec 1995 16:50:56 +0900
+Subject: [postgres95 288] pg95 on BSD/OS 2.0
+Message-Id: &lt;199512080750.QAA00307@onsgw.nova.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+大西＠ノヴァです。
+
+BSD/OS 2.0 で postgres95 を使用しはじめたわけですが、
+どうも挙動がおかしいようです。
+
+環境
+	OS:		BSD/OS 2.0
+	CC:		付属の gcc 2.6.3
+	flex:		flex 2.5.2
+	dld:		dld 3.2.7
+	option:		-O2 -m486
+
+ブツ
+	postgres95-1.0.tar.gz
+	公式パッチ	1-14
+	jp.patch
+	bsdi-patch
+
+regression test の結果が若干おかしいのです。
+該当する部分を抜きだして単独テストを行なってみたのですが、
+以下のような状況になります。
+
+1. createdb foo
+
+2. psql foo
+
+   CREATE TABLE CHAR8_TBL(f1 char8);
+   INSERT INTO CHAR8_TBL(f1) VALUES ('ABCDEFGH');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('abcdefgh');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('ZYWZ410-');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('343f%2a');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('d34aas');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('');
+   INSERT INTO CHAR8_TBL(f1) VALUES ('1234567890');
+
+上記の状態で、
+
+   SELECT '' AS four, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '[0-9]';
+   SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+
+を行なうと２つめの結果に 'ZYWZ410-' が含まれてしまいます。
+この状態で psql を終了して再び psql を起動し、今度は２つめの
+
+   SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+
+だけを行なうと正しい結果が得られます。
+
+これ以上の追求は暇をみてぼちぼちやろうと思いますが、
+なにかお分かりになる方はいらっしゃいますか？
+--
+大西雅晴  （株式会社ノヴァ）	onishi@nova.co.jp
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Masaharu Onishi &lt;onishi@nova.co.jp&gt;
+Date: Fri, 08 Dec 1995 16:16:31 +0900
+Subject: [postgres95 287] self introduction
+Message-Id: &lt;199512080716.QAA00189@onsgw.nova.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+はじめまして。
+株式会社ノヴァの大西と申します。
+
+主に(というかほとんど)UNIX上でのプログラム開発をしています。加えて、イ
+ンターネットとの接続環境も含めて、全般的なシステム管理をしています。
+
+普段の生活／開発環境は BSD/OS 2.0 です。
+
+で、以前から unix 上で動作するデータベースシステムがほしかったのですが、
+その都度簡易的なものをでっちあげて perl で処理するようなことで対処して
+いました。最近そうもいかなくなって、postgres95 に手をつけた次第です。
+
+私は今までデータベースシステムなるものは使ったことがないので、
+
+	いちおう postgres95 はインストール／起動した。
+	現在マニュアルを読んでいる
+
+といった段階です。
+
+よろしくお願いします。
+--
+大西雅晴  （株式会社ノヴァ）	onishi@nova.co.jp
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Atsushi TABuchi &lt;tabuchi@obp.cl.nec.co.jp&gt;
+Date: Fri, 08 Dec 1995 14:25:12 +0900
+Subject: [postgres95 286] UNLISTEN?
+Message-Id: &lt;9512080525.AA00878@.obp.cl.nec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+田淵＠NECです。
+
+お尋ねします。今、postgres95のLISTENとNOTIFYを使った非同期な変更通知を勉強
+しているのですが、LISTEN &lt;relname&gt; でNotificationをもらうテーブルを決めた
+として、それを解除するのは何を使えば良いのでしょう? UNLISTEN &lt;relname&gt; の
+ようなコマンドがあるのでしょうか?
+
+初歩的な質問でごめんなさい。こういうコマンド一覧がどこかにあるのなら、自分
+で調べますので、在処を教えて頂けると幸いです。
+
++--------- ＮＥＣ  関西Ｃ＆Ｃ研究所   田淵  篤 (Tabuchi Atsushi) ---------+
++ 〒540 大阪市中央区城見1-4-24 NEC関西ビル   06-945-{3213(TEL)/3096(FAX)} +
++    たまには tab6433@mbox.kyoto-inet.or.jp の方にもメールを下さい(^o^)   +
+<HR>
+</PRE>

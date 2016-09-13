@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6024] Re: why connection is losted? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 03 Dec 1998 23:52:38 +0900 -->
+<!--X-Message-Id: 199812031452.XAA00425@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812031121.UAA00563@kankun.osa.att.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6024] Re: why connection is losted? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00047.html">Date Prev</A>][<A HREF="msg00050.html">Date Next</A>][<A HREF="msg00045.html">Thread Prev</A>][<A HREF="msg00050.html">Thread Next</A>][<A HREF="index.html#00049">Date Index</A>][<A HREF="threads.html#00049">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6024] Re: why connection is losted?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Dec 1998 23:52:38 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; OSはintel版のlinux 2.0.34で、RedHat5.1をベースにPJE0.1.5と一部
+&gt; PJE0.3.0βを追加した環境です。
+&gt; PostgreSQLは、v6.4がリリースされたその日に本家から取って来たものを、
+&gt; MLのWebページにある6.3.2のコンパイル方法をほとんどそのまま適用して
+&gt; コンパイルし、インストールしたものです。パッチは何もあてていません。
+&gt; マシンは、CPUがPentium 100M、メモリが40MのAT互換機です。
+&gt; 
+&gt; 実行しようとしたSQL文は、
+
+早速やってみました(6.4+jumbo.patch/LinuxPPC kernel 2.1.24)。結果、必ず
+
+Create table "ボトルマスター" ("ボトルID" Int4,"顧客コード" Int4 Not
+Null,"品名" Int4,"購入日付" Date Not Null,"購入店" Int4 Not Null,"表示
+" Bool Not Null,constraint "ボトルマスター_pkey" Primary Key("ボトル
+ID"));
+
+でおっこちです。backtrace を取ってみると、以下のような感じで、どうみて
+もバックエンドのバグですね。ただ、malloc()の中で落ちているところを見る
+と、この create table 文を実行したときにはすでにメモリ破壊が起きた後と
+いう感じがします。レポートにあった、「create table を1個づつ動かすと通
+る」ということも、これを裏付けていると思います。普通なら、test data を
+付けて本家に送ってしまうのですが、まさかこのデータは送れない:-)
+
+バグとしてはかなりやっかいな方なので、追求するのは時間がかかりそうです。
+少し時間を頂けますか？
+
+# もしかしたら正月のデバッグになるかも:-)
+
+&gt;#登録するだけなら、小出しにしてやればいいのですが、自動化したいので。。
+
+1個ずつ create table 文をテキストファイルから読みだして都度 psql を起
+動するような shell script にしたら、とりあえず自動化できてかつ問題を回
+避できるような気がしますが。状況が良く分かっていないので外していたらご
+めんなさい。
+
+Program received signal SIGSEGV, Segmentation fault.
+0x30391fd0 in chunk_alloc ()
+(gdb) where
+#0  0x30391fd0 in chunk_alloc ()
+#1  0x30391b68 in chunk_alloc ()
+#2  0x30391af0 in malloc ()
+#3  0x18f7c4c in AllocSetAlloc ()
+#4  0x18f8560 in PortalHeapMemoryAlloc ()
+#5  0x18f8044 in MemoryContextAlloc ()
+#6  0x18f8340 in palloc ()
+#7  0x186cb4c in newNode ()
+#8  0x186cd3c in lcons ()
+#9  0x186cdf4 in lappend ()
+#10 0x1896168 in yyparse ()
+#11 0x18978dc in parser ()
+#12 0x18c0474 in pg_parse_and_plan ()
+#13 0x18c0a54 in pg_exec_query_dest ()
+#14 0x18c09b0 in pg_exec_query ()
+#15 0x18c1d60 in PostgresMain ()
+#16 0x18a3f9c in DoBackend ()
+#17 0x18a3984 in BackendStartup ()
+#18 0x18a2ca8 in ServerLoop ()
+#19 0x18a2724 in PostmasterMain ()
+#20 0x186c980 in main ()
+#21 0x18184ac in _start ()
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 6025] Re: why connection is losted?</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuo Moriwaka &lt;kankun@osa.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00045" HREF="msg00045.html">[pgsql-jp 6020] Re: why connection is losted?</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuo Moriwaka &lt;kankun@osa.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00047.html">[pgsql-jp 6022] データベースの初期化について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 6025] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 6020] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 6025] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00049"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00049"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？ -->
+<!--X-From: Tetsuya Kitahata <tetsuya.kitahata@nifty.ne.jp> -->
+<!--X-Date: Mon, 10 Jul 2000 03:15:48 +0900 -->
+<!--X-Message-Id: 3968C15437A.37CATETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-Reference-Id: 3968B54424E.F7DCJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在 </TITLE>
+<LINK REV="made" HREF="mailto:tetsuya.kitahata@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00204.html">Date Prev</A>][<A HREF="msg00206.html">Date Next</A>][<A HREF="msg00204.html">Thread Prev</A>][<A HREF="msg00250.html">Thread Next</A>][<A HREF="index.html#00205">Date Index</A>][<A HREF="threads.html#00205">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15972] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tetsuya Kitahata &lt;<A HREF="mailto:tetsuya.kitahata@nifty.ne.jp">tetsuya.kitahata@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 10 Jul 2000 03:15:48 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00203.html">3968A05C21C.37C8TETSUYA.KITAHATA@bb.mbn.or.jp</A>&gt; &lt;<A HREF="msg00204.html">3968B54424E.F7DCJUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+こんにちは。北畠です。
+
+北村さん、早速のご返答、ありがとうござました。
+
+On Mon, 10 Jul 2000 02:24:20 +0900
+Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt; wrote:
+
+&gt; こんばんは。北村です。
+＜略＞
+&gt; PostgreSQLでは、Relationの値が全て小文字になるはずです。psqlで create
+&gt; table を使ってテーブルを作成した場合、テーブル名に大文字を指定して
+&gt; も小文字に変換されてしまいます。
+&gt; これが大文字になっているということは、ODBC経由のExportでは、そういう仕様
+&gt; なのでしょう。内部的にどういうことをしているのかは解りませんが、psqlをつ
+&gt; かって、大文字テーブルも作れます。
+&gt; create table "State" (a as int2);
+&gt; と、""でくくってやればＯＫです。これを考えると、ODBC経由でExportをする時
+&gt; に、ODBCが生成するSQLのテーブル名に""が付いている・・・という事でしょう。
+&gt; 「select * from "State"」と""を付けてやると、機能しますが・・。
+
+はい、そのとおりでした。お蔭様で、select * into state from "State"
+とすることで、解決しました。
+
+確かに、考えてみると、数日前に、「Address Table」
+というテーブルをODBC経由でEXPORTしたのですが、
+select * from Address Tableは、アウトでしたから（笑）、
+select * from "Address Table"としたのを思い出しました。
+
+&gt; PostgreSQLでは、テーブル(だけじゃないですが)を、pg_classというシステムテー
+&gt; ブル(\dSで出ます)に持っています。テーブル名がRelationカラムに格納されます
+&gt; が、このカラム、インデックスは持っていますが重複可能です。ですから、同一
+&gt; の名前のビュー（テーブル）が存在してしまっても変では無いです。 pg_classは
+&gt; プライマリキーも持っていませんので、oidで管理されているのでしょう（たぶん）。
+&gt; また、viewはその内容を、pg_viewsというシステムテーブルに持っています。
+&gt; viewの名前はこのテーブルのviewnameカラムに格納されていますが、ここも重複
+&gt; 可能です。インデックスすらありません。ですので、この部分でも、ビュー名が
+&gt; 重複しても変ではない・・ということになります。pg_classと pg_viewsの両方に
+&gt; 「ビュー１」があるか、確認してください。 pg_classにはあって pg_viewsに無
+&gt; い場合も考えられます。pg_classの中で、テーブルもビューも同じように扱われ
+&gt; ていて、その違いは、「 pg_class.rel_kindの値が'r'か's'のもの」かつ
+&gt; 「 pg_rewrite.ev_type = '1' の行の pg_rewrite.oid が pg_class.oidと同一で
+&gt; 無い行の pg_class.relname」がテーブル名・・のようです。
+&gt; 同じ名前のテーブルが存在してしまう、また、Typeが[View?]の時というのは、そ
+&gt; れぞれ同じように ODBC経由で Exportした時に発生するのでしょうか？ 
+
+いいえ。これは、違いました。telnet接続で、ダイレクトにSQL文を
+ペースト（Windows98のクリップボードから）したときでした。
+ただ、Viewの名称が漢字名だったので、これも原因かもしれません。
+
+--
+
+しかし、また問題が発生しました。
+select * into state from "State"
+
+で、[state]テーブルを作ったのですが、今度は、
+drop table "State";
+がうまくいきませんでした。
+＃と、これは嘘で、[State]は、DROPできたのですが、
+＃同じように大文字から小文字に直したテーブルの
+＃本テーブル（大文字テーブル名）において、
+＃DROP 成功するものとしないものが半々となりました・・。
+
+postgres=&gt;drop table "Gakubu";
+ERROR:  DeleteTypeTuple: Gakubu type nonexistent
+で、
+postgres=&gt;drop table "State";
+DROP
+だったのです。同じやり方のODBC接続でのEXPORTを
+したのですが・・・。。。。
+
+原因として考えられるものは何なのでしょうか？？
+
+
+--以上--
+
+━━……‥・・・ ・ ・ ・ ・・‥……‥・・・ ・ ・ ・ ・・‥…━━━
+Name: 北畠徹也 (Tetsuya Kitahata)  -- Terra-International 代表 --
+Telephone: 03-3882-2060  Facsimile: 03-3882-2060
+Mobile: 090-8347-2565
+E-mail: kitahata@bb.mbn.or.jp  terra-international@jp-t.ne.jp(緊急時)
+HomePage: <A HREF="http://plaza11.mbn.or.jp/~kitahata/">http://plaza11.mbn.or.jp/~kitahata/</A>
+          <A HREF="http://www.terra-intl.com/">http://www.terra-intl.com/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00203" HREF="msg00203.html">[pgsql-jp 15970] テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00204" HREF="msg00204.html">[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00204.html">[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 15973] auto-increase function ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00204.html">[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 16017] grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00205"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00205"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,281 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2581] Re: variable array in C function -->
+<!--X-From: nakano@apm.seikei.ac.jp (NAKANO Takeo) -->
+<!--X-Date: Tue, 30 Sep 1997 19:34:59 +0900 -->
+<!--X-Message-Id: 199709301034.TAA02583@surf.ap.seikei.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199709281515.AAA13275@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2581] Re: variable array in C function </TITLE>
+<LINK REV="made" HREF="mailto:nakano@apm.seikei.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00153.html">Date Prev</A>][<A HREF="msg00155.html">Date Next</A>][<A HREF="msg00142.html">Thread Prev</A>][<A HREF="msg00156.html">Thread Next</A>][<A HREF="index.html#00154">Date Index</A>][<A HREF="threads.html#00154">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2581] Re: variable array in C function</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:nakano@apm.seikei.ac.jp">nakano@apm.seikei.ac.jp</A> (NAKANO Takeo)</LI>
+<LI><em>Date</em>: Tue, 30 Sep 1997 19:34:59 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&lt;<A HREF="msg00142.html">199709281515.AAA13275@meshsv26.tk.mesh.ad.jp</A>&gt;の記事において
+t-ishii@sra.co.jpさんは書きました。
+
+&gt; &gt;&gt; postgresql-v6.1.1/contrib/array/
+&gt; &gt;&gt; array_iterator.c        array_iterator.doc      array_iterator.sql
+
+&gt; &gt;　これ実はそのまま使えちゃいそうですね（しかも正規表現まである :-)）。
+&gt; &gt;時間がとれましたら実験してみて、また報告します。
+&gt; 
+&gt; 実は私も試したことがないのですが、興味があります。結果が聞けるのを
+&gt; 楽しみにしてます。
+
+　実はまだできていないのですが、途中経過の報告です。
+
+１：
+　まず src を展開した後、 contrib/array/array_iterator.cのコンパイル
+が通るように修正しました（といってもヘッダファイルの include だけ）。
+array_iterator.sql にも、コメントの形式が間違っていた分の修正と、 .so 
+の位置を反映した変更を行いました。
+
+　このパッチはメールの最後に付けました。
+
+２：
+gcc -I../../src/include -O2 -Wall -Wmissing-prototypes -Dlinux\
+-I../../src/include -I../../src/libpq\
+-c array_iterator.c -o array_iterator.o
+
+gcc -shared -o array_iterator.so array_iterator.o
+
+　によって array_iterator.so を作り、これを /usr/local/pgsql/lib に置
+きました。
+
+３：
+　psql から \i array_iterator.sql で、関数を定義しました（これは特にエ
+ラーなく終了）。
+
+４：
+　その後 text[] を含む table を作成して、
+
+	select * from foo where array_text **= 'hoge';
+
+などとやったのですが、
+
+WARN:Load of file /usr/local/pgsql/lib/array_iterator.so failed:
+Unable to resolve symbol
+
+というエラーが出まして、出力は行われませんでした。
+
+
+ ...というところが現状です。　今は src/tutorial の C 関数と 
+array_iterator.c を比べて、何が違うのかを調べようとしているところです。
+
+　もしヒントがありましたら、よろしくお願いします m(__)m。
+
+-- 
+// 中野 武雄 (NAKANO, Takeo)   E-mail: nakano@apm.seikei.ac.jp 
+// 成蹊大学工学部計数工学科    <A HREF="http://surf.ap.seikei.ac.jp/~nakano/">http://surf.ap.seikei.ac.jp/~nakano/</A>
+
+
+===================================================================
+diff -u array/array_iterator.c array.orig/array_iterator.c
+--- array/array_iterator.c	Tue Sep 30 19:14:39 1997
++++ array.orig/array_iterator.c	Tue Sep 30 19:15:51 1997
+@@ -33,13 +33,12 @@
+ #include &lt;string.h&gt;
+ 
+ #include "postgres.h"
+-#include "catalog/pg_type.h"
+-#include "miscadmin.h"*/
+-#include "utils/syscache.h"
++#include "pg_type.h"
++#include "miscadmin.h"
++#include "syscache.h"
+ #include "access/xact.h"
+ #include "utils/builtins.h"
+ #include "utils/elog.h"
+-#include "utils/array.h"
+ 
+ static int32
+ array_iterator(Oid elemtype, Oid proc, int and, ArrayType *array, Datum value)
+diff -u array/array_iterator.sql array.orig/array_iterator.sql
+--- array/array_iterator.sql	Tue Sep 30 18:01:26 1997
++++ array.orig/array_iterator.sql	Tue Sep 30 19:15:51 1997
+@@ -1,30 +1,30 @@
+---/*
+--- * SQL code
++/*
++ * SQL code
+ 
+--- -- load the new functions
+--- --
+-load '/usr/local/pgsql/lib/array_iterator.so';
++- - -- load the new functions
++- - --
++load '/home/dz/lib/postgres/array_iterator.so';
+ 
+--- -- define the array operators *=, **=, *~ and **~ for type _text
+--- --
++- - -- define the array operators *=, **=, *~ and **~ for type _text
++- - --
+ create function array_texteq(_text, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_texteq(_text, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_textregexeq(_text, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_textregexeq(_text, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -47,26 +47,26 @@
+   rightarg=text,
+   procedure=array_all_textregexeq);
+ 
+--- -- define the array operators *=, **=, *~ and **~ for type _char16
+--- --
++- - -- define the array operators *=, **=, *~ and **~ for type _char16
++- - --
+ create function array_char16eq(_char16, char16)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_char16eq(_char16, char16)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_char16regexeq(_char16, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_char16regexeq(_char16, text)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -89,26 +89,26 @@
+   rightarg=text,
+   procedure=array_all_char16regexeq);
+ 
+--- -- define the array operators *=, **=, *&gt; and **&gt; for type _int4
+--- --
++- - -- define the array operators *=, **=, *&gt; and **&gt; for type _int4
++- - --
+ create function array_int4eq(_int4, int4)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_int4eq(_int4, int4)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_int4gt(_int4, int4)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_int4gt(_int4, int4)
+   returns bool
+-  as '/usr/local/pgsql/lib/array_iterator.so' 
++  as '/home/dz/lib/postgres/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -131,7 +131,7 @@
+   rightarg=int4,
+   procedure=array_all_int4gt);
+ 
+---*/
++*/
+ 
+---/* end of file */
++/* end of file */
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00156" HREF="msg00156.html">[pgsql-jp 2583] Re: variable array in C function</A></STRONG>
+<UL><LI><EM>From:</EM> pessi@eiehost.gee.kyoto-u.ac.jp (II Ryouta)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00142" HREF="msg00142.html">[pgsql-jp 2569] Re: variable array in C function (was Re:select wherearray[] = ???)</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 2580] Perl programming</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 2582] RDBMSの教科書は...</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 2569] Re: variable array in C function (was Re:select wherearray[] = ???)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 2583] Re: variable array in C function</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00154"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00154"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

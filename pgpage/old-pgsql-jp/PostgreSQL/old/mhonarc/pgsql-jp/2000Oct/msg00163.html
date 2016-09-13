@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18119] Re: ３２文字以上のserialについて -->
+<!--X-From: Makoto Setoh <setoh@mcr.ita.melco.co.jp> -->
+<!--X-Date: Fri, 13 Oct 2000 13:46:50 +0900 -->
+<!--X-Message-Id: 39E693BA15E.641FSETOH@dec007 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39E68191E6.CC38DAISAITO@smtp.lares.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18119] Re: ３２文字以上のserialについて </TITLE>
+<LINK REV="made" HREF="mailto:setoh@mcr.ita.melco.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00161.html">Date Prev</A>][<A HREF="msg00162.html">Date Next</A>][<A HREF="msg00160.html">Thread Prev</A>][<A HREF="msg00145.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18119] Re: ３２文字以上のserialについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Makoto Setoh &lt;<A HREF="mailto:setoh@mcr.ita.melco.co.jp">setoh@mcr.ita.melco.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 13 Oct 2000 13:46:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00154.html">39E68191E6.CC38DAISAITO@smtp.lares.dti.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+瀬藤です。
+
+勉強がてら実験してみました。
+
+&gt; create tableでシリアルを作成すると、
+&gt; [テーブルの名_シリアルのカラム名_SEQ]でsequenceが作成されますけど、
+&gt; このsequenceの名前がNAMEDATALEN(32文字)を越えてしまっていた場合、
+&gt; このsequenceの値を再設定したりということは不可能でしょうか？
+&gt; 
+&gt; そもそも、NAMEDATALEN(32文字)を越えたsequenceを作ってもエラーが発生せず、
+&gt; その後、SQLでアクセスが不可という事で困っているのですが。
+
+私の環境は以下のとおりですが、
+    PostgreSQL 7.0.0 on i686-pc-linux-gnu, 
+    compiled by gcc egcs-2.91.66
+
+長い名前のテーブルを作成すると、sequenceの名前は
+NAMEDATALEN(32文字)に収まるように作られました。
+(テーブル名のところが短くなるようです。)
+で、その短くなった名前を使えば値のセット(setval)も上手くいくようです。
+
+改行をしているので見にくいですが、以下を見ていただければ
+動作がわかると思います。
+
+naonaodb=# create table table_01234567890123456789
+               ( id serial, name text );
+001013.12:28:23.584   [927] NOTICE:  CREATE TABLE will create
+    implicit sequence 'table_012345678901234567_id_seq' for SERIAL
+column 'table_01234567890123456789.id'
+001013.12:28:23.584   [927] NOTICE:  CREATE TABLE/UNIQUE will create
+    implicit index 'table_012345678901234567_id_key'
+    for table 'table_01234567890123456789'
+NOTICE:  CREATE TABLE will create implicit sequence
+    'table_012345678901234567_id_seq' for SERIAL column
+    'table_01234567890123456789.id'
+NOTICE:  CREATE TABLE/UNIQUE will create implicit index
+    'table_012345678901234567_id_key' for table
+    'table_01234567890123456789'
+CREATE
+naonaodb=# \d
+                   List of relations
+              Name               |   Type   |  Owner   
+---------------------------------+----------+----------
+ table_01234567890123456789      | table    | postgres
+ table_012345678901234567_id_seq | sequence | postgres
+(2 rows)
+
+naonaodb=# insert into table_01234567890123456789 (name)
+               values('Test Data');
+INSERT 26557 1
+naonaodb=# select last_value from table_012345678901234567_id_seq;
+ last_value 
+------------
+          1
+(1 row)
+
+naonaodb=# insert into table_01234567890123456789 (name)
+               values('Test Data2');
+INSERT 26558 1
+naonaodb=# select last_value from table_012345678901234567_id_seq;
+ last_value 
+------------
+          2
+(1 row)
+
+値の変更も可能で、以下のようになりました。
+
+naonaodb=# select setval('table_012345678901234567_id_seq',100);
+ setval 
+--------
+    100
+(1 row)
+
+naonaodb=# select last_value from table_012345678901234567_id_seq;
+ last_value 
+------------
+        100
+(1 row)
+
+
+一応、こんなこともやってみたのですが、これはちょっと無理みたいですね。
+
+naonaodb=# select '\'' ||
+    substr('table_01234567890123456789',1,24) ||
+        '_id_seq' || '\'';
+             ?column?              
+-----------------------------------
+ 'table_012345678901234567_id_seq'
+(1 row)
+
+naonaodb=# select setval( '\'' || 
+    substr('table_01234567890123456789',1,24) ||
+    '_id_seq' || '\'', 500 );
+001013.13:42:50.704   [942] ERROR:  Only constant sequence
+    names are acceptable for function 'setval'
+ERROR:  Only constant sequence names
+    are acceptable for function 'setval'
+
+PHPなどの外部からやればいけると思います。(当たり前か..)
+
+---
+  三菱電機コントロールソフトウェア（株）伊丹事業所
+  技術第２課 新事業開拓グループ 瀬藤　誠
+  setoh@mcr.ita.melco.co.jp  <A HREF="http://www.mcr.co.jp/">http://www.mcr.co.jp/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00154" HREF="msg00154.html">[pgsql-jp 18110] ３２文字以上のserialについて</A></STRONG>
+<UL><LI><EM>From:</EM> SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 18117] Re: Perl でのSELECT結果取得方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 18118] Re: Perl でのSELECT結果取得方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 18116] Re: ３２文字以上のserialについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00145.html">[pgsql-jp 18101] SSL とIPの関係</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

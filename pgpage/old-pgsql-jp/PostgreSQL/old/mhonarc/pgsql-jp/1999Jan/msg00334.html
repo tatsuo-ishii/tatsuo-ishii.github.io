@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6747] RE:LOW LEVEL  LOCKINGとは？ -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Fri, 22 Jan 1999 13:47:40 +0900 -->
+<!--X-Message-Id: 000901be45c2$579e0ba0$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901220311.MAA16336@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6747] RE:LOW LEVEL  LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00333.html">Date Prev</A>][<A HREF="msg00335.html">Date Next</A>][<A HREF="msg00333.html">Thread Prev</A>][<A HREF="msg00335.html">Thread Next</A>][<A HREF="index.html#00334">Date Index</A>][<A HREF="threads.html#00334">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6747] RE:LOW LEVEL  LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Jan 1999 13:47:40 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 石井です。
+&gt;
+&gt; &gt;&gt; 1. デフォルトの isolation level は Oracle などと同じように、
+&gt; &gt;&gt; read_comitted になるようです(つまり dirty read は発生しないが、none
+&gt; &gt;
+&gt; &gt;え、そうなんですか ？
+&gt; &gt;read committed がデフォルトになってしまうと、既にあるユーザーレベル
+&gt; &gt;のプログラム（C,Perl,Tcl,PHP等で書かれた）をそのまま使うことができ
+&gt; &gt;なくて困ると思ったので我慢できずに本家に投稿してみたのですが。
+&gt; &gt;6.5のデフォルトを現状と変えたらどうやって6.5にアップグレードするん
+&gt; &gt;ですか？ みたいな感じで。
+&gt; &gt;やはり、私の片言の英語では通じなかったのだろうか ？
+&gt; &gt;確認するのも気が重いなー。
+&gt;
+&gt; Vadim さんは「serializableが必要だなんて思えない」という発言をしてたし。
+&gt;
+
+あれあれ、ということであればやっぱり、本家に確認していただいたほうが
+よいですね。
+すいませんがお願いできないでしょうか ？
+実は、autocommitをOFFにする（デフォルトで）という話も同時にでていたので
+一緒に確認していただけるとありがたいです。（こちらの方がずっと影響が
+大きくて問題なんだけど）
+
+&gt;
+&gt; &gt;ロック方式でSERIALIZABLEを実装しようとすると全然違った考え方が必要
+&gt; &gt;になってしまうと思います（テーブルロックを使うのならとても簡単ですが）。
+&gt; &gt;ただ、読み込みロックがないので、現在のようなテーブルロック方式が
+&gt; &gt;提供する完璧ともいえる一貫性／整合性は、当然のことながら保証され
+&gt; &gt;ません。
+&gt; &gt;だから、たとえSERIALIZABLEがデフォルトになったとしても、既存の
+&gt; &gt;ユーザープログラムは見直さないといけませんね。
+&gt; &gt;厳密にいえば の話ですけど。
+&gt;
+&gt; ここが良く分かりません。私は、serializable によって完全にトランザクショ
+&gt; ンの一貫性／整合性が保証されると思っていたのですが、serializable でも
+&gt; 駄目なケースって具体的にどのような場合でしょう？
+
+具体的にというと難しいですが、無理矢理作ってみました。
+
+テーブル a(key int4,kubun char)とb(key int4,data int4)を用意して
+            （bのkeyはaのkeyを参照するforeign key)
+たとえば、
+
+      aのkubunが'1'の時は、対応するbのdataには正または0が設定可能
+           kubunが'2'の時は、                  dataには負または0が設定可能
+      という取り決めを作ってみましょう。
+      逆に
+      kubunはすべての対応するbのdataが0の時のみ変更可能
+
+      とってつけた取り決めですがあしからず。
+
+さて kubunはすべて '1',dataはすべて0という状態で
+
+Session-1(kubunを更新)          Session-2(dataを更新)
+
+begin;                                    begin;
+select data from b where .. ;    select kubun from a where ..;
+   (dataが0であることを確認)       (kubunが'1'であることを確認)
+update a set kubun='2' ...;       update b set data=10 ...;
+end;                                      end;
+
+両方のsessionが終了した時点で kubun='2' data=10（正)という組み合わ
+せが発生してしまいます。
+この現象はselectでロック（共有でもよい）がかかれば発生しません。
+
+6.5でこの現象を回避するにはselect ... for updateを使用する必要があり
+ます。
+急いで作った例なので、おかしな点／わからない点はおたずねください。
+
+Hiroshi Inoue
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00335" HREF="msg00335.html">[pgsql-jp 6748] Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00333" HREF="msg00333.html">[pgsql-jp 6746] Re: RE: [pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00333.html">[pgsql-jp 6746] Re: RE: [pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00335.html">[pgsql-jp 6748] Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00333.html">[pgsql-jp 6746] Re: RE: [pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00335.html">[pgsql-jp 6748] Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00334"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00334"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

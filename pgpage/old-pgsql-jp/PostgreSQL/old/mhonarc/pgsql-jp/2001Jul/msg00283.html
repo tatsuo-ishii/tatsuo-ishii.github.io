@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22418] Re: [Q]Postmaster CPU time -->
+<!--X-From: takemoto@bd2.hnes.nec.co.jp -->
+<!--X-Date: Tue, 17 Jul 2001 13:26:32 +0900 -->
+<!--X-Message-Id: 20010717132632takemoto@mail.bd2.hnes.nec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010622233551.3873.KAKIP@mars.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22418] Re: [Q]Postmaster CPU time </TITLE>
+<LINK REV="made" HREF="mailto:takemoto@bd2.hnes.nec.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00282.html">Date Prev</A>][<A HREF="msg00284.html">Date Next</A>][<A HREF="msg00312.html">Thread Prev</A>][<A HREF="msg00285.html">Thread Next</A>][<A HREF="index.html#00283">Date Index</A>][<A HREF="threads.html#00283">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22418] Re: [Q]Postmaster CPU time</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takemoto@bd2.hnes.nec.co.jp">takemoto@bd2.hnes.nec.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 17 Jul 2001 13:26:32 +0900</LI>
+<LI><em>References</em>: &lt;20010622233551.3873.KAKIP@mars.dti.ne.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+竹元です
+
+１ヶ月前ほどの記事なので恐縮なのですが、
+またまた関連する質問させてください。
+
+【環境】
+OS:Linux RedHat6.2J
+PostgreSQL:v7.1.1
+
+PQライブラリ経由でDBに接続している状況でVACUUMを
+かけようとしたのですが、VACUUM完了するのに数十分かかる
+（ブロックしているように見える）状態になっています。
+
+＃接続していない状況では、数秒で返ってきます。
+＃接続を切断すると、切断を契機に数秒で返ってきます。
+
+&gt;psql -c vacuum DataBase
+VACUUM
+
+ためしに、
+Perlインタフェース
+ECPGインタフェース
+psqlコマンド
+
+などから接続してVACUUMが即完了するかどうか試してみると
+数秒で返ってきました。
+
+Ｑ１．PQライブラリでの接続をする上で何か注意する点があるのでしょうか？
+Ｑ２．UPDATE中にVACUUMを行う行為は不正ですか？それともVACUUM中はDBに
+　　　なんらかのロックをさせる必要がありますか？（VACUUM自体がロック
+　　　機構を持っている？）
+
+kakip&gt;
+kakip&gt;垣谷＠大田区です。
+kakip&gt;
+kakip&gt;On Fri, 22 Jun 2001 19:24:50 +0900
+kakip&gt;takemoto@bd2.hnes.nec.co.jp wrote:
+kakip&gt;&gt; 竹元です
+kakip&gt;(snip)
+kakip&gt;&gt; またまた質問なのですが、VACUUM実行は定期的に行う必要ってあるのでしょうか？
+kakip&gt;&gt; 頻繁にＤＢを更新するようなところでは実行すると効果的だとシーラカンス本
+kakip&gt;&gt; （ISBN4-7741-0890-1 改訂版p360)にも書いてありましたが、逆にあまり頻繁に
+kakip&gt;&gt; 更新しないようなＤＢならば、ゴミデータは自動的に削除されるのでしょうか？
+kakip&gt;
+kakip&gt;自動的に削除はされません。PostgreSQL は DELETE をかけると元データを"消さ
+kakip&gt;ず"に参照出来ないようにします。で、UPDATE では DELETE 、 INSERT の処理を
+kakip&gt;内部的に発生させるため DELETE の部分のごみが発生するという動きだったと思
+kakip&gt;います。（ですよね？）またこのごみの部分は再利用されません。再利用できる
+kakip&gt;ようになるのは今後のバージョンで予定されています。
+kakip&gt;VACUUM の動作はこのゴミの削除の他に統計情報の再構成を行うという作業が含
+kakip&gt;まれています。これによって index を効果的に使用するようになってパフォー
+kakip&gt;マンスが上がったのかもしれません。
+kakip&gt;詳しくは改訂第3版 479 ページからの記述を参考にしてみてください。
+kakip&gt;
+kakip&gt;&gt; ＃ある時間帯に頻繁にＤＢ更新がかかっても、時間がたてばVACUUM実行しなくても
+kakip&gt;&gt; ＃大丈夫なようにゴミデータは削除されていくのかな、と思い質問しています。
+kakip&gt;
+kakip&gt;よって自動的に削除はされません。
+kakip&gt;
+kakip&gt;パフォーマンスを犠牲にしてもいいのであれば VACUUM を行わなくて良いという
+kakip&gt;考えもあると思います。実際、私が運用しているシステムでは１年以上 VACUUM 
+kakip&gt;をかけずに運用しているものもあります。ただし、１レコードしかないテーブル
+kakip&gt;を SELECT するのに負荷がが少ない状態であるにもかかわらず数秒かかってしま
+kakip&gt;います。要件的にあまり問題になっていないので放っておいているというのが現
+kakip&gt;状ですが。
+kakip&gt;
+kakip&gt;#このシステムを作った人が VACUUM 自体を知らなかったそうで(^^;;
+kakip&gt;
+kakip&gt;---
+kakip&gt;Kakitani
+kakip&gt;kakip@mars.dti.ne.jp
+-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=-=-==-=-=-=-=-==-=-=-=-=-=-=-=-=-=-
+ NEC ソフトウェア北陸  基本ソフトウェア事業部　第二技術部
+
+　
+　　　　　　　　竹元 浩之(Hiroyuki Takemoto)
+
+ E-mail ：takemoto@bd2.hnes.nec.co.jp
+ Telnet ：8-599-6200 (Myline:6224) (07619)3-4625(外線)
+ FAX    ：8-599-6209,6208          (07619)3-4709(外線)
+ Mail   ：599-6200
+-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=-=-==-=-=-=-=-==-=-=-=-=-=-=-=-=-=-
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00287" HREF="msg00287.html">[pgsql-jp 22422] Re: [Q]Postmaster CPU time</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00285" HREF="msg00285.html">[pgsql-jp 22420] Re: [Q]Postmaster CPU time</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00282.html">[pgsql-jp 22417] Re: btree エラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 22419] Re: btree エラー （お礼）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00312.html">[pgsql-jp 22447] Re: トランザクションについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 22420] Re: [Q]Postmaster CPU time</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00283"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00283"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

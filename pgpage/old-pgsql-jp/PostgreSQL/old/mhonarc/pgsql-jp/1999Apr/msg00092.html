@@ -1,0 +1,347 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7901] Re: 6.5beta1 released -->
+<!--X-From: "Tenkou N. Hattori" <tnh@aurora.dti.ne.jp> -->
+<!--X-Date: Wed, 7 Apr 1999 19:15:59 +0900 (JST) -->
+<!--X-Message-Id: 199904071015.TAA28757@smtp1.dti.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199904070256.LAA02724@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7901] Re: 6.5beta1 released </TITLE>
+<LINK REV="made" HREF="mailto:tnh@aurora.dti.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00182.html">Thread Prev</A>][<A HREF="msg00098.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7901] Re: 6.5beta1 released</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Tenkou N. Hattori" &lt;<A HREF="mailto:tnh@aurora.dti.ne.jp">tnh@aurora.dti.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 7 Apr 1999 19:15:59 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00084.html">199904070256.LAA02724@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+服部典弘です。
+
+&gt; こうしてみると、FreeBSD 軍団の元気が良いですね:-)
+&gt; 
+&gt; libc5 ベースの x86/Linux の方がいないのが...
+&gt; 後、商用 Unix も...
+
+glibc-2.0.7 ベースの x86/Linux の方もいないですね。
+
+
+というわけで v6.5beta1 のテストをしました。
+環境は前回同様
+	AMD K6
+	IBM 互換機
+	Raw Hide 1.3.2
+	Linux Kernel 2.2.4
+	glibc-2.1.1
+	gcc version egcs-2.91.66 19990314/Linux (egcs-1.1.2 release)
+	flex version 2.5.4
+	GNU Bison version 1.27
+です。
+
+テストしたのは v6.5beta1 です。
+	5922894 Apr  7 10:00 postgresql-v6.5beta1.tar.gz
+
+regression testでは
+	int2, int4, float8, geometry, triggers, misc
+がfailします。
+
+前回（snapshot 4/5）にくらべて datetime が通るようになりました
+それ以外は、エラーの出方も含めで,前回と同様のようです。
+
+
+[tnh@ata3 regress]$ diff expected/int2.out results/int2.out
+10c10
+&lt; ERROR:  pg_atoi: error reading "100000": Math result not representable
+---
+&gt; ERROR:  pg_atoi: error reading "100000": Numerical result out of range
+[tnh@ata3 regress]$ diff expected/int4.out results/int4.out
+10c10
+&lt; ERROR:  pg_atoi: error reading "1000000000000": Math result not representable
+---
+&gt; ERROR:  pg_atoi: error reading "1000000000000": Numerical result out of range
+[tnh@ata3 regress]$ diff expected/float8.out results/float8.out
+192c192,200
+&lt; ERROR:  pow() result is out of range
+---
+&gt; bad|?column?
+&gt; ---+--------
+&gt;    |0
+&gt;    |NaN
+&gt;    |NaN
+&gt;    |NaN
+&gt;    |NaN
+&gt; (5 rows)
+&gt;
+198c206,214
+&lt; ERROR:  exp() result is out of range
+---
+&gt; bad|            ?column?
+&gt; ---+--------------------
+&gt;    |                   1
+&gt;    |7.39912306090513e-16
+&gt;    |                   0
+&gt;    |                   0
+&gt;    |                   1
+&gt; (5 rows)
+&gt;
+[tnh@ata3 regress]$ diff expected/geometry.out results/geometry.out
+115c115
+&lt;       |(-10,0)   |[(-1000000,200),(300000,-40)]|(-9.99715942258202,15.3864610140473
+)
+---
+&gt;       |(-10,0)   |[(-1000000,200),(300000,-40)]|(-9.99715942258202,15.3864610140472
+)
+411,418c411,418
+&lt; six|polygon
+
+
+
+&lt; ---+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+---------------------------
+&lt;    |((-3,0),(-2.59807621135332,1.5),(-1.5,2.59807621135332),(-1.83690953073357e-16,
+3),(1.5,2.59807621135332),(2.59807621135332,1.5),(3,3.67381906146713e-16),(2.59807621
+135332,-1.5),(1.5,-2.59807621135332),(5.5107285922007e-16,-3),(-1.5,-2.59807621135332
+),(-2.59807621135332,-1.5))
+&lt;    |((-99,2),(-85.6025403784439,52),(-49,88.6025403784439),(0.999999999999994,102),
+(51,88.6025403784439),(87.6025403784439,52),(101,2.00000000000001),(87.6025403784439,
+-48),(51,-84.6025403784438),(1.00000000000002,-98),(-49,-84.6025403784439),(-85.60254
+03784438,-48))
+&lt;    |((-4,3),(-3.33012701892219,5.5),(-1.5,7.33012701892219),(1,8),(3.5,7.3301270189
+2219),(5.33012701892219,5.5),(6,3),(5.33012701892219,0.500000000000001),(3.5,-1.33012
+701892219),(1,-2),(-1.5,-1.33012701892219),(-3.33012701892219,0.499999999999998))
+
+&lt;    |((-2,2),(-1.59807621135332,3.5),(-0.5,4.59807621135332),(1,5),(2.5,4.5980762113
+5332),(3.59807621135332,3.5),(4,2),(3.59807621135332,0.500000000000001),(2.5,-0.59807
+6211353315),(1,-1),(-0.5,-0.598076211353316),(-1.59807621135332,0.499999999999999))
+
+&lt;    |((90,200),(91.3397459621556,205),(95,208.660254037844),(100,210),(105,208.66025
+4037844),(108.660254037844,205),(110,200),(108.660254037844,195),(105,191.33974596215
+6),(100,190),(95,191.339745962156),(91.3397459621556,195))
+
+&lt;    |((0,0),(13.3974596215561,50),(50,86.6025403784439),(100,100),(150,86.6025403784
+439),(186.602540378444,50),(200,1.22460635382238e-14),(186.602540378444,-50),(150,-86
+.6025403784438),(100,-100),(50,-86.6025403784439),(13.3974596215562,-50))
+
+---
+&gt; six|polygon
+
+
+
+
+&gt; ---+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+---------------------------------------------
+&gt;    |((-3,0),(-2.59807621135076,1.50000000000442),(-1.49999999999116,2.5980762113584
+2),(1.53102359078377e-11,3),(1.50000000001768,2.59807621134311),(2.59807621136607,1.4
+999999999779),(3,-3.06204718156754e-11),(2.59807621133545,-1.50000000003094),(1.49999
+999996464,-2.59807621137373),(-4.59307077235131e-11,-3),(-1.5000000000442,-2.59807621
+13278),(-2.59807621138138,-1.49999999995138))
+&gt;    |((-99,2),(-85.6025403783588,52.0000000001473),(-48.9999999997054,88.60254037861
+4),(1.00000000051034,102),(51.0000000005893,88.6025403781036),(87.6025403788692,51.99
+99999992634),(101,1.99999999897932),(87.6025403778485,-48.0000000010313),(50.99999999
+88214,-84.6025403791243),(0.999999998468976,-98),(-49.0000000014732,-84.6025403775933
+),(-85.6025403793795,-47.9999999983795))
+&gt;    |((-4,3),(-3.33012701891794,5.50000000000737),(-1.49999999998527,7.3301270189307
+),(1.00000000002552,8),(3.50000000002946,7.33012701890518),(5.33012701894346,5.499999
+99996317),(6,2.99999999994897),(5.33012701889242,0.499999999948437),(3.49999999994107
+,-1.33012701895622),(0.999999999923449,-2),(-1.50000000007366,-1.33012701887966),(-3.
+33012701896897,0.500000000081028))
+&gt;    |((-2,2),(-1.59807621135076,3.50000000000442),(-0.499999999991161,4.598076211358
+42),(1.00000000001531,5),(2.50000000001768,4.59807621134311),(3.59807621136607,3.4999
+999999779),(4,1.99999999996938),(3.59807621133545,0.499999999969062),(2.4999999999646
+4,-0.59807621137373),(0.999999999954069,-1),(-0.500000000044197,-0.598076211327799),(
+-1.59807621138138,0.500000000048617))
+&gt;    |((90,200),(91.3397459621641,205.000000000015),(95.0000000000295,208.66025403786
+1),(100.000000000051,210),(105.000000000059,208.66025403781),(108.660254037887,204.99
+9999999926),(110,199.999999999898),(108.660254037785,194.999999999897),(104.999999999
+882,191.339745962088),(99.9999999998469,190),(94.9999999998527,191.339745962241),(91.
+3397459620621,195.000000000162))
+&gt;    |((0,0),(13.3974596216412,50.0000000001473),(50.0000000002946,86.602540378614),(
+100.00000000051,100),(150.000000000589,86.6025403781036),(186.602540378869,49.9999999
+992634),(200,-1.02068239385585e-09),(186.602540377848,-50.0000000010313),(149.9999999
+98821,-86.6025403791243),(99.999999998469,-100),(49.9999999985268,-86.6025403775933),
+(13.3974596206205,-49.9999999983795))
+423,430c423,430
+&lt; six|polygon
+
+
+&lt; ---+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+--------------------------------------------------------------------
+&lt;    |((-3,0),(-2.12132034355964,2.12132034355964),(-1.83690953073357e-16,3),(2.12132
+034355964,2.12132034355964),(3,3.67381906146713e-16),(2.12132034355964,-2.12132034355
+964),(5.5107285922007e-16,-3),(-2.12132034355964,-2.12132034355964))
+&lt;    |((-99,2),(-69.7106781186548,72.7106781186548),(0.999999999999994,102),(71.71067
+81186547,72.7106781186548),(101,2.00000000000001),(71.7106781186548,-68.7106781186547
+),(1.00000000000002,-98),(-69.7106781186547,-68.7106781186548))
+&lt;    |((-4,3),(-2.53553390593274,6.53553390593274),(1,8),(4.53553390593274,6.53553390
+593274),(6,3),(4.53553390593274,-0.535533905932737),(1,-2),(-2.53553390593274,-0.5355
+33905932738))
+&lt;    |((-2,2),(-1.12132034355964,4.12132034355964),(1,5),(3.12132034355964,4.12132034
+355964),(4,2),(3.12132034355964,-0.121320343559642),(1,-1),(-1.12132034355964,-0.1213
+20343559643))
+&lt;    |((90,200),(92.9289321881345,207.071067811865),(100,210),(107.071067811865,207.0
+71067811865),(110,200),(107.071067811865,192.928932188135),(100,190),(92.928932188134
+5,192.928932188135))
+&lt;    |((0,0),(29.2893218813452,70.7106781186548),(100,100),(170.710678118655,70.71067
+81186548),(200,1.22460635382238e-14),(170.710678118655,-70.7106781186547),(100,-100),
+(29.2893218813453,-70.7106781186548))
+---
+&gt; six|polygon
+
+
+&gt; ---+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------
+---------------------------------------------------------------------
+&gt;    |((-3,0),(-2.12132034355423,2.12132034356506),(1.53102359078377e-11,3),(2.121320
+34357588,2.1213203435434),(3,-3.06204718156754e-11),(2.12132034353258,-2.121320343586
+71),(-4.59307077235131e-11,-3),(-2.12132034359753,-2.12132034352175))
+&gt;    |((-99,2),(-69.7106781184743,72.7106781188352),(1.00000000051034,102),(71.710678
+119196,72.7106781181134),(101,1.99999999897932),(71.7106781177526,-68.7106781195569),
+(0.999999998468976,-98),(-69.7106781199178,-68.7106781173917))
+&gt;    |((-4,3),(-2.53553390592372,6.53553390594176),(1.00000000002552,8),(4.5355339059
+598,6.53553390590567),(6,2.99999999994897),(4.53553390588763,-0.535533905977846),(0.9
+99999999923449,-2),(-2.53553390599589,-0.535533905869586))
+&gt;    |((-2,2),(-1.12132034355423,4.12132034356506),(1.00000000001531,5),(3.1213203435
+7588,4.1213203435434),(4,1.99999999996938),(3.12132034353258,-0.121320343586707),(0.9
+99999999954069,-1),(-1.12132034359753,-0.121320343521752))
+&gt;    |((90,200),(92.9289321881526,207.071067811884),(100.000000000051,210),(107.07106
+781192,207.071067811811),(110,199.999999999898),(107.071067811775,192.928932188044),(
+99.9999999998469,190),(92.9289321880082,192.928932188261))
+&gt;    |((0,0),(29.2893218815257,70.7106781188352),(100.00000000051,100),(170.710678119
+196,70.7106781181134),(200,-1.02068239385585e-09),(170.710678117753,-70.7106781195569
+),(99.999999998469,-100),(29.2893218800822,-70.7106781173917))
+[tnh@ata3 regress]$
+[tnh@ata3 regress]$ diff expected/triggers.out results/triggers.out
+38a39
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+39a41
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+40a43
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+41a45
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+43c47
+&lt; ERROR:  check_fkeys2_pkey_exist: tuple references non-existing key in pkeys
+---
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+44a49
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+45a51
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+46a53
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+47a55
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+49c57
+&lt; ERROR:  check_fkeys_pkey_exist: tuple references non-existing key in pkeys
+---
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+51c59
+&lt; ERROR:  check_fkeys_pkey2_exist: tuple references non-existing key in fkeys2
+---
+&gt; ERROR:  check_primary_key: even number of arguments should be specified
+53,54c61,62
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+&lt; ERROR:  check_fkeys2_fkey_restrict: tuple referenced in fkeys
+---
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys are deleted
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys2 are deleted
+56,57c64,65
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys2 are deleted
+---
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys are deleted
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys2 are deleted
+59,60c67,68
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+&lt; ERROR:  check_fkeys2_fkey_restrict: tuple referenced in fkeys
+---
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys are deleted
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys2 are deleted
+62,63c70,72
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+&lt; NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys2 are deleted
+---
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys are deleted
+&gt; NOTICE:  check_pkeys_fkey_cascade: 0 tuple(s) of fkeys2 are deleted
+&gt; ERROR:  Cannot insert a duplicate key into a unique index
+[tnh@ata3 regress]$ diff expected/misc.out results/misc.out
+9,10d8
+&lt; NOTICE:  Non-functional update, only first update is performed
+&lt; NOTICE:  Non-functional update, only first update is performed
+15,16d12
+&lt; NOTICE:  Non-functional update, only first update is performed
+&lt; NOTICE:  Non-functional update, only first update is performed
+
+----
+Tenkou N. Hattori &lt;tnh@aurora.dti.ne.jp&gt;
+<A HREF="http://www.aurora.dti.ne.jp/~tnh/">http://www.aurora.dti.ne.jp/~tnh/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00098" HREF="msg00098.html">[pgsql-jp 7907] Re: 6.5beta1 released</A></STRONG>
+<UL><LI><EM>From:</EM> takehi-s@ascii.co.jp (SHIOZAKI Takehiko)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00084" HREF="msg00084.html">[pgsql-jp 7893] 6.5beta1 released</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 7900] Re: ecpg fix and 6.5 beta</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 7902] Re: 6.5beta1 released</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00182.html">[pgsql-jp 7989] 6.5 beta test</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00098.html">[pgsql-jp 7907] Re: 6.5beta1 released</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

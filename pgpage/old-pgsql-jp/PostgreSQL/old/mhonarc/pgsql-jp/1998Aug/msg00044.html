@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4975] Re: Resend 検索実行時のphtmlエラー -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Wed, 05 Aug 1998 18:43:59 +0900 -->
+<!--X-Message-Id: 199808050943.SAA22557@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010500b1ed9968424e@yano&#45;el.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4975] Re: Resend 検索実行時のphtmlエラー </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00043.html">Date Prev</A>][<A HREF="msg00045.html">Date Next</A>][<A HREF="msg00056.html">Thread Prev</A>][<A HREF="msg00057.html">Thread Next</A>][<A HREF="index.html#00044">Date Index</A>][<A HREF="threads.html#00044">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4975] Re: Resend 検索実行時のphtmlエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 05 Aug 1998 18:43:59 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00034.html">v04010500b1ed9968424e@yano-el.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+&gt; お伺いしたい部分について
+&gt; 検索／結果表示という処理で
+&gt; 実用に耐えうる仕様にするためには埋め込みタグ（.phtml)
+&gt; のみで実行、表示まで行うのは無理があるのでしょうか？
+&gt; （自己開発のモジュールなどが必要になるのでしょうか？)
+
+PostgreSQL の検索ではコネクション開始時の
+オーバーヘッドが高いらしいのですが、
+通常の検索・表示ではそんなに問題ないのではないでしょうか?
+# ちなみに私も数万件程度の DB の検索に Postgres + PHP/FI 2.0.1
+# を使って、毎ページごと検索してますが
+# それなりに実用に耐えてます (体感でですが ;-)
+
+&gt; 
+&gt; 例えば次のような場合では
+&gt; 検索条件は
+&gt; 検索条件　A
+&gt;                B
+&gt;                C
+&gt;                D
+&gt; とある場合、A or B or C or D と複合条件にし、各々に
+&gt; ワイルドカード検索か部分一致検索の機能を付加し
+&gt; 検索結果は一致したものすべてを
+&gt; 表形式で表示させる場合ではどうでしょうか？
+
+マッチする件数にもよりけりですが、
+すべてを表形式で表示をすると Netscape では 100件程度にもなると
+表の幅の再計算(?)の時間がかかりすぎて嫌いです(個人的には) ;p
+
+ですので一ページに表示する行数を決めて、
+複数ページにわたって表示できるようにしています。
+
+私がよくやってるのはこんな感じです。
+FORM タグで 
+	&lt;input type=radio name="andA" value="and" checked&gt; AND 検索
+	&lt;input type=radio name="andB" value="or"&gt; OR 検索
+	&lt;input type=text name="termA"&gt;
+などとして、
+&lt;?
+	$rows = 20;
+	if( !IsSet($start) ){
+		$start = 0;
+	}
+
+	/* つぎのページのスタート位置 */
+	$i = $start + $rows;
+	$linkarg = "?start=$i";
+
+	/* 条件A */
+	if( $termA != "" ){
+		if( $where == "" ){
+			$where += " where ";
+		} else {
+			if( $andA == "and"){
+				$where += " and ";
+			} else {
+				$where += " or ";
+			}
+		}
+		$linkarg += sprintf("&amp;termA=%s", UrlEncode($termA));
+	}
+	/* 条件B */
+	if( $termB != "" ){
+		if( $where == "" ){
+... 同様に行う
+
+	$sql = "select attA,attB from sometable $where";
+	$res = pg_Exec($conn, $sql);
+
+	echo "&lt;table border&gt;\n";
+	echo "&lt;tr&gt;&lt;th&gt; attA &lt;/th&gt;&lt;th&gt; attB &lt;/th&gt;&lt;/tr&gt;\n";
+
+	$numrows = pg_NumRows($res);
+	$i = $start;
+	while( ($i &lt; $start + $rows) &amp;&amp; ($i &lt; $numrows)){
+		echo "&lt;tr&gt;";
+		echo "&lt;td&gt;"; echo pg_Result($res, $i, 0); echo "&lt;/td&gt;";
+		echo "&lt;td&gt;"; echo pg_Result($res, $i, 1); echo "&lt;/td&gt;";
+		echo "&lt;/tr&gt;\n";
+	$i++;
+	}
+	echo "&lt;/table&gt;\n";
+
+	if( $start + $rows &lt; $numrows ) {
+		echo "&lt;a href=$PHP_SELF$linkarg&gt; Next Page &lt;/a&gt;";
+	}
+&gt;
+
+長くなりました _0_
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00057" HREF="msg00057.html">[pgsql-jp 4988] Re: Resend 検索実行時の phtmlエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Koujiro Iuchi &lt;iuchi@yano-el.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00034" HREF="msg00034.html">[pgsql-jp 4965] Re: Resend 検索実行時のphtmlエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Koujiro Iuchi &lt;iuchi@yano-el.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 4974] Re: off-line meeting</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 4976] Re: off-line meeting</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 4987] Re: Resend 検索実行時のphtmlエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 4988] Re: Resend 検索実行時の phtmlエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00044"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00044"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

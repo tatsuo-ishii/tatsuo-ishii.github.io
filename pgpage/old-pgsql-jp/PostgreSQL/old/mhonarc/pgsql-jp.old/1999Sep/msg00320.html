@@ -1,0 +1,255 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10822] PostgreSQL+JDBC + アプレット(applet)の連携 -->
+<!--X-From: Naoki Taniguchi <nao1726@mars.dti.ne.jp> -->
+<!--X-Date: Wed, 22 Sep 1999 05:23:52 +0900 -->
+<!--X-Message-Id: 37E7E958.5E696153@mars.dti.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10822] PostgreSQL+JDBC + アプレット(applet)の連携 </TITLE>
+<LINK REV="made" HREF="mailto:nao1726@mars.dti.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00318.html">Date Prev</A>][<A HREF="msg00319.html">Date Next</A>][<A HREF="msg00325.html">Thread Prev</A>][<A HREF="msg00322.html">Thread Next</A>][<A HREF="index.html#00320">Date Index</A>][<A HREF="threads.html#00320">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10822] PostgreSQL+JDBC + アプレット(applet)の連携</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naoki Taniguchi &lt;<A HREF="mailto:nao1726@mars.dti.ne.jp">nao1726@mars.dti.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 22 Sep 1999 05:23:52 +0900</LI>
+<LI><em>Organization</em>: ソフトウエア興業(株) NaoSoFT</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+tnaoki@Soft です。
+
+アプレットを使ったDBへのアクセスでうまくいきません。ご指南をお願いしま
+す。
+
+[ 環境 ]
+
+OS   : VineLinux1.1
+JDK  : 1.2
+DBMS : Postgres6.4
+WebS : Apache1.3.6
+   ※ postgresql.jar は JDK1.1.5 でコンパイルしました。
+
+[ 事象 ]
+
+ アプレットを返さずにJDBCを使用しているときはうまく行くが、
+アプレット上からDBにコネクションを張ることができません。
+
+  java.sql.SQLException: User authentication failed
+
+こんなメッセージが出てしまい、困っています。
+
+ 自作パッチなど当てて見たのですが、なにか根本的なものが
+違うような気がします。
+
+[ 詳細 ]
+
+1. 以下のソースをコンパイルして、JDBCの起動確認をしました。
+
+   bash% su postgres
+   bash% cd /tmp
+   bash% vi eg1.java
+   bash% javac eg1.java
+   bash% export CLASSPATH=".:/usr/local/pgsql/lib/postgres.jar"
+   bash% java eg1
+
+  (実行結果)
+      user=postgres, password=********
+      user=nobody, password=********
+  (捕捉)
+      JDBC は コンパイル後に/usr/local/pgsql/lib/にmvしました。
+
+2. アプレットを使用してみることにしました。結果、DBへの接続で失敗
+   しているようです。
+
+             ※ Webサーバ のトップDIR は /usr/local/apache/html/ です.
+             ※ postgresql.Driver のロードができないので、index.html直下
+
+                にpostgresql.jarで固められているclassを解凍しています。
+                これで、良いのかしら!?
+
+   bash% su
+   bash# cd /usr/local/apache/html/test
+   bash# jar xvf  /usr/local/pgsql/lib/postgresql.jar
+   bash# vi jdbcApplet.java
+   bash# javac jdbcApplet.java
+   bash# vi index.html
+   bash# appletviewer <A HREF="http://www.naonet.or.jp/test">http://www.naonet.or.jp/test</A>
+
+  (実行結果)
+         postgresql.Driver TEST START
+         postgresql.Driver ... loading
+         postgresql.Driver ... loading OK
+         postgresql ... connect
+
+         postgresql.Driver TEST END
+
+    &lt; 出力メッセージ &gt;
+           java.sql.SQLException: User authentication failed
+
+           うーーーむ、うまく行きませんのです。(涙)
+
+  (捕捉)
+    ・  www.naonet.or.jp はローカルのWebサーバです。
+    ・  パスワード XXXXXXX は postgres のパスワードを書いています。
+    ・  appletviewer の代わりにNetscapeNav を使用しても同じ結果です。(当
+り前?)
+
+
+( 使用しているソース )
+--------------------------------------------------------------  eg1.java
+START
+import java.io.*;
+import java.sql.*;
+import java.text.*;
+
+public class eg1
+{
+  Connection connection;
+  Statement  statement;
+  ResultSet  resultset;
+
+  public eg1() throws ClassNotFoundException, FileNotFoundException,
+IOException, SQLException
+  {
+    String url = "jdbc:postgresql:template1";
+    String user = "postgres";
+    String password = "mitsuyacider";
+    String query = "select usename, passwd from pg_user";
+
+    Class.forName("postgresql.Driver");
+    connection = DriverManager.getConnection(url, user, password);
+    statement = connection.createStatement();
+    resultset = statement.executeQuery(query);
+
+    while(resultset.next()){
+        String u = resultset.getString(1);
+        String p = resultset.getString(2);
+        System.out.println("user=" + u + ", password=" + p);
+    }
+
+    resultset.close();
+    statement.close();
+    connection.close();
+  }
+  public static void main(String args[])
+  {
+    try {
+      eg1 e = new eg1();
+    } catch(Exception ex) {
+      ex.printStackTrace();
+    }
+  }
+}
+--------------------------------------------------------------  eg1.java
+END
+
+-------------------------------------------------------  jdbcApplet.java
+START
+import java.applet.Applet;
+import java.awt.Graphics;
+import java.sql.*;
+
+public class jdbcApplet extends Applet {
+
+  Connection db;
+  Statement st;
+
+  public void paint( Graphics g) {
+    g.drawString("postgresql.Driver TEST START",25,15);
+    try {
+        g.drawString("postgresql.Driver ... loading ",25,25);
+        //  PostgreSQL JDBC ドライバをロードする
+        Class.forName( "postgresql.Driver" );
+        g.drawString("postgresql.Driver ... loading OK",25,35);
+    } catch( Exception ex ) {
+        System.out.println( ex );
+    }
+    try {
+        g.drawString("postgresql ... connect ",25,45);
+        //  DBサーバに接続する
+        db = DriverManager.getConnection("jdbc:postgresql:    &lt;--------
+※1
+               //www.naonet.or.jp/test", "postgres", "XXXXXXX");
+        g.drawString("postgresql ... connect OK",25,55);
+        st = this.db.createStatement();
+    } catch( Exception ex ) {
+        System.out.println( ex );
+    }
+    g.drawString("postgresql.Driver TEST END",25,65);
+  }
+}
+-------------------------------------------------------  jdbcApplet.java
+END
+※1  リターンコードを取り除いてください。
+
+
+--------------------------------------------------------  index.html
+START
+&lt;HTML&gt;
+ &lt;HEAD&gt;
+  &lt;TITLE&gt;Test Java Applet JDBC&lt;/TITLE&gt;
+ &lt;/HEAD&gt;
+ &lt;BODY&gt;
+  &lt;applet code=jdbcApplet.class width=400 height=200&gt;
+  &lt;/applet&gt;
+ &lt;/BODY&gt;
+&lt;/HTML&gt;
+--------------------------------------------------------  index.html END
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00322" HREF="msg00322.html">[pgsql-jp 10825] Re: PostgreSQL+JDBC +アプレット(applet)の連携</A></STRONG>
+<UL><LI><EM>From:</EM> EMOTO Masahiko &lt;emo@nifs.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00318.html">[pgsql-jp 10820] Re:MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00319.html">[pgsql-jp 10821] cannot read block 35</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 10828] フィールド名変更について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00322.html">[pgsql-jp 10825] Re: PostgreSQL+JDBC +アプレット(applet)の連携</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00320"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00320"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21774] Re: 切り分け処理後の文字列よりグループ化 -->
+<!--X-From: sft&#45;y.matumoto@p.mcits.mci.mei.co.jp (松本豊) -->
+<!--X-Date: Tue, 12 Jun 2001 12:16:41 +0900 -->
+<!--X-Message-Id: 200106120316.AA01525@sft&#45;matu.p.mcits.mci.mei.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: PDEPLPMOMDPCONBOCMMKOELCCDAA.c&#45;boys@mx9.freecom.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21774] Re: 切り分け処理後の文字列よりグループ化 </TITLE>
+<LINK REV="made" HREF="mailto:sft-y.matumoto@p.mcits.mci.mei.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00152.html">Date Prev</A>][<A HREF="msg00154.html">Date Next</A>][<A HREF="msg00147.html">Thread Prev</A>][<A HREF="msg00137.html">Thread Next</A>][<A HREF="index.html#00153">Date Index</A>][<A HREF="threads.html#00153">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21774] Re: 切り分け処理後の文字列よりグループ化</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sft-y.matumoto@p.mcits.mci.mei.co.jp">sft-y.matumoto@p.mcits.mci.mei.co.jp</A> (松本豊)</LI>
+<LI><em>Date</em>: Tue, 12 Jun 2001 12:16:41 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松本＠川崎市在住です。
+
+
+武田憲太郎 さんは書きました:
+&gt;　お世話になっております。武田です。
+&gt;
+&gt;　SQLに関して質問があります。PostgreSQL6.5.3を用いて、
+&gt;
+&gt;１．apacheのログをDB化
+&gt;２．CGIより、クエリーを発行して、ログの検索・アクセス解析を行う
+&gt;
+&gt;　というシステムを構築しております。テーブル定義は以下の通りです。
+&gt;
+&gt;create table access (		-- ログ情報格納テーブル
+&gt;	id int not null,		-- file テーブル参照
+&gt;	accessdate date not null,-- 該当ファイルのアクセス日
+&gt;	count int not null	-- 該当日のPV数
+&gt;);
+&gt;
+&gt;create table file (		-- HTMLファイル情報格納テーブル
+&gt;	id int primary key,	-- access.id より参照
+&gt;	path text not null unique,	-- apache のログに記録されているURL
+&gt;	title text			-- 該当HTMLのタイトル
+&gt;);
+&gt;
+&gt;　以下の状態で例えば、
+&gt;
+&gt;select sum(a.count), max(f.path), max(f.title), a.id
+&gt; from access as a, file as f
+&gt; where a.accessdate = 'yesterday'
+&gt;  and a.id = f.id
+&gt; group by a.id
+&gt; order by sum desc
+&gt; limit 100
+&gt;
+&gt;又は、
+&gt;
+&gt;select count, accessdate, date_part('dow', accessdate)
+&gt; from access
+&gt; where id = '(任意の数値)'
+&gt;  and accessdate between '(集計開始日)'
+&gt;  and date '(集計開始日)' + interval '(集計日数)'
+&gt; order by accessdate
+&gt;
+&gt;　といった感じで、ファイル毎のアクセスランキングや期間指定でのファイル別集計
+&gt;を行うCGIを作成いたしました。
+&gt;
+&gt;　ところで、上記の仕様を「ファイル別集計」だけではなく「ディレクトリ別集計」
+&gt;も行えるような形、つまり、file.pathカラムの文字列の整形（具体的には、文字列
+&gt;の一番右端の '/' の切り落とし）を行った後グループ化、という処理を行いたいの
+&gt;ですが、SQL文でそのような処理を行う事は可能でしょうか？
+
+アイディアだけですが、
+まず、full パス名からディレクトリ名を切り出す関数を作ります。
+perl でも C でも良いでしょう。それを get_prefix とします。
+
+それから view でディレクトリ名の仮想テーブルを作って集計すれば
+良いと思います。
+
+create view by_dir(directory , accessdate , count ) as 
+select get_prefix( path ), accessdate , count 
+from access , file 
+where access.id = file.id ; 
+
+後は、by_dir をお好きなように select すればよろしいかと。
+えっ？ get_prefix の実装ですか？私ならperl で書くかな。
+
+---
+WWW  Matsumoto Yutaka 
+^_^  松本豊        mail:sft-y.matumoto@p.mcits.mci.mei.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00143" HREF="msg00143.html">[pgsql-jp 21764] 切り分け処理後の文字列よりグループ化</A></STRONG>
+<UL><LI><EM>From:</EM> "武田憲太郎" &lt;c-boys@mx9.freecom.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 21773] listen address</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 21775] libpq.dll の解凍について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00147.html">[pgsql-jp 21768] Re: 切り分け処理後の文字列よりグループ化</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00137.html">[pgsql-jp 21759] タプルのサイズ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00153"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00153"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19302] Re: 実ファイルのオーナーに関して -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Sun, 31 Dec 2000 22:30:02 +0900 -->
+<!--X-Message-Id: 3A4F34DA.C6D1CAC9@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3A4B1DEE1B8.3551JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 20001229120451.EAC9.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-Reference-Id: 3A4DFC6596.0CC9JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19302] Re: 実ファイルのオーナーに関して </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00423.html">Date Prev</A>][Date Next][<A HREF="msg00420.html">Thread Prev</A>][<A HREF="msg00389.html">Thread Next</A>][<A HREF="index.html#00424">Date Index</A>][<A HREF="threads.html#00424">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19302] Re: 実ファイルのオーナーに関して</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 31 Dec 2000 22:30:02 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00399.html">3A4B1DEE1B8.3551JUN-N@mail.ga2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00405.html">20001229120451.EAC9.YUTAKA@hi-net.zaq.ne.jp</A>&gt; &lt;<A HREF="msg00420.html">3A4DFC6596.0CC9JUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。こんばんは。
+# 特売格安品があったので、PII 266 から、PIII 866 MHz 
+# に移行中。正月も仕事 (^^;;;
+
+Jun Kitamura wrote:
+&gt; 
+&gt; 北村です。
+
+&gt; トリガーを全テーブルに登録・・・は、たしかにそんなに困難じゃ無いですね・
+&gt; ・・汗。当時は、_pkey ファイル(キーにより生成されるファイル)も総量の対象
+&gt; として量るので、そのテーブルにもトリガーを・・・って思ったのですが、一般
+&gt; テーブルに付加されるキー用のテーブルなんて、「独自にインサート/アップデー
+&gt; トすることがない」ので考えなくて良い・・・ですね。
+。。。略。。。
+
+ディスクの容量管理という意味であれば、SORT や merge join
+(多分postgresにもあるだろう)で使用する WORK AREA の方が
+予想がつきにくく、余程問題でしょう。
+
+そもそも、複数のユーザーが共有するための仕組である RDB
+を、ユーザー個人を管理するための仕組である QUOTA で管理
+しようという発想に矛盾がありますね。
+
+ユーザー単位ではなく、DB 単位に容量管理すべきでしょうね。
+勿論、１ユーザー １ＤＢならユーザー単位になりますが、
+データーの共有をしないなら、本格的 RDB を使う必要などな
+いのでは？。
+
+けいまつ さんの意図と合うかわかりませんが、次のような
+方法は如何でしょう。
+
+A 案: DB 単位に実体を専用の DISK PARTITION に置き、
+DB名のディレクトリーにシンボリックリンクを張る。
+PARTITION 容量を超えれば DISK FULL で動かなくなるので
+ものすごく厳格な容量制限ができます。でも、サイズ変更
+は難しいし、IDE の HDD だと１台８partition しか切れな
+いので数が多いと問題。ここまで厳格にやる必要はあまり
+ないのでは。ていうか、ここまで厳格にする必要があれば
+サーバー自体を別のマシーンにしますね。
+
+B 案:DB 単位に du などで使用量を求めて、超過していれ
+ば、メールとか login 時にメッセージで警告する。
+目的にもよりますが、このくらいの方が現実的ではないで
+しょうか。度重なる違反者には、教授/上司から厳重注意
+など(笑)。
+du は、cron などで定期的に実行チェックできます。
+
+初心者教育なんかで容量制限したい場合だと、この方法で
+は、巨大な SORT や、うっかりミスで JOIN 条件を抜かし
+て巨大な直積の一時表を作ってしまったりして、DISK FULL
+となり他のユーザーに多大な迷惑をかけるといった問題は
+防げないですが。
+
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00399" HREF="msg00399.html">[pgsql-jp 19277] Re: 実ファイルのオーナーに関して</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00405" HREF="msg00405.html">[pgsql-jp 19283] Re: 実ファイルのオーナーに関して</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00420" HREF="msg00420.html">[pgsql-jp 19298] Re: 実ファイルのオーナーに関して</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00423.html">[pgsql-jp 19301] Re: 処理停止？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00420.html">[pgsql-jp 19298] Re: 実ファイルのオーナーに関して</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00389.html">[pgsql-jp 19267] コマンドの長さの制約について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00424"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00424"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

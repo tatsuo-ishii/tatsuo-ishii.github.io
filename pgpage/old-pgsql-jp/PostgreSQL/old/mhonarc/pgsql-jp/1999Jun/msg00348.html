@@ -1,0 +1,189 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8914] Re: IpcSemaphoreCreate　Errorがでます。お助けを。。。。 -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Thu, 17 Jun 1999 21:55:09 +0900 -->
+<!--X-Message-Id: v04010109b38ea0adf393@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003601beb864$bc343110$5334f8d2@tao2.taknet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8914] Re: IpcSemaphoreCreate　Errorがでます。お助けを。。。。 </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00346.html">Date Prev</A>][<A HREF="msg00349.html">Date Next</A>][<A HREF="msg00331.html">Thread Prev</A>][<A HREF="msg00349.html">Thread Next</A>][<A HREF="index.html#00348">Date Index</A>][<A HREF="threads.html#00348">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8914] Re: IpcSemaphoreCreate　Errorがでます。お助けを。。。。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Jun 1999 21:55:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。解決方法がわかっているわけではないのですが、、、
+
+At 10:57 +0900 99.6.17, K_Ohashi wrote:
+&gt; 大橋　克英と申します。
+&gt; マシン：SUN ULTRA10
+&gt; MEM:256M
+&gt; HDD:十分な量（3G以上）
+&gt; OS：Solaris2.6
+&gt; です。
+&gt; ここで、PostgreSQLのインストール作業を行いました。
+&gt; インストール作業ユーザ：postgres
+&gt; --------------------------------------------------------
+&gt; postgres@hostname%[nn] configure：
+&gt; /configure --with-template=solaris_sparc_gcc --with-pgport=5432 --prefix=/ho
+&gt; me/postgeSQL --with-perl --with-odbc --with-mb=EUC_JP --with-CXX=gcc
+&gt; postgres@hostname%[nn] make install
+&gt; --------------------------------------------------------
+&gt; しました。
+&gt; この後
+&gt; initdb --pgdata=/home/postgeSQL/data --pglib=/home/postgeSQL/lib
+&gt; でデータベースを初期化しました。
+&gt; その後、ユーザpostgresで
+&gt; --------------------------------------------------------
+&gt; postgres@hostname%[nn] /home/postgeSQL/bin/postmaster -D
+&gt; /home/postgeSQL/data -p 5432 &amp;
+&gt; --------------------------------------------------------
+&gt; とpostmasterを起動しようとしましたが、
+&gt; --------------------------------------------------------
+&gt;  IpcSemaphoreCreate: semget failed (Invalid argument) key=5432014, num=16,
+&gt; permission=600
+&gt; --------------------------------------------------------
+&gt; というエラーが出てしまいました。
+
+　私は昨日、共用メモリ関係で次のようなエラーを出しました。
+(「[pgsql-jp 8878] Re: error: shmget failed」 参照)
+
+IpcMemoryCreate: shmget failed (Invalid argument) key=5432001, size=1073152, permission=600
+
+　で、/etc/system に、このように書いて解決しました。
+
+set shmsys: shminfo_shmmax=2097152
+
+
+&gt; set semsys:seminfo_semmsl = 5
+&gt; set semsys:seminfo_semmni = 70
+&gt; set semsys:seminfo_semmns = 200
+&gt; set shmsys:shminfo_shmmin = 1
+&gt; set shmsys:shminfo_shmseg = 10
+&gt; set shmsys:shminfo_shmmax = 4194304
+&gt; set shmsys:shminfo_shmmni = 100
+&gt; ------------------------------------------------------------
+&gt; と記述しましたが、システムブート時（boot -v）にSolaris2.6は
+&gt; --------------------------------------------------------
+&gt;         IPC status from &lt;running system&gt; as of &lt;date&gt;
+&gt;         Message Queue facility not in system.
+&gt;         Shared Memory facility not in system.
+&gt;         Semaphore facility not in system.
+&gt; --------------------------------------------------------
+&gt; とは表示しません。
+
+　Solaris 2.6 は、オンラインマニュアルをインストールすると
+http://&lt;マシン名&gt;:8888/ というURL でブラウザから見ることが
+できるようで、少なくとも私のところからはそのようにして見られますが、
+
+Solaris のシステム管理-&gt;システム性能の管理-&gt;カーネルパラメタの調整手順
+
+の順にリンクをたどっていくと、セマフォ関係のパラメタとデフォルトは
+次のようになっています。
+
+  セマフォ機能
+ seminfo_semmap      10           セマフォマップ内のエントリ数
+ seminfo_semmni      10           セマフォ識別子の数
+ seminfo_semmns      60           システム内のセマフォ数
+ seminfo_semmnu      30           システム内の undo 構造体の数
+ seminfo_semmsl      25           id ごとの最大セマフォ数
+ seminfo_semopm      10           セマフォコールごとの最大操作数
+ seminfo_semume      10           プロセスごとの最大 undo エントリ数
+
+　しかし、
+
+&gt;  IpcSemaphoreCreate: semget failed (Invalid argument) key=5432014, num=16,
+&gt; permission=600
+
+　このエラーがどの数値をいじればよいのかは私にはわからないです。
+
+ seminfo_semmap      10           セマフォマップ内のエントリ数
+ seminfo_semmnu      30           システム内の undo 構造体の数
+ seminfo_semmsl      25           id ごとの最大セマフォ数
+ seminfo_semopm      10           セマフォコールごとの最大操作数
+ seminfo_semume      10           プロセスごとの最大 undo エントリ数
+
+　上記5点については変更されていないようなので、もしかすると
+このどれかを変えればうまくいくかもしれませんが、どうでしょう? &gt; 識者
+「seminfo_semmap      10           セマフォマップ内のエントリ数」は
+怪しいかも。
+
+　あと、共有メモリのエラーの時には
+
+(2) バックエンドの数を減らしてpostmaster を起動する(-N オプション)。
+例:
+$ postmaster -N 10 -S 
+
+　という解決法が提示されてますが、これってセマフォに対しても
+有効なんでしょうか? というか、セマフォの数は、バックエンドの
+数に比例して多く必要になるか、ですが、、、
+　とりあえず試されてみてはいかがでしょうか。
+
+　、、、失敗しても責任はもてませんので、ご了承を(無責任や)。
+
+--
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　小田原市中里322-2　日立システムプラザ　ソ技セ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 8897] IpcSemaphoreCreate　Errorがでます。お助けを。。。。</A></STRONG>
+<UL><LI><EM>From:</EM> "K_Ohashi" &lt;research9821@iname.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00346.html">[pgsql-jp 8912] Re: 配列について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 8915] Re: IpcSemaphoreCreate　Errorがでます。お助けを。。。。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 8897] IpcSemaphoreCreate　Errorがでます。お助けを。。。。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 8915] Re: IpcSemaphoreCreate　Errorがでます。お助けを。。。。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00348"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00348"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

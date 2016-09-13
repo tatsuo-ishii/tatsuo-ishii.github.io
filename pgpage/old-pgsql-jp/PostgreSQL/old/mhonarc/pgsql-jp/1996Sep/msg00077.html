@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 707] Re: [Q] GRANT and REVOKE. -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Wed, 18 Sep 1996 11:10:19 +0900 -->
+<!--X-Message-Id: 199609180210.LAA12622@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199609171146.UAA00442@rodan.misc.hit&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 707] Re: [Q] GRANT and REVOKE. </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00081.html">Date Prev</A>][<A HREF="msg00078.html">Date Next</A>][<A HREF="msg00076.html">Thread Prev</A>][<A HREF="msg00071.html">Thread Next</A>][<A HREF="index.html#00077">Date Index</A>][<A HREF="threads.html#00077">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 707] Re: [Q] GRANT and REVOKE.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 18 Sep 1996 11:10:19 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00076.html">199609171146.UAA00442@rodan.misc.hit-u.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: "Takashi Mega" &lt;mega@rodan.misc.hit-u.ac.jp&gt;
+Subject: [postgres95 706] Re: [Q] GRANT and REVOKE.
+Date: Tue, 17 Sep 1996 20:46:40 +0900
+
+&gt; この時点では、おみつさんが仰るように、ユーザとグループは連動していなくて、
+&gt; それが原因でrevoke all on sample from kazu;が効かないのかと思ったのですが、
+&gt; revoke all on sample from group etc;もrevoke all on sample from mega;もどち
+&gt; らも有効でした。
+&gt;
+&gt; おみつさんのところのPostgres 95はどのバージョンでしょうか？僕は1.01です。お
+&gt; そらく僕の方のバージョンの方が古いでしょうから、新しいバージョンではこの辺
+&gt; の仕様を変えたのでしょうか？ただ、古いバージョンだとrevoke all on sample
+&gt; from user;できて、新しいバージョンだとできないといった"改悪"を意図してやる
+&gt; とも思えませんが…。
+&gt;
+
+私の動作環境は、
+  Postgres95 1.06 + pg95-1.02-jp.patch on Linux 1.2.13 (Slackware 3.0) + JE です。
+
+間違いかと思い、もう一度やってみました。
+手順は、「すべてだめ」(×)-&gt;「etcグループだけいい」(○)-&gt;「でもkazuはだめ」(○)
+-&gt;「etcグループもやっぱだめ」(×)-&gt;「kazuだけいい」(○)-&gt;「etcグループはだめ」(○)
+としました。(括弧内はSELECTできたかどうか。)
+
+postgres                                | kazu
+======================================= | ========================================
+test=&gt; create table foo ( blah text);   |
+CREATE                                  |
+test=&gt; insert into foo values ('mitsu');|
+INSERT 261911                           |
+                                        | test=&gt; select * from foo;
+                                        | blah
+                                        | -----
+                                        | mitsu
+                                        | (1 row)
+test=&gt; revoke all on foo from public;   |
+CHANGE                                  |
+                                        | test=&gt; select * from foo;
+                                        | WARN:foo Either no such class or insufficient privilege
+test=&gt; select * from pg_group;          |
+groname|grosysid|grolist                |
+-------+--------+-------                |
+admin  |       4|{501}                  |
+etc    |       5|{507}                  |
+(2 rows)                                |
+test=&gt; grant select on foo to group etc;|
+                                        | test=&gt; select * from foo;
+                                        | blah 
+                                        | -----
+                                        | mitsu
+                                        | (1 row)
+test=&gt; revoke all on foo from kazu;     |
+CHANGE                                  |
+                                        | test=&gt; select * from foo;
+                                        | blah 
+                                        | -----
+                                        | mitsu
+                                        | (1 row)
+test=&gt; revoke all on foo from group etc;|
+CHANGE                                  |
+                                        | test=&gt; select * from foo;
+                                        | WARN:foo Either no such class or insufficient privilege
+test=&gt; grant select on foo to kazu;     |
+CHANGE                                  |
+                                        | test=&gt; select * from foo;
+                                        | blah 
+                                        | -----
+                                        | mitsu
+                                        | (1 row)
+test=&gt; revoke all on foo from group etc;|
+CHANGE                                  |
+                                        | test=&gt; select * from foo;
+                                        | blah 
+                                        | -----
+                                        | mitsu
+                                        | (1 row)
+
+
+長文失礼... :-)
+
+===========================
+Mitsuhiro Maeda
+    Tramp Data Service, Co.
+
+mitsu@tramp.co.jp
+===========================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[postgres95 706] Re: [Q] GRANT and REVOKE.</A></STRONG>
+<UL><LI><EM>From:</EM> "Takashi Mega" &lt;mega@rodan.misc.hit-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00081.html">[postgres95 711] Easy WWW-DB(zyview)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00078.html">[postgres95 708] template1</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00076.html">[postgres95 706] Re: [Q] GRANT and REVOKE.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00071.html">[postgres95 701] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00077"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00077"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

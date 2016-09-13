@@ -1,0 +1,363 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1325] pgSQL6.0 on FreeBSD -->
+<!--X-From: 五反田　秋彦<NCA03530@niftyserve.or.jp> -->
+<!--X-Date: Fri, 07 Feb 1997 13:02:00 +0900 -->
+<!--X-Message-Id: 199702070403.NAA01504@inetnif.niftyserve.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1325] pgSQL6.0 on FreeBSD </TITLE>
+<LINK REV="made" HREF="mailto:NCA03530@niftyserve.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00044.html">Thread Prev</A>][<A HREF="msg00039.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1325] pgSQL6.0 on FreeBSD</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 五反田　秋彦&lt;<A HREF="mailto:NCA03530@niftyserve.or.jp">NCA03530@niftyserve.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 07 Feb 1997 13:02:00 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Content-Type: Multipart/Mixed;
+ boundary="--Next_Part(Fri_Feb__7_09:47:11_1997)--"
+Content-Transfer-Encoding: 7bit
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+Content-Transfer-Encoding: 7bit
+
+五反田＠にふていです。
+
+いよいよ、UNIQUE 制約がサポートされましたね。念願がやっと叶った。v(^^)
+
+そこで、遅れ馳せながら、postgreSQL-6.0 をコンパイルしてみました。
+（石井さん、素早い jp-patch のリリース、本当に有難うございました。
+m(__)m）
+
+ OS:  FreeBSD 2.1.5-RELEASE
+ CPU: i486DX4-100 （Pentium マシン持ってないんです T_T）
+ RAM: 16MB
+ HDD: E-IDE（を IDE I/F で駆動）
+
+という貧弱な環境なので、あまり参考にはならないかもしれませんが… (^^;
+
+
+コンパイルの方ですが、特に問題は…問題は…あった。T_T
+
+$(pgsql)/src/backend/port/BSD44_derived/dl.c が、（gcc を使った場合）
+そのままではコンパイルできません。/usr/include/link.h と 
+/usr/include/dlfnc.h とでプロトタイプ宣言が食い違っている関数（dlopen 
+と dlsym）があるからです。
+
+そのほかにも、libpgtcl を作ろうとすると、エラーで止まってしまいます。
+BSD44_derived を指定した場合、libpq の方は .so.1 が作られないようになっ
+ているのに、libpgtcl の方ではその排除が不完全であるからです（もしかす
+ると BSD make だと問題が起きないのかもしれませんが、gmake でしか試して
+いません）。で、せっかくなので、.so が作られるように直してしまいました。
+
+
+Regression test は、時刻を含むデータと配列関係以外では一応動いているよ
+うです（float がらみでちょっと怪しい結果が出ているのですが、追いかけて
+いません）。
+
+
+というわけで、FreeBSD 2.1.5-RELEASE での patch と、regression test の
+結果の内とくに怪しそうな部分の抜粋、benchmark の per-query と総合結果
+（bench.out の最後の 1 行）を付けておきます。
+（長くなってしまってすみません。）
+
+                                   五反田 秋彦
+                                   nca03530@niftyserve.or.jp
+                                   gotanda@fs.cas.uec.ac.jp
+                                         (forwarded to the above)
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+*** pgsql/src/backend/port/BSD44_derived/dl.c.back      Mon Jan  6 14:00:52 19
+97--- pgsql/src/backend/port/BSD44_derived/dl.c   Fri Feb  7 08:45:13 1997
+***************
+*** 38,44 ****
+--- 38,46 ----
+  #include &lt;sys/types.h&gt;
+  #include &lt;nlist.h&gt;
+  #include &lt;link.h&gt;
++ #ifndef __FreeBSD__
+  #include &lt;dlfcn.h&gt;
++ #endif /* __FreeBSD__ */
+  
+  #include &lt;stdio.h&gt;
+  #include &lt;stdlib.h&gt;
+*** pgsql/src/libpgtcl/Makefile.back Fri Jan 24 02:01:33 1997
+--- pgsql/src/libpgtcl/Makefile Fri Feb  7 07:48:58 1997
+***************
+*** 45,52 ****
+--- 45,58 ----
+    install-shlib-dep := install-shlib
+    LDFLAGS           += -L ../libpq -lpq
+  else
++  ifeq ($(PORTNAME), BSD44_derived)
++     install-shlib-dep := install-shlib
++     shlib := libpq.so.6.0
++     CFLAGS+=$(CFLAGS_SL)
++  else
+    shlib             := 
+    install-shlib-dep :=
++  endif
+  endif
+  
+  all: libpgtcl.a $(shlib)
+***************
+*** 59,68 ****
+--- 65,88 ----
+  endif
+   $(RANLIB) libpgtcl.a
+  
++ ifeq ($(PORTNAME), BSD44_derived)
++ $(shlib): $(OBJS)
++   for file in $(OBJS:.o=); do \
++        $(LD) -x -r -o $$file.obj $$file.o; \
++      done
++       @echo building shared object $@
++       @rm -f $@.pic
++       @${AR} cq $@.pic `lorder $(OBJS:.o=.obj) | tsort`
++       ${RANLIB} $@.pic
++       @rm -f $@
++       $(LD) -x -Bshareable -Bforcearchive \
++         -o $@ $@.pic
++ else
+  libpgtcl.so.1: $(OBJS)
+       $(CC) $(LDFLAGS) -shared $(OBJS) -o libpgtcl.so.1
+        rm -f libpgtcl.so
+        ln -s libpgtcl.so.1 libpgtcl.so
++ endif
+  
+  .PHONY: beforeinstall-headers install-headers
+  .PHONY: install install-libpgtcl
+*** pgsql/src/libpq/Makefile.back Mon Jan 20 14:01:48 1997
+--- pgsql/src/libpq/Makefile   Fri Feb  7 07:47:51 1997
+***************
+*** 38,43 ****
+--- 38,48 ----
+      shlib := libpq.so.1
+    endif
+  endif
++ ifeq ($(PORTNAME), BSD44_derived)
++     install-shlib-dep := install-shlib
++     shlib := libpq.so.6.0
++     CFLAGS+=$(CFLAGS_SL)
++ endif
+  
+  all: libpq.a $(shlib) c.h
+  
+***************
+*** 60,67 ****
+--- 65,86 ----
+  ../backend/lib/dllist.o:
+    $(MAKE) -C ../backend/lib dllist.o
+  
++ ifeq ($(PORTNAME), BSD44_derived)
++ $(shlib): $(OBJS)
++   for file in $(OBJS:.o=); do \
++        $(LD) -x -r -o $$file.obj $$file.o; \
++      done
++       @echo building shared object $@
++       @rm -f $@.pic
++       @${AR} cq $@.pic `lorder $(OBJS:.o=.obj) | tsort`
++       ${RANLIB} $@.pic
++       @rm -f $@
++       $(LD) -x -Bshareable -Bforcearchive \
++         -o $@ $@.pic
++ else
+  libpq.so.1: $(OBJS)
+   gcc $(LDFLAGS) -shared -o $@ $(OBJS)
++ endif
+  
+  c.h: ../include/c.h
+       rm -f c.h
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+--- expected.out        Fri Feb  7 07:58:06 1997
++++ regress.out Fri Feb  7 09:04:24 1997
+@@ -1848,6 +1846,7 @@
+      |1004.3     |994.3      
+      |1.23457e+20|1.23457e+20
+      |1.23457e-20|-10        
++(3 rows)
+ 
+ QUERY: SELECT '' AS three, f.f1, f.f1 / '-10' AS x FROM FLOAT4_TBL f
+    WHERE f.f1 &gt; '0.0';
+@@ -1915,11 +1914,7 @@
+ WARN: Bad float8 input format
+ 
+ QUERY: INSERT INTO FLOAT8_TBL(f1) VALUES ('10e-400');
+-WARN: Bad float8 input format
+-
+ QUERY: INSERT INTO FLOAT8_TBL(f1) VALUES ('-10e-400');
+-WARN:  Bad float8 input format
+-
+ QUERY: SELECT '' AS five, FLOAT8_TBL.*;
+ five|f1                  
+ ----+--------------------
+@@ -1928,7 +1923,9 @@
+     |-34.84              
+     |1.2345678901234e+200
+     |1.2345678901234e-200
+-(5 rows)
++    |0                   
++    |0                   
++(7 rows)
+ 
+ QUERY: SELECT '' AS four, f.* FROM FLOAT8_TBL f WHERE f.f1 &lt;&gt; '1004.3';
+ four|f1                  
+ 
+※この他にも、余分に「0」の行が増えている箇所がいくつもあった。
+
+ QUERY: UPDATE FLOAT8_TBL
+    SET f1 = FLOAT8_TBL.f1 * '-1'
+    WHERE FLOAT8_TBL.f1 &gt; '0.0';
+ QUERY: SELECT '' AS bad, f.f1 * '1e200' from FLOAT8_TBL f;
+-WARN: Bad float8 input format -- overflow
+-
++WARN:floating point exception! the last floating point operation either excee
+ded legal ranges or was a divide by zero
+ QUERY: SELECT '' AS bad, f.f1 ^ '1e200' from FLOAT8_TBL f;
+ WARN:  Bad float8 input format -- overflow
+ 
+@@ -2113,7 +2129,16 @@
+ QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 &lt; '0.0' ;
+ WARN:can't take log of a negative number
+ QUERY: SELECT '' AS bad, : (f.f1) from FLOAT8_TBL f;
+-WARN:exp() returned a floating point out of range
++bad|            ?column?
++---+--------------------
++   |                   1
++   |7.39912306090513e-16
++   |                   1
++   |                   1
++   |                   0
++   |                   0
++   |                   1
++(7 rows)
+ 
+ QUERY: SELECT '' AS bad, f.f1 / '0.0' from FLOAT8_TBL f;
+ WARN:float8div:  divide by 0.0 error
+@@ -2122,10 +2147,12 @@
+ ----+---------------------
+     |0                    
+     |-34.84               
++    |0                    
++    |0                    
+     |-1004.3              
+     |-1.2345678901234e+200
+     |-1.2345678901234e-200
+-(5 rows)
++(7 rows)
+ 
+ QUERY: CREATE TABLE INT2_TBL(f1 int2);
+ QUERY: INSERT INTO INT2_TBL(f1) VALUES ('0');
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+query  0:   0.002 real   0.001 user   0.001 sys
+query  1:   0.590 real  -1.647 user  -3.956 sys
+query  2:   5.549 real  -0.828 user  -2.912 sys
+query  3:   0.325 real   0.287 user  -1.969 sys
+query  4:   2.882 real   1.107 user   1.047 sys
+query  5:   0.331 real   0.307 user  -1.982 sys
+query  6:   1.135 real   0.916 user  -3.909 sys
+query  7:   0.043 real   0.026 user  -1.982 sys
+query  8:   0.586 real   0.538 user  -5.975 sys
+query  9:   9.875 real   8.109 user  -1.272 sys
+query 10:   8.612 real   7.598 user  -1.524 sys
+query 11:   5.706 real   5.072 user   0.186 sys
+query 12:  10.885 real   8.342 user   0.693 sys
+query 13:   8.742 real   7.560 user   0.508 sys
+query 14:   5.676 real   4.907 user   0.244 sys
+query 15:  18.950 real   8.468 user  -0.286 sys
+query 16:   8.878 real   7.505 user   0.488 sys
+query 17:  27.871 real   5.717 user   2.906 sys
+query 18:   7.151 real   3.826 user  -3.279 sys
+query 19:   1.203 real   0.794 user  -1.913 sys
+query 20:   0.002 real   0.001 user   0.000 sys
+query 21:   0.002 real   0.001 user   0.000 sys
+query 22:   0.002 real   0.001 user   0.000 sys
+query 23:   0.001 real   0.001 user   0.000 sys
+query 24:   0.001 real   0.001 user   0.000 sys
+query 25:   0.001 real   0.001 user   0.000 sys
+query 26:   0.001 real   0.001 user   0.000 sys
+query 27:   0.188 real   0.022 user  -1.997 sys
+query 28:   0.474 real   0.069 user  -5.983 sys
+query 29:   0.002 real   0.001 user   0.000 sys
+query 30:   0.176 real   0.018 user  -3.997 sys
+query 31:   0.417 real   0.052 user  -3.990 sys
+query 32:   0.392 real   0.053 user  -1.997 sys
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+&gt;       158.91 real        76.40 user        13.80 sys
+
+----Next_Part(Fri_Feb__7_09:47:11_1997)----
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00039" HREF="msg00039.html">[postgres95 1327] Re: pgSQL6.0 on FreeBSD</A></STRONG>
+<UL><LI><EM>From:</EM> Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[postgres95 1324] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[postgres95 1326] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00044.html">[postgres95 1332] Re: solaris patch and benchmark</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00039.html">[postgres95 1327] Re: pgSQL6.0 on FreeBSD</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

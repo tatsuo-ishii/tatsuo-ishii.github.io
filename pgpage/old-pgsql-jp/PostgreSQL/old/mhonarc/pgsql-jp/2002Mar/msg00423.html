@@ -1,0 +1,192 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25448] Re: pg_dump のデータ欠落について -->
+<!--X-From: Yasuhiro Hayase <hayase@hcn.zaq.ne.jp> -->
+<!--X-Date: Thu, 28 Mar 2002 11:02:19 +0900 -->
+<!--X-Message-Id: 20020328110219.7db2f219.hayase@hcn.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020324231021.1c54596d.hayase@hcn.zaq.ne.jp -->
+<!--X-Reference-Id: 20020327140342.38040da0.hayase@hcn.zaq.ne.jp -->
+<!--X-Reference-Id: a7sdsv$9sg$1@guam.bioinfo.sfc.keio.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25448] Re: pg_dump のデータ欠落について </TITLE>
+<LINK REV="made" HREF="mailto:hayase@hcn.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00422.html">Date Prev</A>][<A HREF="msg00424.html">Date Next</A>][<A HREF="msg00418.html">Thread Prev</A>][<A HREF="msg00425.html">Thread Next</A>][<A HREF="index.html#00423">Date Index</A>][<A HREF="threads.html#00423">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25448] Re: pg_dump のデータ欠落について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasuhiro Hayase &lt;<A HREF="mailto:hayase@hcn.zaq.ne.jp">hayase@hcn.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 28 Mar 2002 11:02:19 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00369.html">20020324231021.1c54596d.hayase@hcn.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00407.html">20020327140342.38040da0.hayase@hcn.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00418.html">a7sdsv$9sg$1@guam.bioinfo.sfc.keio.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+This is a multi-part message in MIME format.
+
+--Multipart_Thu__28_Mar_2002_11:02:19_+0900_08233a40
+Content-Type: text/plain; charset=ISO-2022-JP
+Content-Transfer-Encoding: 7bit
+
+早瀬です。
+
+&gt; この「エラーメッセージ」というのはどのようなメッセージなのでしょうか?
+
+NOTICE:  copy: line 5070, local_to_utf: could not convert (0xb000) EUC_JP to UTF-8. Ignored
+
+というメッセージです。
+
+
+&gt; あと、支障がなければエラーが再現する最小限のデータセット（テーブルとデー
+&gt; タ）を見せていただけると追えるかもしれませんが、現在の情報だけでは他の人
+&gt; には手が出せないと思います。
+
+ご指摘ありがとうございます。
+返事をいただけなくて困っていたのですが、当然ですね 。
+
+文字化けしたデータをどうやってDBに登録するか悩んでいたのですが、なんとか以
+下の方法で再現可能だと思います。
+
+
+●環境:
+Debian/GNU Linux sid (i386) と、 少し古い同sid
+
+postgresql 7.1.3-8
+libc6 2.2.5-3
+または、
+postgresql 7.2-7
+libc6 2.2.5-4
+
+
+LANG=ja_JP.eucJP
+
+端末 rxvt
+
+
+●手順
+
+・まず、添付したファイルを、/tmp/copy-brokentbl という名前で保存してください。
+
+・以下のコマンド、クエリを実行してください。
+
+&gt; psql -U postgres template1
+template1=# CREATE DATABASE tmp WITH ENCODING='UNICODE';
+
+template1=# \c tmp
+
+tmp=# CREATE TABLE brokentbl ( dummy1 integer primary key, data text not null, dummy2 integer not null);
+
+tmp=# SET client_encoding='unicode';
+
+tmp=# COPY brokentbl FROM '/tmp/copy-brokentbl';
+
+tmp=# SET client_encoding='euc_jp';
+
+tmp=# SELECT * from brokentbl; -- 化けた文字は``?''で代用しています。
+ dummy1 | data  | dummy2 
+--------+-------+--------
+      1 | 鍵舗? |      2
+(1 rows)
+
+tmp=# COPY brokentbl TO stdout; -- ここでデータが欠落します
+1       鍵舗??
+
+tmp=# SET client_encoding='unicode';
+
+tmp=# COPY brokentbl TO stdout; -- client_encoding が unicode だと欠落しない
+1	??笈??	2
+
+
+以上です。
+
+
+
+-- 
+早瀬 康裕
+大阪大学基礎工学部情報科学科数理科学コース
+
+
+
+--Multipart_Thu__28_Mar_2002_11:02:19_+0900_08233a40
+Content-Type: application/octet-stream;
+ name="copy-brokentbl"
+Content-Disposition: attachment;
+ filename="copy-brokentbl"
+Content-Transfer-Encoding: base64
+
+MQnpjbXoiJewCTIK
+
+--Multipart_Thu__28_Mar_2002_11:02:19_+0900_08233a40--
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp: 25473] Re: pg_dump のデータ欠落について</A></STRONG>
+<UL><LI><EM>From:</EM> 早瀬 康裕&lt;hayase@hcn.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00425" HREF="msg00425.html">[pgsql-jp: 25450] Re: pg_dump のデータ欠落について</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;e-tokuya@sankyo-unyu.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00369" HREF="msg00369.html">[pgsql-jp: 25394] 7.2への移行について</A></STRONG>
+<UL><LI><EM>From:</EM> 早瀬 康裕&lt;hayase@hcn.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00407" HREF="msg00407.html">[pgsql-jp: 25432] pg_dumpのデータ欠落について (Was: 7.2への移行について)</A></STRONG>
+<UL><LI><EM>From:</EM> 早瀬 康裕&lt;hayase@hcn.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00418" HREF="msg00418.html">[pgsql-jp: 25443] Re: pg_dump のデータ欠落について(Was: 7.2 へ</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00422.html">[pgsql-jp: 25447] Re: Access2000-&gt;ODBC-&gt;Postgres7.13  接続での不具合</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00424.html">[pgsql-jp: 25449] Re: FETCH せずにselect 文の各列の属性を取得したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00418.html">[pgsql-jp: 25443] Re: pg_dump のデータ欠落について(Was: 7.2 へ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00425.html">[pgsql-jp: 25450] Re: pg_dump のデータ欠落について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00423"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00423"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16373] Re: libpq でmalloc した時の問題 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 31 Jul 2000 13:36:01 +0900 -->
+<!--X-Message-Id: 20000731133601F.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000731123948.52B5.ATSUKA@be.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16373] Re: libpq でmalloc した時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00604.html">Date Prev</A>][<A HREF="msg00606.html">Date Next</A>][<A HREF="msg00604.html">Thread Prev</A>][<A HREF="msg00612.html">Thread Next</A>][<A HREF="index.html#00605">Date Index</A>][<A HREF="threads.html#00605">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16373] Re: libpq でmalloc した時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 31 Jul 2000 13:36:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00604.html">20000731123948.52B5.ATSUKA@be.mbn.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。煮詰まっちゃってますね:-)
+
+まずひとことアドバイス。やみくもに余計なinclude fileをいれてはいけませ
+ん。トラブルの元です。
+
+&gt; ということは、やはりFreeBSD＋PostgreSQLではこのような操作ができない、も
+&gt; しくは私の環境がおかしい、ということですね。
+
+コンパイル環境／リンク環境がおかしいに一票。PostgreSQL 7.0.2, FreeBSD
+2.2.6, gcc 2.7.2.1 で、以下のコマンドラインで実行、
+
+res: e000
+work_p: f800
+res: e000
+
+と印字されるので、少なくとも問題になっている現象は起きてません。ここで、
+/usr/mgr/t-ishii/src/include は /usr/local/pgsql/include、 
+/usr/mgr/t-ishii/src/lib は /usr/local/pgsql/lib に読み換えていただけ
+れば一般の環境と同じです。
+
+gcc -I/usr/mgr/t-ishii/src/include -O2 -m486 -pipe -Wall -Wmissing-prototypes -Wmissing-declarations -L/usr/mgr/t-ishii/src/lib -lpq a.c
+
+------------------------------ a.c -----------------------------------
+
+/*---------------------------*/
+/* include                   */
+/*---------------------------*/
+#include &lt;stdio.h&gt;
+#include "postgres.h"
+#include "libpq-fe.h"
+
+void main(void)
+{
+    PGconn   *conn1;
+    PGresult *res;
+    char   *work_p;
+    FILE *fp;
+    char read_buf[2048];
+    char w_sql[1024];
+
+    conn1 = PQsetdb(NULL, NULL, NULL, NULL, "test");
+
+    strcpy(w_sql, "BEGIN");
+    res = PQexec(conn1, w_sql);
+
+    PQclear(res);
+
+    strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+    strcat(w_sql, "SELECT * FROM work_tbl ");
+
+    res = PQexec(conn1, w_sql);
+    PQclear(res);
+
+    strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+    res = PQexec(conn1, w_sql);
+    printf("res: %x\n",res);
+
+    work_p = malloc(2048);
+    printf("work_p: %x\n",work_p);
+    memset(work_p, 0x0, 2048);
+    printf("res: %x\n",res);
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00612" HREF="msg00612.html">[pgsql-jp 16380] Re: libpq でmalloc した時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00604" HREF="msg00604.html">[pgsql-jp 16372] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00604.html">[pgsql-jp 16372] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00606.html">[pgsql-jp 16374] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00604.html">[pgsql-jp 16372] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00612.html">[pgsql-jp 16380] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00605"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00605"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

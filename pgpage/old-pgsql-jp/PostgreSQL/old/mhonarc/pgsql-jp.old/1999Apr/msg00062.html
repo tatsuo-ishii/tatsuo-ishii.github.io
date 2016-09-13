@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7871] Re: 6.5snapshot install on FreeBSD&#45;current -->
+<!--X-From: Takeshi Yamada <ken@tydfam.machida.tokyo.jp> -->
+<!--X-Date: Sat, 03 Apr 1999 21:45:04 +0900 -->
+<!--X-Message-Id: 19990403214504O.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990403142822H.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7871] Re: 6.5snapshot install on FreeBSD-current </TITLE>
+<LINK REV="made" HREF="mailto:ken@tydfam.machida.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00061.html">Date Prev</A>][<A HREF="msg00063.html">Date Next</A>][<A HREF="msg00059.html">Thread Prev</A>][<A HREF="msg00052.html">Thread Next</A>][<A HREF="index.html#00062">Date Index</A>][<A HREF="threads.html#00062">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7871] Re: 6.5snapshot install on FreeBSD-current</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Yamada &lt;<A HREF="mailto:ken@tydfam.machida.tokyo.jp">ken@tydfam.machida.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 03 Apr 1999 21:45:04 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00059.html">19990403142822H.ken@ns1.tydfam.machida.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  山田＠町田市です.
+
+  先にリポートした, FreeBSD-current での 6.5 の問題ですが,単純に FreeBSD の
+ELF への対応が不完全な為でした. 下の, FreeBSD-current の port のパッチが有効
+です. これらのパッチを当てると,下のように５つ failed になりますが, backend が
+落ちるような致命的な物は無くなります. 
+  6.5 では FreeBSD の ELF にもデフォルトで対応していて欲しいと思います.
+
+float8 .. failed
+geometry .. failed
+triggers .. failed
+misc .. failed
+rules .. failed
+
+
+************* patch-an ****************
+--- pl/tcl/Makefile.orig	Sun Dec 13 17:47:17 1998
++++ pl/tcl/Makefile	Mon Jan 18 16:23:06 1999
+@@ -47,17 +47,26 @@
+ # in TCL_LIBS, but you still need it on systems that want to hear about
+ # dependent libraries...
+ 
+-ifneq ($(TCL_SHLIB_LD_LIBS),)
+-# link command for a shared lib must mention shared libs it uses
+-SHLIB_EXTRA_LIBS=$(TCL_LIBS) -lc
+-else
+-# link command for a shared lib must NOT mention shared libs it uses
+-SHLIB_EXTRA_LIBS=
+-endif
+-
+-%$(TCL_SHLIB_SUFFIX):	%.o
+-	$(TCL_SHLIB_LD) -o $@ $&lt; $(TCL_LIB_SPEC) $(SHLIB_EXTRA_LIBS)
+-
++# XXX - This rule is already present - and this technique won't work anyway,
++#	since the twice-eval'd value of TCL_SHLIB_LD in FreeBSD ELF:
++#
++#		TCL_SHLIB_LD=ld -shared -x -soname $@
++#
++#	will lose the trailing '$@', setting the soname to '-o' below and
++#	generally messing things up.
++#
++#%$(TCL_SHLIB_SUFFIX):	%.o
++#	$(TCL_SHLIB_LD) -o $@ $&lt; $(TCL_SHLIB_LD_LIBS) $(TCL_LIB_SPEC) $(TCL_LIBS)
++#ifneq ($(TCL_SHLIB_LD_LIBS),)
++## link command for a shared lib must mention shared libs it uses
++#SHLIB_EXTRA_LIBS=$(TCL_LIBS) -lc
++#else
++## link command for a shared lib must NOT mention shared libs it uses
++#SHLIB_EXTRA_LIBS=
++#endif
++#
++#%$(TCL_SHLIB_SUFFIX):	%.o
++#	$(TCL_SHLIB_LD) -o $@ $&lt; $(TCL_LIB_SPEC) $(SHLIB_EXTRA_LIBS)
+ 
+ #
+ # Uncomment the following to enable the unknown command lookup
+
+*********** patch-ao ***************
+--- makefiles/Makefile.freebsd.orig	Mon Nov  2 00:30:04 1998
++++ makefiles/Makefile.freebsd	Tue Nov 10 19:28:17 1998
+@@ -1,13 +1,17 @@
++ifdef ELF_SYSTEM
++LDFLAGS+= -export-dynamic
++endif
++
+ %.so: %.o
++ifdef ELF_SYSTEM
++	$(LD) -x -shared -o $@ $&lt;
++else
+ 	$(LD) -x -r -o $&lt;.obj $&lt;
+ 	@echo building shared object $@
+ 	@rm -f $@.pic
+ 	@${AR} cq $@.pic `lorder $&lt;.obj | tsort`
+ 	${RANLIB} $@.pic
+ 	@rm -f $@
+-ifdef ELF_SYSTEM
+-	$(LD) -x -Bshareable -o $@ $@.pic
+-else
+ 	$(LD) -x -Bshareable -Bforcearchive -o $@ $@.pic
+ endif
+
+*************** patch-ar ******************* 
+--- Makefile.shlib.orig	Wed Feb  3 19:16:02 1999
++++ Makefile.shlib	Wed Feb  3 19:18:28 1999
+@@ -59,10 +59,11 @@
+ ifeq ($(PORTNAME), freebsd)
+   ifdef BSD_SHLIB
+     install-shlib-dep	:= install-shlib
+-    shlib		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+     ifdef ELF_SYSTEM
+-      LDFLAGS_SL	:= -x -Bshareable
++      shlib		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION)
++      LDFLAGS_SL	:= -x -shared -soname $(shlib)
+     else
++      shlib		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+       LDFLAGS_SL	:= -x -Bshareable -Bforcearchive
+     endif
+     CFLAGS		+= $(CFLAGS_SL)
+
+************************ patch-ap *********************************
+--- backend/port/dynloader/freebsd.c.orig	Mon Oct 26 23:41:29 1998
++++ backend/port/dynloader/freebsd.c	Thu Nov 12 23:39:36 1998
+@@ -83,11 +83,13 @@
+ 	void	   *vp;
+ 	char		buf[BUFSIZ];
+ 
++#ifndef __ELF__
+ 	if (*name != '_')
+ 	{
+ 		sprintf(buf, "_%s", name);
+ 		name = buf;
+ 	}
++#endif
+ 	if ((vp = dlsym(handle, (char *) name)) == (void *) NULL)
+ 		sprintf(error_message, "dlsym (%s) failed", name);
+ 	return vp;
+
+****************************以上*****************************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 7868] Re: 6.5snapshot install on FreeBSD-current</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Yamada &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 7870] Re: vacuum</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 7872] Re: [Q] 問い合わせの件</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 7868] Re: 6.5snapshot install on FreeBSD-current</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00052.html">[pgsql-jp 7861] はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00062"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00062"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

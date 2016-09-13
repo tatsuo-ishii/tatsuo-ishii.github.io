@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10792] Re: regression testのfailed -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Mon, 20 Sep 1999 11:44:55 +0900 -->
+<!--X-Message-Id: v04010114b40b5027039a@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9909200123.AA01298@ccedu3.ccedu.sendai&#45;ct.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10792] Re: regression testのfailed </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00291.html">Date Prev</A>][<A HREF="msg00292.html">Date Next</A>][<A HREF="msg00288.html">Thread Prev</A>][<A HREF="msg00300.html">Thread Next</A>][<A HREF="index.html#00290">Date Index</A>][<A HREF="threads.html#00290">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10792] Re: regression testのfailed</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 20 Sep 1999 11:44:55 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。こんにちは。
+
+At 10:23 +0900 99.9.20, Tomoyuki Hiratsuka wrote:
+&gt; 平塚です。質問初投稿です。よろしくお願いします。
+&gt; 
+&gt; さっそくですが、石井さんのHPを参考にしながら
+&gt; PostgreSQL6.4.2（パッチ済）のインストールを無事終えた後、
+&gt; regression testを行いましたが、結果がどうもおかしいんです。
+
+　どうせなら、6.5.2 にしたほうがよいのではないかと
+思ったりしますが、それはおいといてと。
+
+&gt; int8,
+&gt; float8,
+&gt; geometry,
+&gt; create_function_2,
+&gt; triggers,
+&gt; sanity_check,
+&gt; misc,
+&gt; alter_table,
+&gt; plpgsql
+&gt; 
+&gt; でfailedが出ました。
+&gt; regression testはエラーによっては問題ないらしいのですが、心配です。
+&gt; regression.diffsの内容を見たのですが、読み方がわからず、
+&gt; 問題があるのかどうかを判別できません。
+
+　regression test の結果についてですが、
+　まず、予想される結果というのがexpected/ ディレクトリに例えば
+int4.out というファイルに格納されています。(環境ごとに
+int4-i386-freebsd.out などがあるようです。)
+　regression test を行うと、結果がresults/ ディレクトリに格納されます。
+で、この結果がexpected/ に格納されている内容と異なるとfail になるわけ
+ですが、その違いがregression.diffsファイルに格納されるわけです。
+(1字1句でも違うとfail します。)
+
+　問題ないものというのは、例えば私のところではint2 がfail しますが、
+その内容は、
+
+*** expected/int2.out   Thu Apr 15 11:15:35 1999
+--- results/int2.out    Tue Aug 24 16:43:45 1999
+***************
+*** 7,13 ****
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('32767');
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('-32767');
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('100000');
+! ERROR:  pg_atoi: error reading "100000": Numerical result out of range
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('asdf');
+  ERROR:  pg_atoi: error in "asdf": can't parse "asdf"
+  QUERY: SELECT '' AS five, INT2_TBL.*;
+--- 7,13 ----
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('32767');
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('-32767');
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('100000');
+! ERROR:  pg_atoi: error reading "100000": Result too large
+  QUERY: INSERT INTO INT2_TBL(f1) VALUES ('asdf');
+  ERROR:  pg_atoi: error in "asdf": can't parse "asdf"
+  QUERY: SELECT '' AS five, INT2_TBL.*;
+
+----------------------
+
+このようになっていて、何が違うかと言うと、100000 を入れようとした
+時のエラーメッセージが違うだけなので、問題ないだろうと判断します。
+(regression test では、変なことをした時にしかるべきエラーを検出
+するかどうかもテストしています。)
+　また、geometry もfail しますが、これは計算結果? の小数第13桁が
+異なるだけで、これも問題ないだろうと判断します。違う部分というのは
+先頭に'!' が付いています(上のやつも)。
+
+*** expected/geometry.out       Mon Dec 14 08:49:18 1998
+--- results/geometry.out        Tue Aug 24 16:44:04 1999
+***************
+*** 112,118 ****
+        |(-5,-12)  |[(10,-10),(-3,-4)]           |(-1.60487804878049,-4.64390243902439)
+        |(10,10)   |[(10,-10),(-3,-4)]           |(2.39024390243902,-6.48780487804878)
+        |(0,0)     |[(-1000000,200),(300000,-40)]|(0.0028402365895872,15.384614860264)
+!       |(-10,0)   |[(-1000000,200),(300000,-40)]|(-9.99715942258202,15.3864610140473)
+        |(-3,4)    |[(-1000000,200),(300000,-40)]|(-2.99789812267519,15.3851688427303)
+        |(5.1,34.5)|[(-1000000,200),(300000,-40)]|(5.09647083221496,15.3836744976925)
+        |(-5,-12)  |[(-1000000,200),(300000,-40)]|(-4.99494420845634,15.3855375281616)
+--- 112,118 ----
+        |(-5,-12)  |[(10,-10),(-3,-4)]           |(-1.60487804878049,-4.64390243902439)
+        |(10,10)   |[(10,-10),(-3,-4)]           |(2.39024390243902,-6.48780487804878)
+        |(0,0)     |[(-1000000,200),(300000,-40)]|(0.0028402365895872,15.384614860264)
+!       |(-10,0)   |[(-1000000,200),(300000,-40)]|(-9.99715942258202,15.3864610140472)
+        |(-3,4)    |[(-1000000,200),(300000,-40)]|(-2.99789812267519,15.3851688427303)
+        |(5.1,34.5)|[(-1000000,200),(300000,-40)]|(5.09647083221496,15.3836744976925)
+        |(-5,-12)  |[(-1000000,200),(300000,-40)]|(-4.99494420845634,15.3855375281616)
+
+　以上のように、エラーメッセージの違いや、計算(もしくは2進-&gt;10進
+変換時などに起こる)誤差は、問題ないと思います。
+　その他については、実際にその差分ファイルの内容を見ないことには
+おかしいのかどうかの判別はつきません。
+
+--
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00288" HREF="msg00288.html">[pgsql-jp 10790] regression testのfailed</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoyuki Hiratsuka &lt;s5334@ccedu.sendai-ct.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00291.html">[pgsql-jp 10793] Re: MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 10794] Re: MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 10790] regression testのfailed</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00300.html">[pgsql-jp 10802] Re: regression testのfailed</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00290"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00290"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

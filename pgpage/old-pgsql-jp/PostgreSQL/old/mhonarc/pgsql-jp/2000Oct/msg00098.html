@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18054] Re: JDBC and UNICODE -->
+<!--X-From: sin@itl.co.jp (MOTOKI Sinichi) -->
+<!--X-Date: 10 Oct 2000 13:45:13 +0900 -->
+<!--X-Message-Id: 87og0t719i.fsf@itl.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20001010104715R.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18054] Re: JDBC and UNICODE </TITLE>
+<LINK REV="made" HREF="mailto:sin@itl.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00097.html">Date Prev</A>][<A HREF="msg00099.html">Date Next</A>][<A HREF="msg00097.html">Thread Prev</A>][<A HREF="msg00088.html">Thread Next</A>][<A HREF="index.html#00098">Date Index</A>][<A HREF="threads.html#00098">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18054] Re: JDBC and UNICODE</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sin@itl.co.jp">sin@itl.co.jp</A> (MOTOKI Sinichi)</LI>
+<LI><em>Date</em>: 10 Oct 2000 13:45:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00095.html">20001010104715R.t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: T-gnus/6.14.5 (based on Gnus v5.8.7) (revision 03) EMY/1.13.8 (Tastes differ) FLIM/1.13.2 (Kasanui) APEL/10.2 Emacs/20.7 (i386-debian-linux-gnu) MULE/4.1 (AOI)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ 元木です。
+
+ 以下、実際に試したわけではなくコードを見てみただけです。
+ しかも日本語で書いています。申し訳ないです。
+
+In &lt;<A HREF="msg00095.html">20001010104715R.t-ishii@sra.co.jp</A>&gt;
+  Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+| 石井です。以下のようなメールをもらったのですが、どなたかわかるかたいらっ
+| しゃいますか？
+| --
+
+| I found your answers about JDBC and UNICODE, I compile postgresql with
+| --enable-multibyte=UNICODE, make initdb -E UNICODE, check /l . In DriverManager
+| I make properties.put("charSet","UTF8"); but when I try insert into database
+| something like:
+
+| String im1=new String("\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c");
+| .....
+
+| executeUpdate("insert into test values ('"+im1+"');");
+
+| or
+
+| prepareStatement ...
+
+| In result only ????????. With English it's ok. Could you advise some solution
+| or link, may be some patch for JDK1.1.* .
+
+ これって properties.put("charSet","UTF8") してるってことは
+ 現在 CVS 上の JDBC Driver だと思いますので、CVS のコードを
+ 元にして書きます。
+
+ 今見ているコードは、今日(2000/10/10)の CVS 上のコードですが、
+ org.postgresql.Connection.ExecSQL() で、charSet で指定され
+ た encoding を無視して file.encoding を使って変換している部
+ 分があります。
+
+ 具体的には、org/postgresql/Connection.java の 341行目から 
+ 362 行目までのこのコードです。
+
+&gt;         if (getEncoding() == null)
+&gt;             buf = sql.getBytes();
+&gt;         else {
+&gt;             try {
+&gt;                 buf = sql.getBytes(getEncoding());
+
+ ここで、charSet で指定された encoding によって変換している
+ のですが、
+
+&gt;             } catch (UnsupportedEncodingException unse) {
+&gt;                  throw new PSQLException("postgresql.con.encoding",
+&gt;                                         unse);
+&gt;             }
+&gt;         }
+&gt; 
+&gt;             try
+&gt;                 {
+&gt;                     pg_stream.SendChar('Q');
+
+&gt;                     buf = sql.getBytes(); &lt;--- これ
+&gt;                     pg_stream.Send(buf);
+
+ ここで、file.encoding で指定された encoding を使用して変換
+ した結果を、PostgreSQL に送ってしまっています。
+
+ 試していないのでアレですが、上の buf = sql.getBytes(); を削
+ れば正しく動く気もします。
+
+&gt;                     pg_stream.SendChar(0);
+&gt;                     pg_stream.flush();
+&gt;                 } catch (IOException e) {
+&gt;                     throw new PSQLException("postgresql.con.ioerror",e);
+&gt;                 }
+&gt;             
+
+ ちなみに、org.postgresql.Connection.ReceiveFields() も 
+ charSet で指定された encoding にしたがって変換していないの
+ で、ASCII 以外の文字列での、
+ org.postgresql.jdbc1.getString(String) も正しく動かないはず
+ です。
+
+ CVS 上の ASCII以外への encoding 対応はちょっとありがたくな
+ い実装なので、できれば使わない方が幸せになれると思います。
+
+-- 
+MOTOKI Sinichi (元木 伸一) &lt;sin@itl.co.jp&gt;
+株式会社情報技術研究所
+ITL/Information Technology Laboratory Corp.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00095" HREF="msg00095.html">[pgsql-jp 18051] JDBC and UNICODE</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00097.html">[pgsql-jp 18053] Re: JDBC and UNICODE</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00099.html">[pgsql-jp 18055] create されいるDBにpsqlでアクセスできない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00097.html">[pgsql-jp 18053] Re: JDBC and UNICODE</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00088.html">[pgsql-jp 18044] Data Explorer for SQL Versin UPのお知らせ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00098"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00098"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

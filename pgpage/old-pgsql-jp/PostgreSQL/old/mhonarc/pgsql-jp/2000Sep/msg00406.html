@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17737] Re: libpq を使っての排他制御 -->
+<!--X-From: "N.kayahara" <kayahara@hiroken.co.jp> -->
+<!--X-Date: Mon, 18 Sep 2000 15:48:28 +0900 -->
+<!--X-Message-Id: 39C5BABC2C3.682FKAYAHARA@10.1.1.2 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39C59BD01F8.682EKAYAHARA@10.1.1.2 -->
+<!--X-Reference-Id: 002b01c02133$e4f9d1c0$2801007e@tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17737] Re: libpq を使っての排他制御 </TITLE>
+<LINK REV="made" HREF="mailto:kayahara@hiroken.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00405.html">Date Prev</A>][<A HREF="msg00407.html">Date Next</A>][<A HREF="msg00402.html">Thread Prev</A>][<A HREF="msg00407.html">Thread Next</A>][<A HREF="index.html#00406">Date Index</A>][<A HREF="threads.html#00406">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17737] Re: libpq を使っての排他制御</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "N.kayahara" &lt;<A HREF="mailto:kayahara@hiroken.co.jp">kayahara@hiroken.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 18 Sep 2000 15:48:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00397.html">39C59BD01F8.682EKAYAHARA@10.1.1.2</A>&gt; &lt;<A HREF="msg00402.html">002b01c02133$e4f9d1c0$2801007e@tpf.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+茅原です。
+
+&gt; &gt; &gt; 行ロック・参照とか行ロック後、参照というのはどういうことでしょうか ？
+&gt; &gt; libpqを使ってCでDBアクセス関数（カバー関数？）を作成しているのですが、
+&gt; &gt; Selectの結果をメモリー上に退避するのに、DECLARE CURSORを使用しています。
+&gt; &gt; DECLARE CURSORを使用する場合は、SELECT ... FOR UPDATE が使用できないため、
+&gt; &gt; PQexec関数でまず、SELECT ... FOR UPDATEを行ったのち、
+&gt; 
+&gt; SELECT .. FOR UPDATEでロックする対象は何でしょうか ？
+
+子プロセスの処理をおさらいしますと、
+(1) TABLE A を参照、該当するレコードを抽出後、メモリー上に退避
+(2) (1)で退避したデータを１レコード分づつ参照し、TABLE B を行ロック・参照
+    したレコードを削除し、TABLE C に新規レコードを作成する
+(3) TABLE A を行ロック・参照 (2)でTABLE B からTABLE C へ移動した件数を
+    TABLE A の該当項目にカウントUPして更新
+
+という手順（(1)(2)(3)は別々のトランザクション）において
+(2)でTABLE Bを行ロックする場合と(3)でTABLE Aを行ロックする場合となります。
+
+&gt; CURSORでSELECTする対象と同じならCURSORを使う
+&gt; 意味がないと思いますが。
+確かにおっしゃる通りです。
+
+&gt; また、DECLARE CURSORとSELECT .. FOR UPDATEは
+&gt; どちらを先に発行するのでしょうか ？
+SELECT ... FOR UPDATE（行ロック）を先に行い、DECLARE CURSOR （参照）を
+しています。
+この場合、ロックした行は同一トランザクション内で何度SELECTしても結果は同
+じであるはずですよね。だから、特に気にしてませんでした。
+逆に、ロックした行は別のトランザクションでロックをしようとしても待機にな
+りますよね。SELECT ... FOR UPDATE（行ロック）して、DECLARE CURSOR （参照）
+という手順である以上、複数の子プロセスが並行に実行されても、１つ目の子プ
+ロセスが行ロックすると、１つ目のトランザクションがCOMMITするまで、２つ目
+のトランザクションはロック待ち状態になるはずです。
+が、(3)においては、複数の子プロセスを生成して実行した場合は、ロックが行わ
+れてないようなのです。
+
+&gt; &gt; DBアクセス関数にてSELECTしています。
+&gt; DBアクセス関数って何でしょう ？
+なんだか、説明が下手なもので申し訳ありません。
+C言語で、簡単にPostgresのデータベースへアクセスしたいために、
+（libpqのPQexec関数などつかって直接コーディングしないでという意味）
+C言語＋libpqで作成したカバー関数を作成しています。
+この関数（DBアクセス関数）内では、PQexec関数を使用して、
+DECLARE COUSOR -&gt; FETCH -&gt; CLOSE
+という手順でSELECTをしています。
+FETCHを行ったのち、メモリー上にデータを退避するようにしています。
+はじめは、この関数を使ってSELECT ... FOR UPDATE（行ロック）をしようとして
+いましたが、DECLARE CUSOR では SELECT ... FOR UPDATE が使えませんでした。
+そこで、(2)、(3)の行ロック部分をPQexec関数でSELECT ... FOR UPDATEし、
+この関数でもう一度SEELCTすることにより、データを退避するようにしました。
+
+確かに、この手順は無駄な処理なのですが、（開発期間に限りがあり）新たに
+FOR UPDATE対応したDBアクセス関数を作成する手間を惜しんでのことでした。
+今になって思えば、結局時間かかってしまっているのですが・・・
+
+ですが、
+同一トランザクション内であれば、ロックした行を何度SELECTしても同一の結果
+であると思います。が、そこが今回の現象の問題点であるとするならば、
+２重にSELECTしないようにしてみたいと思います。
+
+行ロックでこのような現象（別プロセスで行ロックができない）が
+起こりうる可能性として考えられる事例がありましたら教えていただけますで
+しょうか？
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00412" HREF="msg00412.html">[pgsql-jp 17743] Re: libpq を使っての排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> MASAKI TOMIMOTO &lt;m.tomimoto@dir.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00407" HREF="msg00407.html">[pgsql-jp 17738] Re: libpq 	を使っての排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00397" HREF="msg00397.html">[pgsql-jp 17728] Re: libpq を使っての排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> "N.kayahara" &lt;kayahara@hiroken.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00402" HREF="msg00402.html">[pgsql-jp 17733] RE: libpq を使っての排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00405.html">[pgsql-jp 17736] Re: php の./ｃｏｎｆｉｇｕre時のWARNINGについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00407.html">[pgsql-jp 17738] Re: libpq 	を使っての排他制御</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00402.html">[pgsql-jp 17733] RE: libpq を使っての排他制御</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00407.html">[pgsql-jp 17738] Re: libpq 	を使っての排他制御</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00406"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00406"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

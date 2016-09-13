@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8158] RE: data define command -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Wed, 21 Apr 1999 09:20:58 +0900 -->
+<!--X-Message-Id: 000601be8b8c$d419de60$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 01BE8B96.0462ED60@jf0nzu02 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8158] RE: data define command </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00347.html">Date Prev</A>][<A HREF="msg00350.html">Date Next</A>][<A HREF="msg00347.html">Thread Prev</A>][<A HREF="msg00348.html">Thread Next</A>][<A HREF="index.html#00349">Date Index</A>][<A HREF="threads.html#00349">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8158] RE: data define command</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Apr 1999 09:20:58 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 田中活朗(Ikuo)です。
+&gt;
+&gt; &gt; つい最近気がついたのですが、PostgreSQLではcreate table
+&gt; &gt; やdrop tableなどのデータ定義コマンドがトランザクションの中で
+&gt; &gt; 使えてしまうんですよね。
+&gt;
+&gt; &gt; すごいなーと思って
+&gt; た、確かに。
+&gt;
+&gt;
+&gt; &gt; を試してみましたが当然というかテーブルxxは元に戻りま
+&gt; &gt; せんでした（テーブルだけは残っていますが）。
+&gt; 私は、Oracleとか、汎用機のRDBMSしか知りませんが、
+&gt; 例えコマンド自体が実行できても、一般にRDBMSでは
+&gt; drop tableとか、truncate(Posgreにはありませんが、
+&gt; テーブルを空っぽにするやつ)は、ロールバックしない
+&gt; ような気がします．．．
+&gt;
+&gt;
+&gt; &gt; そもそも無理があるような気がするのですが、このように
+&gt; &gt; なっているのには何か理由があるんでしょうか ？
+&gt; 話はそれますが、私は「create tableやdrop tableなどの
+&gt; データ定義コマンドがトランザクションの中で使えてしまう」
+&gt; ようにするよりも、先にtruncateのようなコマンドを
+&gt; Postgreにも作ってほしかった．．．
+&gt; delete from xx;
+&gt; vacuum xx;
+&gt; は、CPUリソースがもったいないし、
+&gt; (テーブルがでかいと vacuumが重い)
+&gt; その都度
+&gt; drom table xx;
+&gt; create ...
+&gt; grant ...
+&gt; するのは面倒ですね〜
+&gt; table変更時にalterだけかけておいて、cronで動く
+&gt; create table文を直さなかったばっかりに、翌日、
+&gt; tableフォーマットが元に戻っていたり、権限が
+&gt; 消えていてびっくりなんてことも．．．
+
+私も欲しかったコマンドで余裕ができれば作りたいと考えていた
+のですが、本家の方でtruncateコマンド用のパッチを作ったという
+投稿がありました（パッチ自体はついていませんでしたが）。
+田中さんがいわれるようにvacuumやgrantをする必要がないと
+いうメリットがあげられていました。
+でも、残念ながら6.5には反映されないかな ？
+新しい機能の追加は駄目でしょうから。
+
+&gt;
+&gt; でも、
+&gt; &gt; （テーブルだけは残っていますが）。
+&gt; ほんとですか？
+&gt; grantなんかも残っているのでしょうか。
+&gt; これは別の意味で応用できそう。
+&gt; 早速試してみたいと... 　　いえ、たった今試してみましたが、
+&gt; drop table xx;
+&gt; abort;
+&gt; したテーブルは、確かに器は残っているものの、
+&gt; また、grantなんかも残っているものの、
+&gt; 「ERROR: Index xx_pkey is not a btree」エラーになってしまって、
+&gt; 以降アクセスできなくなってしまいました。
+&gt; drop indexして、create indexし直すと、OKになりますが、
+&gt; スマートじゃないし、なんか危険な匂いが．．．（＾＾；
+&gt;
+
+なるほど、期せずしてtruncateコマンドができてしまうところ
+でしたね。
+テーブルとかインデクスのファイルはdrop tableを実行した
+時点で消えてしまっているようです。select .. などとした時
+に大きさ0のファイルが作成されるみたいなんですね。
+データの方はこれでいいんだけど、インデクスの方は先頭
+に管理用のページが必要なので駄目ということでしょうか。
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00347" HREF="msg00347.html">[pgsql-jp 8157] RE: data define command</A></STRONG>
+<UL><LI><EM>From:</EM> Ikuo Tanaka &lt;ikuo_ml@sannet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00347.html">[pgsql-jp 8157] RE: data define command</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00350.html">[pgsql-jp 8159] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00347.html">[pgsql-jp 8157] RE: data define command</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00348.html">[pgsql-jp 8156] RE: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00349"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00349"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

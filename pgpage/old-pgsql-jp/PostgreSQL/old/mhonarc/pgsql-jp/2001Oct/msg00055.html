@@ -1,0 +1,133 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23310] Re: 「階層問い合せ（Connect By 	句）」は？ -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Wed, 03 Oct 2001 17:21:32 +0900 -->
+<!--X-Message-Id: 3BBACA8C.3E056F5B@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBE02@mailtokyo.bell24.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23310] Re: 「階層問い合せ（Connect By 	句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00054.html">Date Prev</A>][<A HREF="msg00056.html">Date Next</A>][<A HREF="msg00051.html">Thread Prev</A>][<A HREF="msg00058.html">Thread Next</A>][<A HREF="index.html#00055">Date Index</A>][<A HREF="threads.html#00055">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23310] Re: 「階層問い合せ（Connect By 	句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 03 Oct 2001 17:21:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00051.html">F1AF4AA92A61D5118EE100105A069AD02CBE02@mailtokyo.bell24.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+yosidam@bell24.co.jp wrote:
+
+&gt; 和田さん、
+&gt; &gt; uniqueキーなら楽勝だろうと思って、試しに10000件のランダムデータを
+&gt; &gt; 作ってみたら、「数分」のオーダーで（ペンチアム120の環境ですが）
+&gt; 　：
+&gt; &gt; とかやってるうちに続報が来ましたが、パフォーマンスは問題ないですか？
+&gt; 
+&gt; 大量件数のテストと、アドバイスありがとうございます。大変あつかましいの
+&gt; ですが、もしよろしければ1万件のデータ登録したスクリプトも教えていただけ
+&gt; ないでしょうか？
+
+テスト用として適当かどうかわかりませんが、こんなんです。
+DROP FUNCTION insertdata(int4);
+CREATE FUNCTION insertdata(int4) RETURNS boolean AS '
+DECLARE
+  num ALIAS FOR $1;
+BEGIN
+  For i IN 1..num LOOP
+    INSERT INTO tkaisou VALUES(i, CASE WHEN random()&lt;0.7 THEN null
+        ELSE i*random() END, \'random\');
+  END LOOP;
+  return true;
+END;
+'
+language 'plpgsql';
+（手抜きでidが1から固定なので1回しか使えません）
+
+この&lt;0.7のところが問題で、昨日はこれなしでやってたんでルートノードが
+かなり少ないデータになってました。これだと全体の70%位がルートになると
+思います。
+今日、こっちのデータで石井さんのを試したところ（たまたま7.0.0の環境が
+あった）pentium120でも、子孫が45あるデータをselectしても秒の単位で
+結果が出ました。
+　はじめwhereをつけずにやったところぜんぜん終わらず、where id&lt;10 に
+してもなかなか終わらなかったので、結局 where id=1 と１レコードだけ
+検索しました。実際のアプリケーションでは複数の親を同時に処理する必要は
+ないでしょうから、これで十分のはずです。
+　結果が1行というのは、phpで処理するにも楽でいいと思います。
+
+&gt; 　平均の階層の深さ（レベル）をどの程度に設定するかにもよるかと思います
+&gt; が、北村さんの方式でも時間がかかると聞き、心配になってきました。今、
+&gt; 計画しているシステム自体もプロトタイプみたいなものなのですが、実装する
+&gt; 前に北村さん定義の簡単な表で大量件数からの検索時のパフォーマンスも
+&gt; 試して見たいと思います。
+
+石井さんのが速かったので、北村さんのが遅いのが疑問に思えてきました。
+（実テーブルを使ってるだけで処理はほとんど同じはず）今日作ったデータで
+改めて試すと、ちゃんと秒単位で検索が完了しました！
+どういうデータを使うかよく吟味する必要があるでしょうね(^^;
+昨日やった自宅のマシンでもう一回試してみます(^^;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00058" HREF="msg00058.html">[pgsql-jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00051" HREF="msg00051.html">[pgsql-jp 23306] RE: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 23309] Re:  半角カナの入ったCSV データをEUCでinsertしたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 23311] Re: postgres on New Mac OS10.1</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 23306] RE: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00055"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00055"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

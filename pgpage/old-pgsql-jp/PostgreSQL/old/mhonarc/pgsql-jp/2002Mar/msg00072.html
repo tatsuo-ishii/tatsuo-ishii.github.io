@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25095] TRIGGER作成でエラー -->
+<!--X-From: Tsukasa Koizumi <tsukasa@koiz.com> -->
+<!--X-Date: Wed, 06 Mar 2002 10:59:17 +0900 -->
+<!--X-Message-Id: 5.0.2.6.2.20020306104718.06061e90@office.koiz.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25095] TRIGGER作成でエラー </TITLE>
+<LINK REV="made" HREF="mailto:tsukasa@koiz.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00071.html">Date Prev</A>][<A HREF="msg00073.html">Date Next</A>][<A HREF="msg00094.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00072">Date Index</A>][<A HREF="threads.html#00072">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25095] TRIGGER作成でエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsukasa Koizumi &lt;<A HREF="mailto:tsukasa@koiz.com">tsukasa@koiz.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 06 Mar 2002 10:59:17 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小泉と申します。
+
+CREATE TRIGGERがエラーになってしまいます。
+SQL文は下記のようなものです。
+
+作成したいこのTRIGGERは、ECシステムの在庫統計情報（items_status）を、
+受注情報（saledetails）が更新された段階で、自動的に更新するための物で
+す。
+
+CREATE FUNCTIONは成功しており、関数calc_i_status()は正常に機能しています。
+が、TRIGGERを設定しようとすると
+
+    ERROR:  CreateTrigger: function calc_i_status() does not exist
+
+となります。
+
+いろいろ調べてみたのですが、どうにも原因がよくわかりません。
+ご教授いただけると助かります。
+
+【環境】
+RedHat 6.2
+PostgreSQL 7.1.3
+
+よろしくお願いします。
+
+----------------------------------------------------------------------
+CREATE FUNCTION calc_i_status ( int4 )
+RETURNS bool AS 
+'DELETE FROM items_status WHERE id = $1;
+INSERT INTO items_status 
+SELECT *, now() AS stamp FROM
+    -- items + ( item_category + categories )
+    ( SELECT * FROM
+        -- items
+        ( SELECT id,code,name,saleprice,costprice FROM items WHERE id = $1 ) AS i
+    LEFT OUTER JOIN
+        -- item_category + categories
+        ( SELECT id,"group",element,name AS elname FROM 
+            ( SELECT * FROM item_category WHERE id = $1 ) AS xic
+        LEFT OUTER JOIN 
+            categories USING ( "group", element ) ) AS c
+    USING ( id ) ) AS ic
+LEFT OUTER JOIN
+    -- carried in + carried out + carried adj + in + out + will out + adj
+    ( SELECT * FROM
+        -- carried in + carried out + carried adj
+        ( SELECT * FROM
+            -- from carried in + carried out
+            ( SELECT * FROM
+                -- carried in
+                ( SELECT item,SUM( quant ) AS carried_in FROM saledetails WHERE sales = 101 AND stamp &lt; date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS sd
+            FULL OUTER JOIN
+                -- carried out
+                ( SELECT item,( SUM( quant ) - SUM( cancel ) ) AS carried_out FROM saledetails WHERE sales &gt; 10000000 AND delivinfo AND stamp &lt; date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS co
+            USING ( item ) ) AS cico
+        FULL OUTER JOIN
+            -- carried adj
+            ( SELECT item,SUM( quant ) AS carried_adj FROM saledetails WHERE sales = 201 AND stamp &lt; date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS ca
+        USING ( item ) ) AS cicoca
+    FULL OUTER JOIN
+        -- in + out + will out + adj
+        ( SELECT * FROM
+            -- in + out + will out
+            ( SELECT * FROM
+                -- in + out
+                ( SELECT * FROM
+                    -- in
+                    ( SELECT item,SUM( quant ) AS "in" FROM saledetails WHERE sales = 101 AND stamp &gt;= date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS ni
+                FULL OUTER JOIN
+                    -- out
+                    ( SELECT item,( SUM( quant ) - SUM( cancel ) ) AS "out" FROM saledetails WHERE sales &gt; 10000000 AND delivinfo AND stamp &gt;= date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS no
+                USING ( item ) ) AS nino
+            FULL OUTER JOIN
+                -- adj
+                ( SELECT item,SUM( quant ) as "adj" FROM saledetails WHERE sales = 201 AND stamp &gt;= date_trunc( ''month'', now() ) AND item = $1 GROUP BY item ) AS aj
+            USING ( item ) ) AS ninoaj
+        FULL OUTER JOIN
+            -- will out
+            ( SELECT item,( SUM( quant ) - SUM( cancel ) ) AS "will_out" FROM saledetails WHERE sales &gt; 10000000 AND ( NOT delivinfo ) AND item = $1 GROUP BY item ) AS ninoajwo
+        USING ( item ) ) AS ninowo
+    USING ( item ) ) AS stocks
+ON id = item 
+WHERE id &gt;= 10000;
+SELECT TRUE;'
+LANGUAGE 'sql';
+
+CREATE TRIGGER trig_calc_i_status
+AFTER INSERT OR UPDATE OR DELETE ON saledetails FOR EACH ROW
+EXECUTE PROCEDURE calc_i_status ( item);
+
+
+
+
+
+
+
+----------------------------------------------------------------------
+小泉 司＠コイズコム デジタルワークス（東京都文京区）
+Desk - <A HREF="mailto:tsukasa@koiz.com">mailto:tsukasa@koiz.com</A> / Mobile - <A HREF="mailto:pigtail@pdx.ne.jp">mailto:pigtail@pdx.ne.jp</A>
+PGP Public Key - <A HREF="http://www.koiz.com/~tsukasa/PGP_KEY/tsukasa.asc">http://www.koiz.com/~tsukasa/PGP_KEY/tsukasa.asc</A>
+----------------------------------------------------------------------
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00077" HREF="msg00077.html">[pgsql-jp: 25100] Re: TRIGGER作成でエラー</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[pgsql-jp: 25096] Re: TRIGGER作成でエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Mashiki &lt;mashiki@yanah.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00071.html">[pgsql-jp: 25094] (無題)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00073.html">[pgsql-jp: 25096] Re: TRIGGER作成でエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00094.html">[pgsql-jp: 25117] Re: INSERT文に関して</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp: 25096] Re: TRIGGER作成でエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00072"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00072"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

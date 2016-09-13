@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8385] Re: 訂正：同一フィールド名のリレーション検索 -->
+<!--X-From: yutaka tanida <yutaka@marin.or.jp> -->
+<!--X-Date: Thu, 13 May 1999 16:36:41 +0900 -->
+<!--X-Message-Id: 373A8109312.F663YUTAKA@malgate.marin.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010502b3602a977ca5@yano&#45;el.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8385] Re: 訂正：同一フィールド名のリレーション検索 </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@marin.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00111.html">Date Prev</A>][<A HREF="msg00113.html">Date Next</A>][<A HREF="msg00111.html">Thread Prev</A>][<A HREF="msg00116.html">Thread Next</A>][<A HREF="index.html#00112">Date Index</A>][<A HREF="threads.html#00112">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8385] Re: 訂正：同一フィールド名のリレーション検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: yutaka tanida &lt;<A HREF="mailto:yutaka@marin.or.jp">yutaka@marin.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 13 May 1999 16:36:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00111.html">v04010502b3602a977ca5@yano-el.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+On Thu, 13 May 1999 16:10:09 +0900
+Koujiro Iuchi &lt;iuchi@yano-el.co.jp&gt; wrote:
+
+&gt; お世話になります。
+&gt; KIUCHI@KOBE ともうします。
+
+　私も神戸です・・・はさておき。PostgreSQLのバージョンとか実行環境が分か
+らないのでお役に立てるかどうかも分かりませんが
+
+&gt; (条件)
+&gt; DataBase1
+&gt;    　　　table名：X
+&gt; 　 フィールド名： A,B
+&gt; 
+&gt;             table名：Y
+&gt; 　 フィールド名： A,C
+（中略）
+&gt; また、orderを省略し、
+&gt; 単純にselect  A,B,C  from X,Y where  where X.A = Y.A  and
+&gt;                                                                X.A  = 検索キ
+&gt; ー;　
+&gt; では当然、検索はかかるのですが.....
+&gt; どういうことなのでしょうか？
+&gt; よろしくお願いいたします。
+
+　これ、本当に検索がかかりますか？whereが重なっているのはタイプミスとして
+も、
+
+jdbctest=&gt; select A,B,C from X,Y where X.A=Y.A order by C;
+ERROR:  Column 'a' is ambiguous
+
+　でも、このとおり怒られます。
+
+なお、以下のようなSQLをpsqlにカットアンドペーストしましたらお望みと思われ
+る検索に成功しましたので、ご参考まで。なお、こちらの環境は
+PostgreSQL6.5Beta1,cygwinB20.1なのでちょっと特異ですが、問題はないと思い
+ます。
+
+---ここから
+create table X (
+  A int,
+  B int
+);
+create table Y (
+  A int,
+  C int
+);
+INSERT INTO X VALUES(1,1);
+INSERT INTO X VALUES(2,2);
+INSERT INTO X VALUES(3,3);
+INSERT INTO Y VALUES(1,1);
+INSERT INTO Y VALUES(2,2);
+INSERT INTO Y VALUES(3,3);
+select X.A,B,C from X,Y where X.A=Y.A;
+select X.A,B,C from X,Y where X.A=Y.A order by C;
+begin ;
+declare C cursor for 
+select X.A,B,C from X,Y where X.A=Y.A order by C;
+fetch 3 in C;
+end;
+---ここまで
+---ここから結果（selectのみ）
+template1=&gt; select X.A,B,C from X,Y where X.A=Y.A;
+a|b|c
+-+-+-
+1|1|1
+2|2|2
+3|3|3
+(3 rows)
+
+template1=&gt; select X.A,B,C from X,Y where X.A=Y.A order by C;
+a|b|c
+-+-+-
+1|1|1
+2|2|2
+3|3|3
+(3 rows)
+
+template1=&gt; begin ;
+BEGIN
+template1=&gt; declare C cursor for
+template1-&gt; select X.A,B,C from X,Y where X.A=Y.A order by C;
+SELECT
+template1=&gt; fetch 3 in C;
+a|b|c
+-+-+-
+1|1|1
+2|2|2
+3|3|3
+(3 rows)
+
+template1=&gt; end;
+END
+---ここまで結果
+　あと、せっかく
+
+&gt;  Bad response to postgres95 query (ERROR: parser: parse
+&gt;  error at or near "where" ) on line 167
+
+　と行番号が出ているのですから、その場所がわかればもう少しこちらでも力に
+なれると思いますけど・・・
+
+--
+Yutaka tanida / S34 Co., Ltd.
+tanida@s34.co.jp (Office)
+yutaka@marin.or.jp(Private, or if you *HATE* Microsoft Outlook)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[pgsql-jp 8389] Re: 訂正：同一フィールド名のリレーション検索</A></STRONG>
+<UL><LI><EM>From:</EM> Koujiro Iuchi &lt;iuchi@yano-el.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 8384] 訂正：同一フィールド名のリレーション検索</A></STRONG>
+<UL><LI><EM>From:</EM> Koujiro Iuchi &lt;iuchi@yano-el.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 8384] 訂正：同一フィールド名のリレーション検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00113.html">[pgsql-jp 8386] Re: 訂正：同一フィールド名のリレーション検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 8384] 訂正：同一フィールド名のリレーション検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 8389] Re: 訂正：同一フィールド名のリレーション検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00112"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00112"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

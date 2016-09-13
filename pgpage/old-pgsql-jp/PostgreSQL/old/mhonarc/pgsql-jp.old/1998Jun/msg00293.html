@@ -1,0 +1,245 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4563] copy patch -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Wed, 24 Jun 1998 12:51:18 +0900 -->
+<!--X-Message-Id: 199806240351.MAA17752@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199806240258.LAA17460@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4563] copy patch </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00292.html">Date Prev</A>][<A HREF="msg00294.html">Date Next</A>][<A HREF="msg00292.html">Thread Prev</A>][<A HREF="msg00257.html">Thread Next</A>][<A HREF="index.html#00293">Date Index</A>][<A HREF="threads.html#00293">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4563] copy patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 24 Jun 1998 12:51:18 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。本家のMLにも報告したのですが、copy コマンドにバグがあります。
+
+test=&gt; create table t1 (i text);
+test=&gt; insert into t1 values('{\\.}');
+INSERT 2645600 1
+test=&gt; select * from t1;
+i    
+-----
+{\\.}
+(2 rows)
+test=&gt; copy t1 to '/tmp/aaa';
+test=&gt; copy t1 from '/tmp/aaa';
+ERROR:  CopyReadAttribute - end of record marker corrupted
+
+という感じで、copy でセーブしたものをしたものを copy でロードできない
+わけです:-)これは、データ中に { があると配列だと勝手に決めつけてしまう
+のが原因です。一応パッチを作ってみたので良かったらお試し下さい。パッチ
+では、バグの修正のほかに、エラーメッセージの改良も行なっています。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+-------------------------------------------------------------------
+Index: postgresql-6.3.2/src/backend/commands/copy.c
+diff -c postgresql-6.3.2/src/backend/commands/copy.c:1.1.1.1 postgresql-6.3.2/src/backend/commands/copy.c:1.1.1.1.14.1
+*** postgresql-6.3.2/src/backend/commands/copy.c:1.1.1.1	Mon Apr 20 10:33:56 1998
+--- postgresql-6.3.2/src/backend/commands/copy.c	Fri Jun 19 15:15:46 1998
+***************
+*** 61,67 ****
+  static char *CopyReadAttribute(FILE *fp, bool *isnull, char *delim);
+  
+  #endif
+! static void CopyAttributeOut(FILE *fp, char *string, char *delim);
+  static int	CountTuples(Relation relation);
+  
+  extern FILE *Pfout,
+--- 61,67 ----
+  static char *CopyReadAttribute(FILE *fp, bool *isnull, char *delim);
+  
+  #endif
+! static void CopyAttributeOut(FILE *fp, char *string, char *delim, int is_array);
+  static int	CountTuples(Relation relation);
+  
+  extern FILE *Pfout,
+***************
+*** 277,283 ****
+  				{
+  					string = (char *) (*fmgr_faddr(&amp;out_functions[i]))
+  						(value, elements[i], typmod[i]);
+! 					CopyAttributeOut(fp, string, delim);
+  					pfree(string);
+  				}
+  				else
+--- 277,283 ----
+  				{
+  					string = (char *) (*fmgr_faddr(&amp;out_functions[i]))
+  						(value, elements[i], typmod[i]);
+! 					CopyAttributeOut(fp, string, delim, attr[i]-&gt;attnelems);
+  					pfree(string);
+  				}
+  				else
+***************
+*** 560,566 ****
+  				{
+  					loaded_oid = oidin(string);
+  					if (loaded_oid &lt; BootstrapObjectIdData)
+! 						elog(ERROR, "COPY TEXT: Invalid Oid");
+  				}
+  			}
+  			for (i = 0; i &lt; attr_count &amp;&amp; !done; i++)
+--- 560,566 ----
+  				{
+  					loaded_oid = oidin(string);
+  					if (loaded_oid &lt; BootstrapObjectIdData)
+! 						elog(ERROR, "COPY TEXT: Invalid Oid. line: %d", lineno);
+  				}
+  			}
+  			for (i = 0; i &lt; attr_count &amp;&amp; !done; i++)
+***************
+*** 617,623 ****
+  				{
+  					fread(&amp;loaded_oid, sizeof(int32), 1, fp);
+  					if (loaded_oid &lt; BootstrapObjectIdData)
+! 						elog(ERROR, "COPY BINARY: Invalid Oid");
+  				}
+  				fread(&amp;null_ct, sizeof(int32), 1, fp);
+  				if (null_ct &gt; 0)
+--- 617,623 ----
+  				{
+  					fread(&amp;loaded_oid, sizeof(int32), 1, fp);
+  					if (loaded_oid &lt; BootstrapObjectIdData)
+! 						elog(ERROR, "COPY BINARY: Invalid Oid line: %d", lineno);
+  				}
+  				fread(&amp;null_ct, sizeof(int32), 1, fp);
+  				if (null_ct &gt; 0)
+***************
+*** 656,662 ****
+  								ptr += sizeof(int32);
+  								break;
+  							default:
+! 								elog(ERROR, "COPY BINARY: impossible size!");
+  								break;
+  						}
+  					}
+--- 656,662 ----
+  								ptr += sizeof(int32);
+  								break;
+  							default:
+! 								elog(ERROR, "COPY BINARY: impossible size! line: %d", lineno);
+  								break;
+  						}
+  					}
+***************
+*** 1119,1125 ****
+  				case '.':
+  					c = getc(fp);
+  					if (c != '\n')
+! 						elog(ERROR, "CopyReadAttribute - end of record marker corrupted");
+  					return (NULL);
+  					break;
+  			}
+--- 1119,1125 ----
+  				case '.':
+  					c = getc(fp);
+  					if (c != '\n')
+! 						elog(ERROR, "CopyReadAttribute - end of record marker corrupted. line: %d", lineno);
+  					return (NULL);
+  					break;
+  			}
+***************
+*** 1137,1158 ****
+  		if (!done)
+  			attribute[i++] = c;
+  		if (i == EXT_ATTLEN - 1)
+! 			elog(ERROR, "CopyReadAttribute - attribute length too long");
+  	}
+  	attribute[i] = '\0';
+  	return (&amp;attribute[0]);
+  }
+  
+  static void
+! CopyAttributeOut(FILE *fp, char *string, char *delim)
+  {
+  	char		c;
+- 	int			is_array = false;
+- 	int			len = strlen(string);
+- 
+- 	/* XXX - This is a kludge, we should check the data type */
+- 	if (len &amp;&amp; (string[0] == '{') &amp;&amp; (string[len - 1] == '}'))
+- 		is_array = true;
+  
+  	for (; (c = *string) != '\0'; string++)
+  	{
+--- 1137,1152 ----
+  		if (!done)
+  			attribute[i++] = c;
+  		if (i == EXT_ATTLEN - 1)
+! 			elog(ERROR, "CopyReadAttribute - attribute length too long. line: %d", lineno);
+  	}
+  	attribute[i] = '\0';
+  	return (&amp;attribute[0]);
+  }
+  
+  static void
+! CopyAttributeOut(FILE *fp, char *string, char *delim, int is_array)
+  {
+  	char		c;
+  
+  	for (; (c = *string) != '\0'; string++)
+  	{
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 4562] Re: I can't use date,time and more functions</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 4562] Re: I can't use date,time and more functions</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 4564] フィールドタイプの判定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 4562] Re: I can't use date,time and more functions</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00257.html">[pgsql-jp 4527] PHP/FI 2.0.1はどこにあるのでしょうか?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00293"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00293"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

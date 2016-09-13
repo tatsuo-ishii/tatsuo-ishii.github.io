@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23125] 濁点を含む文字列 -->
+<!--X-From: Hiroshi Amemiya <hiroshi@seiya.co.nz> -->
+<!--X-Date: Fri, 14 Sep 2001 17:06:57 +1200 -->
+<!--X-Message-Id: 20010914170657.A1263%h_amemi@pobox.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23125] 濁点を含む文字列 </TITLE>
+<LINK REV="made" HREF="mailto:hiroshi@seiya.co.nz">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00165.html">Date Prev</A>][<A HREF="msg00168.html">Date Next</A>][<A HREF="msg00198.html">Thread Prev</A>][<A HREF="msg00168.html">Thread Next</A>][<A HREF="index.html#00166">Date Index</A>][<A HREF="threads.html#00166">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23125] 濁点を含む文字列</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Amemiya &lt;<A HREF="mailto:hiroshi@seiya.co.nz">hiroshi@seiya.co.nz</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 14 Sep 2001 17:06:57 +1200</LI>
+<LI><em>User-Agent</em>: Mutt/1.3.20i-ja0</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。雨宮と申します。よろしくお願いします。
+
+現在、郵便番号から英語表記の住所を出力するスクリプトを書いています。ス
+クリプトの作成は大体終ったので実際のデータベースの構築を行うため郵政省
+のサイト (<A HREF="http://www.post.yusei.go.jp/newnumber/down_2.ht">http://www.post.yusei.go.jp/newnumber/down_2.ht</A>) より郵便番号
+一覧をダウンロードし以下のような作業をしてデータベースにデータを入力し
+ました。
+
+1. 文字コードを EUC_JP へ変換。
+2. Perl スクリプトで必要な部分だけを抜きだし別ファイルに出力。
+   抜きだしたのは郵便番号、都道府県(カナ)、市区町村(カナ)、町域(カナ)、
+   都道府県、市区町村、町域の 7 つでファイル名は ken_all.csv2 です。
+3. テーブルを zipaddress という名前で作成。
+4. テーブルにデータを追加する sql ファイルを以下のように作成し実行。
+
+      drop table zipaddress;
+      create table zipaddress (
+        zipcode    varchar(7) not null,
+        prefkana   varchar(20),
+        suburbkana varchar(40),
+        townkana   varchar(80),
+        pref       varchar(8),
+        suburb     varchar(20),
+        town       varchar(40)
+      );
+      grant select on zipaddress to nobody;
+      \copy zipaddress from ken_all.csv2
+
+これでデータが zipaddress に追加されるのですが ken_all.csv2 では濁点付
+きの文字は "が" のように一文字で表されているにもかかわらず psql で
+     hiroshi=# select * from zipaddress where zipcode='xxxxxxx';
+という sql 文を実行すると "カ゛" のように カ + 濁点というような結果に
+なってしまいます。
+どのようにすればこの現象が解消するのか分からずポストさせて頂きました。
+お分かりになられる方がおられましたらご教授ください。よろしくお願いし
+ます。
+
+
+環境は以下です。
+
+バージョン : postgreSQL 7.1.2
+オプション : configure --enable-multibyte=EUC_JP
+
+
+Perl スクリプトは以下のような単純なものです。
+
+#!/usr/local/bin/perl
+
+open (READ , qq|./ken_all.csv|);
+open (WRITE, qq|+&gt;./ken_all.csv2|);
+  while (&lt;READ&gt;) {
+    s/"//g;
+    s/ //g;
+
+    ($zipCode,$prefKana,$suburbKana,$townKana,$pref,$suburb,$town) \
+     = (split(/,/))[2, 3, 4, 5, 6, 7, 8];
+
+    printf WRITE qq|$zipCode\t$prefKana\t$suburbKana\t$townKana\t \
+    $pref\t$suburb\t$town\n|;
+  }
+close(WRITE);
+close(READ);
+~
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ Hiroshi Amemiya / Seiya Enterprises Ltd.
+
+ mail to : hiroshi@seiya.co.nz
+ mail to : hiroshi@worldservice.co.nz
+ web page: <A HREF="http://www.seiya.co.nz/">http://www.seiya.co.nz/</A>
+ web page: <A HREF="http://www.worldservice.co.jp/">http://www.worldservice.co.jp/</A>
+
+ tel : +64-09-353-1215
+ fax : +64-09-353-1216
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+ mail to : h_amemi@pobox.ne.jp
+ web page: <A HREF="http://www3.pobox.ne.jp/~h_amemi/">http://www3.pobox.ne.jp/~h_amemi/</A>
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00165.html">[pgsql-jp 23124] Re: WEB 経由での利用におけるブラウザ毎の違い？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00168.html">[pgsql-jp 23127] Re: 濁点を含む文字列</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp 23158] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00168.html">[pgsql-jp 23127] Re: 濁点を含む文字列</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00166"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00166"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

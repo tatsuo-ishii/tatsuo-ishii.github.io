@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16350] Re: libpqでmallocした時の問題 -->
+<!--X-From: Kohzi Terao <terao@cyheit.co.jp> -->
+<!--X-Date: Fri, 28 Jul 2000 20:56:51 +0900 -->
+<!--X-Message-Id: 20000728200938.40375296.1362248718@mailhost.cyheit.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000728195032.8C86.ATSUKA@be.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16350] Re: libpqでmallocした時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:terao@cyheit.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00582.html">Date Prev</A>][<A HREF="msg00584.html">Date Next</A>][<A HREF="msg00580.html">Thread Prev</A>][<A HREF="msg00595.html">Thread Next</A>][<A HREF="index.html#00583">Date Index</A>][<A HREF="threads.html#00583">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16350] Re: libpqでmallocした時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kohzi Terao &lt;<A HREF="mailto:terao@cyheit.co.jp">terao@cyheit.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jul 2000 20:56:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00580.html">20000728195032.8C86.ATSUKA@be.mbn.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+サイハイト寺尾です。
+
+&gt; 私も最初はおっしゃるようにやっていたのですが、できない！！、ということで、
+&gt; ここに試しにPQclearを入れてみたしだいです。
+&gt; 今、このPQclearを消して、再度実行してみたのですが、やっぱりだめでした
+&gt; ・・・。
+
+　そうでしたか・・・
+　シーラカンス本のサンプルを使う時に、間違えて付けてしまった
+かと思ったのですが、故意に入れてみたって事ですか。
+
+&gt; (gdb)
+&gt; 33          strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+&gt; (gdb)
+&gt; 34          strcat(w_sql, "SELECT * FROM work_tbl ");
+
+　解決にならないかもしれませんが、カーソルの宣言を一度でやっ
+てしまってはどうでしょう？
+　又、w_sqlを使わずに、PQexec()の第2引数を直に文字列にしてし
+まうのはどうでしょうか？
+　・・・どれも関係ないとは思いますが、ものは試しという事で。
+
+　細かい話ですが、strcatの第2引数の最後に空白が来る意味って
+何かあるのでしょうか？
+
+&gt; (gdb)
+&gt; 36          res = PQexec(conn1, w_sql);
+&gt; (gdb)
+&gt; 37          PQclear(res);
+&gt; (gdb)
+&gt; 39          strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+&gt; (gdb)
+&gt; 40          res = PQexec(conn1, w_sql);
+&gt; (gdb)
+&gt; 42          work_p = malloc(2048);
+&gt; (gdb) p (char *)PQgetvalue(res, 0, 0)
+&gt; $2 = 0x15040 "10"
+&gt; (gdb) n
+&gt; 43          memset(work_p, 0x0, 2048);
+&gt; (gdb) p (char *)PQgetvalue(res, 0, 0)
+&gt; $3 = 0x0
+&gt; (gdb) p res
+&gt; $4 = (PGresult *) 0x15800
+&gt; (gdb) p work_p
+&gt; $5 = 0x15800 ""
+&gt; (gdb) n
+&gt; 45          fp = fopen("./test.txt", "r");
+&gt; (gdb) p (char *)PQgetvalue(res, 0, 0)
+&gt; $6 = 0x0
+&gt; (gdb)
+&gt; ---------------------------------------
+&gt; 
+&gt; ここからresとwork_pのアドレスが同じでになっていて、memsetで消してしまっ
+&gt; た、と解釈したのですが、どうでしょうか？
+
+　確かにそう見えますけど・・・
+
+　Fetchが成功しているのか、確かめましたか？
+　resがNULLでなくても、PQresultStatus(res)がPGRES_TUPLES_OK
+以外ではFetchは失敗しています。
+
+　他には、memset()を外したら成功するのか、PQntuples()でタプ
+ル数を調べる等々。
+
+　又、デバッカだけでなく、Fetchした結果を画面かファイルに出
+力するようにしてみるというのも良いと思います。
+
+
+　解決にはなっていなくて申し訳ありませんが、この程度の事しか
+言えないです。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00596" HREF="msg00596.html">[pgsql-jp 16364] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00580" HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00582.html">[pgsql-jp 16349] RE: 初心者向け ＤＢ設計・ＳＱＬ 入門書</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00584.html">[pgsql-jp 16351] Re: [Q]pgaccessの日本語入力</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 16363] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00583"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00583"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

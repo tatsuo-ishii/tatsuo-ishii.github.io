@@ -1,0 +1,200 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10381] Re:[pgsql&#45;jp 10335] EWS4800でのコンパイル -->
+<!--X-From: "Hiroshi Shirakura" <sirakuhr@otsukakj.co.jp> -->
+<!--X-Date: Mon, 23 Aug 1999 17:35:53 +0900 -->
+<!--X-Message-Id: 000401beed42$82c84520$2f0a1dac@zaimu&#45;nt001.otsukakj.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003c01beeb5f$4de31220$01324d80@win&#45;nt4.skcapi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10381] Re:[pgsql-jp 10335] EWS4800でのコンパイル </TITLE>
+<LINK REV="made" HREF="mailto:sirakuhr@otsukakj.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00532.html">Date Prev</A>][<A HREF="msg00534.html">Date Next</A>][<A HREF="msg00539.html">Thread Prev</A>][<A HREF="msg00485.html">Thread Next</A>][<A HREF="index.html#00533">Date Index</A>][<A HREF="threads.html#00533">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10381] Re:[pgsql-jp 10335] EWS4800でのコンパイル</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Shirakura" &lt;<A HREF="mailto:sirakuhr@otsukakj.co.jp">sirakuhr@otsukakj.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Aug 1999 17:35:53 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、しらくらです。
+いつもお世話になっております。
+
+&gt; 斉藤＠新生開発です。
+&gt; ？なんでだろうsubjectが異様に長くなっていきますね。
+&gt; 私のところかな？以前はなかったようなんですが、もしかしてRE:が
+&gt; まずい？Re:でないと
+&gt; 石井さんのところでまずいのでしょうか。
+&gt;
+
+これは多分、私のところが原因だと思います。
+社内LANの関係もあって、メーラーにMS-Outlookを使っております。
+やはり、メーリングリストでOutlookはマズイでしょうか？
+何か良いメーラーはありますでしょうか？
+
+&gt;
+&gt;
+&gt; ※昨日若干の修正が入りました。時間を確認のうえ再度ダウンロ
+&gt; ードしていただけますで
+&gt; しょうか
+&gt;    また、.tgzのファイルですので、tar+gzipで作成しています。
+&gt;
+
+WinNTのネスケでダウンロードしてsambaのディレクトリにコピーした
+ものをtar zxvfで解凍しようとしたのですが、上手く行きませんでした。
+ところが、そのファイルをFreeBSDのAnonymouseFTPのディレクトリ
+に移動し、ftpでgetしたところ、上手く解凍できるようになりました。
+
+&gt; &gt;できれば、どの変にパッチを当てたのか、教えていただけないでしょうか？
+&gt;
+&gt;
+&gt; ※特にいま問題としているtas関係ですけれど
+&gt;
+&gt; include/port/casio.h &lt;-nec_ux.h?
+&gt;      1  #define USE_POSIX_TIME
+&gt;      2  #define NO_EMPTY_STMTS
+&gt;      3  #define SYSV_DIRENT
+&gt;      4  #define ONLY_REUSE_INET_SOCKETS
+&gt;      5
+&gt;      6  /* Spin Lock casio &amp; NEC_EWS Patch */
+&gt;      7  #define HAS_TEST_AND_SET
+&gt;      8  #include &lt;abi_mutex.h&gt;
+&gt;      9  typedef abilock_t slock_t;
+&gt;     10
+&gt;     11  #include &lt;sys/byteorder.h&gt;
+&gt;
+&gt; include/storage/s_lock.h
+&gt;    296  /*
+&gt;    297   *  CASIO &amp; NEC_EWS48
+&gt;    298   */
+&gt;    299  #if defined(casio)
+&gt;    300
+&gt;    301  #define TAS(lock)      (!acquire_lock(lock))
+&gt;    302
+&gt;    303  #define S_LOCK(lock) \
+&gt;    304        do{ \
+&gt;    305                while (!acquire_lock(lock)); \
+&gt;    306        }while (0)
+&gt;    307  #define S_UNLOCK(lock)                (*(lock) = 0)
+&gt;    308  #define S_INIT_LOCK(lock)     S_UNLOCK(lock)
+&gt;    309  #define S_LOCK_FREE(lock)     (stat_lock(lock) == UNLOCKED)
+&gt;    310
+&gt;    311  #endif /* casio */
+&gt;
+&gt; backend/storage/buffer/s_lock.c
+&gt;    145  #if defined(__mips)
+&gt;    146  #if !defined(casio)
+&gt;    147  static void
+&gt;    148  tas_dummy()
+&gt;    149  {
+&gt; --省略--
+&gt;    167  #endif
+&gt;    168  #endif   /* __mips */
+&gt;
+&gt; また、随所で
+&gt; S_UNLOCK((char *)&amp;(buf-&gt;io_in_progress_lock));
+&gt;                 ~~~~~~~~
+&gt; などの修正が必要になります。
+
+バイナリーキットは
+EWS4800/320PX　UX/4800 R11.2の環境では動作しましたが、
+EWS4800/320 EWS/UX R9.2A上ではinitdbのときに、
+Segmentation Faultで動作しませんでした。
+ソースの方はいつも通り、EWS4800/320PX UX/4800 R11.2上で
+コンパイルしてみましたが、以前同様s_lock.cのコンパイル中、
+
+gcc -I../../../include -I../../../backend -I/usr/local/include  -O2 -Kconfor
+m_pi
+c -D__svr4__ -D_nec_ux -Dcasio -DSVR4 -Wall -Wmissing-prototypes -I../..   -
+c s_
+lock.c
+s_lock.c:43: warning: type defaults to `int' in declaration of `slock_t'
+s_lock.c:43: parse error before `*'
+s_lock.c: In function `s_lock_stuck':
+s_lock.c:47: `lock' undeclared (first use in this function)
+s_lock.c:47: (Each undeclared identifier is reported only once
+s_lock.c:47: for each function it appears in.)
+s_lock.c:47: `file' undeclared (first use in this function)
+s_lock.c:47: `line' undeclared (first use in this function)
+s_lock.c: At top level:
+s_lock.c:70: warning: type defaults to `int' in declaration of `slock_t'
+s_lock.c:70: parse error before `*'
+s_lock.c:71: warning: no previous prototype for `s_lock'
+s_lock.c: In function `s_lock':
+s_lock.c:74: warning: implicit declaration of function `TAS'
+s_lock.c:74: `lock' undeclared (first use in this function)
+s_lock.c:80: `file' undeclared (first use in this function)
+s_lock.c:80: `line' undeclared (first use in this function)
+gmake[3]: *** [s_lock.o] Error 1
+
+でとまってしまいます。
+これはひょっとして、私の環境のみでしか起こらないエラーでしょうか？
+
+&gt; また、mutexライブラリのリンクを忘れずに。
+&gt;
+
+タコな質問ですが、mutexライブラリって何でしょう？
+
+----------------------------------
+白倉 寛 ( Hiroshi Shirakura )
+E-mail: sirakuhr@otsukakj.co.jp
+経理部財務課 内線241
+----------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00489" HREF="msg00489.html">[pgsql-jp 10335] Re: [pgsql-jp 10329]  EWS4800でのコンパイル</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Saito" &lt;saito@inetrt.skcapi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00532.html">[pgsql-jp 10380] Re: Sorry for not only postgres matter.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00534.html">[pgsql-jp 10382] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00539.html">[pgsql-jp 10387] Re: 質問：MSACCESSでのデータ-挿入が出来ません</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00485.html">[pgsql-jp 10331] 自己紹介など</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00533"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00533"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

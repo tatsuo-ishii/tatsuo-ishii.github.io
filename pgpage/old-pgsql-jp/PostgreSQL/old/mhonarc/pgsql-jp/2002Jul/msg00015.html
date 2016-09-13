@@ -1,0 +1,199 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26564] PL/pgSQLで関数を作成したい -->
+<!--X-From: Kazusi Nakamura <kazz@emsg.jp> -->
+<!--X-Date: Wed, 03 Jul 2002 18:34:31 +0900 -->
+<!--X-Message-Id: 200207030934.AA00880@kazz.ms.kit&#45;e.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26564] PL/pgSQLで関数を作成したい </TITLE>
+<LINK REV="made" HREF="mailto:kazz@emsg.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00014.html">Date Prev</A>][<A HREF="msg00016.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00016.html">Thread Next</A>][<A HREF="index.html#00015">Date Index</A>][<A HREF="threads.html#00015">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26564] PL/pgSQLで関数を作成したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kazusi Nakamura &lt;<A HREF="mailto:kazz@emsg.jp">kazz@emsg.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 03 Jul 2002 18:34:31 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+中村と申します。いつもお世話になりっぱなしです。
+RedHat Linux 7.x  PostgreSQL7.1.3　にて勉強中の身であります。
+以前質問した「空きIDの複数検索」の延長になるのですが、どうぞよろしく
+お願いいたします。また、長文をお許しください。
+
+以下のようなテーブル構造で
+create table a(
+    id integer,
+    name text
+);
+
+データが
+ id         nm
+-----------------
+  1         aaa
+  4         bbb
+  5         ccc
+  8         ddd
+ 10         eee
+と、あったときに、1〜10のID中から空いている5個のID(2,3,6,7,9)を
+一度に取得できるSQLを書きたいのですが…
+
+という質問をInterBaseに強い同僚に投げかけたところ「ストアドプロシージャ」
+なるものを使い関数を以下の通り作成すれば可能だ！　と回答されました。
+InterBaseのそれをそのまま掲載させていただきます。
+
+set names eucj_0208;
+connect "/users/kazz/a.gdb";
+
+SET TERM ^ ;
+create PROCEDURE GetEmptyID
+(
+        i_fromID            integer
+       ,i_toID              integer
+)
+Returns
+(
+       EmptyID             integer
+)
+as
+    declare variable    m_ID integer ;
+BEGIN
+    EmptyID = i_fromID;
+    for
+        select id from a
+        where  ID between :i_fromID and  :i_toID
+        into  :m_ID
+    Do
+    begin
+       if (EmptyID = m_ID) then
+       Begin
+         EmptyID = EmptyID +1;
+       END
+       ELSE
+       BEGIN
+         if (EmptyID&lt;m_ID) then
+         BEGIN
+           While (EmptyID&lt;m_ID) DO
+           BEGIN
+             Suspend;
+             EmptyID = EmptyID +1;
+           END
+           EmptyID = EmptyID +1;
+         END
+       END
+    END
+END ^
+
+SET TERM ; ^
+
+commit;
+
+として、関数を作成し、InterBaseにて
+select GetEmptyID(1,10);
+で実行させたところ望み通りの結果が返ってきました。
+
+InterBaseに可能でPostgreSQLで不可能は無いと思い、書籍をあさったところ
+PG/pgSQL言語なるものを発見し、さっそくインストールを完了させ、同様に
+
+create function GetEmptyID(int, int) returns integer as '
+    declare
+        i_fromID alias for $1;
+        i_toID alias for $2;
+        EmptyID int;
+        m_ID int;
+    begin
+        EmptyID := ifromID;
+        FOR m_ID IN SELECT id FROM a
+        WHERE id BETWEEN i_fromID AND i_toID LOOP
+            IF(EmptyID = m_ID) THEN
+                EmptyID := EmptyID + 1;
+            ELSE
+                WHILE (EmptyID &lt; m_ID) LOOP
+                    Suspend;
+                    EmptyID := EmptyID + 1;
+                END LOOP
+                EmptyID := EmptyID + 1;
+            END IF;
+        END LOOP;
+        end;
+' LANGUAGE 'plpgsql';
+
+とし、関数はCREATEできるのですが、いざ
+select GetEmptyID(1,10);
+で実行させると、
+NOTICE:  plpgsql: ERROR during compile of getid near line 18
+ERROR:  parse error at or near "EmptyID"
+となり、先へ進めません。（おとといから丸二日以上苦労しております）
+
+どなたかPL/pgSQL言語に詳しい方、ご教授ください。必ず同様な事は
+PostgreSQLでも出来ると信じております。よろしくお願いいたします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00031" HREF="msg00031.html">[pgsql-jp: 26580] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> 羽生　章洋&lt;habu@air-beat.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00030" HREF="msg00030.html">[pgsql-jp: 26579] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00018" HREF="msg00018.html">[pgsql-jp: 26567] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@zoozee.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00016" HREF="msg00016.html">[pgsql-jp: 26565] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+<UL><LI><EM>From:</EM> 前野　治&lt;omaeno@ayasys.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00014.html">[pgsql-jp: 26563] Re: delete,updateの戻値について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00016.html">[pgsql-jp: 26565] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp: 26572] Re: SQL</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00016.html">[pgsql-jp: 26565] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00015"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00015"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26558] delete,updateの戻値について -->
+<!--X-From: "kaneshige" <kaneshige@unified.co.jp> -->
+<!--X-Date: Tue, 2 Jul 2002 17:10:23 +0900 -->
+<!--X-Message-Id: 001701c2219f$ea8952a0$a811a8c0@asama -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26558] delete,updateの戻値について </TITLE>
+<LINK REV="made" HREF="mailto:kaneshige@unified.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00007.html">Date Prev</A>][<A HREF="msg00010.html">Date Next</A>][<A HREF="msg00042.html">Thread Prev</A>][<A HREF="msg00011.html">Thread Next</A>][<A HREF="index.html#00009">Date Index</A>][<A HREF="threads.html#00009">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26558] delete,updateの戻値について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "kaneshige" &lt;<A HREF="mailto:kaneshige@unified.co.jp">kaneshige@unified.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 2 Jul 2002 17:10:23 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。
+誠に、初歩的な質問で申し訳がありません。
+(初心者なので勘弁してください）
+
+現在、red hat7.1にpostgresql7.2.1をインストールして、Ｃ言語を用いて、
+select, insert, update, deleteのテストプログラムを組んでいます。
+それらの戻り値についての質問です。
+
+update, delete に関しては、該当するデータがなくても PQresultStatus(res)は
+PGRES_COMMAND_OK
+を返してくるのですが、これは正常なのでしょうか？
+insertに関しては、プライマリーキーが重複していると、PQresultStatus(res)は
+PGRES_COMMAND_OK以外を返してきます。
+
+どうかご教授ください。
+
+私の、ソースの一部を下記します。
+
+（insert)
+  /* SQL文作成 */
+  sprintf(query_string,"INSERT INTO perf_test VALUES("
+   " %d, %d, %d, %d, %d, %d, %d, %d, %d, %d,"
+   " '%c', '%c', '%c', '%c', '%c',"
+   " '%c', '%c', '%c', '%c', '%c')",
+   randnum[0], randnum[1], randnum[2], randnum[3],
+   randnum[4], randnum[5], randnum[6], randnum[7],
+   randnum[8], randnum[9],
+   randchar[0], randchar[1], randchar[2], randchar[3],
+   randchar[4], randchar[5], randchar[6], randchar[7],
+   randchar[8], randchar[9]
+   );
+
+  /* トランザクション処理開始 */
+  PQexec(conn, "BEGIN WORK");
+
+  /* SQL文発行 */
+  res = PQexec(conn, query_string);
+  if (PQresultStatus(res) != PGRES_COMMAND_OK){
+   fprintf(fno,"INSERT query failed.\n");
+   PQexec(conn, "ROLLBACK WORK");
+  }else
+  {
+   fprintf(fno, "%d\n", randnum[0]);
+   PQexec(conn, "COMMIT WORK");
+  }
+
+  /* 結果をクリア */
+  PQclear(res);
+
+
+(delete)
+  /* SQL文作成 */
+  sprintf(query_string,"DELETE FROM perf_test WHERE num1 = %d",
+   randnum);
+
+  /* トランザクション処理開始 */
+  PQexec(conn, "BEGIN WORK");
+
+  /* SQL文発行 */
+  res = PQexec(conn, query_string);
+  if (PQresultStatus(res) != PGRES_COMMAND_OK){
+   fprintf(fno,"DELETE query failed.\n");
+   PQexec(conn, "ROLLBACK WORK");
+  }else
+  {
+   fprintf(fno, "%d\n", randnum);
+   PQexec(conn, "COMMIT WORK");
+  }
+
+  /* 結果をクリア */
+  PQclear(res);
+
+(update)
+  /* SQL文作成 */
+  sprintf(query_string,"UPDATE perf_test SET num2 = %d"
+   " WHERE num1 = %d",
+   randnum[0], randnum[1]);
+
+  /* トランザクション処理開始 */
+  PQexec(conn, "BEGIN WORK");
+
+  /* SQL文発行 */
+  res = PQexec(conn, query_string);
+  if (PQresultStatus(res) != PGRES_COMMAND_OK){
+   fprintf(fno,"UPDATE query failed.\n");
+   PQexec(conn, "ROLLBACK WORK");
+  }else
+  {
+   fprintf(fno, "%d\n", randnum[0]);
+   PQexec(conn, "COMMIT WORK");
+  }
+
+  /* 結果をクリア */
+  PQclear(res);
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp: 26560] Re: delete,updateの戻値について</A></STRONG>
+<UL><LI><EM>From:</EM> "maya" &lt;maya@akira.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00007.html">[pgsql-jp: 26557] Re: lo型の追加について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00010.html">[pgsql-jp: 26559] Re: update でのleft join</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00042.html">[pgsql-jp: 26591] Re: PL/pgSQLで関数を作成したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp: 26560] Re: delete,updateの戻値について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00009"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00009"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

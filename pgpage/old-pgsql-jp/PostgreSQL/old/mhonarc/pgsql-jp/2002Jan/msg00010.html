@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24347] Re: Re2: 	テーブルが存在しているかどうかのチェック -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 07 Jan 2002 12:31:49 +0900 -->
+<!--X-Message-Id: 3C3916A5.AF8CEC49@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020106134137.0AAC46251@mail.asahi&#45;net.or.jp -->
+<!--X-Reference-Id: ri9ell3eg7i.wl@pfp7.is.ocha.ac.jp -->
+<!--X-Reference-Id: 200201070857.ADF35130.OPP@fjct.fujitsu.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24347] Re: Re2: 	テーブルが存在しているかどうかのチェック </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00009.html">Date Prev</A>][<A HREF="msg00011.html">Date Next</A>][<A HREF="msg00009.html">Thread Prev</A>][<A HREF="msg00011.html">Thread Next</A>][<A HREF="index.html#00010">Date Index</A>][<A HREF="threads.html#00010">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24347] Re: Re2: 	テーブルが存在しているかどうかのチェック</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Jan 2002 12:31:49 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00002.html">20020106134137.0AAC46251@mail.asahi-net.or.jp</A>&gt;	&lt;<A HREF="msg00004.html">ri9ell3eg7i.wl@pfp7.is.ocha.ac.jp</A>&gt; &lt;<A HREF="msg00007.html">200201070857.ADF35130.OPP@fjct.fujitsu.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。本年も宜しくお願いします。
+
+Kenji Ono wrote:
+
+....snip.....
+
+&gt; 僕は、基本的にデータの有る無しでCount(*)は使わないようにしていま
+&gt; す。
+....snip.....
+&gt; のほうが、Indexが聞くし全件なめるわけではないので早い、と言われ
+&gt; ました。
+
+
+SELECT COUNT(*) でも、SELECT 列名 でも、INDEX 使用
+の有無には、関係ないと思います。
+
+少くとも、PostgreSQLとInformix では 影響ないですね。
+INDEXが使用可能なのに、全件なめる(Seq Scan)ことはないです。
+Oracle でも同じだと思いますが違うのでしょうか？。
+
+私は、データーの有無を判定するには、COUNT(*) か、EXIST 
+を使うようにしています。理由は、ＤＢ製品やバージョン、
+使用言語よって互換性のなくなる可能性のある固有の方法を
+なるべく使いたくないからです。
+
+(参考)
+explain select count(*) from pg_class where relname = 'tjm';
+    NOTICE:  QUERY PLAN:
+    Aggregate  (cost=2.02..2.02 rows=1 width=4)
+      -&gt;  Index Scan using pg_class_relname_index on pg_class
+          (cost=0.00..2.01 rows=1 width=4)
+
+
+# 余談ですが、WHERE 条件のない SELECT COUNT(*) FROM 表名 ;
+# の場合、PostgreSQL(6.5.x)は実テーブルを読むので時間がか
+# かるようです。最新版はどうでしょうか。
+# Informix(ONLINE 4.2)の場合は、ＤＢカタログに表毎の件数を
+# リアルタイムで持っているようなので、表の全件数の表示の
+# 場合だけは何百万件でも一瞬です。
+
+maya さんも言われてますが、
+表名の検索だけなら、pg_tables の方が使いやすいです。
+pg_tables は、VIEW になっています。  次の SQL 文で、
+どういう VIEW 定義か確認できます。
+
+select * from pg_views where viewname = 'pg_tables';
+
+
+
+話がそれますが。。。。。。。。。。
+
+ＤＢ定義自体(CREATE TABLE 等々のメタデーター)が、 pg_ で
+始る表(ＤＢカタログ)に格納されていて、他の表と同じように
+SQL が使えるのが、RDB の大きな特徴のひとつです。
+
+ＤＢカタログ情報を有効に使うと効率的な汎用プログラムが
+作れる場合が多いです。
+
+勉強会用の作りかけですが、関心のある方はご覧下さい。
+
+<A HREF="http://www.shonan.ne.jp/~nkon/study/catalog/catalogtest.html">http://www.shonan.ne.jp/~nkon/study/catalog/catalogtest.html</A>
+
+
+# 無料セミナーや勉強会用の会場(東京周辺)を提供して下さる方歓迎。
+# 下記 URL をご覧になって、直接メール下さい。
+
+<A HREF="http://www.shonan.ne.jp/~nkon/iseminar/index.html">http://www.shonan.ne.jp/~nkon/iseminar/index.html</A>
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 24339] テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Nobuhide Tsuda &lt;ntsuda@beam.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[pgsql-jp 24341] Re: テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> ichikawa@is.ocha.ac.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00007" HREF="msg00007.html">[pgsql-jp 24344] Re2: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 24346] Re: Re2: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 24346] Re: Re2: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00010"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00010"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

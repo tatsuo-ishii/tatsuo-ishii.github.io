@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19454] JDBC Timestamp&Numeric Patch -->
+<!--X-From: Hiroshi Funaki <funaki@sofugi.co.jp> -->
+<!--X-Date: Sat, 13 Jan 2001 22:36:33 +0900 -->
+<!--X-Message-Id: 3A6059E1.F81A8E1@sofugi.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19454] JDBC Timestamp&amp;Numeric Patch </TITLE>
+<LINK REV="made" HREF="mailto:funaki@sofugi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00146.html">Date Prev</A>][<A HREF="msg00148.html">Date Next</A>][<A HREF="msg00205.html">Thread Prev</A>][<A HREF="msg00146.html">Thread Next</A>][<A HREF="index.html#00147">Date Index</A>][<A HREF="threads.html#00147">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19454] JDBC Timestamp&amp;Numeric Patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Funaki &lt;<A HREF="mailto:funaki@sofugi.co.jp">funaki@sofugi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 13 Jan 2001 22:36:33 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+舟木と申します。
+
+JDBCのtimestampとnumericパッチを作りましたので公開します。
+バージョンは postgresql-7.0.3 です。
+
+JDBCでtimestamp型のデータを取り出すと、ミリ秒が取れません。
+ミリ秒を扱える必要があるため、パッチを作りました。
+かなり強引なやり方ですが、これで小数点以下6桁（固定ですが）
+まで取り出せます。
+汎用的にするには、SQL標準の timestamp(q) の形式をサポートす
+る必要があると思うのですが、予定はあるのでしょうか？
+
+また、numeric型のデータを getBigDecimal()で取出すときに指定
+するスケールを getScale() で取り出せるようにするパッチを作
+成しました。オリジナルのgetScale()は、0 を返すようになってい
+たので、これをそのまま使うと小数点以下がある場合、例外が発生
+します。
+
+-- 
+___________________________________________
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    舟木 弘  <A HREF="mailto:funaki@sofugi.co.jp">mailto:funaki@sofugi.co.jp</A>
+    ソフトウエア技術株式会社
+    <A HREF="http://www.sofugi.co.jp">http://www.sofugi.co.jp</A>
+___________________________________________
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+</PRE>
+<PRE>
+diff -uNr postgresql-7.0.3.orig/src/backend/utils/adt/datetime.c postgresql-7.0.3/src/backend/utils/adt/datetime.c
+--- postgresql-7.0.3.orig/src/backend/utils/adt/datetime.c	Tue May 30 04:19:07 2000
++++ postgresql-7.0.3/src/backend/utils/adt/datetime.c	Wed Dec 13 11:33:19 2000
+@@ -2057,7 +2057,8 @@
+ 			{
+ 				sprintf(str, "%04d-%02d-%02d %02d:%02d:",
+ 						tm-&gt;tm_year, tm-&gt;tm_mon, tm-&gt;tm_mday, tm-&gt;tm_hour, tm-&gt;tm_min);
+-				sprintf((str + 17), ((fsec != 0) ? "%05.2f" : "%02.0f"), sec);
++				/* sprintf((str + 17), ((fsec != 0) ? "%05.2f" : "%02.0f"), sec); */
++                                sprintf((str + 17), "%05.6f", sec);
+ 
+ 				if ((*tzn != NULL) &amp;&amp; (tm-&gt;tm_isdst &gt;= 0))
+ 				{
+diff -uNr postgresql-7.0.3.orig/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSet.java postgresql-7.0.3/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSet.java
+--- postgresql-7.0.3.orig/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSet.java	Sun Nov  5 13:03:53 2000
++++ postgresql-7.0.3/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSet.java	Sat Jan 13 20:36:51 2001
+@@ -455,13 +455,19 @@
+     String s = getString(columnIndex);
+     if(s==null)
+ 	return null;
+-    
+-    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+-    
++
++    int pos = s.indexOf('.');
++    String nanopart = s.substring(pos+1, pos+7);
++    String datepart = s.substring(0, pos) + s.substring(pos+7);
++
++    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:sszzz");
++
+     try {
+-	return new Timestamp(df.parse(s).getTime());
++        Timestamp ts = new Timestamp(df.parse(datepart).getTime());
++        ts.setNanos(Integer.parseInt(nanopart) * 1000);
++        return ts;
+     } catch(ParseException e) {
+-	throw new PSQLException("postgresql.res.badtimestamp",new Integer(e.getErrorOffset()),s);
++        throw new PSQLException("postgresql.res.badtimestamp",new Integer(e.getErrorOffset()),s);
+     }
+   }
+   
+diff -uNr postgresql-7.0.3.orig/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSetMetaData.java postgresql-7.0.3/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSetMetaData.java
+--- postgresql-7.0.3.orig/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSetMetaData.java	Tue Apr 18 05:07:51 2000
++++ postgresql-7.0.3/src/interfaces/jdbc/org/postgresql/jdbc2/ResultSetMetaData.java	Sat Jan 13 20:39:36 2001
+@@ -300,24 +300,29 @@
+    */
+   public int getScale(int column) throws SQLException
+   {
+-    int sql_type = getField(column).getSQLType();
+-    
++    Field f = getField(column);
++    int sql_type = f.getSQLType();
++    int typmod = f.mod;
++
++   
+     switch (sql_type)
+       {
+       case Types.SMALLINT:
+-	return 0;
++        return 0;
+       case Types.INTEGER:
+-	return 0;
++        return 0;
+       case Types.REAL:
+-	return 8;
++        return 8;
+       case Types.FLOAT:
+-	return 16;
++        return 16;
+       case Types.DOUBLE:
+-	return 16;
++        return 16;
+       case Types.VARCHAR:
+-	return 0;
++        return 0;
++      case Types.NUMERIC:
++        return ((typmod - 4) &amp; 0xffff);
+       default:
+-	return 0;
++        return 0;
+       }
+   }
+   
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 19453] 他のRDBMSから移行</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 19455] Re: 他のRDBMSから移行</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 19512] Re: PostgreSQL 7.1 beta 3について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 19453] 他のRDBMSから移行</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00147"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00147"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

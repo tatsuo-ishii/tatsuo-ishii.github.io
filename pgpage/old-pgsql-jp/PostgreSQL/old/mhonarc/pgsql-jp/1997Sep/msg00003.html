@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2430] Re: Question about pgsql_perl5&#45;1.6.1 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Mon, 01 Sep 1997 14:42:20 +0900 -->
+<!--X-Message-Id: 199709010542.OAA02990@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708311308.WAA25773@wise19.mn.waseda.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2430] Re: Question about pgsql_perl5-1.6.1 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00004.html">Date Next</A>][<A HREF="msg00005.html">Thread Prev</A>][<A HREF="msg00010.html">Thread Next</A>][<A HREF="index.html#00003">Date Index</A>][<A HREF="threads.html#00003">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2430] Re: Question about pgsql_perl5-1.6.1</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Mon, 01 Sep 1997 14:42:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+以下の件についてざっと調べてみました。(なんせ perl 良く知らないもので、
+間違っている所があったら指摘をお願いします)
+
+SunOS で pgsql_perl5 がうまく行かない理由は、デフォルトで share lib
+(libpq.so)を作らないからだと思われます。対策としては、以下のパッチを
+src/libpq/Makefile にあて、src/libpq で gmake install し、
+LD_LIBRARY_PATH をセットして下さい。
+これでこちらの環境では make test が通るようになりました。
+
+SunOS Release 4.1.4-JLE1.1.4
+perl 5.004
+gcc 2.7.1
+------------------------- cut here -----------------------
+[srashd]t-ishii{156} diff -c Makefile~ Makefile
+*** Makefile~	Fri Apr  4 20:02:02 1997
+--- Makefile	Mon Sep  1 14:34:34 1997
+***************
+*** 48,53 ****
+--- 48,58 ----
+    LDFLAGS_SL = -G -z text
+    CFLAGS += $(CFLAGS_SL)
+  endif
++ ifeq ($(PORTNAME), sunos4)
++   install-shlib-dep := install-shlib
++   shlib := libpq.so.1
++   CFLAGS += $(CFLAGS_SL)
++ endif
+  
+  all: libpq.a $(shlib) c.h
+  
+***************
+*** 77,83 ****
+  
+  $(shlib): $(OBJS)
+  	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) 
+! 	ln -sf $@ libpq.so
+  
+  
+  c.h: ../include/c.h
+--- 82,88 ----
+  
+  $(shlib): $(OBJS)
+  	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) 
+! 	ln -s $@ libpq.so
+  
+  
+  c.h: ../include/c.h
+
+------------------------- cut here -----------------------
+
+&gt;前野＠早稲田大学です．
+&gt;
+&gt;PostgreSQL を，Web browser をインターフェースとして利用
+&gt;しようと思い，Perl5 + CGI.pm + pgsql_perl5-1.6.1 でもっ
+&gt;てデータを検索できるシステムを作りました．
+&gt;
+&gt;自宅の環境ではうまくいったのです．FreeBSD2.2.1R +
+&gt;Perl5.003 です．
+&gt;
+&gt;大学で公開することが最終的な目標でしたので，同じ事を大学
+&gt;の WS でもやってみました．SunOS4.1.4 がターゲットです．
+&gt;PostgreSQL の導入はすんなりといきました．導入されていた 
+&gt;Perl が dynamic loading をサポートしていないとの表示が出
+&gt;たので，自分で make しなおしました．しかし，
+&gt;
+&gt;ld.so: undefined symbol ???　（すいません，??? は失念し
+&gt;ました．auth とか書いてあった気がします．）
+&gt;
+&gt;と，エラーが表示されてしまいます．
+&gt;
+&gt;Perl のバージョンを色々変えたのですが，どれもだめでした．
+&gt;install ガイドには，SunOS や Solaris には dynamic
+&gt;loading に問題がある場合があるとの記述がありましたので，
+&gt;その方法に従ってインストールしてみたのですが，これもだめ
+&gt;でした．
+&gt;
+&gt;最新版の 5.00403 では pgsql_perl5-1.6.1 を make すること
+&gt;すらできませんでした．CGI はできているので，perl さえう
+&gt;まく動いてくれれば，というところなのですが，完全に行き詰っ
+&gt;てしまっています．
+&gt;
+&gt;そこで伺いたいのですが，SunOS4.1.4 でこのような組み合わ
+&gt;せの運用をされている方はいらっしゃるでしょうか．または，
+&gt;何が問題なのかがおわかりになる方はいらっしゃいますでしょ
+&gt;うか．あるいは，static に Pg モジュールを perl にリンク
+&gt;することもできるようですが，この方法について何かしらのポ
+&gt;インタをご存じの方がいらっしゃったら，教えてください．
+
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[pgsql-jp 2437] Re: Question about pgsql_perl5-1.6.1</A></STRONG>
+<UL><LI><EM>From:</EM> "Joji Maeno" &lt;joji@mn.waseda.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 2429] Re: self introduction of Joji Maeno</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 2431] Re: self introduction of Joji Maeno</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00005.html">[pgsql-jp 2432] Re: make error on Linux</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 2437] Re: Question about pgsql_perl5-1.6.1</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00003"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00003"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26483] 期間を含む複数のテーブルをVIEW する方法 -->
+<!--X-From: Akira Nakamura <nakamura@yse.yokogawa.co.jp> -->
+<!--X-Date: Mon, 24 Jun 2002 21:06:31 +0900 -->
+<!--X-Message-Id: 200206241203.VAA28650@seiji.mitaka.yokogawa.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26483] 期間を含む複数のテーブルをVIEW する方法 </TITLE>
+<LINK REV="made" HREF="mailto:nakamura@yse.yokogawa.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00261.html">Date Prev</A>][<A HREF="msg00263.html">Date Next</A>][<A HREF="msg00283.html">Thread Prev</A>][<A HREF="msg00264.html">Thread Next</A>][<A HREF="index.html#00262">Date Index</A>][<A HREF="threads.html#00262">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26483] 期間を含む複数のテーブルをVIEW する方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akira Nakamura &lt;<A HREF="mailto:nakamura@yse.yokogawa.co.jp">nakamura@yse.yokogawa.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 24 Jun 2002 21:06:31 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-id</em>: PostgreSQL日本語メーリングリスト&lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、中村と申します。
+
+期間を含む複数テーブルをスナップショット（決まった日付）で参照する
+VIEWを作っているのですが、WhereをVIEWで使用したテーブル分入力する事に
+なってしまい、もう少し効率の良い方法が無いか探しています。
+何か方法がありましたら教えて下さい。
+
+＜環境＞
+RedhatLinux6.2J
+Postgres7.1
+
+
+＜構成＞
+a_table
+a_id	｜start		｜end		｜name
+--------------------------------------------------------
+1	｜2002-01-01	｜2002-12-31	｜DATA1
+
+b_table
+b_id	｜start		｜end		｜name
+--------------------------------------------------------
+1	｜2002-01-01	｜2002-12-31	｜NAME1
+2	｜2002-01-01	｜2002-12-31	｜NAME2
+3	｜2002-01-01	｜2002-12-31	｜NAME3
+
+c_table
+a_id	｜b_id	｜start		｜end
+--------------------------------------------
+1	｜1	｜2002-01-01	｜2002-05-31
+1	｜2	｜2002-06-01	｜2002-09-30
+1	｜3	｜2002-10-01	｜2002-12-31
+
+・a_tableとb_tableで定義されているデータそれぞれに有効期限（start〜end）が
+　あります。
+・c_tableで、a_tableとb_tableをIDで紐付けしていて、このデータにも有効期限が
+　あります。
+・例のデータは、判りやす用にa_tableに1件、b_tableに複数件のデータを
+　登録しましたが、a_table1件、b_table複数件のケースもあります。
+
+
+＜私の限界＞
+create view abc_table AS
+SELECT
+ a_table.name AS a_name,
+ b_table.name AS b_name,
+ a_table.start AS a_start,
+ a_table.end AS a_end,
+ b_table.start AS b_start,
+ b_table.end AS b_end,
+ c_table.start AS c_start,
+ c_table.end AS c_end
+FROM
+ a_table ,
+ b_table ,
+ c_table
+WHERE
+ a_table.a_id = c_table.a_id AND
+ b_table.b_id = c_table.c_id
+;
+
+select 
+ a_name,
+ b_name
+FROM
+ abc_table
+WHERE
+ a_start &lt;= '＜指定日＞' AND
+ a_end &gt;= '＜指定日＞' AND
+ b_start &lt;= '＜指定日＞' AND
+ b_end &gt;= '＜指定日＞' AND
+ c_start &lt;= '＜指定日＞' AND
+ c_end &gt;= '＜指定日＞'
+
+
+＜やりたい事＞
+以下のSQLで呼出せるVIEWの作成
+select
+ a_name , 
+ b_name
+FROM
+ abc_table
+WHERE
+ start &lt;= '＜指定日＞' AND
+ end &gt;= '＜指定日＞'
+
+
+よろしくお願い致します。
+
+
+
+--
+横河システムエンジニアリング株式会社
+ 経営企画部 情報Gr
+  中村 央&lt;nakamura@yse.yokogawa.co.jp&gt;
+   Tel:043-274-5701 Fax:043-274-5706 (内)725-2056
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp: 26485] Re: 期間を含む複数のテーブルをVIEW する方法</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp: 26482] Re: Common SQL Environment</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp: 26484] Re: Windows-Native クライアントパッケージのサンプルプログラムについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00283.html">[pgsql-jp: 26504] 画像データ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp: 26485] Re: 期間を含む複数のテーブルをVIEW する方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00262"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00262"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

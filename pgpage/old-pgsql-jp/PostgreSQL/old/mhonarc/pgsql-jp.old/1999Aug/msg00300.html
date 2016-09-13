@@ -1,0 +1,195 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10145] Re: why connection is losted? -->
+<!--X-From: Takashi TSUTSUI <tutui@adsl.cyber66.or.jp> -->
+<!--X-Date: Mon, 09 Aug 1999 13:59:31 +0900 -->
+<!--X-Message-Id: 37AE6033.70924890@adsl.cyber66.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812080352.MAA03778@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10145] Re: why connection is losted? </TITLE>
+<LINK REV="made" HREF="mailto:tutui@adsl.cyber66.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00299.html">Date Prev</A>][<A HREF="msg00301.html">Date Next</A>][<A HREF="msg00301.html">Thread Prev</A>][<A HREF="msg00310.html">Thread Next</A>][<A HREF="index.html#00300">Date Index</A>][<A HREF="threads.html#00300">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10145] Re: why connection is losted?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takashi TSUTSUI &lt;<A HREF="mailto:tutui@adsl.cyber66.or.jp">tutui@adsl.cyber66.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 09 Aug 1999 13:59:31 +0900</LI>
+<LI><em>Organization</em>: http://157.102.38.1</LI>
+<LI><em>References</em>: &lt;199812080352.MAA03778@srapc451.sra.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井様
+
+筒井と申します。はじめまして。そのお話のPurifyとはなんとすごいものなんでしょう
+か? いったい何でしょうか?
+
+Tatsuo Ishii wrote:
+&gt; 
+&gt; 石井です。
+&gt; 
+&gt; &gt;&gt; 石井です。
+&gt; &gt;&gt;
+&gt; &gt;(略)
+&gt; &gt;&gt; 早速やってみました(6.4+jumbo.patch/LinuxPPC kernel 2.1.24)。結果、必ず
+&gt; &gt;&gt;
+&gt; &gt;&gt; Create table "ボトルマスター" ("ボトルID" Int4,"顧客コード" Int4 Not
+&gt; &gt;&gt; Null,"品名" Int4,"購入日付" Date Not Null,"購入店" Int4 Not Null,"表示
+&gt; &gt;&gt; " Bool Not Null,constraint "ボトルマスター_pkey" Primary Key("ボトル
+&gt; &gt;&gt; ID"));
+&gt; &gt;&gt;
+&gt; &gt;&gt; でおっこちです。
+&gt; &gt;
+&gt; &gt;自宅環境を整えて実験してみたところ、顧客情報(固定)でおちます。
+&gt; &gt;しかも今回は一つだけでもお亡くなりになりました。
+&gt; &gt;実行する場所によって挙動が変わるというのは嫌ですね。
+&gt; &gt;
+&gt; &gt;&gt; バグとしてはかなりやっかいな方なので、追求するのは時間がかかりそうです。
+&gt; &gt;&gt; 少し時間を頂けますか？
+&gt; 
+&gt; この件ですが、メモリ破壊だろうと見当が付いているので、必殺 purify に登
+&gt; 場願って原因を突き止めました(多分)。添付のパッチをお試し下さい。一応解
+&gt; 説しておきますと、
+
+
+
+
+うーーんほんとに必殺ですね...
+
+
+
+
+&gt; 
+&gt; (1) パーサ(gram.y) の fmtId()という内部関数でテーブル名などの
+&gt; identifierが大文字あるいは日本語の時などに「"」で quote する処理をして
+&gt; いるのだが、くっつける「"」の分のメモリを確保していないという御粗末。
+&gt; 
+&gt; (2)primary key で自動的にインデックスを付加するために、indexのデータを
+&gt; 作っているところ(catalog/index.c:AppendAttributeTuples())で、データエ
+&gt; リアの大きさの計算をミスって3バイト程メモリを壊していた。ここは良く間
+&gt; 違えるんですが、タプルを表現するFormData_pg_attributeという構造体の大
+&gt; きさ(sizeof(FormData_pg_attribute)で求めたもの)がそのままメモリorディ
+&gt; スク中のタプルの大きさにならないのです。
+
+Cのオーバーランとか、ダングリングポインターが見つかるのでしょうか
+C++も??
+
+&gt; 
+&gt; なお、修正したのはバックエンドだけなので、postmaster を停止し、
+&gt; 
+&gt; $ cd /some/where/../postgresql-v6.4
+&gt; $ patch -p1 &lt; パッチファイル
+&gt; 
+&gt; にてパッチを当てた後、
+&gt; 
+&gt; $ cd src/backend
+&gt; $ make
+&gt; $ make install
+&gt; 
+&gt; を実行してから再び postmaster を起動すればOKです。
+&gt; ---
+&gt; t-ishii@sra.co.jp       石井達夫
+&gt; （株）ＳＲＡ
+&gt; 
+&gt; ----------------------------- cut here ------------------------------
+&gt; *** postgresql-v6.4/src/backend/parser/gram.y.orig      Tue Dec  8 11:26:32 1998
+&gt; --- postgresql-v6.4/src/backend/parser/gram.y   Tue Dec  8 11:27:00 1998
+&gt; ***************
+&gt; *** 5125,5131 ****
+&gt;                 if (! (islower(*cp) || isdigit(*cp) || (*cp == '_'))) break;
+&gt; 
+&gt;         if (*cp != '\0') {
+&gt; !               cp = palloc(strlen(rawid)+1);
+&gt;                 strcpy(cp,"\"");
+&gt;                 strcat(cp,rawid);
+&gt;                 strcat(cp,"\"");
+&gt; --- 5125,5131 ----
+&gt;                 if (! (islower(*cp) || isdigit(*cp) || (*cp == '_'))) break;
+&gt; 
+&gt;         if (*cp != '\0') {
+&gt; !               cp = palloc(strlen(rawid)+3);
+&gt;                 strcpy(cp,"\"");
+&gt;                 strcat(cp,rawid);
+&gt;                 strcat(cp,"\"");
+
+こういうのは...普通一生みつかんないのですが...Cのallocにバウンダリーチェックしよ
+るのでしょうか
+
+しかし...じうやって...
+
+&gt; *** postgresql-v6.4/src/backend/catalog/index.c.orig    Tue Dec  8 11:41:20 1998
+&gt; --- postgresql-v6.4/src/backend/catalog/index.c Tue Dec  8 11:44:45 1998
+&gt; ***************
+&gt; *** 689,695 ****
+&gt;                  */
+&gt;                 memmove(GETSTRUCT(cur_tuple),
+&gt;                                 (char *) indexTupDesc-&gt;attrs[i],
+&gt; !                               sizeof(FormData_pg_attribute));
+&gt; 
+&gt;                 value[Anum_pg_attribute_attnum - 1] = Int16GetDatum(i + 1);
+&gt; 
+&gt; --- 689,695 ----
+&gt;                  */
+&gt;                 memmove(GETSTRUCT(cur_tuple),
+&gt;                                 (char *) indexTupDesc-&gt;attrs[i],
+&gt; !                               ATTRIBUTE_TUPLE_SIZE);
+&gt; 
+&gt;                 value[Anum_pg_attribute_attnum - 1] = Int16GetDatum(i + 1);
+&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp 10155] Re: why connection is losted?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 10144] Re: [pgsql-jp 10129] アクセスからPostgreSQLサーバに接続できません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 10146] PostgreSQLユーザ会会員申込について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 10146] PostgreSQLユーザ会会員申込について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00310.html">[pgsql-jp 10155] Re: why connection is losted?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00300"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00300"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

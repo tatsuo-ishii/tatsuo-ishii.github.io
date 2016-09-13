@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10468] Re: help&#45;FATAL:PQsetdbLogin() -->
+<!--X-From: joyhiro@joyful.gr.jp (Sadamu Gohyakuda) -->
+<!--X-Date: Fri, 27 Aug 1999 22:56:57 +0900 -->
+<!--X-Message-Id: 199908271356.WAA20484@mail.joyful.gr.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37C60595258.5F29NKON@mail.shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10468] Re: help-FATAL:PQsetdbLogin() </TITLE>
+<LINK REV="made" HREF="mailto:joyhiro@joyful.gr.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00618.html">Date Prev</A>][<A HREF="msg00620.html">Date Next</A>][<A HREF="msg00609.html">Thread Prev</A>][<A HREF="msg00597.html">Thread Next</A>][<A HREF="index.html#00619">Date Index</A>][<A HREF="threads.html#00619">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10468] Re: help-FATAL:PQsetdbLogin()</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:joyhiro@joyful.gr.jp">joyhiro@joyful.gr.jp</A> (Sadamu Gohyakuda)</LI>
+<LI><em>Date</em>: Fri, 27 Aug 1999 22:56:57 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00609.html">37C60595258.5F29NKON@mail.shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+joyhiroです。
+スレッドが私の不注意で寸断されていました。お詫びします。
+巧く行かないのでOSの再インストールなどをしていて
+メールソフトの再設定を失念しておりました。
+
+長くなって申し訳ありませんが、ここまでの流れを簡単に整理しておきます。
+
+【最初の質問】10396
+NetBSD/mac68k 1.4 (GENERIC)上で
+Postgresql6.5+Apache1.3.6(DSO)+php3.0.6+日本語パッチ
+がインストールされたホストがあります。
+
+ここでブラウザからphpでデータベースを呼んだら
+---
+&lt;?
+$con = pg_Connect("localhost","5432","","","drink");
+$result = pg_Exec($con, "select * from coffee where age = '$age'");
+---以下略
+
+呼び出せず以下のメッセージが帰ってきます。
+---
+Warning: Unable to connect to PostgresSQL server: FATAL: PQsetdbLogin():
+Unable to determine a Postgres
+ username! in /home/joyhiro/public_html/coffee/select.php3 on line 2
+---以下略
+
+【アドバイス1】10414 堀田＠諫早市様
+$con = pg_Connect("dbname=drink");ではどうか？
+Apacheのログには何か出ていませんか？
+【結果1】10419
+$con = pg_Connect("dbname=drink");----やはりだめ
+Apacheのログ----下記
+[Wed Aug 25 23:24:12 1999] [notice] Apache/1.3.6 (Unix) PHP/3.0.6
+configured -- resuming normal operations
+[Wed Aug 25 23:26:05 1999] [notice] child pid 177 exit signal Segmentation
+fault (11)
+
+【アドバイス2】10429 石井様
+多分 Apache プロセスの中で環境変数 USERNAME が拾えず、かといって 
+/etc/passwd も読めない状況なのでしょう。
+$con = pg_Connect("user=nobody password= dbname=drink");
+とやったら進展が見られませんか？
+【結果2】10446
+---異なるエラーメッセージ
+Warning: Unable to connect to PostgresSQL server: FATAL 1: Database nobody
+does not exist in pg_database in
+/home/joyhiro/public_html/coffee/select.php3 on line 2
+
+【アドバイス3】10447 いなば様
+createuser で nobody を作ってあげれば良いと思います。
+【結果3】10450
+メッセージを見るとnobodyがいないと考えますよね。
+でも、postgresユーザーでログインして
+createuser で nobody を作って
+psqlを使って grantで nobody=arwRの権限を与えているんです。
+これはpsqlで確認できています。
+まったく狐につままれたような感じで頭を抱えています。
+
+【アドバイス4】10451 石井様
+エラーメッセージは、nobody というデータベースがないと言ってます。
+dbname=drinkを認識してくれてないようですね。なんかバグ臭いんですが、
+$con = pg_Connect("user=nobody password=foo dbname=drink");
+$con = pg_Connect("user=nobody dbname=drink");
+$con = pg_Connect("dbname=drink user=nobody password=");
+$con = pg_Connect("dbname=drink user=nobody password="foo);
+などのパターンを色々試してみてもらえませんか？
+【結果4】10453
+なんと、上記４パターンでは、全て結果がうまく帰ってきました。
+もう一度
+$con = pg_Connect("user=nobody password= dbname=drink");
+にしたら、やはりエラーでした。順番が違うだけで結果が違うのですね。
+
+【アドバイス5】10457こすげ様
+同様な、「nobody というデータベースがない」という話がなんか
+あったな、と思ってみたところ、
+「[pgsql-jp 8236] Re: 新旧郵便番号検索ができません」というのが
+ありました。
+【結果5】
+ネスケのバグかもしれないとのことで
+Internet Explorer 4.5
+Netscape Communicator 4.5
+Netscape Communicator 4.6
+Netscape Navigator 4.04.1
+と入れ替えて見ましたが、どれも同じ結果でした。
+ちなみに使用環境はMacPPC6100/66 Mac0S J1-8.0 です。
+
+【アドバイス6】10458　近藤様
+例えば、DB 名が drink ならば、
+pg_connect ("", "", "", "", "drink");
+【結果6】
+やはりだめでした。
+-------------
+
+いまのところ
+$con = pg_Connect("user=nobody dbname=drink");
+など、記述方法によって認識結果が違うことが確認できています。
+---&lt;&gt;-&lt;&gt;----&lt;&gt;---&lt;&gt;-&lt;&gt;---&lt;&gt;----&lt;&gt;-&lt;&gt;----&lt;&gt;--
+Sadamu Gohyakuda E-mail:joyhiro@joyful.gr.jp
+[Joyful Hroshima]   <A HREF="http://www.joyful.gr.jp/">http://www.joyful.gr.jp/</A>
+---&lt;&gt;-&lt;&gt;----&lt;&gt;---&lt;&gt;-&lt;&gt;---&lt;&gt;----&lt;&gt;-&lt;&gt;----&lt;&gt;--
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00609" HREF="msg00609.html">[pgsql-jp 10458] Re: help-FATAL:PQsetdbLogin()</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00618.html">[pgsql-jp 10467] Large File Upload to PostgreSQL</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00620.html">[pgsql-jp 10469] Re: help-FATAL:PQsetdbLogin()</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00609.html">[pgsql-jp 10458] Re: help-FATAL:PQsetdbLogin()</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00597.html">[pgsql-jp 10446] Re: help-FATAL:PQsetdbLogin()</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00619"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00619"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

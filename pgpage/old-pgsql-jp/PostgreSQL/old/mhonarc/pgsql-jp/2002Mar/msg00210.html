@@ -1,0 +1,205 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25233] Unicode マッピングの問題 -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Mon, 11 Mar 2002 23:27:32 +0900 -->
+<!--X-Message-Id: 200203112137.5838@digitune.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25233] Unicode マッピングの問題 </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00209.html">Date Prev</A>][<A HREF="msg00211.html">Date Next</A>][<A HREF="msg00247.html">Thread Prev</A>][<A HREF="msg00242.html">Thread Next</A>][<A HREF="index.html#00210">Date Index</A>][<A HREF="threads.html#00210">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25233] Unicode マッピングの問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 11 Mar 2002 23:27:32 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: SONS,. Ltd.</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤です。
+
+自分で書いた [pgsql-jp: 25230] のメールの件について、ちょっと実験
+をしてみました。
+
+結論から述べますと「PostgreSQL 本体にも SJIS-MS932 問題がある」と
+しか思えない結果となりました。以下、詳しく説明します。
+
+環境は [pgsql-jp: 25225] で書いた通りです。
+
+まず、Unicode エンコーディングで DB を作り、そこに EUC-JP 環境
+(Solaris 8) 上の psql (PGCLIENTENCODING には euc_jp を指定) か
+ら「〜」を含むデータを insert します。
+
+こんな感じになります。
+
+[xxxx@hbtest]psql -U postgres -l          
+          List of databases
+   Database   |  Owner   | Encoding  
+--------------+----------+-----------
+ unicode_test | postgres | UNICODE
+
+unicode_test=# select pg_client_encoding();
+ pg_client_encoding 
+--------------------
+ EUC_JP
+(1 row)
+
+unicode_test=# create table test_table (
+unicode_test(# test_text varchar
+unicode_test(# );
+CREATE
+
+unicode_test=# insert into test_table (test_text) values ('〜');
+INSERT 60178191 1
+
+unicode_test=# select * from test_table;
+ test_text 
+-----------
+ 〜
+(1 row)
+
+＃ちょっと読みにくいかもしれませんがご勘弁ください。
+
+次に、PGCLIENTENCODING を sjis としてから同じく psql を用いて「〜」
+を insert します。このとき、当然ながら terminal も SJIS にしています。
+
+[xxxx@hbtest]export PGCLIENTENCODING=sjis
+
+unicode_test=# select pg_client_encoding();
+ pg_client_encoding 
+--------------------
+ SJIS
+(1 row)
+
+unicode_test=# insert into test_table (test_text) values ('〜');
+INSERT 60178192 1
+
+さて、ここで、pg_client_encoding() が 'sjis' の状態のまま、このテー
+ブルを select すると、次のようになります。
+
+unicode_test=# select * from test_table;
+NOTICE:  utf_to_local: could not convert UTF-8 (0xe3809c). Ignored
+ test_text 
+-----------
+ 
+ 〜
+(2 rows)
+
+また、いったん PGCLIENTENCODING を euc_jp に戻してから select する
+と次のようになります。
+
+unicode_test=# select * from test_table;
+NOTICE:  utf_to_local: could not convert UTF-8 (0xefbd9e). Ignored
+ test_text 
+-----------
+ 〜
+ 
+(2 rows)
+
+このことから分かることは、従来大抵の局面で同じ文字であるとして扱われて
+いた Shift JIS の「〜 (0x81、0x60)」と EUC-JP の「〜 (0xa1、0xc1」
+が、Unicode backend の PostgreSQL に対してそれぞれのエンコーディング
+を用いるクライアントから insert された時には、別の文字として入ってしま
+う、ということです。しかも、他方で insert されたデータはもう片方からは
+select することが出来ません。
+
+Unicode 変換用テーブルに、EUC-JP は JIS〜.TXT、Shift JIS は CP932.TXT
+を用いた、という時点で予想できた結果ですが、この状況は、僕は SJIS-MS932
+問題が生じていると言っていいのではないかと思うのですがいかがでしょうか？
+
+＃なお [pgsql-jp: 25230] で自分で書いた疑問については、
+＃(1) 現在は Unicode-Shift JIS 相互変換も実装されている。
+＃(2) backend が Unicode の時は、EUC-JP は JIS0201、JIS0208、JIS0212
+＃ベースの変換テーブル、Shift JIS は CP932 ベースの変換テーブルによって
+＃直接相互変換されている。
+＃…という感じであろうことが実験から分かりました。README.mb.jp で「まだ
+＃実装されていない」と書かれているのは 7.0 での状況なのですね。
+
+＊＊＊
+
+ちなみに、上記実験を EUC_JP エンコーディングの DB 上で行うと (当たり前
+ですが) 同じ文字にマッピングされ、双方から同じ結果が得られます。
+
+かつて Shift JIS と Unicode の直接相互変換がまだ実装されていなかった
+時には、EUC_JP と Shift JIS 間で UDC 部分も含めて出来るだけうまく変換
+出来るように実装されていたそうですが、Unicode-Shift JIS 間のマッピング
+テーブルを作成する際に、どうして「EUC-JP 側で使っている Unicode マッピ
+ングテーブルを、これまでのコードの実装に合わせて Shift JIS 用に再マップ
+したもの」を使わなかったのかが分かりません。MS が Shift JIS を Unicode
+にどうマッピングしていようが関係なく、PostgreSQL は PostgreSQL で整合
+性のとれたマッピングテーブルを利用していれば問題なかったのではないです
+か？
+
+Java のように CP932 と JIS0201、JIS0208、JIS0212 ベースのコンバータ
+両方を用意する、という解決策もアリかなぁ…。
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00242" HREF="msg00242.html">[pgsql-jp: 25265] Re: Unicode マッピングの問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00209.html">[pgsql-jp: 25232] Re: 幾何関数について　教えてください</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00211.html">[pgsql-jp: 25234] Re: Windows上JDBC でのエンコーディング</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp: 25270]  Re: VACUUM を実行するタイミングについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp: 25265] Re: Unicode マッピングの問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00210"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00210"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,187 @@
+<A NAME="2">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Mon, 21 Oct 1996 22:04:05 +0900
+Subject: [postgres95 878] Re: search in array
+Message-Id: &lt;199610211304.WAA02880@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+From: yasu@hike.te.chiba-u.ac.jp (Yasunobu Suzuki)
+Subject: [postgres95 877] search in array
+Date: Mon, 21 Oct 1996 18:33:27 +0900
+
+&gt; ...
+&gt; RDBの基本には反しているとは思いますが、Postgres95ではデータ型に配列が
+&gt; 使えますよね？
+&gt; 
+
+配列は、RDBの一意性といいますか正規化といいますかが
+とれない「邪道」なんですかねえ。
+# 個人的には Postgres95 のこういう融通のきくところ
+# (あいまいさ)がとても好きなんですけど :-)
+
+&gt; そこで問題なのですが、可変長の多次元配列を作る場合、その配列の中身全てに
+&gt; ついて検索はできないのでしょうか？
+&gt; 
+Postgres95 の配布パッケージの contrib として
+「array_iterator.c」が入っておりますが、
+これこそまさにこの問題を解決してくれるものです。
+# 私も前に使わせていただきました ;-)
+
+&gt; たとえば、
+&gt; CREATE TABLE sample (
+&gt; 	no	int4,
+&gt; 	sports	varchar(16)[]
+&gt; );
+&gt; とやって、
+&gt; 
+&gt; INSERT INTO sample VALUES ( 1,'{&quot;baseball&quot;,&quot;tennis&quot;,&quot;basketball&quot;}');
+&gt; INSERT INTO sample VALUES ( 2,'{&quot;football&quot;,&quot;volleyball&quot;}');
+&gt; INSERT INTO sample VALUES ( 3,'{&quot;handball&quot;,&quot;rugby&quot;,&quot;ski&quot;,&quot;snowboard&quot;}');
+&gt; 
+&gt; として、データを格納したあと、
+&gt; 
+&gt; SELECT sample.no FROM sample WHERE sample.sports[*] = 'tennis';
+&gt; 
+&gt; とやったらsportsのなかに'tennis'の含まれている番号が出る気がしたのですが、
+&gt; できませんでした。
+
+動作結果を載せておきます。
+======================================================================
+test=&gt; \i array_iterator.sql
+.... いっぱいつくってくれる
+test=&gt; -- '*=' が配列の中身の各々一つとマッチしようとする
+test=&gt; select s.no from s where s.sports*='tennis';
+no
+--
+ 1
+(1 row)
+test=&gt; -- '**='は配列の中身のすべてにたいしてマッチする
+test=&gt; select s.no from s where s.sports**='tennis';
+no
+--
+(0 rows)
+test=&gt; -- '*~' は上記の正規表現
+test=&gt; select s.no from s where s.sports*~'^[bf]';
+no
+--
+ 1
+ 2
+(2 rows)
+test=&gt; -- '**~' も同様
+test=&gt; select s.no from s where s.sports**~'^[^v]';
+no
+--
+ 1
+ 3
+(2 rows)
+test=&gt; 
+======================================================================
+
+select の後の表記の部分には、s.sport[1:2]などと書いてきれいに動くのですが、
+where 句の中ではデフォルトでは無理みたいですね。
+
+&gt; ＃まぁ、テーブルを分ければいい、という話しもありますが...
+&gt; 
+可変ってのがいいですよね ;-)
+
+== おみつ
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: yasu@hike.te.chiba-u.ac.jp (Yasunobu Suzuki)
+Date: Mon, 21 Oct 1996 18:33:27 +0900
+Subject: [postgres95 877] search in array
+Message-Id: &lt;199610210933.SAA19578@hike3.hike.te.chiba-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+鈴木＠千葉大％最近質問してばっかりだ、です。
+
+RDBの基本には反しているとは思いますが、Postgres95ではデータ型に配列が
+使えますよね？
+
+そこで問題なのですが、可変長の多次元配列を作る場合、その配列の中身全てに
+ついて検索はできないのでしょうか？
+
+たとえば、
+CREATE TABLE sample (
+	no	int4,
+	sports	varchar(16)[]
+);
+とやって、
+
+INSERT INTO sample VALUES ( 1,'{&quot;baseball&quot;,&quot;tennis&quot;,&quot;basketball&quot;}');
+INSERT INTO sample VALUES ( 2,'{&quot;football&quot;,&quot;volleyball&quot;}');
+INSERT INTO sample VALUES ( 3,'{&quot;handball&quot;,&quot;rugby&quot;,&quot;ski&quot;,&quot;snowboard&quot;}');
+
+として、データを格納したあと、
+
+SELECT sample.no FROM sample WHERE sample.sports[*] = 'tennis';
+
+とやったらsportsのなかに'tennis'の含まれている番号が出る気がしたのですが、
+できませんでした。
+マニュアルの例には[2]などと番号を指定するとできるようですが...
+（実際[2]とすると1がでる）
+
+仕様なのでしょうか？
+つまんない質問な上、このような使い方はRDBの要求に反していると思いますが...
+
+＃まぁ、テーブルを分ければいい、という話しもありますが...
+
+|    千葉大学 工学研究科 電気電子工学専攻 |
+|     電子システム講座 計算機工学分野(10) |
+|           鈴木 康修 ( Suzuki Yasunobu ) |
+|       e-mail:yasu@hike.te.chiba-u.ac.jp |
+| http://yasu.hike.te.chiba-u.ac.jp/~yasu/|
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Mon, 21 Oct 1996 05:00:53 +0900
+Subject: [postgres95 876] Re: What is mod_auth_pg95 ?
+Message-Id: &lt;199610202000.FAA01944@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+From: uchida@yrd.suzuki.co.jp
+Subject: [postgres95 875] Re: What is mod_auth_pg95 ?
+Date: Sun, 20 Oct 1996 18:04:11 +0900
+
+&gt; 
+&gt; apache の module で、
+&gt; 
+&gt; CGI SUGId             version: 1.0          mod_cgi_sugid.c
+&gt;  Set User/Group Id for CGI execution (like CERN) 
+&gt; 
+&gt; mod_auth_sys          version: 1.10         mod_auth_sys.c
+&gt;  Basic Authentication using System-Accounts
+&gt; 
+&gt; suCGI                 version: 0.1.0        mod_sucgi.c
+&gt;  Handles ~userdir CGI requests as that user.
+&gt; 
+&gt; などがあるようですが、使えないでしょうか。
+&gt; 
+&gt;   http://www.zyzzyva.com/server/module_registry/
+&gt; 
+
+このようなモジュールがあるなどとはつゆしらず...
+早速取って来たので試してみようと思います。
+
+# 先程ソースをひたすら grep してみましたが、すべて 
+# geteuid (プロセスの実効ユーザーID)を使用しているようで、
+# やはり、setuid 系の解決方法が一番妥当かなと考えるこのごろです。
+
+== おみつ
+<HR>
+</PRE>

@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10473] geometric&#45;0.1 ¤Îgeometric_elem ¤Ègeometric_part ¤Ë¤Ä¤¤¤Æ -->
+<!--X-From: Kenji Sugita <sugita@sra.co.jp> -->
+<!--X-Date: Sat, 28 Aug 1999 06:06:04 +0900 -->
+<!--X-Message-Id: 199908272106.VAA26293@sran362.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10473] geometric-0.1 ¤Îgeometric_elem ¤Ègeometric_part ¤Ë¤Ä¤¤¤ </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00622.html">Date Prev</A>][<A HREF="msg00624.html">Date Next</A>][<A HREF="msg00624.html">Thread Prev</A>][<A HREF="msg00631.html">Thread Next</A>][<A HREF="index.html#00623">Date Index</A>][<A HREF="threads.html#00623">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10473] geometric-0.1 ¤Îgeometric_elem ¤Ègeometric_part ¤Ë¤Ä¤¤¤Æ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kenji Sugita &lt;<A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 28 Aug 1999 06:06:04 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  ¤ª¤Ï¤è¤¦¤´¤¶¤¤¤Þ¤¹¡£
+
+  ÊÒ²¬¤µ¤ó¤ÎÂ¿¼¡¸µ´ö²¿¥ª¥Ö¥¸¥§¥¯¥È¤ò»È¤ï¤»¤Æ¤¤¤¿¤À¤¤¤Æ¤¤¤Þ¤¹¡£Ä¾´¶Åª¤«¤ÄÂ®¤¯¤Æ
+¤È¤Æ¤â¤è¤¤¤Ç¤¹¤Í¡£¤¢¤ê¤¬¤È¤¦¤´¤¶¤¤¤Þ¤¹¡£
+
+  Æ°ºî´Ä¶­¤Ï°Ê²¼¤ÎÄÌ¤ê¤Ç¤¹¡£
+
+    FreeBSD3.2
+    PostgreSQL 6.5.1 (--with-mb=EUC_JP)
+    <A HREF="ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz">ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz</A>
+    pgaccess.patch
+
+  geometric_elem ¤È geometric_part ¤Ë¤Ä¤¤¤Æµ¿Ìä¤¬¤¢¤ê¤Þ¤¹¡£
+
+    (<A HREF="http://datula.mio.org/~iwakiri/pgsql_jp/">http://datula.mio.org/~iwakiri/pgsql_jp/</A> ¤Ç¤Î geometric_elem ¤È 
+     geometric_part ¤Ï¸¡º÷¿ô 0 ¤Ç¤·¤¿¡£geometric ¤Ç¤Î¸¡º÷·ë²Ì¤Ë¤â³ºÅö¤¹¤ë»ö¹à
+     ¤Ï¤¢¤ê¤Þ¤»¤ó¡£)
+
+====  geo_ifs.c  ====
+&gt; double *geometric_elem(int32 elem, geometric *var)
+&gt; {
+&gt;     switch (geo_type(var))
+&gt;     {
+&gt;     case GEO_POINT:
+&gt;     {
+&gt;         double *r;
+&gt; 
+&gt;         r = (double *)palloc(sizeof(double));
+&gt; 
+&gt;         if (elem &lt; 1 || elem &gt; geo_ndim(var))
+	      ^^^^^^^^
+&gt;             elog(ERROR, "Bad geometric element number '%d' (out of range)", elem);
+&gt; 
+&gt;         *r = geo_point_implicit_value((geo_point *)var, elem - 1);
+&gt; 
+&gt;         return r;
+&gt;     }
+
+&gt; double *geometric_part(text *fld, geometric *var)
+&gt; {
+&gt;     double *r;
+&gt;     int i;
+&gt;     char *lfld;
+&gt;     char *up, *lp;
+&gt; 
+&gt;     lfld = (char *)palloc(VARSIZE(fld) - VARHDRSZ + 1);
+&gt;     up = VARDATA(fld);
+&gt;     lp = lfld;
+&gt;     for (i = 0; i &lt; (VARSIZE(fld) - VARHDRSZ); i++)
+&gt;         *lp++ = tolower(*up++);
+&gt;     *lp = '\0';
+&gt; 
+&gt;     if (!strcmp(lfld, "x"))
+&gt;     {
+&gt;         if (geo_ndim(var) &lt; 1)
+&gt;             elog(ERROR, "Bad geometric field name '%s' (out of range)", lfld);
+&gt;         r = geometric_elem(0, var);
+	      ^^^^^^^^^^^^^^^^^^^^^^
+&gt;     }
+
+  geometric_part ¤Ç 'x' ¤òÅÏ¤¹¤È geometric_elem ¤Ç¡¢
+
+	ERROR:  Bad geometric element number '0' (out of range)
+
+¤È¤Ê¤Ã¤Æ¤·¤Þ¤¤¤Þ¤¹¡£3 ¼¡¸µ¤Î¾ì¹ç¡¢'y' ¤È 'z' ¤Î¤ß¤¬ geometric_part ¤Ç
+¼õ¤±ÉÕ¤±¤é¤ì¤Þ¤¹¡£
+
+
+Kenji Sugita
+sugita@sra.co.jp
+<A HREF="http://www.sra.co.jp/people/sugita/">http://www.sra.co.jp/people/sugita/</A>
+
+
+  
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00631" HREF="msg00631.html">[pgsql-jp 10481] RE: geometric-0.1 ¤Î  geometric_elem ¤È  geometric_part ¤Ë¤Ä¤¤¤Æ</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00622.html">[pgsql-jp 10472] Re: help-FATAL:PQsetdbLogin()--¼ýÂ«</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00624.html">[pgsql-jp 10474] geometric ¤Ç¤Înrtree ¤Î»ÈÍÑ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00624.html">[pgsql-jp 10474] geometric ¤Ç¤Înrtree ¤Î»ÈÍÑ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00631.html">[pgsql-jp 10481] RE: geometric-0.1 ¤Î  geometric_elem ¤È  geometric_part ¤Ë¤Ä¤¤¤Æ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00623"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00623"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

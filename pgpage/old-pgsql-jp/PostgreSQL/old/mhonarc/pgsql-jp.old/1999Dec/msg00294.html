@@ -1,0 +1,223 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12288] SJIS gaiji -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 17 Dec 1999 12:47:40 +0900 -->
+<!--X-Message-Id: 19991217124740U.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12288] SJIS gaiji </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00293.html">Date Prev</A>][<A HREF="msg00295.html">Date Next</A>][<A HREF="msg00295.html">Thread Prev</A>][<A HREF="msg00302.html">Thread Next</A>][<A HREF="index.html#00294">Date Index</A>][<A HREF="threads.html#00294">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12288] SJIS gaiji</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 17 Dec 1999 12:47:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。以前にもちょっと話題になっていましたが([pgsql-jp 9841]からの
+スレッド)、SJIS ユーザ定義文字をどう扱うかと言うことについて中条さん
+(nak@email.com)さんから以下の詳細な解説をメールで頂きました。
+
+どうやらM$に閉じた世界だけでなく、Sunなども含めて一応業界で決めた標準
+があるようです(といってもMacは蚊帳の外)。果してこれをPostgreSQLでサポー
+トするのが妥当か皆さんのご意見をお伺いしたいと思います。
+
+また、これはPostgreSQLのバックエンドの問題だけでなく、片岡さんの日本語
+ODBCドライバとも同期を取る必要がありますので、特に片岡さんのご意見を尊
+重したいと思っています。
+--
+Tatsuo Ishii
+
+-------------------------- 引用開始 ----------------------------------
+---
+1. SJIS コードの範囲
+
+    1 バイト目 0x81 - 0x9F、0xE0 - 0xFC
+    2 バイト目 0x40 - 0x7E、0x80 - 0xFC
+
+    いわゆる「外字領域」の範囲:
+
+    - X0208 共通自由領域
+
+    |--------------------
+    | 85 区  0xEB40 〜
+    |...
+    |--------------------
+    | 89 区  0xED40 〜    ; 89〜92 区は
+    |...                  ; 「NEC 選定 IBM 拡張文字領域」
+    |-------------------- ; と呼ばれる
+    | 93 区  0xEF40 〜
+    | 94 区  0xEF9F 〜 0xEFFC
+
+    - ユーザ定義文字領域
+    
+    |--------------------
+    | 95 区  0xF040 〜    ; 95〜104 区
+    |...                  ; 「ユーザ定義文字領域 A」(仮称)
+    |--------------------
+    |105 区  0xF540 〜    ; 105〜114 区
+    |...                  ; 「ユーザ定義文字領域 B」(仮称)
+    |--------------------
+    |115 区  0xFA40 〜    ; 115〜120 区は一般に
+    |...                  ; 「IBM 拡張文字領域」
+    |120 区  ...          ; と呼ばれる
+    |--------------------
+
+---
+2. i-mode 端末が使っている図形文字コードの範囲
+
+    0xF89F - 0xF8FC  (112 区)
+    0xF940 - 0xF949  (113 区)
+    0xF972 - 0xF97E  (113 区)
+    0xF980 - 0xF990  (113 区)
+    0xF9B0           (114 区)
+
+---
+3. 一般的な EUC 日本語コードの定義
+
+    G0 : [0x21-0x7E]                  ; いわゆる JIS ROMAN
+    G1 : [0xA1-0xFE] [0xA1-0xFE]      ; JIS X 0208 
+    G2 : 0x8E [0xA1-0xDF]             ; JIS X 0201 カナ
+    G3 : 0x8F [0xA1-0xFE] [0x21-0x7E] ; JIS X 0212 補助漢字
+
+---
+[問題点]
+
+SJIS 95〜120 区は JIS X0208 に該当する領域が存在しない
+ため、この領域の EUC - SJIS 文字コード変換は各ベンダに
+よって異なるのではないか、というのが石井様からのご指摘
+でした。
+
+---
+[議論]
+
+調査の結果、SJIS 95〜120 区を EUC に変換するための標準的な
+ルールがないわけではない、ということがわかりました。詳細は
+後述の参考資料をご覧いただくとして、ここではそのルールを
+簡単にご説明いたします。
+
+   - SJIS ユーザ定義文字領域 A (仮称)
+          95〜104 区  ←→ 日本語 EUC / G1 85〜95 区
+
+         たとえば SJIS の (95, 1) = 0xF040 は
+         EUC の 0xF5A1 になります。
+
+   - SJIS ユーザ定義文字領域 B (仮称)
+         105〜114 区  ←→ 日本語 EUC / G3 85〜95 区
+
+         たとえば SJIS の (105, 1) = 0xF540 は
+         EUC の 0x8FF5A1 になります。
+
+   - IBM 拡張文字領域
+         115〜120 区
+
+         JIS X 0208 (日本語 EUC / G1)、JIS X 0212 
+         (日本語 EUC / G3) に該当する文字がある場合
+         はその文字にマッピング。そうでない場合は
+         日本語 EUC / G3 83〜84 区を、区点コードの上位
+         から順に割り当てていく (変換テーブル方式)
+
+この仕様は、広く使われている SJIS と EUC のマッピングがベンダに
+よって異なるため、相互運用の際に問題になっていることから、1996 
+年に OSF 日本ベンダ協議会が検討作成した報告書がベースになってい
+るようです。
+
+Solaris のドキュメントには「TOG 日本ベンダ協議会推奨 EUC・シフト 
+JIS コード変換仕様」にもとづくと書いてあり、Solaris 2.6 から導入
+しているのだそうで、私から見れば事実上の標準と考えても不自然では
+ないと感じます。
+
+なお、少なくとも 1996 年当時においては、Oracle や Sybase は 
+SJIS のユーザ定義/ベンダ定義文字領域を EUC に変換する際、判別不
+可能文字として扱っているらしいということも補足しておきます。
+
+---
+[参考資料]
+
+// URL が長いので、途中で切れないといいのですが...
+
+-「日本語 EUC・シフト JIS コード変換仕様とコード系実態調査」
+    1966, OSF 日本ベンダ協議会
+    <A HREF="http://www.opengroup.or.jp/jvc/cde/sjis-euc.html">http://www.opengroup.or.jp/jvc/cde/sjis-euc.html</A>
+
+-「文字コード変換規則」
+    Solaris 7、JFP ユーザーズガイド
+    <A HREF="http://docs.sun.com/ab2/coll.139.3/JFPUG/@Ab2PageView/11683?Ab2Lang=ja">http://docs.sun.com/ab2/coll.139.3/JFPUG/@Ab2PageView/11683?Ab2Lang=ja</A>&amp;Ab2Enc=euc-jp
+
+-「日本語文字コード」
+    Solaris 7、JFP ユーザーズガイド
+    <A HREF="http://docs.sun.com/ab2/coll.139.3/JFPUG/@Ab2PageView/879;td=5?Ab2Lang=ja">http://docs.sun.com/ab2/coll.139.3/JFPUG/@Ab2PageView/879;td=5?Ab2Lang=ja</A>&amp;Ab2Enc=euc-jp
+
+    // 謎の「1〜20 区」の記述はここからきています。
+
+---
+
+以上、前向きにご検討いただければうれしく思います。
+もちろん、この仕様を PostgreSQL に取り込むかどうかは私が口を出す
+べきことではありません。石井さんのご判断にお任せしたいと思います。
+よろしくご検討のほどお願いいたします。
+
+----------------
+nak@email.com
+In Real Life: Tatsuo Nakajyo
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00303" HREF="msg00303.html">[pgsql-jp 12297] RE: SJIS gaiji</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp 12296] Re: SJIS gaiji</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Yamada &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00293.html">[pgsql-jp 12287] 退会方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 12289] Annotation System</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 12289] Annotation System</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00302.html">[pgsql-jp 12296] Re: SJIS gaiji</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00294"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00294"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

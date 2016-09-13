@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22635] DBI:Pg での接続に関する疑問 -->
+<!--X-From: "basil.freemail.ne.jp" <mailing@basil.freemail.ne.jp> -->
+<!--X-Date: Mon, 30 Jul 2001 12:39:16 +0900 -->
+<!--X-Message-Id: 20010730115942.512A.MAILING@basil.freemail.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22635] DBI:Pg での接続に関する疑問 </TITLE>
+<LINK REV="made" HREF="mailto:mailing@basil.freemail.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00495.html">Date Prev</A>][<A HREF="msg00498.html">Date Next</A>][<A HREF="msg00501.html">Thread Prev</A>][<A HREF="msg00498.html">Thread Next</A>][<A HREF="index.html#00496">Date Index</A>][<A HREF="threads.html#00496">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22635] DBI:Pg での接続に関する疑問</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "basil.freemail.ne.jp" &lt;<A HREF="mailto:mailing@basil.freemail.ne.jp">mailing@basil.freemail.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 30 Jul 2001 12:39:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。光部と申します。
+さっきこのメーリングリストに入ったばっかりで早速質問で恐縮なのですが、
+DBI:Pｇの接続時のパラメータについての質問です。
+
+使用環境は
+	PostgreSQL-7.1.2
+	DBI-1.15
+	DBD‐Pg‐1.01
+を使っています。
+
+DBI：Pgをインストールする時に一緒に入っているPg.htmlなりPg.pmのソースの
+コメントとしてある説明や、Webページを見る限りでは大体どんなところでもDBI:Pｇ
+の接続方法として紹介されている内容が
+
+最小限のパラメータでデータベースに接続するには、
+   $dbh = DBI-&gt;connect("dbi:Pg:dbname=$dbname", "", "");
+
+全てのパラメータを定義した場合、
+$dbh = DBI-&gt;connect("dbi:Pg:dbname=$dbname;host=$host;port=　\
+	$port;options=$options;tty=$tty", "$username", "$password");
+
+となっています。
+私の理解が間違っていなければですがDBI-&gt;connectする際のパラメータとして、
+DBIは３つ受け取る（？ちょっと表現が適切かはわかりませんが）と理解しています。
+つまりデータベースに接続する為のデータベースへの接続周りと、接続の為の
+ユーザー名とパスワードと言う事になる・・・・と言う事でいいのでしょうか？
+
+表現としては　DBI-&gt;connect（$data_source, $username, $password);
+
+で問題ないはず？と思っています。
+そこでDBI:Pgの説明を読みあさってみると接続するホスト名や、ポート番号、その他の
+オプションなどは全て、DBI的な表現で言うところの$data_sourceにぶち込めばいいと、
+そのセパレータは”；”であると、このように理解しています。
+
+ここまでが私の理解の限度なのですが、これで最小限のパラメータ構成ですと無事
+接続できるようなのですが”；”このセパレータが入ると接続が失敗に終わってしまう
+のです。
+
+Pg.pmを私のつたない理解で読み進めていくとconnectメソッドでどうやって$data_source
+の中身を取り出しているのかを見てみると
+
+sub connect {
+        my($drh, $dbname, $user, $auth)= @_;
+
+        # create a 'blank' dbh
+
+        my $Name = $dbname;
+        $Name =~ s/^.*dbname\s*=\s*//;
+        $Name =~ s/\s*;.*$//;
+		・
+		・
+		・
+        my($dbh) = DBI::_new_dbh($drh, {
+            'Name' =&gt; $Name,
+            'User' =&gt; $user, 'CURRENT_USER' =&gt; $user,
+        });
+
+DBD::Pg::db::_login($dbh, $dbname, $user, $auth) or return undef;
+
+        $dbh;
+    }
+}
+
+となっていて
+	$Name =~ s/^.*dbname\s*=\s*//;
+	$Name =~ s/\s*;.*$//
+
+この部分でデータベース名を取り出しているようなのですが・・・。これをそのまま使っても
+うまくいかないと思うのです。パターンマッチングで置換しているという所までは今のところ
+理解しているのですが、何分正規表現がいまいちわからないもので（^_＾；ゞ
+
+これをこの部分を抜き出して試しに実行してみたのですがその結果が
+
+DBD：Pg：dbname=testを与えるとtestが抜き出される？
+
+DBD：Pg：dbname=test；host=localhostを与えるとdbname=test；host=localhostが出てくる、
+
+といった具合になるんです。これだとこの部分だけを観る限りではまずい（？）みたいなんですが
+これって古いバージョンのころからずっとこうなっている（？）みたいなので間違いではないのだろうけど
+何が違うのかでいきずまってしまいました。
+
+今、とりあえずのところはlocalhostへの接続は出来ているのですがリモートホストのデータベースと
+接続したいのですが、どなたかこの辺りに詳しい方や、実際にリモートホストへの接続をconnectへの
+パラメータとして与えて成功している方などいらっしゃいましたらぜひ情報をお願いします。
+
+ちなみに今試しているのは下記のようなスクリプトで行っています。
+
+#!/usr/bin/perl -w
+
+ use DBI;
+
+ my $username    = "koube";
+ my $password     = "test";
+ my $data_source  = "dbi:Pg:dbname=test;host=localhost";
+
+ my $dbh = DBI-&gt;connect($data_source, $username, $password)
+                || die "Can't connect to: $DBI::errstr";
+
+ my $sth = $dbh-&gt;prepare( q{ SELECT hogehoge FROM dbhoge })
+                || die "Can't prepare statement: $DBI::errstr";
+
+ my $rc = $sth-&gt;execute
+                || die "Can't execute statement: $DBI::errstr";
+
+ print "Query will return $sth-&gt;{NUM_OF_FIELDS} fields.\n\n";
+ print "Field names: @{ $sth-&gt;{NAME} }\n";
+
+ while (( my $hogehoge ) = $sth-&gt;fetchrow_array) {
+        print "$hogehoge\n";
+        }
+
+        die $sth-&gt;errstr if $sth-&gt;err;
+
+        $dbh-&gt;disconnect；
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00499" HREF="msg00499.html">[pgsql-jp 22638] Re: DBI:Pg での接続に関する疑問</A></STRONG>
+<UL><LI><EM>From:</EM> "Kawai,Takanori" &lt;GCD00051@nifty.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00497" HREF="msg00497.html">[pgsql-jp 22636] Re: DBI:Pg での接続に関する疑問</A></STRONG>
+<UL><LI><EM>From:</EM> takeshi MIYAKAWA &lt;tak@hdt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00498" HREF="msg00498.html">[pgsql-jp 22637] Re: DBI:Pg での接続に関する疑問</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Iwanami &lt;iwanami@psl.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00495.html">[pgsql-jp 22634] pg_dump 中のトランザクションについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 22637] Re: DBI:Pg での接続に関する疑問</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00501.html">[pgsql-jp 22640] Re: ウィルスに感染されているのかおりませんですか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 22637] Re: DBI:Pg での接続に関する疑問</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00496"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00496"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

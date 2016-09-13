@@ -1,0 +1,224 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20495] 7.1 performance (was: How about to use a silicon disk on $PGDATA) -->
+<!--X-From: Tsuyoshi SASAMOTO <sasamoto@e&#45;vision.co.jp> -->
+<!--X-Date: Mon, 26 Mar 2001 22:27:42 +0900 (JST) -->
+<!--X-Message-Id: 200103261327.WAA29733@mailhost.e&#45;vision.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200103241001.TAA14855@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 3ABC81B7.A0DF1657@shonan.ne.jp -->
+<!--X-Reference-Id: 20010324232656K.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200103260522.OAA11306@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 20010326150101B.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 3ABEE13C.483092C8@shonan.ne.jp -->
+<!--X-Reference-Id: 200103261217.VAA07153@pp.iij4u.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20495] 7.1 performance (was: How about to use a silicon disk o </TITLE>
+<LINK REV="made" HREF="mailto:sasamoto@e-vision.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00360.html">Date Prev</A>][<A HREF="msg00362.html">Date Next</A>][<A HREF="msg00359.html">Thread Prev</A>][<A HREF="msg00342.html">Thread Next</A>][<A HREF="index.html#00361">Date Index</A>][<A HREF="threads.html#00361">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20495] 7.1 performance (was: How about to use a silicon disk on $PGDATA)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:sasamoto@e-vision.co.jp">sasamoto@e-vision.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 22:27:42 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00340.html">200103241001.TAA14855@mailhost.e-vision.co.jp</A>&gt;&lt;<A HREF="msg00341.html">3ABC81B7.A0DF1657@shonan.ne.jp</A>&gt;&lt;<A HREF="msg00342.html">20010324232656K.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00350.html">200103260522.OAA11306@mailhost.e-vision.co.jp</A>&gt;&lt;<A HREF="msg00351.html">20010326150101B.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00352.html">3ABEE13C.483092C8@shonan.ne.jp</A>&gt;&lt;<A HREF="msg00359.html">200103261217.VAA07153@pp.iij4u.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+再び皆さん，ありがとうございます．
+
+石井さん:
+&gt;それと，7.1の場合，共有メモリ上のバッファを増やしてやると効果があるよ
+&gt;うです．1024位にしてみてはどうでしょう．
+
+私はこの手のチューニングについてあまり詳しくはないので，
+こうして情報を頂けると助かります．ということで，やってみました．
+----------------------------------------------------------------------
+    [共通部分]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+    [ufs, fsync, 7.1RC1, -B 1024]
+tps = 74.634329(including connections establishing)
+tps = 76.911185(excluding connections establishing)
+    [ufs, nofsync, 7.1RC1, -B 1024]
+tps = 80.241430(including connections establishing)
+tps = 82.884376(excluding connections establishing)
+    [ufs, fsync, 7.1RC1, -B 8192]
+tps = 110.068518(including connections establishing)
+tps = 116.529337(excluding connections establishing)
+    [ufs, nofsync, 7.1RC1, -B 8192]
+tps = 136.538343(including connections establishing)
+tps = 146.620901(excluding connections establishing)
+    [ufs, fsync, 7.0.3, -B 1024]
+tps = 5.882351(including connections establishing)
+tps = 5.893308(excluding connections establishing)
+    [ufs, nofsync, 7.0.3, -B 1024]
+tps = 97.667505(including connections establishing)
+tps = 101.207609(excluding connections establishing)
+    [ufs, fsync, 7.0.3, -B 8192]
+tps = 5.901856(including connections establishing)
+tps = 5.914216(excluding connections establishing)
+    [ufs, nofsync, 7.0.3, -B 8192]
+tps = 103.687329(including connections establishing)
+tps = 107.653519(excluding connections establishing)
+----------------------------------------------------------------------
+7.0.3の場合，共有バッファを増やしても，少なくともこのケースでは
+ほとんどパフォーマンスの差が出ないようですが，7.1ではかなり劇的に
+効果が出ますね．特に，nofsyncで"-B 8192"の場合はtmpfsに肉薄してますね^^;
+それに，fsyncでもnofsyncとほぼ同等の数字になってますし．
+
+これはもう，7.1で決まり！ですね^^
+
+&gt;最後に，$PGDATA/postgresql.confの以下のパラメータをいろいろいじると効
+&gt;果があるかも．
+&gt;
+&gt;#
+&gt;#	Write-ahead log (WAL)
+&gt;#
+&gt; :
+
+これは，試行錯誤しながら最適値を探す，というやつですね．
+実運用時のサーバがちゃんと使えるようになったら，チューニングしてみようと思います．
+
+&gt;それと，常に number of clients: 1 でテストされているようですが，実稼働
+&gt;環境でも常にユーザ数1なんですか?そうでないのなら，これを増やしてテスト
+&gt;した方が現実に近い結果が得られると思います．
+
+httpサーバ側では当然複数のリクエストが同時に来ると思われますが，
+直接PostgreSQLを呼び出すのは，通常時はこのhttpサーバのみです．
+で，このhttpサーバは自作のものでlibpqを使っているのですが，
+プールしておくPostgreSQL接続数をいくつにでも設定できるようにしてあって，
+この接続数をいろいろ変えてテストしてみたのですが......
+
+１トランザクション内で読み出し／書き込みの両方をやらなければならないんですが
+（PL/pgSQLのfunction呼び出しの形でやってます），ロックの設定をしないと
+deadlockだ何だと出てきてしまうので"SHARE ROW EXCLUSIVE"のロックを
+かけてやらなければならないんですけど，これで複数の接続を使うように
+すると，ロックの競合が起きるせいか，接続数１の場合よりパフォーマンスが
+低下してしまうんです．で，接続数１にする，というところに落ち着いたんですが...
+
+httpサーバはマルチスレッドで動くので，接続数１というのもなぁ，という気も
+しないではなかったのですが，まぁ仕方ないかなぁ，と......あるいは，複数の
+接続を使ってもパフォーマンスが低下しない（というより，願わくば向上する）
+ようなうまい方法はあるのでしょうか？
+
+
+近藤さん:
+&gt;さすが、7.1 。fsync  の場合は、すごい効果ですね。
+&gt; :
+&gt;と、６倍位になってますね。
+&gt;7.03 の非同期の tps = 90.759750 の 1/3 位ですね。
+
+上記の通り，６倍どころではないです．これはホントすごい！
+
+&gt;非同期の速度向上は期待してなかったけど、低下する
+&gt;ような場合があると。。。。。早く検証したい(^_^;;
+
+これも上記の通り，共有バッファを十分に取れば，低下するどころか
+tmpfs並みのパフォーマンスが出るようですね^^
+
+&gt;PostgreSQL の WORK 領域(SORT や MERGE JOIN 等々)
+&gt;だけでも、RAMDISK に置くか、別ドライブにするよう
+&gt;な方法が取れるといいのですが。
+
+7.1の内部でこうした処理がどう行われているのかはわからないのですが，
+もしディスクにwork領域を確保してやっているのなら，これは是非そうしてほしいですね．
+
+&gt;pg_xlog で、HDD １台占有するのがもったいない気もす
+&gt;るけど、多分それだけの効果はあると期待しています。
+&gt;余った部分は、普段使わないごみ溜めにしておくとか。
+
+確かに，何GBなんてのをpg_xlogだけに使うというのはあまりにも......って^^;;
+
+しかし，別デバイスにしなくてもあんな数字が出てしまったので，
+もし別にしたらどうなっちゃうんでしょう!?
+......といっても，全部tmpfsに入れた場合より速くなることはないでしょうが^^;
+
+
+奥山さん:
+&gt;&gt; 最近広告見ないけど、シリコンディスクなんてまだ売っているん
+&gt;&gt; でしょうか？。
+&gt;
+&gt;だいぶ前の何かの雑誌での評価で、「SCSI バスの速度がネックになっている
+&gt;らしく価格ほどの性能向上はみられない」と切り捨てられていたのを
+&gt;おぼろげながらにおぼえていますが、
+&gt;
+&gt;   <A HREF="http://www.newtech.co.jp/products/raid/ssd/">http://www.newtech.co.jp/products/raid/ssd/</A>
+&gt;
+&gt;あたりが新製品ででているのをみると、SCSI も速くなっている関係で、
+&gt;そこそこいけるのかもしれません。
+&gt;
+&gt;7.1 だと WAL 用にこういったディスクを使うとよいかも?
+
+私もそれを考えていました．実際にそうする可能性もあります^^;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00350" HREF="msg00350.html">[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00351" HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00352" HREF="msg00352.html">[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00359" HREF="msg00359.html">[pgsql-jp 20493] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Hirofumi Okuyama &lt;ok@pp.iij4u.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00360.html">[pgsql-jp 20494] libpq でのPQsetdbLogin()について(パート２)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00362.html">[pgsql-jp 20496] postmaster のコネクト数（バックエンド数）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 20493] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00361"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00361"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

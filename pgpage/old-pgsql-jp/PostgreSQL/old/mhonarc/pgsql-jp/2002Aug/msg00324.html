@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27192] Re: pg_execが2 度実行されてしまう現象 -->
+<!--X-From: Yutaka tanida <yutaka@hi&#45;net.zaq.ne.jp> -->
+<!--X-Date: Thu, 29 Aug 2002 15:59:44 +0900 -->
+<!--X-Message-Id: 20020829155542.51CF.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: AKEMINBHFGOKBEJFJHFNIECOCKAA.chico@dreamkit.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27192] Re: pg_execが2 度実行されてしまう現象 </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@hi-net.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00323.html">Date Prev</A>][<A HREF="msg00326.html">Date Next</A>][<A HREF="msg00323.html">Thread Prev</A>][<A HREF="msg00325.html">Thread Next</A>][<A HREF="index.html#00324">Date Index</A>][<A HREF="threads.html#00324">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27192] Re: pg_execが2 度実行されてしまう現象</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yutaka tanida &lt;<A HREF="mailto:yutaka@hi-net.zaq.ne.jp">yutaka@hi-net.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 29 Aug 2002 15:59:44 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00323.html">AKEMINBHFGOKBEJFJHFNIECOCKAA.chico@dreamkit.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+＃締め切り（何の？）は明日だ・・・ということで現実逃避
+
+On Thu, 29 Aug 2002 15:47:36 +0900
+"chico" &lt;chico@dreamkit.com&gt; wrote:
+
+&gt; [Q] pg_exec()でinsertを１度しか実行していないのに２度実行されることがある。
+&gt;     この現象は必ず発生するのではなく不定期に起こります。
+&gt; 
+&gt; 試したことは、まず以下のように簡単なテーブルを作成しておいて、
+&gt; drop table foo;
+&gt; drop   sequence foo_id_seq;
+&gt; create table foo (
+&gt;   id       serial,
+&gt;   name     text not null,
+&gt;   primary key(id)
+&gt; );
+&gt; grant all on foo to nobody;
+&gt; grant all on foo_id_seq to nobody;
+&gt; 
+&gt; PHPスクリプトでは、以下のような処理の流れです。
+&gt; （呼出し側のFORMからnameはPOSTされるという設定です）
+&gt; （エラー処理は省いて書きました）
+&gt; 
+&gt;   $name = $_POST['name'];
+&gt;   $con = pg_connect("host=xxx port=5432 dbname=xxx user=xxx password=xxx");
+&gt;   $sql = "insert into foo(name) values('$name')"
+&gt;   $rtn = pg_exec($con, $sql); --------------------- (1)
+&gt;   $sql = "select currval('foo_id_seq')";
+&gt;   $rtn = pg_exec($con, $sql); --------------------- (2)
+&gt;   $new_id = pg_result($rtn, 0, 0);
+&gt; 
+&gt; この(1)の処理が稀に２度実行されてしまう個所です。
+&gt; (1)と(2)の間で、pg_cmdtuples()を使い影響のあったタプル数を
+&gt; 表示してみましたが、２度実行された場合でも１行しか影響が
+&gt; ないという結果となりました。
+&gt; 
+&gt; 単に、登録後に次のシークエンス値を得たいだけなのですが、
+&gt; 発生する条件をつきとめられませんでした。
+&gt; 今までも似たようなことをやってきて問題となったことは
+&gt; なかったのですが、PostgreSQLとPHPを共に新しいバージョン
+&gt; にしてから経験しました。
+&gt; 
+&gt; どなたかお知恵をお貸しくださいませ。
+&gt; よろしくおねがいします。
+
+単に(1)で登録されたidの値と(2)で取得した値とが異なる(後の方が+1)というこ
+とではないのですか？確実に(1)が２回発生しているのでしょうか？
+
+実は前者だとすれば、(1)と(2)全体をbegin-ccommitでくくれば解決だと思いま
+す。
+
+
+-- 
+Yutaka tanida &lt;yutaka@nonsensecorner.com&gt;
+<A HREF="http://www.nonsensecorner.com/">http://www.nonsensecorner.com/</A>
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp: 27194] Re: pg_execが2  度実行されてしまう現象</A></STRONG>
+<UL><LI><EM>From:</EM> "chico" &lt;chico@dreamkit.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00323" HREF="msg00323.html">[pgsql-jp: 27191] pg_execが2度実行されてしまう現象</A></STRONG>
+<UL><LI><EM>From:</EM> "chico" &lt;chico@dreamkit.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00323.html">[pgsql-jp: 27191] pg_execが2度実行されてしまう現象</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00326.html">[pgsql-jp: 27193] Re: pg_execが2 度実行されてしまう現象</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00323.html">[pgsql-jp: 27191] pg_execが2度実行されてしまう現象</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp: 27194] Re: pg_execが2  度実行されてしまう現象</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00324"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00324"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

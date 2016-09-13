@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20738] Re: JDBC にてNUMERIC桁数取得する方法 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 17 Apr 2001 01:01:59 +0900 -->
+<!--X-Message-Id: 3ADB1777.FCFD31CA@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200104161201.VAA02376@smtp.solid.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20738] Re: JDBC にてNUMERIC桁数取得する方法 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00160.html">Thread Prev</A>][<A HREF="msg00164.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20738] Re: JDBC にてNUMERIC桁数取得する方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 17 Apr 2001 01:01:59 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00160.html">200104161201.VAA02376@smtp.solid.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。こんばんは。
+
+Naosuke MORITA wrote:
+&gt; 
+&gt; 森田と申します。JDBCにてNUMERIC桁数取得する方法をお教えいただきたくメー
+&gt; ルいたします。
+
+....省略....
+
+JDBC のことは知らないので、森田さんの本来お知りになり
+たいこととはずれてしまいますが、DB カタログ(メタデータ)
+から、精度や桁数などを抽出する方法についてご参考迄に。
+
+PostgreSQL に依存したコーディングになるので、好ましく
+ないのですが、下記の SQL文 で、小数以下の桁数ほかの、
+DB カタログ情報(メタデーター)を取得できるようです。
+# NUMERIC の精度と桁数だけならもっと簡潔に書けますね。
+
+本来こういうことは、JDBC ドライバーの仕事のはずですが、
+私は、JDBC 知らないので、詳しい方よろしく。
+
+(注) 表 pg_class, pg_type, pg_attribute への SELECT
+権を GRANT しておく必要があります。
+
+ソースコードをちゃんと読んでないので、間違いなどあり
+ましたら、申し訳ありませんが、ご指摘頂けると助かります。
+
+テスト環境:PostgreSQL 7.0.3。Turbo Linux 6.0。
+
+---------------------------------------------------------------
+
+SELECT 
+    atab.attnum                 as 列番,
+    ttab.typname                as 表名,
+    atab.attname                as 列名,
+    -- atab.atttypid               as 型番,
+    ttyp.typname                as 型名,
+    case when ttyp.typname='bpchar'     then atab.atttypmod-4
+         when ttyp.typname='varchar'    then atab.atttypmod-4
+         when ttyp.typname='numeric'    then (atab.atttypmod-4) / 65536
+         when ttyp.typname='decimal'    then (atab.atttypmod-4) / 65536
+         when ttyp.typname='date'       then 10
+         when ttyp.typname='time'       then  8
+         when ttyp.typname='timestamp'  then 19
+    end                         as 長さ,
+    case when ttyp.typname='numeric'    then ((atab.atttypmod-4) % 65536)::text
+         when ttyp.typname='decimal'    then ((atab.atttypmod-4) % 65536)::text
+         else                           '-'::text
+    end                         as 小数,
+    atab.attnotnull             as "NULL",
+    atab.attnelems              as 配列,
+    atyp.atthasdef              as "DEF",
+    pg_class.relacl             as "GRANT"
+FROM    pg_class, 
+        pg_type         ttyp, 
+        pg_type         ttab, 
+        pg_attribute    atab,
+        pg_attribute    atyp
+WHERE 
+        ttab.typrelid   = atab.attrelid
+    and atab.attnum     &gt;= 0   
+    and pg_class.relkind = 'r'
+    and ttab.typname    = pg_class.relname
+    and atab.atttypid   = ttyp.oid
+    and atab.oid        = atyp.oid
+    and atyp.attnum     &gt; 0 
+    and atyp.attrelid = pg_class.oid 
+        -- and      ttab.typname    NOT LIKE  'pg_%'  -- カタログ除去
+ORDER BY ttab.typname, atyp.attnum
+;
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+           PostgreSQL 汎用DB検索ツール デモ  
+      <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp 20735] JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Naosuke MORITA" &lt;nmorita@quarkcat.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 20737] Re: バージョンアップのやり方</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 20739] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 20735] JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 20739] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

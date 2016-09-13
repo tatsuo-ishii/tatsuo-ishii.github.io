@@ -1,0 +1,214 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16040] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Wed, 12 Jul 2000 01:25:53 +0900 -->
+<!--X-Message-Id: 396B4A9132.A5B4JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3968B54424E.F7DCJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 396A902B21C.5116TETSUYA.KITAHATA@bb.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16040] Re: grantを2回やると、重複テーブルに見える？//drop tabl </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00281.html">Date Prev</A>][<A HREF="msg00280.html">Date Next</A>][<A HREF="msg00289.html">Thread Prev</A>][<A HREF="msg00278.html">Thread Next</A>][<A HREF="index.html#00273">Date Index</A>][<A HREF="threads.html#00273">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16040] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 12 Jul 2000 01:25:53 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00204.html">3968B54424E.F7DCJUN-N@mail.ga2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00250.html">396A902B21C.5116TETSUYA.KITAHATA@bb.mbn.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。
+
+On Tue, 11 Jul 2000 12:10:35 +0900
+Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt; wrote:
+
+&gt; 
+&gt; こんにちは。北畠です。
+&gt; 
+(略)
+&gt; これなのですが、ちょっと、pg_classを見た際、次のようなことに
+&gt; 気づきました。
+&gt; 
+&gt; &gt;select * from pg_class where relname='gakubu';
+&gt; &gt;&lt;&lt;result&gt;&gt;
+&gt; &gt;relname                        |reltype|relowner|relam|relpages|reltuples|relhasindex|relisshared|relkind|relnatts|relchecks|reltriggers|relukeys|relfkeys|relrefs|relhaspkey|relhasrules|relacl   
+&gt; &gt;-------------------------------+-------+--------+-----+--------+---------+-----------+-----------+-------+--------+---------+-----------+--------+--------+-------+----------+-----------+---------------------------------------------
+&gt; &gt;gakubu                         |      0|     110|    0|      10|     1000|f          |f          |r      |       2|        0|          0|       0|       0|      0|f         |f          |{"=","nobody=arwR","admin=arwR"}             
+&gt; &gt;gakubu                         |      0|     110|    0|      10|     1000|f          |f          |r      |       2|        0|          0|       0|       0|      0|f         |f          |{"=","nobody=arwR"}                          
+&gt; 
+&gt; つまり、relac(権限？)の個所のみが違う、同じrelnameのデータが入っていた、
+&gt; というわけです。
+&gt; 確かに、
+&gt; grant all on gakubu to nobody;
+&gt; grant all on gakubu to admin;
+&gt; grant all on gakubu to nobody;
+&gt; などのように、nobodyに二回権限を与える作業をしたりしてましたから（これは、
+&gt; 単に、以前、grantを実行してもnobodyに権限が与えられないケースがあった
+&gt; ため、念のため２回やるようにしていた、ということです。深い意味があるわけ
+&gt; ではないです）、このようになるのは、ある程度納得できます。
+&gt; 
+&gt; これであれば、pg_classの中で、relnameが同じもののうち片方を削除
+&gt; する（そのあと、vacuum pg_class...）作業をすれば、少なくとも、
+&gt; \d
+&gt; ででてくるtable, view?の重複は、免れるのかな、という気がしました。
+&gt; （システム上、問題がありそうであれば、ご指摘いただければ幸いです＞識者の方）
+
+識者ではないですが・・・問題ありそうです。（後述）
+
+
+&gt; --------------------------------------------------------
+&gt; 
+&gt; さて。テーブルの重複も確かに問題なのですが、もっと今深刻なのは、
+&gt; テーブルをDROPできないものが(多数)あることです。
+&gt; 
+&gt; admin=&gt; drop table "hoge";
+&gt; ERROR:  DeleteTypeTuple: hoge type nonexistent
+&gt; admin=&gt; drop table "hoge2";
+&gt; ERROR:  mdopen: couldn't open hoge2: No such file or directory
+&gt; admin=&gt; drop table "hoge3";
+&gt; ERROR:  cannot find attribute 1 of relation hoge3
+&gt; 
+&gt; このような、「３種類の」エラーが帰ってくることが
+&gt; わかりました。２番目については、$POSTGRESHOME/base/DBNAME/
+&gt; に、ファイルが無い、ということを指していると思いますが、
+&gt; これって、ファイルをダイレクトに消去してしまって構わないので
+&gt; しょうか？
+これは、確かにファイルが存在していないというエラーですね。pg_classには
+hoge2 があるのに、実ファイルの hoge2 が無い・・・という事ですね。hoge2が
+重複していたテーブルで、１回目の DROP をした(実ファイルも消えている)後に、
+２回目の(２行目の) hoge2 を DROP しようとして、このエラーになるんでしょう
+か・・・？
+で、$POSTGRESHOME/base/DBNAME/ に移動後、
+touch hoge2
+で hoge2 を作ってやると、DROP TABLE hoge2 できませんかね？
+
+&gt; １番目については・・・「typeがない」ということを言っている
+&gt; ようですが、この、「typeがない」に対して、どう処理をすれば
+&gt; よいものなのでしょう？また、create tableしたときには、必ず
+&gt; 新しい「type」が設定されるものなのでしょうか？
+されると思います。pg_class という名前の通り、オブジェクト型の定義ですから、
+(テーブル) hoge1 という型が pg_type に登録されるのでしょう。
+で、この
+&gt; ERROR:  DeleteTypeTuple: hoge type nonexistent
+というエラー、pg_type に目的の型が無い・・・というエラーみたいです。なの
+で、hoge1 は pg_class.relname に在れども、pg_type には無い・・って事みた
+いですね。
+そして、pg_type.typrelid の値は、pg_class.relname = pg_type.typname とな
+る pg_class.oid と一致します。
+ので、
+select oid from pg_class where relname = 'hoge1';
+として出てきた oid をですね（仮に123456)、
+insert into pg_type (typname, typrelid) values ('hoge1', 123456);
+としてやるとですね、 DROP TABLE hoge1 できませんかね？
+
+&gt; ３番は、多分、pg_attributeテーブルに、該当するtupleがない、
+&gt; ということを指しているのだろうと思いますが、どう対処すれ
+&gt; ばよいのでしょうか？
+pg_attribute には、カラム情報(正確には他にも入ってるんですが、何かはわか
+りません。笑)が入っているみたいです。で、 hoge3 のカラム１が見つからない
+というエラーみたいです。
+pg_attribute.attrelid が pg_class.oid と一致する pg_attribute.attnum = 1
+(レコード)が無い、ということみたいです。
+また、pg_class.relnatts (rel number attribute(s)の略？）がカラムの数みた
+いですので、
+select oid,relnatts from pg_class where relname = 'hoge3';
+として出てきた oid と relnatts をですね (仮に234567と3)、
+insert into pg_attribute (attrelid,relnatts) values (234567,1);
+insert into pg_attribute (attrelid,relnatts) values (234567,2);
+insert into pg_attribute (attrelid,relnatts) values (234567,3);
+としてやるとですね、DROP TABLE hoge3 できませんかね？
+
+&gt; 
+&gt; 以上、ご存知の方、宜しくお願いいたします。
+以上、存じておりませんが、システムテーブルを覗いてみて、たぶんこういうこ
+とだろうな・・という想像のもと書いています。
+
+ここまで来ると、素直に destroydb した方がえーんちゃう？って感じですが、な
+んか意地になっちゃいすね。
+
+さて、重複テーブルの件で、pg_class の 該当する行を削除すれば・・という問
+題ですが、[delete from pg_class where relname = 'tablename']だけではダメっ
+ぽいです。
+該当する行(relname='tablename')の oid (仮に999999)を select して覚えてお
+いて、 pg_attribute.attrelid、 pg_type.typrelid が 999999 に一致する列を
+DELETE する必要があるかもしれません。テーブルによっては、他のシステムテー
+ブルも見て回らないとイケナイかも・・・。キーワードは relid （ relation
+id ?）みたいなので、
+select relname from pg_class where oid in (
+ select attrelid from pg_attribute where attname like '%relid%'
+);
+を実行して出てくる結果のシステムテーブル（最後が _index でないやつ）それ
+ぞれの、該当する *relid = 999999 の列を消していかないとイケナイかと思われ
+ます。
+
+最後にもう一度言いますが、想像のもと書いておりますので、保証は全く無いで
+す。ミッションクリティカルなDBならば、作り直した方が良いと思います。(そし
+て MS-ACCESS の Export機能は使わない）
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00278" HREF="msg00278.html">[pgsql-jp 16045] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00204" HREF="msg00204.html">[pgsql-jp 15971] Re: テーブルがあるのにない？//同じtableやviewが複数存在？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00250" HREF="msg00250.html">[pgsql-jp 16017] grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kitahata &lt;tetsuya.kitahata@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00281.html">[pgsql-jp 16048] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 16047] Re: apache_loggingについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00289.html">[pgsql-jp 16056] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 16045] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00273"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00273"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

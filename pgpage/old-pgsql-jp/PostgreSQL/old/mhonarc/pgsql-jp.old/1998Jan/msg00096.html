@@ -1,0 +1,129 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10196] large_object and Transaction -->
+<!--X-From: harada goichi <goichi@mb.kcom.ne.jp> -->
+<!--X-Date: Wed, 21 Jan 1998 07:33:36 +0900 -->
+<!--X-Message-Id: 34C52640.88858138@mb.kcom.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10196] large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:goichi@mb.kcom.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00058.html">Date Prev</A>][<A HREF="msg00059.html">Date Next</A>][<A HREF="msg00059.html">Thread Prev</A>][<A HREF="msg00056.html">Thread Next</A>][<A HREF="index.html#00096">Date Index</A>][<A HREF="threads.html#00096">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10196] large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: harada goichi &lt;<A HREF="mailto:goichi@mb.kcom.ne.jp">goichi@mb.kcom.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Jan 1998 07:33:36 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+始めまして、原田吾一（以降は吾一で）と申します。
+
+Postgresは主にPerlインタフェースで使用しております。
+まだ、ＳＱＬには不慣れなのですがよろしくお願いします。
+
+今回、トランザクションを実行中にＰｏｓｔｇｒｅｓが妙な動作を
+する事があるような気がしたのでご報告します。
+
+
+具体的には、
+
+「トランザクション中にテーブルを作成し、
+ラージオブジェクトの操作に２回(lo_importとlo_export)失敗すると
+テーブル作成のクェリーが完全にロールバックされないで、
+以降、破棄されたテーブル名のテーブルが作成できなくなってしまう」
+
+と言う現象です。
+
+以下、ＳＱＬ文です。
+
+
+
+--[PostgreSQL 6.5.1 on sparc-sun-solaris2.6, compiled by gcc 2.8.1
+
+-- トランザクションを開始します。
+
+begin;
+-- 始めにテーブル「images」を作ります。
+
+CREATE TABLE images(
+   name            text,
+   raster          oid
+);
+
+-- このINSERTは失敗しなければなりません。
+
+INSERT INTO images(name, raster)
+    VALUES ('beautiful image', lo_import('/tmp/dummy'));
+
+--上記のINSERTが失敗なので、このSELECTはABORT STATEされます。
+
+SELECT lo_export(images.raster, '/tmp/my_image')
+   from images
+           WHERE name = 'beautiful image';
+
+rollback;
+
+--これ以降、テーブル「images」は、存在しないのですが、
+--ERROR:  cannot create images
+--と、作れなくなってしまいました。
+--２回このSQL文を実行すれば現象が出ると思います。
+
+
+
+
+---------------------------------------
+Goichi Harada
+E-mail  goichi@mb.kcom.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 3271] Re: PHP3について＆はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 3272] RE: [pgsql-jp 3271] Re: PHP3について＆はじめまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 3272] RE: [pgsql-jp 3271] Re: PHP3について＆はじめまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 3269] PHP3について＆はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00096"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00096"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20003] Re: NULL (Re:pgsql&#45;jp 19970) -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Mon, 19 Feb 2001 08:06:25 +0900 -->
+<!--X-Message-Id: 00c601c099ff$70a3d830$0a00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3A8F5BC8.C6AFEFC9@shonan.ne.jp -->
+<!--X-Reference-Id: m3ae7ko80z.wl@mail.bluetracks.com -->
+<!--X-Reference-Id: 3A8F9A50.93B9471A@miraclelinux.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20003] Re: NULL (Re:pgsql-jp 19970) </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00245.html">Date Prev</A>][<A HREF="msg00247.html">Date Next</A>][<A HREF="msg00232.html">Thread Prev</A>][<A HREF="msg00247.html">Thread Next</A>][<A HREF="index.html#00246">Date Index</A>][<A HREF="threads.html#00246">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20003] Re: NULL (Re:pgsql-jp 19970)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Feb 2001 08:06:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00216.html">3A8F5BC8.C6AFEFC9@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00217.html">m3ae7ko80z.wl@mail.bluetracks.com</A>&gt; &lt;<A HREF="msg00232.html">3A8F9A50.93B9471A@miraclelinux.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+＃数が多すぎでどこにレスしていいのか、ちょっとわかりませんが。
+
+まずSQL92についてなのですが、私も詳しくありませんが、
+＃正しいものかどうかチェックしきれていませんが。
+  <A HREF="http://www.contrib.andrew.cmu.edu/~shadow/sql.html">http://www.contrib.andrew.cmu.edu/~shadow/sql.html</A>
+でみつけた
+SQL92 specification draft
+  <A HREF="http://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt">http://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt</A>
+によると
+
+&lt;引用&gt;
+4  Concepts
+  4.1  Data types
+（中略）
+     A null value is an implementation-dependent special value that
+     is distinct from all non-null values of the associated data type.
+     There is effectively only one null value and that value is a member
+     of every SQL data type. There is no &lt;literal&gt; for a null value,
+     although the keyword NULL is used in some places to indicate that a
+     null value is desired.
+&lt;/引用&gt;
+null値は実装依存の特殊な値で、関連するデータ型の全ての非null値から区別
+される。実質的に１つのnull値があり、その値は各SQLデータ型のメンバー
+です。null値のための&lt;リテラル&gt;はありません。しかしキーワードNULLがnull
+値であることを示したい場所で使われます。
+
+といった感じかなと。
+対してOracleのほうは池田さんも書かれている通り、
+&lt;引用&gt;
+現在Oracleは長さがゼロの文字値をNULLとして処理します。ただし、この処理は
+Oracleの将来のバージョンでも継続されるとは限りません。
+&lt;/引用&gt;
+ということだそうで、Oracle8.1.5で確認したところ...
+create table tdt (name varchar2(20), dtentry date, note varchar2(10));
+insert into tdt values ('kaba', '', 'note1');
+insert into tdt values ('kaba2', NULL, 'NOTE2');
+
+とした後で
+SQL&gt; select * from tdt where dtentry = '';
+レコードが選択されませんでした。
+
+SQL&gt; select * from tdt where dtentry = '    ';
+レコードが選択されませんでした。
+
+SQL&gt;  select * from tdt where dtentry is null;
+NAME                                     DTENTRY  NOTE
+---------------------------------------- -------- ---------kaba
+note1
+kaba2                                             NOTE2
+
+SQL&gt; insert into tdt values ('kaba3', '  ', 'space');
+insert into tdt values ('kaba3', '  ', 'space')
+                                 *
+エラー行: 1: エラーが発生しました。
+ORA-01841: （周）年は-4713と+9999の間で指定しなければなりませんが、
+0であってはなりません。
+
+という結果になりました。
+ちなみにUPDATEで''を指定しても扱われ方はINSERTと同様です。
+
+私としては、この辺りは実装依存ということで、こういうのもあり
+かなと。「注意しなくちゃね」といったレベルだと思っています。
+
+==============================================
+川合 孝典(Hippo2000)
+  GCD00051@nifty.ne.jp kwitknr@cpan.org
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00247" HREF="msg00247.html">[pgsql-jp 20004] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00216" HREF="msg00216.html">[pgsql-jp 19973] NULL (Re:pgsql-jp 19970)</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00217" HREF="msg00217.html">[pgsql-jp 19974] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+<UL><LI><EM>From:</EM> chee@subdimension.com</LI></UL></LI>
+<LI><STRONG><A NAME="00232" HREF="msg00232.html">[pgsql-jp 19989] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+<UL><LI><EM>From:</EM> Hidekazu Ikeda &lt;hikeda@miraclelinux.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 20002] Re: Help I can't insert  data of date type</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 20004] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00232.html">[pgsql-jp 19989] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 20004] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00246"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00246"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

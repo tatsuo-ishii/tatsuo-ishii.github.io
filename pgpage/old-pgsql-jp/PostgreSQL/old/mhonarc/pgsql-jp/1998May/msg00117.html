@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4055] Re: return value of PQftype function -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Fri, 15 May 1998 14:19:12 +0900 -->
+<!--X-Message-Id: 199805150519.OAA06374@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805150033.JAA03290@g3.tg&#45;inet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4055] Re: return value of PQftype function </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00116.html">Date Prev</A>][<A HREF="msg00118.html">Date Next</A>][<A HREF="msg00158.html">Thread Prev</A>][<A HREF="msg00121.html">Thread Next</A>][<A HREF="index.html#00117">Date Index</A>][<A HREF="threads.html#00117">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4055] Re: return value of PQftype function</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 15 May 1998 14:19:12 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00112.html">199805150033.JAA03290@g3.tg-inet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+On Fri, 15 May 1998 09:33:27 +0900,
+NAKAJIMA Mutsuki &lt;muc@tg-inet.co.jp&gt; wrote:
+&gt; ...snip...
+&gt; 
+&gt; そこで、Large Objectを扱う際に、PQexecでフェッチしてきた結果
+&gt; のフィールドのタイプを検査するため(OIDかどうか)に、PQftype
+&gt; 関数を利用しようと考えています。PQftypeについては、
+&gt; 
+&gt; doc/programmer/c1603.htm
+&gt; 
+&gt; に書かれていますので、それによれば、`internal cording of the 
+&gt; type'となっています。で、その定義を探してみたところ、...snip...
+
+PQftype() の戻り値は pg_type クラスのオブジェクト識別子(oid)です。
+
+例えば、
+
+	CREATE TABLE big (
+		name text,
+		id   oid 
+	);
+
+というテーブルがあるとします。
+
+そこで、作ったテーブルを
+
+	result = PQexec(conn, "SELECT oid,name,id FROM big");
+
+で問い合わせると、PQftype() の戻り値は
+
+	PQftype(result, 0) : 26
+	PQftype(result, 1) : 25
+	PQftype(result, 2) : 26
+
+となりますが、上記の問い合わせ(oid 付き ;-)をすると、
+large object は oid 型ですので、
+
+	PQftype(result, 0) == PQftype(result, 2)
+
+が成立してしまいます。
+あとはこれをどのようにチェックするかですね :-)
+
+一応の対策としては、 large object はシステム表の pg_class に
+「xinv????」という relname 属性をもってますので、
+
+	SELECT oid FROM pg_class 
+	  WHERE relname ~ '^xinv'
+	    AND oid = 検索する値
+
+なんて、各フィールドごとにやるのも面倒ですけど動きます :-)
+
+
+ちなみに PQftype() の戻り値は、psql で
+
+	SELECT oid,typname FROM pg_type
+	  WHERE oid = 25 OR oid = 26;
+
+と問い合わせて見ることができます。
+oid|typname
+---+-------
+ 25|text   
+ 26|oid    
+(2 rows)
+
+&gt; 
+&gt; また、これに関連して気になったのですが、Large Objectに関しての
+&gt; 情報が少ないようなのですが、実際に使用されている方はいらっしゃい
+&gt; ますか? 使用状況をお知らせいただけると助かります。
+
+前から large object は怪しいとの評判だったのですが、
+現在のバージョンでどうなっているかはいまいちよく知りません ;-)
+
+昔この ML を管理されている石井さんの流してみえた bigtext のサンプル
+をすこしいじって v6.3.2 で試してみましたが、ちゃんと動いてました :-)
+ただしあまり極端な例は試していませんので、汎用的なものに使うのでしたら
+型のチェック(本当に large object かどうか) なんかをきちんとやらないと
+恐いかもしれませんね。
+
+# 実際のところ、フィールドにはファイルへのパス情報だけを入れて管理させ、
+# アプリケーション側からいじってやったほうが楽な気もします :-)
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00121" HREF="msg00121.html">[pgsql-jp 4059] Re: return value of PQftype function</A></STRONG>
+<UL><LI><EM>From:</EM> NAKAJIMA Mutsuki &lt;muc@tg-inet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00112" HREF="msg00112.html">[pgsql-jp 4050] return value of PQftype function</A></STRONG>
+<UL><LI><EM>From:</EM> NAKAJIMA Mutsuki &lt;muc@tg-inet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 4054] Re: return value of PQftype function</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00118.html">[pgsql-jp 4056] Re: NUMERIC型について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00158.html">[pgsql-jp 4096] Re: return value of PQftype function</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 4059] Re: return value of PQftype function</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00117"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00117"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

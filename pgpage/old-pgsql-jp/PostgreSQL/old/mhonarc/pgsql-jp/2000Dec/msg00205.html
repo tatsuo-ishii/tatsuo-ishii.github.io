@@ -1,0 +1,215 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19083] Fw: [HACKERS] Patch for 7.0.3 code to read pg_options -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 14 Dec 2000 14:01:39 +0900 -->
+<!--X-Message-Id: 20001214140139H.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19083] Fw: [HACKERS] Patch for 7.0.3 code to read pg_options </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00204.html">Date Prev</A>][<A HREF="msg00206.html">Date Next</A>][<A HREF="msg00208.html">Thread Prev</A>][<A HREF="msg00198.html">Thread Next</A>][<A HREF="index.html#00205">Date Index</A>][<A HREF="threads.html#00205">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19083] Fw: [HACKERS] Patch for 7.0.3 code to read pg_options</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 14 Dec 2000 14:01:39 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．7.0.x で pg_options.sample が実質使えない件ですが，本家のML
+にパッチが流れてました．良かったら使ってみてください．
+--
+Tatsuo Ishii
+</PRE>
+<P><EM>-- BEGIN included message</EM></P>
+<BLOCKQUOTE>
+<UL>
+<LI><em>From</em>: "Oliver Elphick" &lt;<A HREF="mailto:olly@lfix.co.uk">olly@lfix.co.uk</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 Nov 2000 10:47:28 +0000</LI>
+</UL>
+<PRE>
+The pg_options.sample that is included in 7.0.x cannot actually be used
+because of bugs in the routine that reads it. First, it reads only 4095
+bytes and second it does not cope with white space within lines.  The
+attached patch cures the problem.
+
+It seems to be relevant only to 7.0.x because the entire code has been
+removed from 7.1.
+
+Index: src/backend/utils/misc/trace.c
+===================================================================
+RCS file: /cvs/pgsql-deb/postgresql/src/backend/utils/misc/trace.c,v
+retrieving revision 1.1.1.2
+diff -c -b -r1.1.1.2 trace.c
+*** src/backend/utils/misc/trace.c	2000/11/14 10:40:10	1.1.1.2
+--- src/backend/utils/misc/trace.c	2000/11/28 07:43:13
+***************
+*** 438,444 ****
+--- 438,446 ----
+  	int			fd;
+  	int			n;
+  	int			verbose;
++ 	int		incomment = 0;
+  	char		buffer[BUF_SIZE];
++ 	char		optbuf[BUF_SIZE];
+  	char		c;
+  	char	   *s,
+  			   *p;
+***************
+*** 455,478 ****
+  #else
+  	if ((fd = open(buffer, O_RDONLY | O_BINARY)) &lt; 0)
+  #endif
+  		return;
+  
+! 	if ((n = read(fd, buffer, BUF_SIZE - 1)) &gt; 0)
+  	{
+! 		/* collpse buffer in place removing comments and spaces */
+! 		for (s = buffer, p = buffer, c = '\0'; s &lt; (buffer + n);)
+  		{
+  			switch (*s)
+  			{
+  				case '#':
+  					while ((s &lt; (buffer + n)) &amp;&amp; (*s++ != '\n'));
+  					break;
+- 				case ' ':
+- 				case '\t':
+- 				case '\n':
+  				case '\r':
+  					if (c != ',')
+  						c = *p++ = ',';
+  					s++;
+  					break;
+  				default:
+--- 457,490 ----
+  #else
+  	if ((fd = open(buffer, O_RDONLY | O_BINARY)) &lt; 0)
+  #endif
++ 	{
++ 		fprintf(stderr,"Couldn't open %s\n",buffer);
+  		return;
++ 	}
+  
+! 	p = optbuf;
+! 	c = '\0';
+! 	while ((n = read(fd, buffer, BUF_SIZE - 1)) &gt; 0)
+  	{
+! 		if (incomment &amp;&amp; (*buffer != '\n'))
+! 			*buffer = '#';
+! 
+! 		/* read in options removing comments and spaces */
+! 		for (s = buffer; s &lt; (buffer + n);)
+  		{
+  			switch (*s)
+  			{
+  				case '#':
++ 					incomment = 1;
+  					while ((s &lt; (buffer + n)) &amp;&amp; (*s++ != '\n'));
+  					break;
+  				case '\r':
++ 				case '\n':
++ 					incomment = 0;
+  					if (c != ',')
+  						c = *p++ = ',';
++ 				case ' ':
++ 				case '\t':
+  					s++;
+  					break;
+  				default:
+***************
+*** 480,494 ****
+  					break;
+  			}
+  		}
+  		if (c == ',')
+  			p--;
+  		*p = '\0';
+  		verbose = pg_options[TRACE_VERBOSE];
+! 		parse_options(buffer, true);
+  		verbose |= pg_options[TRACE_VERBOSE];
+  		if (verbose || postgres_signal_arg == SIGHUP)
+! 			tprintf(TRACE_ALL, "read_pg_options: %s", buffer);
+! 	}
+  
+  	close(fd);
+  }
+--- 492,506 ----
+  					break;
+  			}
+  		}
++ 	}
+  	if (c == ',')
+  		p--;
+  	*p = '\0';
+  	verbose = pg_options[TRACE_VERBOSE];
+! 	parse_options(optbuf, true);
+  	verbose |= pg_options[TRACE_VERBOSE];
+  	if (verbose || postgres_signal_arg == SIGHUP)
+! 		tprintf(TRACE_ALL, "read_pg_options: %s", optbuf);
+  
+  	close(fd);
+  }
+
+-- 
+Oliver Elphick                                Oliver.Elphick@lfix.co.uk
+Isle of Wight                              <A HREF="http://www.lfix.co.uk/oliver">http://www.lfix.co.uk/oliver</A>
+PGP: 1024R/32B8FAA1: 97 EA 1D 47 72 3F 28 47  6B 7E 39 CC 56 E4 C1 47
+GPG: 1024D/3E1D0C1C: CA12 09E0 E8D5 8870 5839  932A 614D 4C34 3E1D 0C1C
+                 ========================================
+     "The earth is the LORD'S, and the fullness thereof; the
+      world, and they that dwell therein."       Psalms 24:1
+
+</PRE>
+</BLOCKQUOTE>
+<P><EM>-- END included message</EM></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00204.html">[pgsql-jp 19082] Re: エラーメッセージ"backend closed the channel unexpectedly"</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 19084] Re: エラーメッセージ"backend closed the channel unexpectedly"</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 19086] [Q] Kanji code</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp 19076] postmaster の自動起動方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00205"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00205"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

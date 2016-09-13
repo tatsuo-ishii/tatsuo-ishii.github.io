@@ -1,0 +1,259 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16362] Re: postgreSQL7.0.2+JDBCで日本語 -->
+<!--X-From: shoji <mshoji@jwp.co.jp> -->
+<!--X-Date: Sun, 30 Jul 2000 12:02:06 +0900 -->
+<!--X-Message-Id: 39839AAE23E.43ACMSHOJI@mail.jwp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 007101bff7ec$d0bdb7a0$63213b80@dyn.columbia.edu -->
+<!--X-Reference-Id: 001901bff801$833f9060$63213b80@dyn.columbia.edu -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16362] Re: postgreSQL7.0.2+JDBCで日本語 </TITLE>
+<LINK REV="made" HREF="mailto:mshoji@jwp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00593.html">Date Prev</A>][<A HREF="msg00595.html">Date Next</A>][<A HREF="msg00553.html">Thread Prev</A>][<A HREF="msg00597.html">Thread Next</A>][<A HREF="index.html#00594">Date Index</A>][<A HREF="threads.html#00594">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16362] Re: postgreSQL7.0.2+JDBCで日本語</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: shoji &lt;<A HREF="mailto:mshoji@jwp.co.jp">mshoji@jwp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 30 Jul 2000 12:02:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00550.html">007101bff7ec$d0bdb7a0$63213b80@dyn.columbia.edu</A>&gt; &lt;<A HREF="msg00551.html">001901bff801$833f9060$63213b80@dyn.columbia.edu</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして庄司といいます。
+
+&gt; Inoueさんのサジェッションで、DBへの日本語入力はできるように
+&gt; なったのですが、今度はDBからのデータがブラウザ上で文字化けして
+&gt; しまいます。
+
+私の環境は以下の通りです。
+Vine2.0
+Postgres 7.0.2
+Apache 1.3.12
+ApacheJserv-1.1
+ApacheJSSI-1.1.2
+サーブレットでJDBCを使いPostgresにアクセスしておりますが
+日本語の文字化けで悩みました。（まだ悩むかもしれません）
+
+今のところ以下のような処理でうまくいっています。
+完璧ではありませんが、参考になればと思います。
+また、ここは良くないと言うご意見等があれば教えていただくと
+大変助かります。
+実はJAVAもpostgresも初めてです。
+
+１．
+ブラウザからの文字列(srcstr)を
+String enc = response.getCharacterEncoding();
+String unistr = convSrc2Unicode(srcstr, enc);
+でunicodeにしておきます。
+
+２．
+データベースから
+String unistr = convDb2Unicode(rs, index);
+によってunicodeで取り出します。
+
+３．
+データベースへはunicode文字列(srcstr)を
+String dbstr = convUnicode2Db(srcstr);
+によってデータベース用のエンコードにして書き込みます。
+バックスラッシュにより文字化けしますのでbsl2bslbslにより
+バックスラッシュ＋バックスラッシュに変換しております。
+
+４．
+文字列をHTMLで表示するときは特殊文字が悪さをするので
+convUnicode2htmlstrにより変換しております。
+
+プログラム中でデータベースのエンコードは以下のように
+ISO2022JPにしました。
+実はpostgresの設定はEUC_JPにしてあるつもりですが、
+ISO2022JPの時だけ文字化けがおきません。
+postgresの設定を間違えているのかもしれません。
+
+以下ソースです。
+
+  String	m_DbEnc = "ISO2022JP";
+
+  public String convDb2Unicode(ResultSet rs, String index)
+  {
+    if ( index == null )
+      return "";
+    try
+    {
+      byte[] dbbyte = rs.getBytes(index);
+      if ( dbbyte == null )
+        return "";
+      String srcstr = new String(dbbyte, m_DbEnc);
+      return srcstr;
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+    return "";
+  }
+
+  public String convSrc2Unicode(String srcstr, String srcenc) throws IOException
+  {
+    if ( srcstr == null )
+      return "";
+    try
+    {
+      byte[] srcbyte = srcstr.getBytes("8859_1");
+      srcstr = new String(srcbyte, srcenc);
+      return srcstr;
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+    return "";
+  }
+
+  public String convUnicode2Db(String srcstr) throws IOException
+  {
+    if ( srcstr == null )
+      return "";
+    try
+    {
+      byte[] srcbyte = srcstr.getBytes(m_DbEnc);
+      String dbstr = new String(srcbyte, "8859_1");
+      dbstr = bsl2bslbsl(dbstr);
+      return dbstr;
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+    return "";
+  }
+
+  public String bsl2bslbsl(String srcstr) throws IOException
+  {
+    if ( srcstr == null || srcstr.length() == 0 )
+      return "";
+    try
+    {
+      byte[] srcbyte = srcstr.getBytes("8859_1");
+      String tmpstr = new String();
+      byte[] tmpbyte = new byte[1];
+      int   i, j;
+      for( i = 0, j = 0 ; i &lt; srcbyte.length ; i++ )
+      {
+        tmpbyte[0] = srcbyte[i];
+        tmpstr += new String(tmpbyte,"8859_1");
+        if ( srcbyte[i] == '\\' )
+          tmpstr += new String(tmpbyte,"8859_1");
+      }
+      return tmpstr;
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+    return "";
+  }
+
+  public String convUnicode2htmlstr(String srcstr) throws IOException
+  {
+    if ( srcstr == null || srcstr.length() == 0 )
+      return "";
+    try
+    {
+      int   i;
+      String tmpstr = new String();
+      for( i = 0 ; i &lt; srcstr.length() ; i++ )
+      {
+        switch( srcstr.charAt(i) )
+        {
+          case '&lt;':
+            tmpstr += "&amp;lt;";
+            break;
+          case '&gt;':
+            tmpstr += "&amp;gt;";
+            break;
+          case '&amp;':
+            tmpstr += "&amp;amp;";
+            break;
+          case '\"':
+            tmpstr += "&amp;quot;";
+            break;
+          default:
+            tmpstr += srcstr.charAt(i);
+            break;
+        }
+      }
+      return tmpstr;
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+    return "";
+  }
+
+------------------------------------------------------------------
+Masahiko Shoji,    WARP CO.
+1-28-8-201 Kichijojiminami-chou, Musashino-shi, Tokyo JAPAN 180
+TEL 0422-41-4394 (81-422-41-4394)
+FAX 0422-41-4597 (81-422-41-4597)
+E-Mail shoji@gol.com
+Fingerprint : D771 D50F A930 78EB AB4C  9B28 F2B5 82AE EC93 5131
+------------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00597" HREF="msg00597.html">[pgsql-jp 16365] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00550" HREF="msg00550.html">[pgsql-jp 16317] Re: [pgsql-jp 16301] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> "Hironobu Hamada" &lt;hh245@j-newyork.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00551" HREF="msg00551.html">[pgsql-jp 16318] Re: [pgsql-jp 16317] Re: [pgsql-jp 16301] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> "Hironobu Hamada" &lt;hh245@j-newyork.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00593.html">[pgsql-jp 16361] Re: [plamo:06718] Apache-mod_ssl+PHP4 packages for Plamo2.0 updated.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 16363] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00553.html">[pgsql-jp 16320] vacuumコマンドについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00597.html">[pgsql-jp 16365] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00594"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00594"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

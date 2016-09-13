@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15588] Re: [Tips] DATEフィールドの検索 -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Sun, 25 Jun 2000 19:39:14 +0900 -->
+<!--X-Message-Id: 3955E152352.BFFBJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200006220852.RAA18275@mailgw.jkk.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15588] Re: [Tips] DATEフィールドの検索 </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00626.html">Date Prev</A>][<A HREF="msg00628.html">Date Next</A>][<A HREF="msg00574.html">Thread Prev</A>][<A HREF="msg00569.html">Thread Next</A>][<A HREF="index.html#00627">Date Index</A>][<A HREF="threads.html#00627">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15588] Re: [Tips] DATEフィールドの検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 25 Jun 2000 19:39:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00574.html">200006220852.RAA18275@mailgw.jkk.hitachi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。
+
+&gt; DATE型のフィールド検索のTips集でも用意すると便利かもしれません。
+良いですねぇ。
+インターバルなんかも絡めて覚え書きしておくと便利かも。
+
+誕生日と言えば、年齢。求め方は、age(datetime,datetime)関数が標準で用意さ
+れていましたね。
+select age('today','誕生日'::datetime);
+でOK・・・と。
+
+ただ、一連の投稿を見て思ったのですが、年月日を保持しておくだけなら、int2
+で保持しておいても問題ないような・・・。
+
+&gt;サンプルテーブル"birthday"
+&gt; Attribute | Type 
+&gt;-----------+------
+&gt; name      | text 
+&gt; birth     | date 
+は、(テーブル："birthday2")
+ Attribute | Type 
+-----------+------
+ name      | text 
+ bYear     | itn2 
+ bMonth    | itn2 
+ bDay      | itn2 
+でも、問題ないですね。
+1.誕生月を指定して、検索(SELECT)するには?
+ SELECT * from birthday2 where bMonth = 6;
+
+2.誕生年を指定して、検索(SELECT)するには?
+ SELECT * from birthday2 where bYear = 1999;
+
+3.誕生日(月日)を指定して、検索(SELECT)するには?
+ SELECT * from birthday2 where bMonth = 6 and bDay = 22;
+
+4.曜日(日〜土)を指定して、検索するには?
+ SELECT * from birthday2 where datepart('dow',
+   (bYear || '/' || bMonth || '/' || bDay)::datetime) = 0;
+（6.5.3では出来ましたが、必要であれば bYear::text のようにキャスト）
+（４．はちょっと頂けないかもしれませんが。笑）
+
+実際問題は運用上、どちらを使うかですが、年月日それぞれのフィールドを持っ
+ておいたほうが便利な事があるのも事実です。（データ領域も少なくてすむよう
+な・・・）
+
+
+検索条件では無いですが、カレンダマスタなどを作成して、2000年6月の第二月曜
+日を取得といった場合の処理。
+(tCalendarM)
+ Attribute | Type 
+-----------+------
+ Hizuke    | date 
+ Kinenbi   | text 
+（2000年1月1日から2010年12月31日までのレコードが存在するものとします）
+
+Select Hizuke from tCalendarM
+ where date_part('year',Hizuke) = 2000
+       and date_part('month',Hizuke) = 6
+       and date_part('dow',Hizuke) = 1
+       order by Hizuke;
+の、２レコード目が目的の日付です。（order byを忘れずに）
+常に１レコードしか返さないようにするのであれば（PostgreSQL独自関数/6.5.3
+で作成）、
+create function fGetNthWeekDate(int2,int2,int2,int2) returns date as
+'select
+  (Hizuke::date + ( $3 - 1 || '' week'' )::interval)::date as Hizuke
+ from
+  tCalendarM
+ where
+  date_part(''year'',Hizuke) = $1 and
+  date_part(''month'',Hizuke) = $2 and
+  date_part(''day'',Hizuke) &lt; 7 and
+  date_part(''dow'',Hizuke) = $4
+ order by Hizuke
+'
+language 'sql';
+です。fGetNthWeekDate(年,月,第n週,曜日)です。（ちょっとだけ便利）
+当然ですが、年月日と分けたフィールドでもちょっと変えれば利用可能です。
+（今日び、カレンダマスタなんて作成しないんですかね？各社独自の休業日とか、
+記念日を保持する目的であれば、全年月日分のレコードを持つなんて、ナンセン
+スでしょうか。曜日検索が多い場合など、曜日フィールドを加えて使ったりして
+ますが・・・汗）
+
+なんか、話が逸れてしまってすみません。
+無理矢理話をこじつけると、カレンダマスタと関数を用意して
+
+5.y年m月の第n週目のw曜日の誕生日の人は？
+select * from birthday wehere birth = fGetNthWeekDate(y,m,n,w);
+(birthday用)
+
+select * from birthday2 where
+ (bYear || '/' || bMonth || '/' || bDay)::date
+  = fGetNthWeekDate(y,m,n,w);
+(birthday2用)
+で良し・・・と。笑（w:0/日曜〜6/土曜）
+
+あと、上記の関数はPostgreSQLの日付関数に既にあるかもしれません。（のであ
+しからず・・・）
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00574" HREF="msg00574.html">[pgsql-jp 15535] [Tips] DATEフィールドの検索</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;iwakiri@jkk.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00626.html">[pgsql-jp 15587] pgsql-jp page updated</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00628.html">[pgsql-jp 15589] Re: PostgreSQL の良いところを教えてください。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00574.html">[pgsql-jp 15535] [Tips] DATEフィールドの検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00569.html">[pgsql-jp 15530] 誕生月の検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00627"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00627"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

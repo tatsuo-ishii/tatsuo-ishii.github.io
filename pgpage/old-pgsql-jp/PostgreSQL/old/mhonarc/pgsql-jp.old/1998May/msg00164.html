@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4102] Re: [Q] 二重登録防止の手段について -->
+<!--X-From: Mitsuhiro Maeda <mitsu@cni.co.jp> -->
+<!--X-Date: Tue, 19 May 1998 17:56:11 +0900 -->
+<!--X-Message-Id: 199805190856.RAA01656@pg.cni.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805190833.RAA06941@iris.u&#45;machine.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4102] Re: [Q] 二重登録防止の手段について </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@cni.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00163.html">Date Prev</A>][<A HREF="msg00165.html">Date Next</A>][<A HREF="msg00163.html">Thread Prev</A>][<A HREF="msg00167.html">Thread Next</A>][<A HREF="index.html#00164">Date Index</A>][<A HREF="threads.html#00164">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4102] Re: [Q] 二重登録防止の手段について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@cni.co.jp">mitsu@cni.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 May 1998 17:56:11 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00163.html">199805190833.RAA06941@iris.u-machine.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@CNI です。
+
+&gt; [Q]　テキストフォームに入れたデータが登録されるシステムでの質問です。
+&gt; 
+&gt; 　同一データの二重登録の防止機能を付加したいと思い、"INSERT"前に同一
+&gt; データのチェックをするようにしたまではよかったのですが、複数人が同時にサ
+&gt; ブミットすると、全部登録されるという状況が対処できずに悩んでおります。
+&gt; 
+&gt; 　過去のＭＬを調べてみる限りでは、１人目の登録が完了するまで２人目以降は
+&gt; ロールバックするトランザクションの機能が使えそうだと判断しました。
+&gt; 　「"BEGIN","END"で明示的に・・・」などと過去のＭＬには書かれていましたが、
+&gt; 恥ずかしい話、トランザクション処理の構文の使い方がよくわからない次第です。
+
+トランザクション処理は単純に更新や挿入などの、
+「データベース上での処理の順番」を管理しているだけだと
+個人的には認識してます。
+# 違ってたらご指摘ください ;-)
+
+ということで、トランザクション処理に入れるだけでは不十分だと思います。
+結論から言えば、明示的に「LOCK」を行うのが望ましいかと思います。
+
+というのも、2人のユーザが同時に SELECT -&gt; UPDATE の処理をしたとしても、
+Postgres はその処理を順番に行うことを保証するだけですので、
+「2人目が待つ」というようなことにはなりそうもありません。
+
+ということで、
+&gt; ...snip...
+&gt; ---- result.phtml ----
+&gt; &lt;html&gt;
+&gt; &lt;head&gt;
+&gt; &lt;title&gt;result&lt;/title&gt;
+&gt; &lt;/head&gt;
+&gt; 
+&gt; &lt;body&gt;
+&gt; &lt;?
+&gt; 	$con = pg_connect("localhost", "5432", "", "", "test_db");
+&gt; 	if(!$con){
+&gt; 	echo "データベースに接続できませんでした。\n";
+&gt; 	exit;
+&gt; 	}
+
+ここに
+	$rtn = pg_exec($con, "BEGIN");
+
+を入れてトランザクションを開始します。
+そこで明示的に
+
+	$rtn = pg_exec($con, "LOCK test_db");
+
+とすることで、test_db という表をまるごと排他ロックしますので、
+他のユーザは SELECT すら待つことになります。
+
+&gt; 	$query = "select name from test_db where name = '$name'";
+&gt; 	$insert_string = "INSERT INTO test_db(name) values ('$name')";
+&gt; 	$rtn = pg_exec($con, $query);
+&gt; 	if(!$rtn){
+&gt; 	echo "テーブルの検索に失敗しました。\n";
+&gt; 	pg_close($con);
+&gt; 	exit;
+&gt; 	}
+&gt; 	$b = pg_numrows($rtn);
+&gt; 	if($b != "0"){
+&gt; 		echo "同一データが存在します。";
+&gt; 		pg_close($con);
+
+忘れずに、
+		$rtn = pg_exec($con, "END");/* もしくは ABORT,ROLLBACK */
+と、
+&gt; 		echo "&lt;form action=./input.html&gt;";
+&gt; 		echo "&lt;input type=submit value=　戻る　&gt;";
+&gt; 		echo "&lt;/form&gt;";
+&gt; 		exit;
+&gt; 	}else{
+&gt; 		pg_exec($con, $insert_string);
+&gt; 		echo "登録完了";
+
+ここにも
+		$rtn = pg_exec($con, "END"); /* もしくは COMMIT */
+
+を入れます。
+&gt; 		pg_close($con);
+&gt; 		echo "&lt;form action=./input.html&gt;";
+&gt; 		echo "&lt;input type=submit value=　戻る　&gt;";
+&gt; 		echo "&lt;/form&gt;";
+&gt; 		exit;
+&gt; 	}
+&gt; &gt;
+&gt; &lt;/body&gt;
+&gt; &lt;/html&gt;
+
+というところでいかがでしょうか :-)
+# あまり LOCK してからの処理が長いと運用上辛そうですが...
+
+-- おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 4147] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> Kouji Shirakawa &lt;sira@Qman.shikoku.nttcom.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00167" HREF="msg00167.html">[pgsql-jp 4105] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Ishikawa" &lt;kaz@c-cube-g.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00163" HREF="msg00163.html">[pgsql-jp 4101] [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Ishikawa" &lt;kaz@c-cube-g.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 4101] [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00165.html">[pgsql-jp 4103] Re: PHP/FI で名称に漢字を含んだファイルのアップロード/ ダウンロード</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 4101] [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00167.html">[pgsql-jp 4105] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00164"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00164"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

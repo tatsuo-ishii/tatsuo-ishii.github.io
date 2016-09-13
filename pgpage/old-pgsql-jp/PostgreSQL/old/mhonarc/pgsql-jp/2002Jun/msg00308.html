@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26529] Re: ログ収集にかんして -->
+<!--X-From: Mashiki <mashiki@yanah.com> -->
+<!--X-Date: Fri, 28 Jun 2002 15:08:39 +0900 -->
+<!--X-Message-Id: 2BC21E6A3EE093mashiki@yanah.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020628114138WDUVag@aquaring.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26529] Re: ログ収集にかんして </TITLE>
+<LINK REV="made" HREF="mailto:mashiki@yanah.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00307.html">Date Prev</A>][<A HREF="msg00309.html">Date Next</A>][<A HREF="msg00313.html">Thread Prev</A>][<A HREF="msg00310.html">Thread Next</A>][<A HREF="index.html#00308">Date Index</A>][<A HREF="threads.html#00308">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26529] Re: ログ収集にかんして</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mashiki &lt;<A HREF="mailto:mashiki@yanah.com">mashiki@yanah.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jun 2002 15:08:39 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00301.html">20020628114138WDUVag@aquaring.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　Mashikiです。
+
+杉田さん&gt;   PostgreSQL ならば、継承を用いれば、ログノローテートは
+杉田さん&gt;    DROP で済みます。
+
+PostgreSQLはこんなことができるんですね。ログを格納し集計することを
+主体とするアプリケーションで、是非 評価／応用してみたいです。
+
+&gt;継承は使った事があります。
+&gt;よくやるのは,トリガにて「レコードが削除されたら別の継承させた同カラムテーブル
+&gt;にログを残す」との方法。
+&gt;
+&gt;杉田さんが言うようなDrop された場合にDrop されたテーブル内レコード全てを
+&gt;継承させた別テーブルに以降するということはやった事がありません。
+
+多分、杉田さんの方法ではDropの際、データのコピーはいりません。
+
+# 調べてないけど継承元テーブルってDropできるのかな
+
+たとえば「ログ」というテーブルを作成し、それを継承した、
+「ログ現在」「ログ1世代前」「ログ2世代前」「ログ3世代前」
+　．．「ログ7世代前」とテーブルを作成します。
+アプリケーションはログを「ログ現在」に書き込んでいきます。
+「ログ7世代前」をDROP、
+「ログ6世代前」を「ログ7世代前」にリネーム
+「ログ5世代前」を「ログ6世代前」にリネーム
+　：
+「ログ現在」を「ログ1世代前」にリネーム
+「ログ現在」のCreate
+って感じでrotateできますね。
+
+「ログ」テーブル全体で検索するにしても、UNIONでつなげるよりは
+処理が軽い気がします。
+
+# 自分がやるとしたら、「ログ月」「ログ火」「ログ水」・・と作っておき、
+# アプリケーションで必ず今日の曜日のログに書くようにします。
+# Dropの代わりにTruncateを使い、前者の方式の余計なrename処理を
+# 端折りたいところです
+# その上で今日の曜日のテーブルに「ログ現在」とCreate Synonymを
+# 張れれば完璧なのですが。
+#
+# また前者だとログに主キーが張ってあった場合、どうやってインデックス
+# ごとRENAMEすればいいのか知らないので、最後にログ今日をCreateした
+# ところでエラーを出しそう。まあ、主キー相当のインデックスを重複し
+# ないように自分でCreateすればいいんでしょうけど。
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00312" HREF="msg00312.html">[pgsql-jp: 26533] Re: ログ収集にかんして</A></STRONG>
+<UL><LI><EM>From:</EM> 岩田大樹&lt;daiki@aquaring.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp: 26531] Re: ログ収集にかんして</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00301" HREF="msg00301.html">[pgsql-jp: 26522] Re: ログ収集にかんして</A></STRONG>
+<UL><LI><EM>From:</EM> 岩田大樹&lt;daiki@aquaring.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00307.html">[pgsql-jp: 26528] Re: テーブルの結合について教えてください。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00309.html">[pgsql-jp: 26530] Re: テーブルの結合について教えてください。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00313.html">[pgsql-jp: 26534] Re: ログ収集にかんして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00310.html">[pgsql-jp: 26531] Re: ログ収集にかんして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00308"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00308"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

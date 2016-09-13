@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22503] 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない -->
+<!--X-From: Hiroki Tateno <lapis@dameda.net> -->
+<!--X-Date: Sun, 22 Jul 2001 12:58:45 +0900 -->
+<!--X-Message-Id: 20010722125845M.lapis@dameda.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22503] 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手 </TITLE>
+<LINK REV="made" HREF="mailto:lapis@dameda.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00370.html">Date Prev</A>][<A HREF="msg00369.html">Date Next</A>][<A HREF="msg00490.html">Thread Prev</A>][<A HREF="msg00416.html">Thread Next</A>][<A HREF="index.html#00368">Date Index</A>][<A HREF="threads.html#00368">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22503] 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroki Tateno &lt;<A HREF="mailto:lapis@dameda.net">lapis@dameda.net</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 22 Jul 2001 12:58:45 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:lapis@dameda.net">lapis@dameda.net</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+どうもはじめまして、たてのと申します。
+
+PostgreSQL 7.1+JDBCドライバを使用してラージオブジェクトを保存／読みこみ
+しようと思っているのですが、getBinaryStreamを取得しreadすると、データ上
+で0xffが来たところでデータが途切れてしまうという問題が発生しました。具体
+的には、
+
+      stmt = con.prepareStatement("SELECT FILE FROM BLOB");
+      ResultSet rs = stmt.executeQuery();
+      if (rs != null) {
+      while (rs.next()) {
+        InputStream in = rs.getBinaryStream(1);
+        while (true) {
+          int bytes = in.read();
+          if (bytes == -1) {
+            break;
+          }
+　　　　　// write処理
+        }
+       }
+      }
+
+となっている部分でin.read()が、EOFでないところで-1を返してしまいます。
+その結果、保存は正常にされているのに、データ読みこみが途中で終了してし
+まうという問題が発生しました。
+
+このin.read()の返り値はintで、0x00-0xffを返した場合はデータ本体、-1を
+返した場合はファイルの終端、となるのが正しいはずなので、JDBCのコード
+を見てみたところ、org/postgresql/largeobject/BlobInputStream#read()が
+以下のようになってました。
+
+  public int read() throws java.io.IOException {
+    try {
+      if(buffer==null || bpos&gt;=buffer.length) {
+        buffer=lo.read(bsize);
+        bpos=0;
+      }
+
+      // Handle EOF
+      if(bpos&gt;=buffer.length)
+        return -1;
+
+      int tmp = (int) buffer[bpos++];
+      if (tmp&lt;0) {tmp = tmp+256;}
+      return tmp;
+    } catch(SQLException se) {
+      throw new IOException(se.toString());
+    }
+  }
+
+byteをintにcastしても値域は-128〜127から変わらないので、これだと問題
+になっているような振る舞いを見せて当然のように思えます。これを、以下
+のように変更したら正常に動作するようになりました。
+
+--- BlobInputStream.java.org    Sun Jul 22 12:03:22 2001
++++ BlobInputStream.java        Sun Jul 22 12:05:27 2001
+@@ -67,7 +67,9 @@
+       if(bpos&gt;=buffer.length)
+         return -1;
+ 
+-      return (int) buffer[bpos++];
++      int tmp = (int) buffer[bpos++];
++      if (tmp&lt;0) {tmp += 256;}
++      return tmp;
+     } catch(SQLException se) {
+       throw new IOException(se.toString());
+     }
+
+＃素人なコードですんません。
+
+というわけで、現在は上手く動いているといえば動いているんですが、どうも
+これで正しいのか自信がありません。JDBC経由でラージオブジェクトを使われ
+ている方がいらっしゃいましたら、どのようにこの問題を解決したのかお教え
+いただけませんでしょうか。一応、捜した範囲ではこういった問題にぶつかっ
+た方もそれに対するfixも無いようなので、そもそも全然見当違いのことをして
+いる気がしています。宜しくお願いします。
+
+それでは、失礼します。
+
+ 　　　　　空　薔薇色の帯　歌うように広がる | たてのん
+ ひとりぼっちの君　海の音を　聞いているの？ | lapis@dameda.net
+ 　　　　　　　　　 「Black Shell」新居昭乃 | <A HREF="http://lapis.dameda.net/">http://lapis.dameda.net/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00416" HREF="msg00416.html">[pgsql-jp 22551] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+<UL><LI><EM>From:</EM> Ryouichi Matsuda &lt;r-matuda@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00370.html">[pgsql-jp 22505] RECEIVE $1,000 COMMISSION every 0-down SALE!!  ----------------------- Granzlaves01 Time:5:32:51 AM</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00369.html">[pgsql-jp 22504] PostgreSQL 	事例セミナー 講師募集のお知らせ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00490.html">[pgsql-jp 22628] Re: PostgreSQL 事例セミナー 講師募集のお知らせ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00416.html">[pgsql-jp 22551] Re: 7.1 のJDBCドライバで、getBinaryStreamでの読みこみが上手くいかない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00368"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00368"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

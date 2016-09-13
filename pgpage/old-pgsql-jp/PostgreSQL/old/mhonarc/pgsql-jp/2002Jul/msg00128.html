@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26677] Re: INSERT件数の最大 -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Fri, 12 Jul 2002 21:28:16 +0900 (JST) -->
+<!--X-Message-Id: 20020712.212816.74731553.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 018e01c2298e$a36ed600$0300a8c0@white -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26677] Re: INSERT件数の最大 </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00127.html">Date Prev</A>][<A HREF="msg00129.html">Date Next</A>][<A HREF="msg00127.html">Thread Prev</A>][<A HREF="msg00134.html">Thread Next</A>][<A HREF="index.html#00128">Date Index</A>][<A HREF="threads.html#00128">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26677] Re: INSERT件数の最大</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 12 Jul 2002 21:28:16 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00127.html">018e01c2298e$a36ed600$0300a8c0@white</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: &lt;tyunn@to.email.ne.jp&gt;
+Date: Fri, 12 Jul 2002 19:25:21 +0900
+
+;;; テーブルtesttbl　で
+;;; f0　int4
+;;; f1　varchar(2)
+;;; f2　bool
+;;; f3　date
+;;; f4　serial
+;;; という構成の場合、１レコードの大きさは、
+;;; それぞれ　4　byte
+;;; 　　　　　　 2*4　byte
+
+  varchar は可変長になります。EUC_JP で漢字 2 文字ならば 8 バイト。 英字 1 文
+字ならば 5 バイトです。
+
+;;;  　　　　　　2　byte
+
+  bool は 1 バイトですが、この場合には後続項目との間にアラインメントが 3 バイ
+ト入ります。
+
+;;;  　　　　　　4　byte
+;;; 　　　　　　 ？　byte（serial型は？byteですか？）
+
+  4 バイトです。8 バイトの serial8 もあります。
+
+;;; で　、計　18+?　byte。
+
+  NULL 値がない場合で、f1 に漢字 2 文字で、56 バイトです。
+
+  ここらのことは、以下のドキュメント、
+
+    ====  ソースディレクトリの doc/FAQ_japanese  ====
+    4.7) 一般的なテキストファイルからデータを保存するには、データベースのディ
+    スク容量はどのくらい必要です？
+
+マニュアルは、
+
+    PostgreSQL 7.2.1 User's Guide
+    Chapter 3. Data Types
+
+あたりが関連します。データが圧縮される場合もあります。FAQ に書かれている結構値
+は概算で、実際にデータを入れて、以下のツールでレコードサイズを確認するとい
+う方法もあります。FAQ をもう少し詳しくした資料を以前 ML に投稿してあります。
+
+    <A HREF="http://sources.redhat.com/rhdb/tools.html">http://sources.redhat.com/rhdb/tools.html</A>
+    pg_filedump
+
+  ある程度大雑把には見積もれますが、予想されるデータを考えて、実際に実験して確
+認することはした方がよいです。
+
+;;; testtblにはデータは、最大何件保存できるのでしょうか？
+
+  CREATE で WITHOUT OIDS を付けないと約 40 億レコード、付けるとそれを越えて保
+存できます。FAQ に、「4.6) 行、テーブル、データベースの最大サイズは？」という
+のがあります。
+
+  ディスク容量としては、レコードサイズの他にもソートなどのワークファイルが動的
+に発生し、トランザクションログのファイルサイズなども考える必要があります。
+
+# やろうと思えば、スキーマ定義から静的なディスク容量の概算を見積もるツールは作
+# れそうです。
+
+
+Kenji Sugita
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00134" HREF="msg00134.html">[pgsql-jp: 26683]  Re[2]: INSERT件数の最大</A></STRONG>
+<UL><LI><EM>From:</EM> &lt;tyunn@to.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00127" HREF="msg00127.html">[pgsql-jp: 26676] INSERT件数の最大</A></STRONG>
+<UL><LI><EM>From:</EM> &lt;tyunn@to.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00127.html">[pgsql-jp: 26676] INSERT件数の最大</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00129.html">[pgsql-jp: 26678] Re: PostgreSQLとAccess  のODBCでの接続スピード</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00127.html">[pgsql-jp: 26676] INSERT件数の最大</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00134.html">[pgsql-jp: 26683]  Re[2]: INSERT件数の最大</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00128"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00128"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

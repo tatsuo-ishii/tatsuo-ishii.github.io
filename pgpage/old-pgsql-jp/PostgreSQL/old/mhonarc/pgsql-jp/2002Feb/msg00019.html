@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24614] create function の引数 -->
+<!--X-From: Takeshi Iwanami <iwanami@psl.ne.jp> -->
+<!--X-Date: Mon, 04 Feb 2002 14:50:02 +0900 -->
+<!--X-Message-Id: 20020204142144.8ADC.IWANAMI@psl.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24614] create function の引数 </TITLE>
+<LINK REV="made" HREF="mailto:iwanami@psl.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00033.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24614] create function の引数</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Iwanami &lt;<A HREF="mailto:iwanami@psl.ne.jp">iwanami@psl.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 04 Feb 2002 14:50:02 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+岩波@PSLです。
+
+PostgreSQLはもう結構使っているのに、今ごろになってはじめて関数を自
+作しようとしてつまずいております。
+
+text型データを引数に取って、date型データを返す関数を作ったのですが、
+引数を指定してselect文を実行しても期待した値が返らず、nullが返るよ
+うです。as 以下のSQL文を指定するところで、引数を $1 で表しています
+が、この部分に具体的な値を指定した関数を作ると、正しく値を返します。
+
+どこか間違っておりますでしょうか? ご指摘いただければ幸いです。
+
+実行環境は以下の通りです。
+PostgreSQL 7.1.3 on i686-pc-linux-gnu, compiled by GCC egcs-2.91.66
+
+
+---
+■スキーマとデータの定義部分
+
+/* t1…会員データ */
+create table t1 (
+    id text,          /* 会員ID */
+    pubno text        /* 請求書発行ID */
+);
+
+/* t2…請求書発行マスタ */
+create table t2 (
+    pubno text,       /* 請求書発行ID */
+    limit_date date   /* 入金期日 */
+);
+
+/* 会員IDを引数に取って、最後の請求書発行IDの入金期限を得る */
+create function id_to_limit_date (text) returns date as '
+    select limit_date from t2
+      where pubno=(select max(to_number(pubno,''99999''))
+                   from t1 where id=''$1''
+                  )
+' language 'sql';
+
+/* 引数を取らず、SQL内に実際の値を持たせた場合 */
+create function id_to_limit_date_00001 () returns date as '
+    select limit_date from t2
+      where pubno=(select max(to_number(pubno,''99999''))
+                   from t1 where id=''00001''
+                  )
+' language 'sql';
+
+insert into t1 values ('00001','1');
+insert into t1 values ('00002','1');
+insert into t1 values ('00001','2');
+insert into t1 values ('00002','2');
+insert into t1 values ('00003','2');
+
+insert into t2 values (1,'2001-12-31');
+insert into t2 values (2,'2002-1-31');
+
+---
+■select実行結果
+
+db_name=# select id_to_limit_date('10003');
+ id_to_limit_date
+------------------
+
+(1 row)
+
+db_name=# select id_to_limit_date_00001();
+ id_to_limit_date_00001
+------------------------
+ 2002-01-31
+(1 row)
+
+
+---
+
+/* 掃除用です */
+drop function id_to_limit_date (text);
+drop function id_to_limit_date_00001 (text);
+drop table t1;
+drop table t2;
+
+
+-------------------------------------------------------------
+■□Perl                           パールスクリプトラボラトリ
+ ■□Script                             <A HREF="http://www.psl.ne.jp/">http://www.psl.ne.jp/</A>
+  ■□Laboratory                   岩波  毅 iwanami@psl.ne.jp
+-------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 24615] Re: create function の引数</A></STRONG>
+<UL><LI><EM>From:</EM> ichikawa@is.ocha.ac.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 24613] Re: postgreSQL のメンテナンス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 24615] Re: create function の引数</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00033.html">[pgsql-jp 24628] Re: C でのコンパイル時にヘッダーが見つからないのですが。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 24615] Re: create function の引数</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

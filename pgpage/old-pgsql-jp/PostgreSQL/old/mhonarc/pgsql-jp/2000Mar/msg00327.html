@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13633] Re: テーブルの外部結合（再投稿） -->
+<!--X-From: "杉原　俊介" <sugihara@central&#45;lib.pref.osaka.jp> -->
+<!--X-Date: Fri, 24 Mar 2000 01:28:00 +0900 -->
+<!--X-Message-Id: 001101bf94e4$c2fbcf00$42e1c7d2@zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000301bf94c5$b7ff6720$070aa8c0@cablenet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13633] Re: テーブルの外部結合（再投稿） </TITLE>
+<LINK REV="made" HREF="mailto:sugihara@central-lib.pref.osaka.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00326.html">Date Prev</A>][<A HREF="msg00328.html">Date Next</A>][<A HREF="msg00325.html">Thread Prev</A>][<A HREF="msg00335.html">Thread Next</A>][<A HREF="index.html#00327">Date Index</A>][<A HREF="threads.html#00327">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13633] Re: テーブルの外部結合（再投稿）</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "杉原　俊介" &lt;<A HREF="mailto:sugihara@central-lib.pref.osaka.jp">sugihara@central-lib.pref.osaka.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 24 Mar 2000 01:28:00 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00325.html">000301bf94c5$b7ff6720$070aa8c0@cablenet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんわ
+杉原＠大阪府立中央図書館です。
+
+&gt; 范＠埼玉です。
+&gt; ひらめさん、返事有難うございます。
+&gt; ご指導通り、全ての商品に対して、受注があり。
+&gt; 集計はできますが、
+&gt; ただ、タクさんの商品を扱う場合は、また、新入り商品がある場合は、
+&gt; 受注テーブルにこの商品データがあるとは限りません。
+&gt; この場合は、なにも集計されません。
+
+「なにも集計されない」と言うのは、商品テーブルにあって受注テーブル
+にはない商品コードがあった場合に、その商品コードが表示されないと
+いうことなのでしょうか？
+
+その場合は、石井さんごお書きになったように、その商品コードをunion
+でつなげる方法でうまくいくと思いますが（さすが、石井さん！）
+
+&gt;&gt; o 期待する出力結果 (psql の出力イメージなど)
+&gt;期待の結果は商品を受注数量合計の降順で出力：
+&gt;商品コード２,品名２,3000,商品説明２,image2.jpg　file://受注合計４個
+&gt;商品コード８,品名８,3000,商品説明８,image8.jpg 　file://受注合計２個
+&gt;商品コード６,品名６,3000,商品説明６,image6.jpg 　file://受注合計２個
+&gt;商品コード３,品名３,6000,商品説明３,image3.jpg　file://受注合計１個
+
+には、受注合計が0個のものは表示されいないので、意図されている
+のは別のことでしょうか？
+
+上記の結果でしたら、范＠埼玉がお書きになっていたselect文やひらめ
+さんのお書きになったselect文で実現できると思います。
+
+范＠埼玉さんがお書きになっていたものを6.5.2の環境でpsqlで試した結果です。
+
+testdb=&gt; create table goods_tab
+testdb-&gt;  (
+testdb-&gt;      code    varchar(10) primary key,
+testdb-&gt;      hinmei  varchar(50),
+testdb-&gt;      price1  int4,
+testdb-&gt;      description  varchar(200),
+testdb-&gt;      kubun  int2,
+testdb-&gt;      image    varchar(15)
+testdb-&gt;  );
+NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index
+'goods_tab_pkey' for table 'goods_tab'
+CREATE
+testdb=&gt;
+testdb=&gt; create table order_tab
+testdb-&gt; (
+testdb-&gt;      id   int4 primary key,
+testdb-&gt;      session char(32),
+testdb-&gt;      code    varchar(10),
+testdb-&gt;      hinmei  varchar(50),
+testdb-&gt;      price1  int4,
+testdb-&gt;      quantity int2
+testdb-&gt; );
+NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index
+'order_tab_pkey' for table 'order_tab'
+CREATE
+testdb=&gt;
+testdb=&gt; insert into goods_tab values('コード１','品名１',4000,'商品説明１
+',1,'image1.jpg');
+INSERT 88606229 1
+testdb=&gt; insert into goods_tab values('コード２','品名２',3000,'商品説明２
+',1,'image2.jpg');
+INSERT 88606230 1
+testdb=&gt; insert into goods_tab values('コード３','品名３',6000,'商品説明３
+',1,'image3.jpg');
+INSERT 88606231 1
+testdb=&gt; insert into goods_tab values('コード４','品名４',4000,'商品説明４
+',2,'image4.jpg');
+INSERT 88606232 1
+testdb=&gt; insert into goods_tab values('コード５','品名５',2500,'商品説明５
+',1,'image5.jpg');
+INSERT 88606233 1
+testdb=&gt; insert into goods_tab values('コード６','品名６',3000,'商品説明６
+',3,'image6.jpg');
+INSERT 88606234 1
+testdb=&gt; insert into goods_tab values('コード７','品名７',3000,'商品説明７
+',1,'image7.jpg');
+INSERT 88606235 1
+testdb=&gt; insert into goods_tab values('コード８','品名８',3000,'商品説明８
+',2,'image8.jpg');
+INSERT 88606236 1
+testdb=&gt; insert into goods_tab values('コード９','品名９',3000,'商品説明９
+',1,'image9.jpg');
+INSERT 88606237 1
+testdb=&gt; insert into goods_tab values('コード１０','品名１０',3000,'商品説明
+１０',3,'image10.jpg');
+INSERT 88606238 1
+testdb=&gt; insert into goods_tab values('コード１１','品名１１',3000,'商品説明
+１１',1,'image11.jpg');
+INSERT 88606239 1
+testdb=&gt;
+testdb=&gt; insert into order_tab values(1,'07ad61accf10c8d5c8d494e8f4d0e73a','
+コード３','品名３',6000,1);
+INSERT 88606240 1
+testdb=&gt; insert into order_tab values(2,'07ad61accf10c8d5c8d494e8f4d0e73a','
+コード２','品名２',3000,3);
+INSERT 88606241 1
+testdb=&gt; insert into order_tab values(3,'ed3fe6cc54647f0e6e763628c2d89fbe','
+コード８','品名８',3000,2);
+INSERT 88606242 1
+testdb=&gt; insert into order_tab values(4,'ed3fe6cc54647f0e6e763628c2d89fbe','
+コード２','品名２',3000,1);
+INSERT 88606243 1
+testdb=&gt; insert into order_tab values(5,'a0cebd8b191cfcac4a7138cc56a01987','
+コード６','品名６',3000,2);
+INSERT 88606244 1
+testdb=&gt;
+testdb=&gt; select goods_tab.code,
+testdb-&gt; goods_tab.hinmei,goods_tab.description, goods_tab.price1,
+goods_tab.image,sum(order_tab.quantity)
+testdb-&gt; from goods_tab, order_tab where goods_tab.code=order_tab.code group
+by
+testdb-&gt; goods_tab.code, goods_tab.hinmei, goods_tab.description,
+goods_tab.price1,
+testdb-&gt; goods_tab.image ORDER BY Sum(order_tab.quantity) DESC;
+code    |hinmei|description|price1|image     |sum
+--------+------+-----------+------+----------+---
+コード２|品名２|商品説明２ |  3000|image2.jpg|  4
+コード６|品名６|商品説明６ |  3000|image6.jpg|  2
+コード８|品名８|商品説明８ |  3000|image8.jpg|  2
+コード３|品名３|商品説明３ |  6000|image3.jpg|  1
+(4 rows)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp 13631] RE: [pgsql-jp 13628] テーブルの外部結合（再投稿）</A></STRONG>
+<UL><LI><EM>From:</EM> "tyuuniti" &lt;tyuuniti@cablenet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00326.html">[pgsql-jp 13632] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 13634] RE: [pgsql-jp 13632] Re: テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 13631] RE: [pgsql-jp 13628] テーブルの外部結合（再投稿）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00335.html">[pgsql-jp 13641] RE: [pgsql-jp 13628] テーブルの外部=?ISO-2022-JP?B?GyRCN2s5ZyFKOkZFajlGIUsbKEI=?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00327"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00327"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6302] Re: snapshot install memo -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Tue, 22 Dec 1998 17:03:21 +0900 (JST) -->
+<!--X-Message-Id: 199812220803.RAA18129@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812220150.KAA23283@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6302] Re: snapshot install memo </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00326.html">Date Prev</A>][<A HREF="msg00328.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00349.html">Thread Next</A>][<A HREF="index.html#00327">Date Index</A>][<A HREF="threads.html#00327">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6302] Re: snapshot install memo</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Dec 1998 17:03:21 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00316.html">199812220150.KAA23283@libpc01.pb.ascii.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Dec 22, SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt; writes:]
+&gt;6.4.1がなかなか出ないので、Dec21版のsnapshotをインストールしてみました。
+
+と言ってたら出ましたね。
+
+&gt;コンパイルしてインストールまでうまくいったようです。
+&gt;環境は以下のとおり:
+&gt;	FreeBSD 2.2.7-RELEASE
+&gt;	GNU Bison version 1.25
+&gt;	flex version 2.5.4
+&gt;	gcc version 2.7.2.1
+&gt;
+&gt;regression testでは相変わらずint8/float8/geometryがfailしますが、
+&gt;新たにmiscも加わりました。何かexpectedの方がおかしいような気もします。
+
+は変わらずです。
+
+ただ、6.4時代のpg_dumpallの結果を食わせたら、create indexのときに落ちて
+しまいました。coreから取ったbacktraceは以下のとおり:
+
+Program terminated with signal 6, Abort trap.
+Cannot access memory at address 0x20136080.
+#0  0x20207151 in ?? ()
+(gdb) bt
+#0  0x20207151 in ?? ()
+#1  0x202069c3 in ?? ()
+#2  0xfaee8 in ExcAbort (excP=0x12b094, detail=0, data=0x0, 
+    message=0x2c5d1 "!(nread == 0)") at excabort.c:26
+#3  0xfae47 in ExcUnCaught (excP=0x12b094, detail=0, data=0x0, 
+    message=0x2c5d1 "!(nread == 0)") at exc.c:171
+#4  0xfae9a in ExcRaise (excP=0x12b094, detail=0, data=0x0, 
+    message=0x2c5d1 "!(nread == 0)") at exc.c:188
+#5  0xfa6ca in ExceptionalCondition (conditionName=0x2c5d1 "!(nread == 0)", 
+    exceptionP=0x12b094, detail=0x0, fileName=0x2bfc5 "nbtsort.c", 
+    lineNumber=484) at assert.c:74
+#6  0x2c674 in _bt_taperead (tape=0x207010) at nbtsort.c:484
+#7  0x2dbca in _bt_merge (index=0x1e6510, btspool=0x1ddfd0) at nbtsort.c:1304
+#8  0x2dcc9 in _bt_leafbuild (index=0x1e6510, spool=0x1ddfd0) at nbtsort.c:1442
+#9  0x25a21 in btbuild (heap=0x1e4310, index=0x1e6510, natts=6, 
+    attnum=0x1e01f0, istrat=0x182410, pcount=0, params=0x0, finfo=0x0, 
+    predInfo=0x1e05f0) at nbtree.c:298
+#10 0xfb8b5 in fmgr_c (finfo=0xefbfb0a8, values=0xefbfb0b8, 
+    isNull=0xefbfb0a7 "") at fmgr.c:144
+#11 0xfbbf4 in fmgr (procedureId=338) at fmgr.c:286
+#12 0x37adc in index_build (heapRelation=0x1e4310, indexRelation=0x1e6510, 
+    numberOfAttributes=6, attributeNumber=0x1e01f0, parameterCount=0, 
+    parameter=0x0, funcInfo=0x0, predInfo=0x1e05f0) at index.c:1695
+#13 0x370bb in index_create (heapRelationName=0x17e670 "header", 
+    indexRelationName=0x17e650 "header_uniq_idx", funcInfo=0x0, 
+    attributeList=0x17ef10, accessMethodObjectId=403, numatts=6, 
+    attNums=0x1e01f0, classObjectId=0x1dd9d0, parameterCount=0, parameter=0x0, 
+    predicate=0x0, islossy=0 '\000', unique=1 '\001') at index.c:1156
+#14 0x40e9d in DefineIndex (heapRelationName=0x17e670 "header", 
+    indexRelationName=0x17e650 "header_uniq_idx", 
+    accessMethodName=0x17e690 "btree", attributeList=0x17ef10, 
+    parameterList=0x0, unique=1 '\001', predicate=0x0, rangetable=0x0)
+    at defind.c:205
+#15 0xcd296 in ProcessUtility (parsetree=0x1dd950, dest=Remote)
+    at utility.c:401
+#16 0xca645 in pg_exec_query_dest (
+    query_string=0xefbfb2ec "CREATE UNIQUE INDEX \"header_uniq_idx\" on \"header\" using btree ( \"host\" \"text_ops\", \"port\" \"int4_ops\", \"path\" \"text_ops\", \"file\" \"text_ops\", \"extra\" \"text_ops\", \"name\" \"text_ops\" );", dest=Remote, aclOverride=0) at postgres.c:758
+#17 0xca524 in pg_exec_query (
+    query_string=0xefbfb2ec "CREATE UNIQUE INDEX \"header_uniq_idx\" on \"header\" using btree ( \"host\" \"text_ops\", \"port\" \"int4_ops\", \"path\" \"text_ops\", \"file\" \"text_ops\", \"extra\" \"text_ops\", \"name\" \"text_ops\" );")
+    at postgres.c:699
+#18 0xcbf78 in PostgresMain (argc=5, argv=0xefbfd364, real_argc=5, 
+    real_argv=0xefbfdc54) at postgres.c:1646
+#19 0xacdfc in DoBackend (port=0x182000) at postmaster.c:1532
+#20 0xac883 in BackendStartup (port=0x182000) at postmaster.c:1303
+#21 0xabb76 in ServerLoop () at postmaster.c:757
+#22 0xab41f in PostmasterMain (argc=5, argv=0xefbfdc54) at postmaster.c:563
+#23 0x66787 in main (argc=5, argv=0xefbfdc54) at main.c:93
+
+また、しかたないので別のインデックスを作ろうとしたときも
+DBNAME=&gt; create index header_url_idx on header (host, port, path, file, extra);
+ERROR:  header_url_idx: cannot extend
+と言われるようになってしまいました。
+うーん、何が起こっているんだろうか...
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00349" HREF="msg00349.html">[pgsql-jp 6325] 6.4.1 (Re: snapshot install memo)</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00316" HREF="msg00316.html">[pgsql-jp 6291] Re: snapshot install memo</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00326.html">[pgsql-jp 6301] RE: [pgsql-jp 6300] Re: 定数'now'について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 6303] Re: Perlとの言語インターフェースについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 6291] Re: snapshot install memo</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 6325] 6.4.1 (Re: snapshot install memo)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00327"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00327"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

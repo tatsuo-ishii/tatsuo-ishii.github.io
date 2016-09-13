@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1585] query 32 (Re: Benchmark test) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 17 Mar 1997 18:08:42 +0900 -->
+<!--X-Message-Id: 199703170908.SAA16800@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199702200047.JAA16874@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1585] query 32 (Re: Benchmark test) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00087.html">Date Prev</A>][<A HREF="msg00089.html">Date Next</A>][<A HREF="msg00100.html">Thread Prev</A>][<A HREF="msg00090.html">Thread Next</A>][<A HREF="index.html#00088">Date Index</A>][<A HREF="threads.html#00088">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1585] query 32 (Re: Benchmark test)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 17 Mar 1997 18:08:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;caco&gt; At  9:39 AM 97.2.19 +0900, Satoshi Ishikawa wrote:
+&gt;caco&gt; &gt;いしかわ＠ぎふだいです
+&gt;caco&gt; 
+&gt;caco&gt; &gt;＃Linuxのquery 32が遅いのはLinux用のコードのせいだ。
+&gt;caco&gt; &gt;＃と勝手に思ってるのであります:p。
+&gt;caco&gt; 
+&gt;caco&gt; MkLinux も異常に 32 が遅いので不思議に思ってました。
+&gt;caco&gt; この辺大変興味がありますので、どの辺が「 Linux 用のコードの
+&gt;caco&gt; せい」なのか教えていただけませんか？
+&gt;caco&gt; #とにかく Linux は始めてから
+&gt;caco&gt; #日が浅く、恥ずかしながらわからないことばかりです。
+&gt;
+&gt;まだ**勝手に思っている**ところで何にもわかってることはないんです。
+&gt;＃ちょっと話しを振ってみたというか...
+&gt;＃興味はあるんですけど。
+&gt;
+&gt;誤解を与えるようなことを書いてしまいましたm(__)m。
+&gt;
+&gt;でも、Linuxはplatformに関係なく query32 遅いんですよねぇ。
+&gt;
+&gt;Linux自体からくる遅さなのか、postgreSQLのコードからくるのかなぁ
+
+あれから調べてみたところ、bench mark script のバグ（というか、予期せぬ
+データが入った）のと Linux 特有の time コマンドの出力フォーマットがが
+原因で Linux に限って不当に:-)query 32 の結果が悪く出てることがわかり
+ました。つまり、ベンチマークのスクリプトである perquery では、
+
+	egrep 'x = "|elapse' &gt; /tmp/foo$$
+
+のようなことをやって最初にベンチマークに関係のある行だけを bench.out 
+から貫出しています。で、通常は
+
+!	0.000000 elapsed 0.000000 user 0.000000 system sec
+!	0.010000 elapsed 0.000000 user 0.010000 system sec
+	 1: x = "1"	(typeid = 23, len = 4, byval = t)
+!	0.160000 elapsed 0.070000 user 0.090000 system sec
+!	0.660000 elapsed 0.200000 user 0.460000 system sec
+
+のような感じでデータが grep されるのですが、親スクリプトの runwisc.sh 
+では、
+
+time postgres -texecutor -tplanner -Q bench &lt; bench.sql
+
+でトータルの実行時間も取り出し、上記のデータの最後に追加しています。と
+ころが、Linux の場合 time では
+
+ 85.86user 114.47system 4:49.20elapsed 69%CPU (0avgtext+0avgdata 0maxresident)k
+			       ~~~~~~
+0inputs+0outputs (0major+0minor)pagefaults 0swaps
+
+のように、"elapse" の文字列も含まれているものだから、最後の query であ
+る 32 だけこのトータルの実行時間が加算されてしまうのですね。
+
+もし今から修正データを申告する根性のある方は、runwisc.sh の最後にある
+
+	time postgres -texecutor -tplanner -Q bench &lt; bench.sql
+
+を
+
+	postgres -texecutor -tplanner -Q bench &lt; bench.sql
+
+にしてベンチマークを取り直すか、bench.out が残っている場合は最後の方に
+ある 85.86user 114.47system 4:49.20elapsed 69%CPU (0avgtext+0avgdata
+0maxresident)k のような行を削除して
+
+	sh ./perquery &lt;bench.out &gt;&amp; bench.out.perquery
+
+を実行すれば正しいデータが取れます。
+
+# 私の Mklinux DR2 + 7100/66AV/48MB/L2 cache のデータは更新しておきまし
+# た。また、神田さんの Solaris2.4 のデータも入れておきました。
+
+&gt;caco&gt; そういえば、ウィスコンシンベンチマークとは何かというのを知りたくて
+&gt;caco&gt; ちょっとweb検索してみたのですが、めぼしいデータは見つかりませんでした。
+&gt;caco&gt; 「そんなことも知らずにベンチマークやってどうする！」という声が
+&gt;caco&gt; 聞こえてきそうですが:-)
+
+結局 ML で紹介のあった
+
+&gt; [DeWitt 1993] DeWitt, D. J., "The Wisconsin Benchmark: Past,
+&gt; Present, and Future," appears in The Benchmark  Handbook for
+&gt; Database  and  Transaction  Processing  Systems, Ed.  by Jim
+&gt; Gray, Morgan Kaufmann, Inc., 1993, pp. 269-316.
+
+を Web の通版で買ってしまいました。これをざっと読んで分かったのですが、
+PostgreSQL 附属のベンチマークは結構いい加減です。たとえば index なしの
+ケースとありのケースをテストしているはずが、両方とも index ありになっ
+ていたりします。まあ、データのはかり方自体はあまり間違っていないのです
+が。暇があったら全面的にスクリプトを書き直したいところです...
+
+# でも、tenk1 というクラス名が、ten(10) * k (1000) = 10000 タプルを含
+# むという意味で付けられていることが分かったりして、少し得したような気分
+# になりました:-)
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00101" HREF="msg00101.html">[postgres95 1598] Re: query 32 (Re: Benchmark test)</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00097" HREF="msg00097.html">[postgres95 1594] Re: query 32 (Re: Benchmark test)</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Takaishi &lt;ttks@take.math.g.hiroshima-dit.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[postgres95 1587] Re: query 32 (Re: Benchmark test)</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00087.html">[postgres95 1584] Re: I can't use "CREATE TABLE weather".</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00089.html">[postgres95 1586] Re: I can't use "CREATE TABLE weather".</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00100.html">[postgres95 1597] Re: query 32 (Re: Benchmark test)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00090.html">[postgres95 1587] Re: query 32 (Re: Benchmark test)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00088"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00088"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

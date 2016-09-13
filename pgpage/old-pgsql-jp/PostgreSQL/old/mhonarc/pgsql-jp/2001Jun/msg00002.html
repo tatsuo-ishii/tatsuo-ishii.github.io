@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21621] Re: 文字列を分割するには -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Fri, 01 Jun 2001 02:51:14 +0900 -->
+<!--X-Message-Id: 3B1684921E.B01DKITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001101c0e969$b35390d0$cb00a8c0@haunet.ocn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21621] Re: 文字列を分割するには </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00001.html">Date Prev</A>][<A HREF="msg00003.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00003.html">Thread Next</A>][<A HREF="index.html#00002">Date Index</A>][<A HREF="threads.html#00002">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21621] Re: 文字列を分割するには</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 01 Jun 2001 02:51:14 +0900</LI>
+<LI><em>References</em>: &lt;001101c0e969$b35390d0$cb00a8c0@haunet.ocn.ne.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠アシェットです。
+
+&gt; PERSON というテーブルの中に BLOOD という、CHAR(20) と定義された項目があるの
+&gt; ですが、
+&gt; 
+&gt; A:RH+:MN+
+&gt; 
+&gt; というように「:」で区切られた形でデータが格納されています。
+&gt; 
+&gt; これを、ABO, RH+/-, MN+/- をそれぞれ独立させて抽出したりしたいのですが、どの
+&gt; ようにすればよいのでしょうか?
+
+この 3種類しかないのであれば、SQL ファンクションで可能では？
+--ABO
+create function fGetBlood_ABO(text) returns text as
+'
+ select substring($1 from 0 for position('':'' in $1));
+' language 'sql';
+--RH
+create function fGetBlood_RH(text) returns text as
+'
+ select
+  substring(
+   substring($1 from position('':'' in $1)+1 for char_length($1))
+   from 0 for
+   position('':'' in
+    substring($1 from position('':'' in $1)+1 for char_length($1))
+   )
+  );
+' language 'sql';
+--MN
+create function fGetBlood_MN(text) returns text as
+'
+ select substring(
+  substring($1 from position('':'' in $1)+1 for char_length($1))
+  from position('':'' in 
+   substring($1 from position('':'' in $1)+1 for char_length($1))
+  ) + 1
+ );
+' language 'sql';
+
+あとは
+create table person(blood text);
+insert into person values ('A:RH+:MN+');
+insert into person values ('B:RH-:MN+');
+insert into person values ('AB:RH+:MN-');
+insert into person values ('O:RH-:MN-');
+select
+ fGetBlood_ABO(blood) as blood_abo,
+ fGetBlood_RH(blood) as blood_rh,
+ fGetBlood_MN(blood) as blood_mn
+&gt;from person;
+
+ blood_abo | blood_rh | blood_mn
+-----------+----------+----------
+ A         | RH+      | MN+
+ B         | RH-      | MN+
+ AB        | RH+      | MN-
+ O         | RH-      | MN-
+(4 rows)
+・・ですね。
+
+もっとも、SQL 関数なぞ使わず、PL/pgSQL で汎用的なものを作成した方が良いと
+思いますが。
+fGetSplitValue(text,int2,text)
+$1:文字列
+$2:取り出す分割文字の番目
+$3:分割文字
+select fGetSplitValue('A:RH+:MN+',2,':');
+なんてやると、RH+ が返って来るような・・(かなり便利かも)。
+
+さすれば、PERSON テーブルを ALTER TABLE で BLOOD_AB、BLOOD_RH、BLOOD_MN 
+カラムを追加しておき、行が追加された時にそれぞれのカラムに分割した値を入
+れることも可能だし、UPDATE 時に blood が置き換わったのであればそれぞれの
+カラムに分割した値を入れたり、また逆に、BLOOD_AB が更新されたならば
+BLOOD_AB || BLOOD_RH || BLOOD_MN
+で得られる文字列を blood に入れてしまう、ということができます。
+これなら、過去の資産をそのままに、新しく AB だけ更新とかできちゃいます。
+もちろん、PL/pgSQL を使わずとも、上記の関数とルールを使えばそれなりにでき
+てしまうのですが(INSERT 時の処理ができないのかな？)。
+
+うぉぉ。いつのまにか長文。さ、仕事仕事。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 21632] Re: 文字列を分割するには</A></STRONG>
+<UL><LI><EM>From:</EM> "Osamu Shigematsu" &lt;shigematsu@ha-unet.ocn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00003" HREF="msg00003.html">[pgsql-jp 21622] Re: 文字列を分割するには</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00001.html">[pgsql-jp 21620] 本社面接が・・・</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 21622] Re: 文字列を分割するには</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 21623] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 21622] Re: 文字列を分割するには</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00002"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00002"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

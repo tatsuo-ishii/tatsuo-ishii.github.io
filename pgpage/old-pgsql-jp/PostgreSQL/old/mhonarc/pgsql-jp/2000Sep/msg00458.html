@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17789] Re: 複雑なSQL文での表示スピード -->
+<!--X-From: だいすけ <dai&#45;suke@mri.biglobe.ne.jp> -->
+<!--X-Date: Mon, 18 Sep 2000 22:17:54 +0900 -->
+<!--X-Message-Id: 39C6160224E.5109DAI&#45;SUKE@dns01.clickmouse.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200009190012.JAA13049@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 20000919115802V.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17789] Re: 複雑なSQL文での表示スピード </TITLE>
+<LINK REV="made" HREF="mailto:dai-suke@mri.biglobe.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00414.html">Date Prev</A>][<A HREF="msg00415.html">Date Next</A>][<A HREF="msg00453.html">Thread Prev</A>][<A HREF="msg00375.html">Thread Next</A>][<A HREF="index.html#00458">Date Index</A>][<A HREF="threads.html#00458">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17789] Re: 複雑なSQL文での表示スピード</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: だいすけ &lt;<A HREF="mailto:dai-suke@mri.biglobe.ne.jp">dai-suke@mri.biglobe.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 18 Sep 2000 22:17:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00425.html">200009190012.JAA13049@sraigw.sra.co.jp</A>&gt; &lt;<A HREF="msg00431.html">20000919115802V.kgotoh@cic-kk.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+だいすけです。
+
+&gt;From: 佐藤 純弘 &lt;y-satou@azb.nttls.co.jp&gt;
+Date: Tue, 19 Sep 2000 09:12:03 +0900
+
+&gt;&gt; この条件だと、select するときにインデックスがありませんから、
+&gt;&gt; 全表走査になりますね。
+&gt;&gt; select する条件に合わせた index を張ると解決するでしょう。
+
+佐藤 純弘さま、後藤 和政さま ありがとうございました。
+ご指摘のあったようにインデックスを以下のように張りました。
+
+  CREATE INDEX メンバーID_index ON 掲示板 (メンバーID)
+  CREATE INDEX 都道府県番号_index ON メンバー (都道府県番号)
+
+&gt; その通りですが、元記事の方のテーブル定義では、ほとんどの項目が文字列
+&gt; でしたから、タプル数が非常に多い場合は、表示用のカラムと検索用に
+&gt; コード化したカラムを別途用意するなどのアプリケーション的な手当てを
+&gt; しないと、期待する検索性能にならない場合があるかも知れません。
+
+select 掲示板番号, タイトル
+    from 掲示板 , メンバー
+    where 掲示板.メンバーID = メンバー.メンバーID
+      and 掲示板.都道府県番号 = '○○' 
+      and 掲示板の種類 = '○○' and 性別 = '男';
+
+//インデックスなし
+Sort  (cost=91.38 rows=1 width=40)
+
+//インデックスあり
+Sort  (cost=4.10 rows=1 width=40)
+
+検索結果は78件です。上記の通りcostは激減したのですが、これでも
+一般的に遅いんでしょうか？
+
+テーブル   カラム     登録件数
+--------- --------  ------------
+掲示板      10          525
+メンバー    17          845
+
+&gt; また、「表示する件数は 2件でも、15件でも…」という点に関しては、
+&gt; これは当たり前というか、そういう仕様ですね。
+&gt; 
+&gt; offset 〜 limit は、単に検索結果として得られた集合の中から、一部を
+&gt; 表示しているに過ぎません。
+&gt; 
+&gt; したがって、表示件数が何件であれ、集合を得るための検索時間は同じです。
+&gt; 見かけ上の処理時間のほとんどは、表示にかかる時間よりも検索時間ですから、
+&gt; 両者の間に差はないという事になります。
+
+勉強不足でした。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00425" HREF="msg00425.html">[pgsql-jp 17756] Re: 複雑なSQL文での表示スピード</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00431" HREF="msg00431.html">[pgsql-jp 17762] Re: 複雑なSQL文での表示スピード</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00414.html">[pgsql-jp 17745] Re: タプル数が多い場合のレコードセット（解決）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 17746] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00453.html">[pgsql-jp 17784] Re: 複雑なSQL文での表示スピード</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00375.html">[pgsql-jp 17706] Data Explorer バージョンアップ（β4.00）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00458"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00458"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

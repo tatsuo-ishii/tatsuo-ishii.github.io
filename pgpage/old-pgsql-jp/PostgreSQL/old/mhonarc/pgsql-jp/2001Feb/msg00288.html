@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20045] Access2000 と空のフィールド -->
+<!--X-From: 田戸 直樹 <tado@ba2.so&#45;net.ne.jp> -->
+<!--X-Date: Wed, 21 Feb 2001 01:01:47 +0900 -->
+<!--X-Message-Id: 3A9294EB1E.AD83TADO@mail.ba2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20045] Access2000 と空のフィールド </TITLE>
+<LINK REV="made" HREF="mailto:tado@ba2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00287.html">Date Prev</A>][<A HREF="msg00289.html">Date Next</A>][<A HREF="msg00303.html">Thread Prev</A>][<A HREF="msg00292.html">Thread Next</A>][<A HREF="index.html#00288">Date Index</A>][<A HREF="threads.html#00288">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20045] Access2000 と空のフィールド</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 田戸 直樹 &lt;<A HREF="mailto:tado@ba2.so-net.ne.jp">tado@ba2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Feb 2001 01:01:47 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:tado@ba2.so-net.ne.jp">tado@ba2.so-net.ne.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして、田戸と申します。
+
+MS Access2000でリンクしたテーブルの内容を変更しようとしたときに、
+データが入っていない空のフィールドがあるレコードだと、
+        データの競合
+        このレコードは他のユーザーによって変更されています。
+        「レコードの保存」を選択すると・・・云々
+と言われてしまうことがあります。
+
+どうやらこれは、postgresql上では何も無いところが''になっているのを、
+Acess2000が NULLで条件付けして更新してくるからみたいなんですが、
+何か使い方間違っているのか、それともうまいこと避ける方法があるもので
+しょうか？（折角oidを主キーに設定しているんだから、何も全部指定して
+updateすること無いのにと思うのですが）
+
+実験内容を以下に添付します。
+
+1.以下のようなテーブルを作成
+        create table test (
+          text       varchar(40),
+          comment    varchar(80)
+        );
+
+2.以下のようなデータを、
+        "copy test from 'test.csv' using delimiters ',';
+  で取り込む
+
+        AAA,BBB
+        CCC,
+        DDD,
+        EEE,
+
+3.何も入っていないところは、''であってNULLでは無い
+
+        =&gt; select * from test where comment = '';
+        text|comment
+        ----+-------
+        CCC |
+        DDD |
+        EEE |
+        (3 rows)
+
+        =&gt; select * from test where comment is NULL;
+        text|comment
+        ----+-------
+        (0 rows)
+
+        
+4.Access2000は、''をNULLで更新しに来る
+  (textが'DDD'のレコードで、commentに'HHH'を入れようとした時のodbcのログ)
+        conn=153354360, query='BEGIN'
+        conn=153354360, query='UPDATE "test" SET "comment"='HHH'
+          WHERE "oid" = 74882 AND "text" = 'DDD' AND "comment" IS NULL'
+        conn=153354360, query='ROLLBACK'
+
+補足
+  クライアント側
+        Windows 98
+        Access 2000 (9.0.4402 SR-1)
+        psqlodbc.dll    6.50.00.00 00/06/17
+        Driver option
+                Disable Generic Optimizer
+                KSQO
+                Unknown Size            Maximum
+                Data Type Options       Text as LongVarChar
+                Cache size              100
+                Max Varchar             254
+                Max LongVarChar         8190
+                SysTablePrefixes        dd_;
+        DataSource option
+                Protocol                6.5/6.4
+                OID Options             Show Column,Fake Index
+  サーバー側
+        Linux/Debian 2.2
+        postgresql 6.5.3-25
+
+田戸 直樹 tado@ba2.so-net.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 20049] RE: Access2000 と空のフィールド</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00287.html">[pgsql-jp 20044] Re: delete で消してしまったテーブルデータの復活について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00289.html">[pgsql-jp 20046] Re: ＶＣ++ 6.0でPostgreSQLへの接続方法を教えてください。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 20060] Re: 配列をWHERE句に渡すには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 20049] RE: Access2000 と空のフィールド</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00288"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00288"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

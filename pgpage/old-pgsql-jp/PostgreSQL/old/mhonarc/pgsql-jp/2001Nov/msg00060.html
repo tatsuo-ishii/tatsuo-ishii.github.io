@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23643] Re: geometric problem -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Fri, 09 Nov 2001 00:00:13 +0900 -->
+<!--X-Message-Id: 3BEA9DFD.B942CC0@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200111081320.WAA18272@std4ss23.u&#45;aizu.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23643] Re: geometric problem </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00059.html">Date Prev</A>][<A HREF="msg00061.html">Date Next</A>][<A HREF="msg00058.html">Thread Prev</A>][<A HREF="msg00055.html">Thread Next</A>][<A HREF="index.html#00060">Date Index</A>][<A HREF="threads.html#00060">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23643] Re: geometric problem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 09 Nov 2001 00:00:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00058.html">200111081320.WAA18272@std4ss23.u-aizu.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田です。
+
+ke-suke wrote:
+
+&gt; まず、交点が１つしかないと仮定します。
+&gt; 次に、PATHはすべて直線であると仮定します。
+
+平面上ならむしろpathがすべて直線と仮定すれば交点は自動的に１つに
+なりますよね。
+
+&gt; PATH[(0,0),(100,100)] と PATH[(100,0),(0,100)]
+&gt; 
+&gt; の交点を求める場合、２つのPATHが仮に直線だとした場合、
+&gt; (50,50)というポイントが計算上見つかると思いますが、
+&gt; 問題はこの(50,50)を postgreのSQL文上ではじきだせるか否か です。
+&gt;                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+&gt; lsegではなく、PATHで可能かどうかを知りたいです。
+
+この仮定をした上でlsegでなくpathにこだわる理由が不明ですが。
+pathからいきなりlsegには変換できないようで
+wada=&gt; select '(20,20),(20,80)'::path::polygon::box::lseg;
+     ?column?
+-------------------
+ [(20,80),(20,20)]
+(1 row)
+とやるとできます。（boxに変換したときに座標の大きい点が先になる？
+のがちょっと面白い。）
+lseg同士の交点なら簡単ですね。
+
+pathの点の数を求める関数はあるのですが、n番目の点を取出す関数など
+はないみたいですね？
+道をテーブルにするにはせっかくpathがありますけど使わないで
+こんなんでどうでしょう。
+
+CREATE TABLE "road" (
+        "no" integer, --道の番号
+        "pos" point,  --道の点
+        "sub" integer --点の番号（道の番号ごとの連番）
+);
+
+するとこんなデータで
+
+INSERT INTO road VALUES(1,'(0,0)',1);
+INSERT INTO road VALUES(1,'(100,100)',2);
+INSERT INTO road VALUES(1,'(200,0)',3);
+INSERT INTO road VALUES(2,'(0,100)',1);
+INSERT INTO road VALUES(2,'(100,0)',2);
+INSERT INTO road VALUES(2,'(200,100)',3);
+
+こんなことができます。
+select lseg(r1.pos, r2.pos) as road1 from road r1, road r2
+where r1.no=1 and r1.no=r2.no and r1.sub+1=r2.sub;
+        road1
+---------------------
+ [(0,0),(100,100)]
+ [(100,100),(200,0)]
+(2 rows)
+
+でもって交点は
+select (lseg1 # lseg2) from
+(select lseg(r1.pos, r2.pos) as lseg1 from road r1, road r2
+where r1.no=1 and r2.no=1 and r1.sub+1=r2.sub) as tmp1,
+(select lseg(r1.pos, r2.pos) as lseg2 from road r1, road r2
+where r1.no=2 and r2.no=2 and r1.sub+1=r2.sub) as tmp2
+where (lseg1 # lseg2) is not null;
+ ?column?
+----------
+ (50,50)
+ (150,50)
+(2 rows)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00058" HREF="msg00058.html">[pgsql-jp 23641] Re: geometric problem</A></STRONG>
+<UL><LI><EM>From:</EM> ke-suke &lt;s1061157@u-aizu.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 23642] rserv &amp; replication</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 23644] Re: geometric problem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 23641] Re: geometric problem</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 23638] Re: Applet+JDBC</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00060"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00060"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5502] Re: ShmemCreate: cannot create region -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Tue, 29 Sep 1998 14:20:01 +0900 (JST) -->
+<!--X-Message-Id: 199809290520.OAA00968@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809290458.NAA12374@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5502] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00292.html">Date Prev</A>][<A HREF="msg00294.html">Date Next</A>][<A HREF="msg00292.html">Thread Prev</A>][<A HREF="msg00294.html">Thread Next</A>][<A HREF="index.html#00293">Date Index</A>][<A HREF="threads.html#00293">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5502] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 29 Sep 1998 14:20:01 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00292.html">199809290458.NAA12374@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+お手数かけてすみません。
+
+[On Sep 29, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;
+&gt;たのですが。ところで、これは 6.4 ですか？
+
+jaistでの
+	postgresql.snapshot.tar.gz . . .  [Sep 26 22:01]   4067k
+です。
+
+&gt;素朴な疑問ですが、重複データを挿入しようとしてトランザクションがアボー
+&gt;トしているとのことですが、普通挿入する前に重複があるかどうかチェックし
+&gt;ませんか？
+
+それだと重複していないときに二度手間かなと思いまして。それに、確認から挿
+入までの間に別のプロセスが確認しにきたら、結局はぶつかる可能性があるかな、
+と思って単に挿入を試みていました。こういう使い方自体が間違ってますか?
+
+で、さらに試していて、バックエンドを必ず落すSQL文を見つけました。
+ただ、こっそりと落ちるので、attachしてもbreakpointの設定しようがなくて困っ
+ています。/var/log/messagesには
+Sep 29 13:54:42 libsvr05 /kernel: pid 25925 (postgres), uid 95: exited on signal 5
+というのが記録されますが。
+そのときにpsql側では、
+DBNAME=&gt; insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');
+pqReadData() -- backend closed the channel unexpectedly.
+	This probably means the backend terminated abnormally before or while processing the request.
+We have lost the connection to the backend, so further processing is impossible.  Terminating.
+という風になります。ただ、きれいなデータベースにこの表を用意して同じSQL
+文を流しても落ちません。
+
+そうこうしているうちに、postmaster自体が立ち上がらなくなってしまいました。
+# これでは、pg_dumpもできない...
+こちらはback traceが取れてます。
+結局共有メモリ不足(=データが多すぎる?)なんでしょうか。
+
+========================================================================
+% gdb postmaster
+(gdb) break elog.c:105
+Breakpoint 1 at 0xd2750: file elog.c, line 105.
+(gdb) break elog.c:110
+Breakpoint 2 at 0xd2770: file elog.c, line 110.
+(gdb) run -D /usr/local/pgsql/data -B 7980 -o "-S 16384 -F" -d 2
+Starting program: /usr/local/pgsql/bin/postmaster -D /usr/local/pgsql/data -B 7980 -o "-S 16384 -F" -d 2
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+IpcMemoryCreate: shmget failed (Cannot allocate memory) key=5432010, size=24588, permission=700
+IpcMemoryIdGet: shmget failed (No such file or directory) key=5432010, size=24588, permission=0
+IpcMemoryAttach: shmat failed (Invalid argument) id=-2
+
+Breakpoint 2, elog (lev=1, 
+    fmt=0x9d918 "AttachSLockMemory: could not attach segment") at elog.c:111
+111                             sprintf(line, "FATAL %d:  ", lev);
+(gdb) bt
+#0  elog (lev=1, fmt=0x9d918 "AttachSLockMemory: could not attach segment")
+    at elog.c:111
+#1  0x9d9ab in AttachSLockMemory (key=5432010) at ipc.c:721
+#2  0x9d8a3 in CreateAndInitSLockMemory (key=5432010) at ipc.c:693
+#3  0x9da67 in CreateSharedMemoryAndSemaphores (key=5432000) at ipci.c:67
+#4  0x8e22e in reset_shared (port=5432) at postmaster.c:987
+#5  0x8d534 in PostmasterMain (argc=9, argv=0xefbfd454) at postmaster.c:535
+#6  0x4c8b7 in main (argc=9, argv=0xefbfd454) at main.c:93
+(gdb) c
+Continuing.
+FATAL 1:  AttachSLockMemory: could not attach segment
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+
+Program exited normally.
+========================================================================
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00295" HREF="msg00295.html">[pgsql-jp 5504] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00294" HREF="msg00294.html">[pgsql-jp 5503] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 5503] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 5501] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 5503] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00293"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00293"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22954] postgres&#45;7.1.1 での大量アクセス設定 -->
+<!--X-From: "Next Solutions.,Inc. &#45; Saori Takeda &#45;" <saori@nextsolutions.co.jp> -->
+<!--X-Date: Fri, 31 Aug 2001 18:07:22 +0900 -->
+<!--X-Message-Id: NFBBLOENALAAHFPMEMLPGEOJDAAA.saori@nextsolutions.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22954] postgres-7.1.1 での大量アクセス設定 </TITLE>
+<LINK REV="made" HREF="mailto:saori@nextsolutions.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00290.html">Date Prev</A>][<A HREF="msg00292.html">Date Next</A>][Thread Prev][<A HREF="msg00293.html">Thread Next</A>][<A HREF="index.html#00291">Date Index</A>][<A HREF="threads.html#00291">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22954] postgres-7.1.1 での大量アクセス設定</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Next Solutions.,Inc. - Saori Takeda -" &lt;<A HREF="mailto:saori@nextsolutions.co.jp">saori@nextsolutions.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 31 Aug 2001 18:07:22 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして、竹田と申します。
+
+現在運用中のサーバで、アクセスが増加し、DBへのコネクトが
+増えた場合や、複雑な抽出を行った際に、サーバがフリーズしてしまうという
+現象が発生しております。
+
+自分でも色々と調べてみたのですが、posgresの設定の問題ではないかと
+いうところでつまってしまいました。このメーリングリストなら、どなたか
+原因や、解決策等をご存知の方がいらっしゃるのではないかと思い、投稿
+させて頂きました。
+
+【利用環境】
+●WEB閲覧用サーバ
+OS：Turbo Linux Server 6.0
+PostgreSQLのバージョン：postgres-7.1.1
+メモリー容量：512MB
+●データベース用サーバ
+OS：Turbo Linux Server 6.0
+PostgreSQLのバージョン：postgres-7.1.1
+メモリー容量：256MB
+●メール配信サーバ
+OS：RedHat 7.1
+PostgreSQLのバージョン：postgres-7.1.1
+メモリー容量：128MB
+
+【しようとしている事】
+サーバにアクセスがある毎に、データベースを読みにいき、IDとパスワードを
+認証させ、項目を２つ取得する。
+メール配信を行うと、その中のURLをクリックすると、リンク先のPHPから
+必ず1回コネクトが行われる。
+（この処理の為、メール配信後にはDBへのコネクト数が増える）
+
+【発生している現象】
+・メールを一斉配信した際など、アクセスが増えた場合に突然サーバがフリーズして
+しまう。
+・likeを利用し、複雑な抽出を行った際に、psqlでコマンドラインからの利用にも
+　かかわらず、フリーズしてしまった。このため、ネットワークのトラフィックの
+　問題や、メール配信そのものが原因ではないと思われる。
+
+【現在分かっていること】
+・サーバは、WEB閲覧用、データベース用、メール配信用の3台構成で、
+　いつもフリーズするのは、データベース用のみ。
+・WEB閲覧用、データベース用の2台ではtopで確認した際にSWAP、
+　shrd（共有メモリ）が0となっている。（メール配信サーバでは正常）
+------------------------------------------------
+  5:21pm  up 1 day,  7:52,  1 user,  load average: 0.12, 0.18, 0.18
+61 processes: 60 sleeping, 1 running, 0 zombie, 0 stopped
+CPU states:  4.7% user, 11.8% system,  0.0% nice,  8.5% idle
+Mem:  259612K av, 256248K used,   3364K free,      0K shrd,  26656K buff
+Swap: 3147304K av,      0K used, 3147304K free                141404K cached
+------------------------------------------------
+
+・ipcs -l -mで共有メモリーを確認すると
+------ Shared Memory Limits --------
+max number of segments = 128
+max seg size (kbytes) = 65536
+max total shared memory (kbytes) = 16777216
+min seg size (bytes) = 1
+
+正常に、設定されているように思われる
+
+・freeでSWAPを確認すると
+------------------------------------------------
+             total       used       free     shared    buffers     cached
+Mem:        259612     254672       4940          0      26452     140144
+-/+ buffers/cache:      88076     171536
+Swap:      3147304          0    3147304
+
+やはり、利用はされていないように思える
+
+【自分で考えた原因となる要因】
+・共有メモリーやSWAPが利用されていない為、瞬間的なpostmasterの
+　稼動に耐え切れず、フリーズしてしまう？
+
+【フリーズ時の疑問点】
+・メール配信を夕方の3時〜4時ごろに行うと配信完了直前若しくは直後
+　ぐらいにフリーズしてしまうにも関わらず、アクセス数の増加する
+　23時以降にはその日は一度もフリーズせず。（フリーズした為、一度起動を
+　し直したからかもしれません）
+・メール配信時以外でも、毎日11時以降にはアクセス数が増加しているはずなのに
+　そのときには、フリーズしない。
+
+
+以上なのですが、何か足りない情報等ございますでしょうか。
+もし、原因、解決策等しっている方がいらっしゃいましたら、ご教示頂け
+ませんか？よろしくお願いいたします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00293" HREF="msg00293.html">[pgsql-jp 22956] Re: postgres-7.1.1 での大量アクセス設定</A></STRONG>
+<UL><LI><EM>From:</EM> access@pos.to</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 22953] Re: postgres-7.1.3 のjdbcドライバで一部の文字化けします。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 22955] Re:postgres-7.1.3 のjdbc ドライバで一部の文字化けします。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00293.html">[pgsql-jp 22956] Re: postgres-7.1.1 での大量アクセス設定</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00291"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00291"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4255] Re: CGI vs mod_perl -->
+<!--X-From: takehi&#45;s@ascii.co.jp (SHIOZAKI Takehiko) -->
+<!--X-Date: Thu, 28 May 1998 16:41:03 +0900 -->
+<!--X-Message-Id: 199805280741.QAA05318@libsvr00.lab.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 352202FD.712F@com&#45;net.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4255] Re: CGI vs mod_perl </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00316.html">Date Prev</A>][<A HREF="msg00318.html">Date Next</A>][<A HREF="msg00321.html">Thread Prev</A>][<A HREF="msg00310.html">Thread Next</A>][<A HREF="index.html#00317">Date Index</A>][<A HREF="threads.html#00317">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4255] Re: CGI vs mod_perl</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A> (SHIOZAKI Takehiko)</LI>
+<LI><em>Date</em>: Thu, 28 May 1998 16:41:03 +0900</LI>
+<LI><em>References</em>: &lt;352202FD.712F@com-net.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+私も軽い気持でmod_perlを導入してCGIを置き換えようとしてみましたが、いく
+つか(も?)分からない点があるので教えてください。あまりPostgreSQL的な話じゃ
+なくてすみません。
+サーバのバージョンは「Server version Apache/1.2.5 mod_perl/1.11.」です。
+# 結局、CGI.pmを使ってないのがよくないのかもしれない。
+
+・単なるCGIとmod_perlとをでは、mod_perlの方が倍ほど遅い。
+	http.confで「PerlModule Pg」としているので、この読み込みの分だけ
+	でも早いはずなのに、なぜかずっと遅い理由としては何が考えられるで
+	しょうか?
+
+・mod_perlのは「 500 Internal Server」になることがかなりままある。
+	そういうときはErrorLogに
+[Thu May 28 15:30:54 1998] Can't undef active subroutine at /usr/local/l
+ib/perl5/site_perl/Apache/Registry.pm line 110.
+	という出力されています。
+	さらに、続けて
+Attempt to free unreferenced scalar at /var/web/htdocs/www-lib/libdb/boo
+klist.pl line 159.
+	という行が出力されていることもあります。ちなみにこの行は
+		$code=$result-&gt;getvalue($i,1);
+	というものです。
+
+・スクリプトの中で明示的に「use Pg;」としないと、「PGRES_TUPLES_OK」のよ
+うな定数(?)が使えない。
+	http.confで「PerlModule Pg」としただけだと、「Pg::〜」の関数など
+	は使えますが、「PGRES_TUPLES_OK」のようなものはこういう文字列と
+	して扱われてしまいます。
+
+[On Apr  1, minohata@com-net.co.jp (minohata) writes:]
+&gt;
+&gt;mod_perlは、perlスクリプトの解釈と実行をHTTPDプロセス内で
+&gt;やってくれるすぐれものです。加えて、スクリプト終了時の状態を
+&gt;次にアクセスされるまでキャッシュしておいてくれる、という
+&gt;特徴があります。一方、perlスクリプトとPostgreSQLの交信は、
+&gt;
+&gt;   $connect_object = db_connect( DBname , DBport , DBhost );
+&gt;
+&gt;というふうに接続用のオブジェクトを生成する形で行ないます
+&gt;(PostgresPerlモジュールの場合)。つまり、mod_perlでは、
+&gt;スクリプト終了時に、接続用オブジェクトを *わざと* クリア
+&gt;しないことにより、接続状態を保持することができます。
+
+ここの具体的な方法を教えていただけますか?
+	mod_perl単
+		$conn=Pg::connectdb("dbname=lib");
+			:
+		exit;
+
+	 mod_perl保
+		$conn=Pg::connectdb("dbname=lib") unless ($conn);
+			:
+		Apache::exit;
+という感じですか?
+できれば、CGI版も含めてそれぞれをソースを見られるようにしていただけませ
+んか? 「常駐タイプのPerlスクリプト」というのもよく分からないんで。
+
+&gt;というわけで、以下、いい加減なベンチマークテスト結果です。
+
+そもそも、mod_perlがCGIより速いのは、
+	fork()
+	exec()
+	Perlのスクリプトのコンパイル
+の差だけだと思っているんですが、違うんでしょうか?
+実際、箕畑さんの計測結果を見ても、「CGI版」と「mod_perl単」との違いは、
+内容の重さにかかわらず40秒ほどですよね。でも、この3つの原因だけで40秒も
+変わるのかなあ。
+で、「mod_perl単」と「mod_perl保」との時間差はDBとの接続にかかる時間?
+
+-- 
+いいんだ いわせて おけよ	私はモグリで 金ばかり取って 評判が悪い
+だが インターネットはできるんだぜ	(「執念」より)
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Ascii Library,	ASCII LABORATORIES INC.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 4254] Re: postmaster is dead</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00318.html">[pgsql-jp 4256] Benchmark registered (Re: RE: パフォーマンス)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00321.html">[pgsql-jp 4259] Benchmark result on E/4000 (Solaris2.6)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00310.html">[pgsql-jp 4248] RE: パフォーマンス</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00317"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00317"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

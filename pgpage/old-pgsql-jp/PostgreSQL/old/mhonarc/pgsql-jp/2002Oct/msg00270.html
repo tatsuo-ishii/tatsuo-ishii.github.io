@@ -1,0 +1,206 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27768] Re: 外部キーの設定に関しまして -->
+<!--X-From: 羽生　章洋<habu@air&#45;beat.com> -->
+<!--X-Date: Sun, 27 Oct 2002 14:18:16 +0900 -->
+<!--X-Message-Id: JQ20021027141816.12210427@air&#45;beat.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 007701c27d6b$d63efca0$2400a8c0@mswebclient -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27768] Re: 外部キーの設定に関しまして </TITLE>
+<LINK REV="made" HREF="mailto:habu@air-beat.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00269.html">Date Prev</A>][<A HREF="msg00271.html">Date Next</A>][<A HREF="msg00269.html">Thread Prev</A>][<A HREF="msg00271.html">Thread Next</A>][<A HREF="index.html#00270">Date Index</A>][<A HREF="threads.html#00270">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27768] Re: 外部キーの設定に関しまして</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 羽生　章洋&lt;<A HREF="mailto:habu@air-beat.com">habu@air-beat.com</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 27 Oct 2002 14:18:16 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00269.html">007701c27d6b$d63efca0$2400a8c0@mswebclient</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+"msweb" &lt;msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp&gt;さん：
+
+&gt; はい、その通りです。すいません、・・・、実際に仕事で触っているデー
+タは社外秘
+&gt; で使えないもので。
+
+いえいえ(^^)
+
+&gt; 1.もし顧客からキャンセルが入ったら（キャンセルの情報は無視するとし
+て）
+&gt; uriage_jouhouのレコードが削除されて、さらに参照していたuriage_
+meisaiのレコー
+&gt; ドも合わせて削除。
+
+これについては、既にご理解されていることと思います(^^)
+ON DELETE CASCADEですね。
+
+で、次が悩まれているポイントですよね。
+
+&gt; 2.uriage_meisaiのレコードを削除しようとするとuriage_jouhouから参照
+されている
+&gt; ので処理を行われないようにする。
+
+これを実現してしまうと、タスキがけで制約がループしてしまうことに
+なって、親の削除が出来なくなってしまいますよね。
+
+通常は、親を消すにはぶら下がっている子を全部削除しないと親を削除
+できません、という風にします。これはON DELETE RESTRICTです。
+親を先に削除しようとするとエラーを通知して、「先に子を削除しなさい」
+という風にするわけですね。
+
+しかし、上記のいずれであっても、子を削除しようとすると、親がある場合
+は削除できなくする、という風にはなりません。
+
+で、何故こうなってしまうのかというと、そもそもの話として、参照整合性
+制約を設定してやると、親のない状態で子レコードだけINSERTするというこ
+とが出来なくなるからです。これは重要な視点で、今回悩まれているのは、
+「削除する」というところに注目が集まっていますが、「そもそも、では
+削除する対象はどうやって挿入するのだろうか？」ということを考えたとき
+に、上手くいかないことに気付くはずです。
+
+親をINSERTしようとする
+　→　子のsales_no,psales_noを参照しなければならないが、存在しない。
+　　→　そこでまず子をINSERTしようとする。
+　　　→　親のpsales_noを参照しなければならないが、存在しない。
+　　　　→　そこで親をINSERTしようとする・・・（以下続く）
+
+ですので、通常は参照整合性制約では設定せずにアプリケーションとして
+組み込むことになります。ここでいうアプリケーションというのはトリガも
+含みます。
+
+ただ、どんなユーザインターフェイスを実現するのか、あるいはオペレーシ
+ョンを想定しているかは不明ですが、通常はおっしゃるような制約を実現し
+てしまうと、にっちもさっちもいかなくなってしまうはずです。
+
+親が消えると子が消える、はずなのに、子を消そうとすると親があるのでエ
+ラーになる、わけです。となると、
+
+親をDELETE
+　→　親の制約によって子をDELETEしようとする
+　　→　子の制約が発動してエラー
+　　　→　エラーが伝播して親のDELETEが不可能になる
+　　　　→　親はDELETEできない
+　　　　　→　入れたが最後決して消せない
+
+となってしまいます。
+
+恐らくは、「キャンセルとはどういう行為なのか」ということが明確に定義
+されないままに、技術的な面だけで解決しようとしているのが問題の核だと
+考えます。
+
+私の場合は、ここ数年アプリケーション上でDELETEという処理を行うことは
+殆どありません。というのは、キャンセルされたという情報も保持しておき
+たいというニーズがあるためです。そこで、使い古された手ではありますが
+論理削除ということで、削除フラグというのを設定して、それを見えなくす
+るビューをかぶせています。そうすると、これはキャンセルという行為を
+UPDATEで実現するということになります。
+
+＃　あるいは、キャンセル履歴というテーブルを持っていて、そちらと
+    JOINして差分を引き出したりもしますが、これもビューです。
+    この場合は、INSERTによってキャンセル処理を実現するわけですね。
+
+というわけで、求められている仕様の吟味が必要ではないかな、という
+風に考えます。この辺りもう少し情報をいただければ、他の方法も考えられ
+るかもしれません。
+
+&gt; 今年の初めから羽生様の書籍で今まで仕事の合間にPOSTGRESQLを勉強中で
+&gt; す。
+
+ありがとうございます(^^)
+
+&gt; 他の書籍でまとまったテーブルの資料がなかったので使わせていただいて
+&gt; います。
+
+およ？(^^;　恐らく他の書籍の方がこの辺りはいっぱい載っているのでは
+ないかな、と思います。
+
+SQLは、他のRDBMSのものであっても結構使えますので、雑食で当たりまわる
+方が引き出しが増えますので、PostgreSQLに限定せずに他のRDBMSのものも
+当たってみてください。
+
+＃　あ、MySQLを元々お使いだったんですよね(^^)
+
+できれば、機種依存(^^;でない標準的なSQLの本を入手されることをお薦め
+します。単純なリファレンスものではなく、考え方まで含めて触れてあるも
+のであれば、尚良いと思います。
+
+＃　お薦め書籍は、今出てるWEB+DBプレス(Vol.11)の拙稿の末尾を
+    ご参考にしてください(^^;    宣伝すんません(^^;;
+
+
+================================================================
+★ワクワク音楽体験サイト　それが【エア・ビート・ドットコム】！★
+================================================================
+有限会社エア・ビート(<A HREF="http://www.air-beat.com/">http://www.air-beat.com/</A>)
+取締役兼CEO　羽生　章洋(<A HREF="mailto:habu@air-beat.com">mailto:habu@air-beat.com</A>)
+================================================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp: 27769] Re: 外部キーの設定に関しまして</A></STRONG>
+<UL><LI><EM>From:</EM> "msweb" &lt;msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00269" HREF="msg00269.html">[pgsql-jp: 27767] Re: 外部キーの設定に関しまして</A></STRONG>
+<UL><LI><EM>From:</EM> "msweb" &lt;msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00269.html">[pgsql-jp: 27767] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp: 27769] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00269.html">[pgsql-jp: 27767] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00271.html">[pgsql-jp: 27769] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00270"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00270"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

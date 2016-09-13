@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19064] Re: 検索結果を次の画面で再び利用したい -->
+<!--X-From: Takumi Nakamura <chapuni@hf.rim.or.jp> -->
+<!--X-Date: Thu, 14 Dec 2000 04:56:42 +0900 -->
+<!--X-Message-Id: 3a37d47a.4989%chapuni@hf.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3A379973A.8074MAXES@ma.scn&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19064] Re: 検索結果を次の画面で再び利用したい </TITLE>
+<LINK REV="made" HREF="mailto:chapuni@hf.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00185.html">Date Prev</A>][<A HREF="msg00187.html">Date Next</A>][<A HREF="msg00209.html">Thread Prev</A>][<A HREF="msg00187.html">Thread Next</A>][<A HREF="index.html#00186">Date Index</A>][<A HREF="threads.html#00186">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19064] Re: 検索結果を次の画面で再び利用したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takumi Nakamura &lt;<A HREF="mailto:chapuni@hf.rim.or.jp">chapuni@hf.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 14 Dec 2000 04:56:42 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00183.html">3A379973A.8074MAXES@ma.scn-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　おはようございます。SQL歴2ヶ月のちゃぷに中村です。
+
+
+Kenjiさんの&lt;<A HREF="msg00183.html">3A379973A.8074MAXES@ma.scn-net.ne.jp</A>&gt;から
+
+&gt; すると複数（表では３つ、想定は数百）検索されます。
+
+&gt; このときに検索結果を一つづつ表示させたいと思っています。
+&gt; 具体的には、xxxx を表示して、「次へ」ボタンを押すと「ｙｙｙｙ」
+&gt; を表示したいのです
+&gt; # goo の [次の10件] のように。
+
+　ふつうのCGIだと、PostgreSQLのセッション情報は失われてしまいますよね? 
+CGIでなければ、カーソルで取り出していけばいいような気はしますが・・・
+
+・データの入れ替わりはほとんどない
+・DBサーバはそれほど忙しくない
+
+のであれば、OFFSET, LIMITを用いてもバチはあたらないとおもいます。
+
+
+　で、わたしだったら以下のようにつくります。参考までにどうぞ。
+
+・検索ログテーブルを作成します。
+
+CREATE TABLE findoutlog (
+ mdate timestamp DEFAULT 'now'::text,
+ sid int4 PRIMARY KEY,
+ (あとは記事# とか検索結果文字列を・・・)
+);
+
+・一意に決まるセッションID(int4くらい?)(sid)を決めます。
+検索した結果を、検索ログテーブルにたたき込みます。
+
+INSERT INTO findoutlog(sid, 以下省略)
+SELECT (セッションid),(検索結果...) (以下省略)
+
+　検索ログのレコードに、作成日時をデフォルトで入れておくのがミソです。
+
+　あとは、結果表示CGIにて、sidおよびどこまで表示したかを持ち回れば、望み
+の動作をさせられるんじゃないでしょうか。
+
+　で、一定時間(一日に一度?)おきに、古くなった検索ログをパージするように
+する、と。
+
+DELETE FROM findoutlog WHERE mdate &lt; 'now'::timestamp - '24:00:00'
+
+　検索エンジンのようにヒット数がとても多いシステムでこれを使ったら破綻し
+ますねー。
+
+
+-- 
+ちゃぷに / Takumi Nakamura
+<A HREF="mailto:chapuni@hf.rim.or.jp">mailto:chapuni@hf.rim.or.jp</A>
+<A HREF="http://www.hf.rim.or.jp/~chapuni/">http://www.hf.rim.or.jp/~chapuni/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00195" HREF="msg00195.html">[pgsql-jp 19073] Re: 検索結果を次の画面で再び利用したい</A></STRONG>
+<UL><LI><EM>From:</EM> Satoru Takahashi &lt;takahasi@soc.sdl.melco.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00187" HREF="msg00187.html">[pgsql-jp 19065] Re:  検索結果を次の画面で再び利用したい</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji &lt;maxes@mars.planet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00183" HREF="msg00183.html">[pgsql-jp 19061] 検索結果を次の画面で再び利用したい</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji &lt;maxes@mars.planet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 19063] Re: 検索結果を次の画面で再び利用したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 19065] Re:  検索結果を次の画面で再び利用したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 19087] Re: 検索結果を次の画面で再び利用したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 19065] Re:  検索結果を次の画面で再び利用したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00186"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00186"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

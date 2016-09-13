@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10699] Re: geometric の  geometric_intersect と  geometric_same について -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Sun, 12 Sep 1999 23:10:48 +0900 -->
+<!--X-Message-Id: NDBBKPAAAKDIFHKEGAFJMEBNCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199909111444.OAA15279@sran362.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10699] Re: geometric の  geometric_intersect と  geometric_sam </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00196.html">Date Prev</A>][<A HREF="msg00198.html">Date Next</A>][<A HREF="msg00191.html">Thread Prev</A>][<A HREF="msg00198.html">Thread Next</A>][<A HREF="index.html#00197">Date Index</A>][<A HREF="threads.html#00197">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10699] Re: geometric の  geometric_intersect と  geometric_same について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 12 Sep 1999 23:10:48 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt;   あらさがしばかりでごめんなさい。PostgreSQL の方は、ソースを読んでいる時
+間
+&gt; が
+&gt; 取れません。
+
+  いいんです。気が付いたところがあれば、言ってくださるだけでも十分です。
+
+&gt; ;;;   でも、どうしようか悩んでいます。上記のようなintersectだと結果は空に
+な
+&gt; るべ
+&gt; ;;; きなのですが、PostgreSQLのC言語によるユーザ定義関数ではNULLを返すこと
+が
+&gt; でき
+&gt; ;;; ません。
+&gt;
+&gt;   '(150,200)' ではないのですか？
+
+	geometric_intersect('(100,200)','(150,300)');
+
+  上の'(100,200)'や'(150,300)'は2次元平面上の“点”を表現しています。数直線
+上の範囲ではありません。期待してらっしゃる動作はおそらく、数直線上の2つの範
+囲の重複部分を得たいのだと思いますので、1次元空間（数直線）の“領域”を指定
+しなければなりません。
+
+	geometric_intersect('(100)[](200)','(150)[](300)');
+
+  これなら結果は '(150)[](200)'のようになると思います。
+
+&gt;     &gt;・geometric_intersect(geometric, geometric) returns geometric
+&gt;     &gt;
+&gt;     &gt;  2つのオブジェクトの重複している部分のみを表すオブジェクトを生成しま
+&gt; す。
+&gt;     &gt;  すでに仕様変更の予感あり。
+&gt;
+&gt; 重複しているかどうかを bool で返すのは必要性は少なそうですか。
+
+  それを行うのは、
+
+	geometric_overlaps(geometric, geometric) returns bool
+
+  です。
+
+&gt; ;;;						      さらにgeometric_sameで
+&gt; は浮
+&gt; ;;; 動小数点の許容誤差を考慮しますので、微妙な値の違いも許容されます。
+&gt;
+&gt;   実は、tolerance も控えにいるのです。:^)
+
+  この辺りはぜひとも、お持ちの考えをうかがいたいです。
+
+&gt; ;;;   現在geometric-0.2の作成に忙しいため、レスポンスが悪くてすいません。
+&gt;
+&gt;   少しはソースを追ってから質問したいのですが、すみません。
+
+  気にしないでください。
+
+&gt; ;;; あと、かなりの制限付ですが円と
+&gt; ;;; 楕円も実装中です。
+&gt;
+&gt;   「円」は「多次元球」ですか？ 「多次元球」に含まれるものを select できれ
+ば
+&gt; と
+&gt; 考えていたのです。
+
+  ご安心ください、多次元球です。制限があるというのは、geometric-0.2の公開予
+定では（楕）円と（楕）円の比較ができないということです。
+
+&gt; P.S.
+&gt;   100 万件入れました。3h+ 位かかったようです。詳しく計っていないので、これ
+&gt; は蛇
+&gt; 足でということで。
+
+  PostgreSQLのrtreeの実装では、というか一般的にrtreeでは、検索は結構早いんで
+すが構築はかなり重い処理のようです。挿入時のページ分割が大変な作業です。たと
+えば1ページに200件のデータが格納されていた場合、このページを分割しようとする
+と200×200＝40000パターン以上の図形の比較（といっても矩形のUNION、
+INTERSECT、SIZE程度ですが）が行われます。これが重い原因です。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00198" HREF="msg00198.html">[pgsql-jp 10700] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 10693] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 10698] Re: Q about pgsql-6.5.1 compile with AIX-4.3.2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00198.html">[pgsql-jp 10700] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 10693] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp 10700] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00197"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00197"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,128 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25395] デッドロックが発生する現象について -->
+<!--X-From: "kiyoshi.yoshida" <kiyoshi.yoshida@mail.toyota&#45;shokki.co.jp> -->
+<!--X-Date: Mon, 25 Mar 2002 11:34:50 +0900 -->
+<!--X-Message-Id: 20020325110935.FF74.KIYOSHI.YOSHIDA@mail.toyota&#45;shokki.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25395] デッドロックが発生する現象について </TITLE>
+<LINK REV="made" HREF="mailto:kiyoshi.yoshida@mail.toyota-shokki.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00369.html">Date Prev</A>][<A HREF="msg00371.html">Date Next</A>][<A HREF="msg00380.html">Thread Prev</A>][<A HREF="msg00376.html">Thread Next</A>][<A HREF="index.html#00370">Date Index</A>][<A HREF="threads.html#00370">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25395] デッドロックが発生する現象について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "kiyoshi.yoshida" &lt;<A HREF="mailto:kiyoshi.yoshida@mail.toyota-shokki.co.jp">kiyoshi.yoshida@mail.toyota-shokki.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 25 Mar 2002 11:34:50 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+MLの皆さま、こんにちは、吉田と申します。
+今、下記の現象が発生しており困っています。回避する対策方法等ヒントでもい
+ただけないでしょうか。
+
+テーブルは、
+create table m1(key serial primary key, a int);
+insert into m1(a) values(20);
+create table t1(mykey serial primary key
+	,key int constraint t1_ref references m1,i int);
+insert into t1(key,i) values(1,10);
+create table t2(mykey serial primary key
+	,key int constraint t2_ref references m1,j int);
+insert into t2(key,j) values(1,100);
+
+現象は、
+トランザクション１
+begin;
+lock table t1 in share row exclusive mode;
+update t1 set i=i+1 where i=10;
+（ここまで実行）
+
+				トランザクション２
+				begin;
+				lock table t2 in share row exclusive mode;
+				（ここまで実行）
+トランザクション１
+insert into t2(key,j) values(1,200);
+（ブロックされる）
+				トランザクション２
+				update t2 set j=j+1 where j=100;
+				（なぜかブロックされる）
+＜デッドロック発生＞
+となります。
+
+この動作は、PostgerSQLの正常な動作なのでしょうか。
+それとも当方の設定がおかしいのでしょうか。
+環境は、
+DebianPotato＋PostgerSQL7.2
+です。
+
+以上、宜しくお願いします。
+吉田
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00385" HREF="msg00385.html">[pgsql-jp: 25410] Re: デッドロックが発生する現象について</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00376" HREF="msg00376.html">[pgsql-jp: 25401] functionの内容表示</A></STRONG>
+<UL><LI><EM>From:</EM> Masakazu Ichimura &lt;m.ichimura@nihontechno.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00369.html">[pgsql-jp: 25394] 7.2への移行について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00371.html">[pgsql-jp: 25396] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00380.html">[pgsql-jp: 25405] バックアップ対象ファイルの確認方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00376.html">[pgsql-jp: 25401] functionの内容表示</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00370"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00370"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

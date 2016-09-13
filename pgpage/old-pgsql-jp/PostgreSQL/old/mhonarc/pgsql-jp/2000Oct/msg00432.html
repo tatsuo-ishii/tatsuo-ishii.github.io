@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18388] pg_dump 時のプロセスサイズ -->
+<!--X-From: yosimura@pez.semicon.sony.co.jp (YOSHIMURA hideaki) -->
+<!--X-Date: Fri, 27 Oct 2000 20:22:06 +0900 -->
+<!--X-Message-Id: 200010271122.UAA06589@pezplus.pez.semicon.sony.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18388] pg_dump 時のプロセスサイズ </TITLE>
+<LINK REV="made" HREF="mailto:yosimura@pez.semicon.sony.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00431.html">Date Prev</A>][<A HREF="msg00433.html">Date Next</A>][<A HREF="msg00435.html">Thread Prev</A>][<A HREF="msg00431.html">Thread Next</A>][<A HREF="index.html#00432">Date Index</A>][<A HREF="threads.html#00432">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18388] pg_dump 時のプロセスサイズ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yosimura@pez.semicon.sony.co.jp">yosimura@pez.semicon.sony.co.jp</A> (YOSHIMURA hideaki)</LI>
+<LI><em>Date</em>: Fri, 27 Oct 2000 20:22:06 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:yosimura@pez.semicon.sony.co.jp">yosimura@pez.semicon.sony.co.jp</A> (YOSHIMURA hideaki)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしむら＠ソニーです。
+
+Solaris 2.6 に postgresql-7.0.2-patched-20000710 で構築したシステムがあり
+これまで1日に3度 pg_dump でバックアップをとっていたのですが、最近 pg_dump 時の
+postmasterプロセスのサイズが大きくなりすぎて困っています。
+
+
+↓プロセスが大きくなりすぎて、swapまで喰い尽くしたときの状態ですf(^^;
+
+82 processes:  80 sleeping, 1 running, 1 on cpu
+CPU states:  0.0% idle, 54.2% user,  5.9% kernel, 39.9% iowait,  0.0% swap
+Memory: 512M real, 8080K free, 1000M swap in use
+
+  PID USERNAME THR PRI NICE  SIZE   RES STATE   TIME    CPU COMMAND
+23244 postgres   1  31    0 1118M   58M run    75:39 46.84% postgres
+23243 postgres   1  52    2 2280K  376K sleep   9:05  5.69% pg_dump
+23196 postgres   1  52    2  848K  208K sleep   3:27  1.98% split
+
+
+当然バックアップ中はひどいスラッシングを起こして、利用にかなりの支障を来します。
+基本的に24時間運用なので、バックアップ回数を減らして最も影響の少なそうな
+時間帯に持っていく程度の対策しかできません。
+テーブル毎にバックアップすることも考えましたが、整合性がとれなくなるので諦めました。
+
+カーネルパラメータや起動オプションをいいかげんに設定したせいかとも思うの
+ですが、どのパラメータでこのあたりを制限できるのかわかりませんでした。
+
+
+・現在のデータベースのサイズ
+
+${PGDATA}/base/以下のサイズ             約 14 GB
+pg_dumpのダンプファイルのサイズ         約 3.5 GB(合計)
+
+一番大きなテーブルが 2.3 GB で、これに近いサイズのテーブルがあと2つあります。
+
+-rw-------   1 postgres 59999    1073741824 Sep 20 18:14 wafer_chip
+-rw-------   1 postgres 59999    1073741824 Oct 24 21:41 wafer_chip.1
+-rw-------   1 postgres 59999    340574208 Oct 27 20:07 wafer_chip.2
+
+・/etc/systemに指定したカーネルパラメータ(共有メモリ／セマフォ関係のみ抜粋)
+
+set shmsys:shminfo_shmmax=50000000
+set shmsys:shminfo_shmmin=1
+set shmsys:shminfo_shmmni=100
+set shmsys:shminfo_shmseg=10
+set msgsys:msginfo_msgmni=50
+set semsys:seminfo_semmns=260
+set semsys:seminfo_semmni=100
+set semsys:seminfo_semmap=100
+set semsys:seminfo_semmsl=50
+
+・postmasterの起動オプション
+
+postmaster -B 4096 -S -i -o -S 8192
+
+
+パラメータの変更で対策できるでしょうか？
+＃徹底攻略ガイドに挙げられていたバグなのであればしかたないですが。
+
+
+また、同程度の規模のデータベースを運用されている方で、そのような現象に
+遭われていない方がいらっしゃいましたら教えて下さい。
+ひょっとしたらうちのシステム固有の問題かも知れませんので。
+
+quit
+-- 
+YOSHIMURA,hideaki
+「だが負けたらペプシをおごってもらうぞ」
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 18387] Re: Java アプリケーションから postgreSQLを利用するには</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00433.html">[pgsql-jp 18389] Re: Java アプリケーションからpostgreSQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00435.html">[pgsql-jp 18391] Re: Java アプリケーションからpostgreSQL</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 18387] Re: Java アプリケーションから postgreSQLを利用するには</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00432"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00432"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

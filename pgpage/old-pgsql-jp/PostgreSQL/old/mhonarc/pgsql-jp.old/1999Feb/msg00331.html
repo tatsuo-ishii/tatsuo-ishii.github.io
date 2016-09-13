@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7206] Re: テーブル・ロックについ て -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 25 Feb 1999 11:31:37 +0900 -->
+<!--X-Message-Id: 199902250231.LAA27888@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36D41D9A315.1356ASA@mail.use&#45;net.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7206] Re: テーブル・ロックについ て </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00330.html">Date Prev</A>][<A HREF="msg00332.html">Date Next</A>][<A HREF="msg00325.html">Thread Prev</A>][<A HREF="msg00340.html">Thread Next</A>][<A HREF="index.html#00331">Date Index</A>][<A HREF="threads.html#00331">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7206] Re: テーブル・ロックについ て</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 25 Feb 1999 11:31:37 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;小林さんの質問の例題についてはわかりませんが、
+&gt;お手軽なAPACHE+PHP3+PGSQLの組み合わせで、情報発信
+&gt;およびそれらの情報の登録・変更・削除システムを
+&gt;軽い実装で作ろうとするようなアプリケーションの需要は
+&gt;あるのだろうと思いますし、そのような話を私はよく聞きます。
+&gt;
+&gt;「時間がかかるトランザクション」と一言でいってしまっていますが、
+
+私が言っている「時間がかかるトランザクション」は、バッチ処理の場合、数
+時間とか、1晩かかるようなものを指しています。
+
+&gt;複数接続から同一テーブルを参照・更新するとき、
+&gt;いわゆるロックの順番だけでなく、テーブルの更新順序とか
+&gt;参照順序を調整しないデッドロックのような障害が出るようです。
+&gt;
+&gt;たとえば、（SQL の記述方法がちょっといい加減ですが）
+&gt;
+&gt; |PROCESS-A | PROCESS-B
+&gt;-+----------+----------
+&gt;1|BEGIN     | BEGIN      
+&gt;2|UPDATE A  | UPDATE B
+&gt;3|UPDATE B  | UPDATE A
+&gt;4|COMMIT    | COMMIT
+&gt;
+&gt;PostgreSQL 6.4.2 では、３のタイミングで運が悪いと
+&gt;タイムアウトしないデッドロックになったります。
+
+これは明らかにデッドロックが検出されるべきケースですね。試しにやってみ
+ると、こちらではデッドロックが検出されました。確認ですが、タイミングに
+よってデッドロックにならず、いつまでも待続けると言うことですね。その通
+りならバグです。なんとか再現するパターンとかないでしょうか？
+
+&gt; |PROCESS-A   | PROCESS-B
+&gt;-+------------+-------------
+&gt;1|BEGIN       |
+&gt;2|LOCK A      |
+&gt;3|            | SELECT * FROM A,B
+&gt;4|LOCK B      |
+&gt;
+&gt;も運がわるいと４のタイミングで
+&gt;タイムアウトするデッドロックに
+&gt;なったりするようです。
+
+これもデッドロックになるのはやむを得ないですね。
+
+&gt;それぞれ単体の処理が短くても障害が発生するのようなので、
+&gt;いろいろ工夫して実装することになるのですが、そもそも
+&gt;そのような実装が必要なのかどうかを認識するためにも
+&gt;そういうものなのかを確認したいとうのが私の質問です。
+
+はい。工夫は必要で、PostgreSQL でなくても、DBを使った業務アプリケーショ
+ンを作成するときはそのような考慮をする思います。特に
+
+&gt;1|BEGIN     | BEGIN      
+&gt;2|UPDATE A  | UPDATE B
+&gt;3|UPDATE B  | UPDATE A
+&gt;4|COMMIT    | COMMIT
+
+こういうパターンは絶対出ないようにする必要があります。といってもアプリ
+ケーションプログラマに対してなかなか徹底できないので、生のSQLを使うこ
+とを禁止し、その代わりにDBアクセス用の共通関数などを提供したりしますね。
+まあ、そこまでいかなくても更新トランザクションを扱う部分は一箇所に集中
+させておいたほうが後々管理しやすいと思います。
+
+ようするに、デッドロックが検出されるのはシステムが悪いのではなく、アプ
+リケーションの作り方が悪いと言うことです。仮に行単位のロックが使えても、
+同じ行に更新をかける限り、デッドロックは常に発生する可能性があります。
+---
+t-ishii@sra.co.jp	石井達夫
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 7215] Re: テーブル・ロックについ て</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoyoshi ASANO &lt;asa@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp 7200] Re: テーブル・ロックについ て</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoyoshi ASANO &lt;asa@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00330.html">[pgsql-jp 7205] postgresPerl-1.3.tar.gz (Re: 自己紹介とご質問)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00332.html">[pgsql-jp 7207] PostgrsPerlについて質問　</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 7200] Re: テーブル・ロックについ て</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00340.html">[pgsql-jp 7215] Re: テーブル・ロックについ て</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00331"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00331"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

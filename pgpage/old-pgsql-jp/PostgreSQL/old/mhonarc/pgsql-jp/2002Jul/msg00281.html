@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26830] jdbc&#45;odbc経由のlo型データ登録 -->
+<!--X-From: "Hiroyuki Yamada" <hiroyuki@rh.is.hitachizosen.co.jp> -->
+<!--X-Date: Fri, 26 Jul 2002 12:00:07 +0900 -->
+<!--X-Message-Id: 001301c23450$8f83c200$0200a8c0@is.hitachizosen.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26830] jdbc-odbc経由のlo型データ登録 </TITLE>
+<LINK REV="made" HREF="mailto:hiroyuki@rh.is.hitachizosen.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00280.html">Date Prev</A>][<A HREF="msg00282.html">Date Next</A>][<A HREF="msg00282.html">Thread Prev</A>][<A HREF="msg00279.html">Thread Next</A>][<A HREF="index.html#00281">Date Index</A>][<A HREF="threads.html#00281">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26830] jdbc-odbc経由のlo型データ登録</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroyuki Yamada" &lt;<A HREF="mailto:hiroyuki@rh.is.hitachizosen.co.jp">hiroyuki@rh.is.hitachizosen.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Jul 2002 12:00:07 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+山田＠京都です。
+　みなさんこんにちは。
+PostgreSQLへラージオブジェクト（１MB位のテキストファイル）を転送、検索するシ
+ステムを作っているのですが、（訳が在って、Javaから「jdbc-odbcブリッジ＋
+PostgreSQLの日本語ODBCドライバ」経由でラージオブジェクト(Contribディレクトリ
+内の
+lo型のもの)を使用）、テキストファイルのDB書き込みがうまく行きません。
+oid番号は、lo型フィールドに書き込まれるのですが（その他のフィールド項目は、
+ちゃんと格納されている）、
+肝心のデータがテーブルに転送されないようです。
+
+テーブル検索時に　
+java.io.IOException: Coudnt open large object for reading.;
+ERROR: inv_open: large object 4294967295 not found
+と言うエラーメッセージが出てしまいます。
+（データ本体が転送されていないので当たり前かとは、思いますが。）
+
+Window98上での「ODBCデータソース」において、何か設定する項目などがあるので
+しょうか？
+ご教授の程、よろしくお願いします。
+
+(動作環境)
+(1)DBサーバ
+ PostgreSQL7.2.1
+ RedHatLinux7.2
+(2)クライアント
+ Windows98 se 4.10.2222 A
+ "psqlodbc-jp-20010713-bin.zip"をインストール
+ "psqlodbc_mb.zip"の中の"psqlodbc.dll"を上書きコピー
+
+&lt;やったこと&gt;
+README.loにあるように
+$cd /.../Contrib/lo
+$make install
+$psql -f lo.sql test_database
+
+&lt;テーブル定義&gt;
+create table image (
+   no             serial primary key,
+   img_name   text,
+   nichiji        timestamp,
+   img_oid      lo,
+   price1       text,
+   price2       text,
+   price3       text,
+   price4       text
+);
+
+&lt;lo型フィールドへのデータ書き込みソース（抜粋）&gt;
+oid型の場合と同じです。
+
+      Class.forName( "sun.jdbc.odbc.JdbcOdbcDriver" );
+
+      String url      = "jdbc:odbc:PostgreSQL";
+      Connection conn = DriverManager.getConnection( url );
+      Statement stmt = conn.createStatement();
+      conn.setAutoCommit( false );
+
+      int number_of_line = Integer.parseInt( "1000" );
+
+      PreparedStatement pstmt = conn.prepareStatement( "insert into
+text_image_jdbc_odbc_tb ("+
+                                                       "img_name, nichiji,
+img_oid,"+
+                                                       "price1,  price2,
+price3,  price4 ) "+
+                                                       "values
+(?,?,?,?,?,?,?)" );
+      pstmt.clearParameters();
+
+      for( int i = 0; i &lt; number_of_line; i++ ){
+        File file_txt = new File( "test.txt" );   //１MB位のテキストファイル
+        int fileLength_txt = (int)file_txt.length();
+        FileInputStream fis_txt = new FileInputStream( file_txt );
+
+        ttt = "2000-01-01 10:12:14";
+        pstmt.setString( 1, "aaa"+i );  //img_name
+        pstmt.setString( 2, ttt );         //nichiji
+        pstmt.setAsciiStream( 3, fis_txt, fileLength_txt );     //img_oid
+        pstmt.setDouble(  4, i ); pstmt.setDouble(  5, i );
+tmt.setDouble(  6, i ); pstmt.setDouble(  7, i );
+
+        pstmt.executeUpdate();
+        fis_txt.close();
+      }
+      conn.commit();
+      stmt.close();
+      pstmt.close();
+      conn.close();
+    } catch( SQLException e ){
+      e.printStackTrace();
+    } catch( Exception e ){
+      e.printStackTrace();
+    }
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00280.html">[pgsql-jp: 26829] Re: UNICODEカナソート</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00282.html">[pgsql-jp: 26831] ANNOUNCE: DBD::PgPP - Pure Perl PostgreSQL driver for the DBI</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00282.html">[pgsql-jp: 26831] ANNOUNCE: DBD::PgPP - Pure Perl PostgreSQL driver for the DBI</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp: 26828] UNICODEカナソート</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00281"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00281"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

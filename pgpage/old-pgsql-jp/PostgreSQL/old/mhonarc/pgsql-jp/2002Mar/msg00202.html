@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25225] Re: Windows上JDBC    でのエンコーディング -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Mon, 11 Mar 2002 19:08:49 +0900 -->
+<!--X-Message-Id: 200203111854.12298@digitune.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NFBBJAIDILPHNLPMOAGCGEJDDLAA.e&#45;tokuya@sankyo&#45;unyu.jp -->
+<!--X-Reference-Id: 200203111657.58458@digitune.org -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25225] Re: Windows上JDBC    でのエンコーディング </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00201.html">Date Prev</A>][<A HREF="msg00203.html">Date Next</A>][<A HREF="msg00201.html">Thread Prev</A>][<A HREF="msg00205.html">Thread Next</A>][<A HREF="index.html#00202">Date Index</A>][<A HREF="threads.html#00202">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25225] Re: Windows上JDBC    でのエンコーディング</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 11 Mar 2002 19:08:49 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: SONS,. Ltd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00196.html">NFBBJAIDILPHNLPMOAGCGEJDDLAA.e-tokuya@sankyo-unyu.jp</A>&gt; &lt;<A HREF="msg00201.html">200203111657.58458@digitune.org</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤です。試してみました。
+
+Tsunehisa Kazawa wrote:
+&gt; (明示的に指定された Encoding がある場合はそれを最優先で使うよう
+&gt; なコードになっているように見えます。後でちょっと試してみますね。)
+
+テスト環境として
+・PostgreSQL 7.2 (--enable-multibyte=EUC_JP)
+・7.2 付属の JDBC2 ドライバ
+・Solaris 8 for Intel
+・J2SDK1.3.1_01
+
+というものの上に encoding は EUC_JP で sjis_test という DB を作り、
+その中に
+
+create table test_table (
+    test_text    varchar
+);
+
+というテーブルを作りました。さらに、
+
+insert into test_table (test_text) values ('〜');
+
+として「〜」一文字が入ったデータを作りました (ここまでは全て EUC-JP
+環境で行っています)。
+
+さてこの状態で次のようなテストプログラムを走らせました。
+
+import java.sql.*;
+import java.util.*;
+public class jdbc_test {
+    public static void main(String[] args) throws Exception {
+        Class.forName("org.postgresql.Driver");
+        Properties prop = new Properties();
+        prop.put("user", "postgres");
+        prop.put("password", "");
+        prop.put("charSet", "MS932");
+        Connection conn = DriverManager.getConnection(
+            "jdbc:postgresql://localhost/sjis_test", prop);
+        Statement stat = conn.createStatement();
+        stat.executeUpdate("set client_encoding to 'sjis'"); //(1)
+        ResultSet rs = stat.executeQuery("select * from test_table");
+        while (rs.next()) {
+            System.out.println("RESULT=" + rs.getString(1) + ":"
+                + Integer.toString(rs.getString(1).charAt(0), 16));
+        }
+        stat.close();
+        conn.close();
+    }
+}
+
+結果は
+
+RESULT=  :ff5e
+
+と、MS932 コンバータを使って読み込んだ時と同様のマッピングとなってい
+るように見えます。これで OK なのではないでしょうか。
+
+(文字そのものの部分が見えないのはこの場合にデフォルトで使われる EUC-JP
+コンバータが \uff5e を見える形に変換しない (例の 3bytes になる) ため
+です。)
+
+参考までに、今回のテスト環境ではサンプルコードの (1) の部分をコメント
+アウトし、代わりに環境変数 PGCLIENTENCODING をセットした状態で実験す
+ると、なんだかおかしなデータが出力されました。サンプルコードではコンバー
+タを MS932 に固定しているため、PostgreSQL 側から送られてくるデータの
+エンコーディングとの不整合が起きているものと思いますが、どうしてそうな
+るのかはあまり追求していません。
+
+以上です。
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00196" HREF="msg00196.html">[pgsql-jp: 25219] Re: Windows上JDBC  でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;e-tokuya@sankyo-unyu.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00201" HREF="msg00201.html">[pgsql-jp: 25224] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00201.html">[pgsql-jp: 25224] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00203.html">[pgsql-jp: 25226] Re: Windows上JDBC    でのエンコーディング</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00201.html">[pgsql-jp: 25224] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp: 25228] Re: Windows上JDBC    でのエンコーディング</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00202"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00202"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

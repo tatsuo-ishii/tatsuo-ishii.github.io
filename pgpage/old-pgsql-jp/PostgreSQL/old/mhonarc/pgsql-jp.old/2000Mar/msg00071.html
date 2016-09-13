@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13360] Re: pgbash script  	が、CTRL&#45;C で実行中止できない。 -->
+<!--X-From: KUBO Takehiro <tkubo@insight&#45;tec.co.jp> -->
+<!--X-Date: 03 Mar 2000 19:48:55 +0900 -->
+<!--X-Message-Id: 200003031053.TAA03989@ipshome.insight&#45;tec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38BF8A3F.A128515E@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13360] Re: pgbash script  	が、CTRL-C で実行中止できない。 </TITLE>
+<LINK REV="made" HREF="mailto:tkubo@insight-tec.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00070.html">Date Prev</A>][<A HREF="msg00072.html">Date Next</A>][<A HREF="msg00069.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00071">Date Index</A>][<A HREF="threads.html#00071">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13360] Re: pgbash script  	が、CTRL-C で実行中止できない。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: KUBO Takehiro &lt;<A HREF="mailto:tkubo@insight-tec.co.jp">tkubo@insight-tec.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: 03 Mar 2000 19:48:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00069.html">38BF8A3F.A128515E@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+久保＠茅ヶ崎市です。
+
+Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt; writes:
+
+&gt; ソフト工房の近藤です。
+&gt; 
+&gt; デバッグや臨時処理に、pgbash を使って大変重宝しています。
+&gt; 多謝  ＞＞ 境田 さん。
+&gt; 
+&gt; ただ、SQL を実行していないスクリプト行で、CTRL+C ( ^C )
+&gt; 押下で、スクリプトを中断しようとしても、次のメッセ−ジ
+&gt; がでるだけで、スクリプトの実行をとめられません。
+&gt; 
+&gt; &gt;&gt;&gt; CANCEL request sent &gt;&gt;&gt;
+&gt; 
+&gt; これは、仕様なのかもしれませんが、臨時処理でちょこっと
+&gt; 使うときには、不便なので、何か対策がありましたらご教授
+&gt; ください。
+
+境田さんじゃないけど、勝手に答えちゃおう。(^^;)
+
+pgbash-2.0.1.tar.gz の exec_sql/exec_sql_main.c へのパッチです。
+-------------------------- ここから --------------------------
+--- exec_sql_main.c~	Thu Jan  6 17:56:42 2000
++++ exec_sql_main.c	Fri Mar  3 19:41:51 2000
+@@ -85,6 +85,7 @@
+  *  Cancel connection pointer.
+  *----------------------------------------------------------------*/
+ static PGconn  *cancelConn = NULL;	/* connection to try cancel on */
++static int isRunning = FALSE;
+ 
+ /*------------------------------------------------------------------
+  * SQLCA variables visible to the programs.
+@@ -193,7 +194,8 @@
+ 			initial set.
+ 	-------------------------------------------------------*/
+ 	MemSet(&amp;pset, 0, sizeof(PSconnSet));
+-
++	isRunning = TRUE;
++	
+ 	/*-------------- set default for the PSconnSet -------*/
+ 	pset.fout = stdout;
+ 	pset.sqlca = &amp;sqlca;
+@@ -523,6 +525,7 @@
+ 	if (option-&gt;sflg &amp;&amp; singleQuery != NULL)
+ 		printStatusSHELLvar(pset.fout);
+ 
++	isRunning = FALSE;
+ 	/*-------------- end of process --------------------------*/
+ 	if (success)
+ 		return (0);
+@@ -562,6 +565,12 @@
+  *   signal handler routine.
+  *******************************************************************/
+ {
++	if (!isRunning)
++	{
++		safe_write_stderr("\n&gt;&gt;&gt; Caught SIGINT &gt;&gt;&gt; \n");
++		exit(1);
++	}
++	
+ 	/*----- accept signal if no connection -----*/
+ 	if (cancelConn == NULL)
+ 	{
+
+-------------------------- ここまで --------------------------
+単純な quick hack。(^_^)
+動作試験どころか、コンパイルすら通していません。 (^^;)
+
+まあ、こののパッチを用いるよりか、境田さんが正式に対応するのを待ったよ
+うが良いと思うけど....。(^^;)
+
+では、再見
+-- 
+神奈川県茅ヶ崎市在住
+久保 健洋
+kubo-t@cx.airnet.ne.jp
+<A HREF="http://terry.nikkeibp.co.jp/~kubo/">http://terry.nikkeibp.co.jp/~kubo/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00079" HREF="msg00079.html">[pgsql-jp 13368] Re: pgbash script  が、CTRL-C で実行中止できない。</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[pgsql-jp 13362] Re: pgbash scriptが、CTRL-C で実行中止できない。</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;tkubo@insight-tec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00069" HREF="msg00069.html">[pgsql-jp 13358] pgbash script  が、CTRL-C で実行中止できない。</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 13359] Re: "Backend sent D message withcout priorT"はなぜ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 13361] Re: pgbash script  が、CTRL-C で実行中止できない。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00069.html">[pgsql-jp 13358] pgbash script  が、CTRL-C で実行中止できない。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 13362] Re: pgbash scriptが、CTRL-C で実行中止できない。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00071"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00071"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

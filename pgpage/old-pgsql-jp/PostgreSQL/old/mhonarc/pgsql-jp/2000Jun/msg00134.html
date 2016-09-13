@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15091] Re: アクセス制限 -->
+<!--X-From: Michiko Tomobe <michiko@palnet.co.jp> -->
+<!--X-Date: Wed, 07 Jun 2000 10:02:50 +0900 -->
+<!--X-Message-Id: 20000607100250A.michiko@palnet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000606162906G.touno@hj.jvc&#45;victor.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15091] Re: アクセス制限 </TITLE>
+<LINK REV="made" HREF="mailto:michiko@palnet.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00133.html">Date Prev</A>][<A HREF="msg00135.html">Date Next</A>][<A HREF="msg00127.html">Thread Prev</A>][<A HREF="msg00135.html">Thread Next</A>][<A HREF="index.html#00134">Date Index</A>][<A HREF="threads.html#00134">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15091] Re: アクセス制限</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michiko Tomobe &lt;<A HREF="mailto:michiko@palnet.co.jp">michiko@palnet.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 07 Jun 2000 10:02:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00126.html">20000606162906G.touno@hj.jvc-victor.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+友部といいます。
+
+&gt;   東野です．
+&gt; 
+&gt;   現在 Apache1.3.12 + PHP4.0.0 + PostgreSQL 7.0 を使って，
+&gt; 開発を行っています．
+&gt; 
+&gt; - やりたいこと．
+&gt; 
+&gt;   + ある Web Page へのアクセスを
+&gt;       - ユーザ名，パスワードを入力し，
+&gt;       - そのユーザ名が DB Table に存在し，ある条件を満たした場合にのみ
+&gt;     その Web Page へのアクセスを許可したい．
+&gt;     例) テーブルの名前を sample_table とする．
+&gt;         sample_table
+&gt;         id   name      section
+&gt;         --------------------------
+&gt;          0   tanaka    A
+&gt;          1   suzuki    B
+&gt;          2   yoshida   A
+&gt; 
+&gt;         foo.php のページを見ようとした時に，tanaka さんがユーザ名
+&gt;         tanaka とパスワード ***** を入力し，これが成功して，かつ
+&gt;         section = A という条件を満たした場合に，foo.php を見ることが
+&gt;         できる．suzuki さんはパスワード認証が OK でも，section = B
+&gt;         なので，foo.php はみることができない．
+
+似たようなことやってます。
+ご参考になるかわかりませんが、思い付く解決方法は３種類あります。
+
+●１)マンモス本の3.9.4 PHPによるbasic認証を使う
+
+●２)basic認証を使わないでフォームを使う。
+
+(a)認証は、HTMLフォームのテキストフィールド2つを表示して
+クライアントにIDとパスワードを入力してもらっています。
+(b)ユーザがsubmitボタンを押したら
+Bにつないで、入力されたsample_tableの中身と照合する
+(c)条件を満たせば以降、ページ内容を出力
+(d)条件を満たさなければ、認証されなかった旨と再度認証用のフォーム
+を表示する。
+
+１)も２)も、認証の範囲がfoo.php3１ページのみならいいのですが、
+複数ページある場合、
+例えばfoo.php3での認証を通ってない場合は、foo1.php3には通したくないという
+場合、すこし面倒ですが、以下のように書きます。
+
+(e)foo.php3で許可されたら、なんらかのフラグをcookieで保存する。
+(f)foo1.php3へのアクセスは、cookieがあれば許可する、なければfoo.php3に戻す。
+
+と、しています。
+
+ただし、うちでこの方法をとっている部分では、ひとつひとつのファイルに書くと
+効率悪いので、noauth.php3というようなファイルに処理を書き、各ファイルの冒頭
+でincludeしています。
+
+同じ認証で通したいページが複数になる場合、このあたりが面倒です。
+
+●３)apacheのモジュールmod_auth_pgsqlをインストールし、利用する
+
+mod_auth_pgsqlを入れると、.htaccessで認証にpostgreSQLのテーブル
+(IDとパスワードが入ったもの)を指定することができます。
+
+アクセスできる人間を動的に管理する必要があるなら、そのテーブルを管理すれ
+ば良いと思います。
+
+うちでは試験的に試しただけなので、詳しくは経験者の方に譲ります。
+
+モノは、
+<A HREF="http://modules.apache.org/">http://modules.apache.org/</A>
+にあると思います。
+
+このメーリングリストの過去ログでもいくつか話題になってたのを
+参考にしました。
+
+-------------------
+以上３つの方法の比較、(私の経験で「感じた」レベルの比較です、、、)
+
+●認証が通った後、phpのコードからIDとパスワードを使えるか
+
+(１)、$PHP_AUTH_USERと$PHP_AUTH_PWにセットされています。
+(２)、自分のコードでクッキーなどにIDとパスワードを保存しておけます。
+(３)、$REMOTE_USER変数にユーザIDがセットされるだけでパスワードがなんだったか
+        はわからない。
+
+認証したIDやパスワードを使って認証つきDBアクセスしたいなどの場合、
+(３)だとパスワードがわからないので接続できません。
+
+●認証ダイアログの出し方
+
+(１)(３)、ブラウザの出す、Basic認証用のダイアログ
+(２)、フォームとして表示するので、認証ページのデザインが自由。
+      うちの場合、お客様の要求が、認証用のダイアログを出すのは「イヤ」で、
+      レイアウトされたHTMLの中の一部に次のページへの認証フォームを出したい
+      というものだったので、これにしてます。
+
+●同じ認証を複数のページに適用する場合
+
+(１)、(２)対象ページの頭に認証済かどうかチェックするコードが必要
+(３).htaccessを利用すればディレクトリ単位での認証が簡単
+
+といった具合です。
+
+以上です。
+
+--
+MICHIKO TOMOBE 
+(株)パルネット　インターネットビジネス事業部
+E-mail : michiko@palnet.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00126" HREF="msg00126.html">[pgsql-jp 15083] アクセス制限</A></STRONG>
+<UL><LI><EM>From:</EM> touno@hj.jvc-victor.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00133.html">[pgsql-jp 15090] Re: 7.0.1 でドキュメントのインストールが失敗します（お礼＋自己紹介）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 15092] Re: アクセス制限</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 15084] RE: アクセス制限</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 15092] Re: アクセス制限</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00134"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00134"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

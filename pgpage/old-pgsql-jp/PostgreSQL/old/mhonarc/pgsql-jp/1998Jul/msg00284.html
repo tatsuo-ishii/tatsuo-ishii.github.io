@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4899] Re: What is "ERROR:parser...". -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Wed, 29 Jul 1998 11:01:15 +0900 -->
+<!--X-Message-Id: 199807290201.LAA02799@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980728224455V.knob@mb.kcom.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4899] Re: What is "ERROR:parser...". </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00283.html">Date Prev</A>][<A HREF="msg00285.html">Date Next</A>][<A HREF="msg00277.html">Thread Prev</A>][<A HREF="msg00218.html">Thread Next</A>][<A HREF="index.html#00284">Date Index</A>][<A HREF="threads.html#00284">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4899] Re: What is "ERROR:parser...".</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 29 Jul 1998 11:01:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;金原といいます。
+&gt;
+&gt;numahata&gt; likeというのはSQLでの予約語です。これは以下のように使用します。
+&gt;numahata&gt; select * from sample_table where field1 like 'friendly%';
+&gt;numahata&gt; パターン照合ですね。ワイルドカードのような'%', '_'なども指定できます。
+&gt;numahata&gt; 
+&gt;numahata&gt; テーブル名のlikeを別な名前にすればよいはずです。
+&gt;
+&gt;了解です。
+&gt;ということは、table名に使ってはいけない語句があるということですね。
+&gt;
+&gt;# 一体どのくらいあるのだろう。
+
+予約語として定義されている語句は使わないほうが無難です。
+
+その予約語ですが、まず、SQL92の標準で規定されている予約語があります。
+これは tools/SQL_keywords にその一覧表があります。
+
+次に、SQL92 じゃないけど使えない予約語があります。これらはパーサのソー
+ス(backend/parser/gram.y)を見ないと分かりませんが、コメントも付いてい
+るので簡単でしょう。それによると、
+
+SQL3 (SQL92の後継規格)で予約されているもの：
+
+FALSE_P, TRIGGER, TRUE_P
+
+PostgreSQL 独自の予約語：
+
+TYPE_P
+
+ABORT_TRANS, AFTER, AGGREGATE, ANALYZE,
+BACKWARD, BEFORE, BINARY, CACHE, CLUSTER, COPY, CYCLE,
+DATABASE, DELIMITERS, DO, EACH, EXPLAIN, EXTEND,
+FORWARD, FUNCTION, HANDLER,
+INCREMENT, INDEX, INHERITS, INSTEAD, ISNULL,
+LANCOMPILER, LISTEN, LOAD, LOCK_P, LOCATION, MAXVALUE, MINVALUE, MOVE,
+NEW, NONE, NOTHING, NOTNULL, OIDS, OPERATOR, PROCEDURAL,
+RECIPE, RENAME, RESET, RETURNS, ROW, RULE,
+SEQUENCE, SETOF, SHOW, START, STATEMENT, STDIN, STDOUT, TRUSTED, 
+VACUUM, VERBOSE, VERSION
+
+ARCHIVE
+
+USER, PASSWORD, CREATEDB, NOCREATEDB, CREATEUSER, NOCREATEUSER, VALID, UNTIL
+
+IDENT, SCONST, Op
+ICONST, PARAM
+FCONST
+
+実際には、これらの中に予約語であってもテーブル名として使えるものがあり
+ます。
+
+create table index(i int);
+
+なんかはOKですね。でも、
+
+test=&gt; create table vacuum(i int);
+ERROR:  parser: parse error at or near "vacuum"
+
+VACUUM は駄目。このあたりはパーサの都合なので、あまり期待しないほうが
+良いでしょうね。
+
+&gt;例えば 「'」や「"」で囲うのってありでしょうか？
+&gt;ちょっとためしてみますね。
+
+「'」は駄目ですが、「"」はれっきとしたSQLで認められた方法で、
+"delimited identifier" と言います(日本語ではなんというのかな)。これを
+使えば、
+
+create table "like"(i int);
+
+のように like というテーブルが作れます。ただし、PostgreSQL 特有の制限
+として、既存のデータ型と名前が一致するテーブルは作れません。これは、
+PostgreSQL ではテーブルを作ると、自動的にそれを新しいデータ型として登
+録しようとするからです。
+
+test=&gt; create table "date"(i int);
+ERROR:  TypeCreate: type date already defined
+
+PostgreSQLに登録されているデータ型は、psql から \dT で一覧表を得ること
+ができます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00277" HREF="msg00277.html">[pgsql-jp 4892] Re: What is "ERROR:parser...".</A></STRONG>
+<UL><LI><EM>From:</EM> knob@mb.kcom.ne.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 4898] Re: :nobodyとnogroupについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 4900] RE: PostODBC+VB5+DAO</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00277.html">[pgsql-jp 4892] Re: What is "ERROR:parser...".</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00218.html">[pgsql-jp 4832] psql don't work</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00284"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00284"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

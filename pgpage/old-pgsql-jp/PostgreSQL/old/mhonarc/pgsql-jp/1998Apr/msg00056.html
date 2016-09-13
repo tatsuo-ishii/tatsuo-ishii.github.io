@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3757] Re: 何故、副問い合わせが遅いのか？ -->
+<!--X-From: Katsuya Sawamura <sawamura@ssemoka.co.jp> -->
+<!--X-Date: Wed, 08 Apr 1998 13:06:14 +0900 -->
+<!--X-Message-Id: 199804080406.NAA07231@vishost.ssemoka.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804080307.MAA04689@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3757] Re: 何故、副問い合わせが遅いのか？ </TITLE>
+<LINK REV="made" HREF="mailto:sawamura@ssemoka.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00055.html">Date Prev</A>][<A HREF="msg00057.html">Date Next</A>][<A HREF="msg00054.html">Thread Prev</A>][<A HREF="msg00057.html">Thread Next</A>][<A HREF="index.html#00056">Date Index</A>][<A HREF="threads.html#00056">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3757] Re: 何故、副問い合わせが遅いのか？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Katsuya Sawamura &lt;<A HREF="mailto:sawamura@ssemoka.co.jp">sawamura@ssemoka.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 08 Apr 1998 13:06:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00054.html">199804080307.MAA04689@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+沢村＠三洋シリコン電子と申します。
+
+t-ishii@sra.co.jp さんが
+表題【[pgsql-jp 3755] Re: 何故、副問い合わせが遅いの か？ 】について
+Wed, 08 Apr 1998 12:07:55 +0900 に書きました。
+
+t-ishii&gt; 石井です。
+
+お世話になります。
+
+t-ishii&gt; &gt;PostgreSQL6.3から副問い合わせがサポートされたと聞き、
+t-ishii&gt; &gt;早速バージョンを上げました。(PostgreSQL6.3.1)
+t-ishii&gt; &gt;
+t-ishii&gt; &gt;でも、通常の問い合わせは、お話しの通り400%アップしているような気がしますが、
+t-ishii&gt; &gt;肝心の副問い合わせは、タップル数が多くなる程遅くなってしまいます。
+t-ishii&gt; &gt;
+t-ishii&gt; &gt;仕方のない事なのでしょうか？
+t-ishii&gt; &gt;タップル数が増えれば増える程遅くなってしまうのでしょうか？
+t-ishii&gt; 
+t-ishii&gt; ある程度は仕方がないのですが、その「程度」が問題ですね。
+t-ishii&gt; 
+t-ishii&gt; # vacuum コマンドは実行されてますよね？
+
+もちろんです。cronで１時間に１回実行しています。
+
+t-ishii&gt; 
+t-ishii&gt; &gt;    case B: select * from product,order where product.serial=order.serial and \
+t-ishii&gt; &gt;              product.serial in (select serial from order where cust_id='ABCD')
+t-ishii&gt; &gt;            (2 hits)(0.06u 0.10s 0:09.87  1.6%)
+t-ishii&gt; 
+t-ishii&gt; この 0:09.87 が妥当かどうかですが、とりあえず
+t-ishii&gt; 
+t-ishii&gt; explain select * from product,order where product.serial=order.serial and \
+t-ishii&gt;               product.serial in (select serial from order where cust_id='ABCD')
+t-ishii&gt;             
+t-ishii&gt; でどのような query plan が生成されているか見たいですね。
+
+早速、実行してみました。
+
+NOTICE:  QUERY PLAN:
+
+Hash Join  (cost=905.60 size=742 width=110)
+  -&gt;  Seq Scan on order  (cost=296.13 size=6822 width=36)
+  -&gt;  Hash  (cost=0.00 size=0 width=0)
+        -&gt;  Seq Scan on product  (cost=357.86 size=742 width=74)
+              SubPlan
+                -&gt;  Index Scan on order  (cost=2.05 size=1 width=12)
+
+EXPLAIN
+
+となりました。
+ここで御了承願いたいのは、(const=xxx ...)中の数値は実DBでの結果で
+productやorderと言うクラスの結果ではありません。
+従って、前回(pgsql-jp 3754)定義したクラスとは、size, widthが異るかも
+しれません。
+前回(pgsql-jp 3754)のレスポンス・タイムも実DBでの結果です。
+但し、基本的なクラスの構造や主キーの割り当て、インデックスの作成は
+実DBに限りなく近いです。
+
+以上、宜しくご検討願います。
+
+
+---
+                      SANYO Silicon Electronics Co., Ltd.
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                            LSI Division Development
+                              Engineering Section
+                                        
+                   Katsuya Sawamura (sawamura@ssemoka.co.jp)
+                                        
+                        12-2, Matsuyama-cho, Moka City,
+                           Tochigi-Ken 321-43, Japan
+                                TEL:0285-82-3482
+                                FAX:0285-84-7974
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00057" HREF="msg00057.html">[pgsql-jp 3758] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00054" HREF="msg00054.html">[pgsql-jp 3755] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 3756] はじめまして。さっそく質問を...</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 3758] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 3755] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 3758] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00056"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00056"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

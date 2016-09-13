@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16876] RE: [pgsql&#45;jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Eiji Tokuya" <tokuya@Mail.Sankyo&#45;Unyu.co.jp> -->
+<!--X-Date: Wed, 23 Aug 2000 11:46:04 +0900 -->
+<!--X-Message-Id: NEBBIPCKMDIGJJHFKAONGEFFCAAA.tokuya@mail.sankyo&#45;unyu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000823100140Y.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16876] RE: [pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlasto </TITLE>
+<LINK REV="made" HREF="mailto:tokuya@Mail.Sankyo-Unyu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00489.html">Date Prev</A>][<A HREF="msg00491.html">Date Next</A>][<A HREF="msg00485.html">Thread Prev</A>][<A HREF="msg00495.html">Thread Next</A>][<A HREF="index.html#00490">Date Index</A>][<A HREF="threads.html#00490">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16876] RE: [pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Eiji Tokuya" &lt;<A HREF="mailto:tokuya@Mail.Sankyo-Unyu.co.jp">tokuya@Mail.Sankyo-Unyu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 11:46:04 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちわ。徳家です。
+
+&gt; ところで、PostgreSQLでOIDによる管理ができなくなったら、そのシステムは
+&gt; 使いものにならなくなります。たとえば、新しいテーブルを作るとか、正常に
+&gt; できているのでしょうか?
+
+この実験ついては以前私が［pgsql-jp 16133] や[pgsql-jp 16201]に暫定的に書いて
+ます。
+ですから、徳田さんのケースでは、まだOID自体は正常に管理(発行)されているはす
+ですよ。
+ただphpから思うように使えないだけだと思います。
+
+OIDを2147483647以上にしてあげれば、簡単に再現できますのでテストしてみてくだ
+さい。
+私の実験ではINSERTを繰り返してOIDの値を増やしましたが、WITH OIDS付きのCOPYコ
+マンドでバックアップをとったファイルのOIDの値を2147483647以上に書き換えてリ
+ストアするとOIDを一気に増やせます。(^^;;; Knna Koto Bakari Yatteiru......
+このようにしたら、徳田さんのケースを再現できると思います。
+
+私の方では、木目こまやかなテストをやる暇がないのもありますが、なにか発見次第
+報告はしますよ。(^^)
+現在の所、pg_atoiを使っていないコマンドは正常に動作しているようです。
+エラーになる場合は必ずpg_atoi.....というエラーメッセージです。
+
+&gt; &gt; 最初は pg_dump -o で作成したファイルを psql -f で復元しましたが
+&gt;
+&gt; 以前も「psql -f」と書いていましたが、そのときは単純な転記ミスかと思い
+&gt; ました。でも、2回も書いてあると、本当にやったのかな、と思ってしまいま
+&gt; す。pg_dump の結果をpsqlに喰わせるときは -f は使いませんが?
+&gt;
+&gt; &gt; select oid from junk;
+&gt; &gt; とpsql で実行した際に、最も文字数の多い行にレポートの +---------+ が
+&gt; &gt; ならって表示されますので、異常な文字数の　OID　は存在しませんでした。
+&gt; &gt; また、select oid from TABLEs を実行した際に、全てが整った
+&gt; &gt; ６桁の数字でした。
+&gt;
+&gt; で、一番知りたいのが、6.5.3 の時に最大のOIDが大体どのくらいだったのか、
+&gt; ということです。ここで6桁とおっしゃってますから、最大でも999999という
+&gt; ことになるんでしょうか。
+&gt;
+&gt; いずれにしても、pg_dump -o の出力を見ないと本当のところは分かりません
+&gt; ね。圧縮後でどの位のサイズなんでしょう?可能ならば見てみたいのですが。
+&gt; 再現テストもしてみたいし。
+
+oidに6桁までの数字しか入っていないのにマイナスのOIDになると言うことは、カラ
+ムズレかなにかで、たまたまoidにマイナスの値が入ってしまったことも考えられま
+す。
+
+以前、私も6.5.2を使っていた頃、pg_dumpでバックアップをとるとデータによっては
+カラムズレを起こし「psql -f」でも正確にリストアできませんでした。
+当時、詳しい原因は追求しませんでしたが、一つ一つのデーブルをCOPY TOでファイ
+ルを指定(stdoutではダメ)してバックアップをとると正常にバックアップ・リストア
+が出来ました。
+「不安要素はstdoutにアリ」と、私は7.0.2の現在も、pg_dump はstdoutを使ってい
+るようなので、pg_dump -s と、一つ一つのテーブルをCOPYでバックアップしていま
+す。
+
+徳家
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00485" HREF="msg00485.html">[pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00489.html">[pgsql-jp 16875] IEでファイルダウンロード時にファイル名を渡す方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00491.html">[pgsql-jp 16877] 皆様のお陰でなんとかサイトを構築できました。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00485.html">[pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00495.html">[pgsql-jp 16881] Re: [pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00490"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00490"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

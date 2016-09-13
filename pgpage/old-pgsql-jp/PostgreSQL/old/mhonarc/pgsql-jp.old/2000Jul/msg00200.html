@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15967] apache_loggingについて -->
+<!--X-From: Toshikazu Yoshikawa <toshi@uncut00.com> -->
+<!--X-Date: Mon, 10 Jul 2000 00:39:54 +0900 -->
+<!--X-Message-Id: 4.0.1&#45;J.20000709235929.00fe6ee0@ns1.uncut.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15967] apache_loggingについて </TITLE>
+<LINK REV="made" HREF="mailto:toshi@uncut00.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00199.html">Date Prev</A>][<A HREF="msg00201.html">Date Next</A>][<A HREF="msg00278.html">Thread Prev</A>][<A HREF="msg00201.html">Thread Next</A>][<A HREF="index.html#00200">Date Index</A>][<A HREF="threads.html#00200">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15967] apache_loggingについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshikazu Yoshikawa &lt;<A HREF="mailto:toshi@uncut00.com">toshi@uncut00.com</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 10 Jul 2000 00:39:54 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+吉川です。
+
+直接PostgreSQLとは関係がなく恐縮ですが、
+煮詰まってしまい、質問させていただきました。
+
+ふと、apacheの吐くアクセスログをpostgresにためこめば、
+あとで集計作業が楽そうだなぁなどと考えていたら、
+そんなことはとっくに考えられていて、ソースツリーのcontribに
+apache_loggingなんていうディレクトリがありました。
+
+で、この方法を若干アレンジして試してみたのですが、
+どうにもうまくいきません。
+
+手順は以下です。
+
+１．apacheのhttpd.confのLogFormatディレクティブに以下を指定（rootユーザにて）
+
+LogFormat "insert into access values ( '%h', '%l', '%u', 
+'%{%d/%b/%Y:%H:%M:%S}t', '%r', %s, %b );" common
+（実際は1行です）
+
+２．CustomLogディレクティブに以下を指定（rootユーザにて）
+
+CustomLog '| su -c "sed \"s/, - );$/, -1 );/\" | /usr/local/pgsql/bin/psql 
+www_log" www' common （wwwというユーザ権限でapacheを実行しています）
+
+３．ログ用のテーブルを作成（postgresユーザにて）
+
+createdb www_log
+psql www_log
+create table access (host char(200), ident char(200), 
+authuser char(200), accdate datetime, request char(500), 
+status int2, bytes int4);
+grant all on access to www;
+\q
+
+４．apacheの再起動（rootユーザにて）
+
+/usr/local/apache/bin/apachectl graceful
+
+５．apacheのerror_logを確認
+
+/usr/local/pgsql/bin/psql: error in loading shared libraries: libpq.so.2.1: 
+cann
+ot open shared object file: No such file or directory
+sed: couldn't write 315 items to {standard output}: Broken pipe
+
+というわけです。
+エラーを見ればそのまんまなのですが、要はrootから
+su -c "/usr/local/pgsql/bin/psql www_log" nobody
+のときにLD_LIBRARY_PATHが/usr/local/pgsql/libに通ってないからのようです。
+
+実際にrootで上記suコマンドを用いると
+/usr/local/pgsql/bin/psql: error in loading shared libraries: libpq.so.2.1: 
+cann
+ot open shared object file: No such file or directory
+と出ます。
+
+どうにも環境変数（LD_LIBRARY_PATH）の指定の仕方が分かりませんでした。
+ご存知の方、もしくは動いてるよという方がいらっしゃいましたら
+よろしくお願いいたします。
+
+環境
+postgresql-7.0.2
+apache-1.3.12
+Linux (slackware 7.0)
+
+---
+unCut  Toshikazu Yoshikawa
+<A HREF="mailto:toshi@uncut00.com">mailto:toshi@uncut00.com</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00202" HREF="msg00202.html">[pgsql-jp 15969] Re: apache_loggingについて</A></STRONG>
+<UL><LI><EM>From:</EM> Toshikazu Yoshikawa &lt;toshi@uncut00.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00201" HREF="msg00201.html">[pgsql-jp 15968] Re: apache_loggingについて</A></STRONG>
+<UL><LI><EM>From:</EM> HIRATA Yasuyuki &lt;yasu@asuka.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00199.html">[pgsql-jp 15966] Re: インストールについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 15968] Re: apache_loggingについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 16045] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 15968] Re: apache_loggingについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00200"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00200"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

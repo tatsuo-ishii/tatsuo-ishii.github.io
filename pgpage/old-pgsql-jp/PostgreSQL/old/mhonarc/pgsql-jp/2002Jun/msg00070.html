@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26291] Re: Status情報解析方法について -->
+<!--X-From: okayasuk@nttdata.co.jp -->
+<!--X-Date: Wed, 5 Jun 2002 21:17:25 +0900 -->
+<!--X-Message-Id: EF9E3162377DD311A1C80090274DD0D90A9C2993@noanet06.noanet.nttdata.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26291] Re: Status情報解析方法について </TITLE>
+<LINK REV="made" HREF="mailto:okayasuk@nttdata.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00069.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00067.html">Thread Next</A>][<A HREF="index.html#00070">Date Index</A>][<A HREF="threads.html#00070">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26291] Re: Status情報解析方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:okayasuk@nttdata.co.jp">okayasuk@nttdata.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 5 Jun 2002 21:17:25 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岡安です。
+
+杉田さん、早速のご回答ありがごうございます。
+いくつか補足します。
+
+まず以下のような前提があります。
+
+０）　DBサーバのCPU使用率を下げたい
+１）　JDBC経由で実行したSQLの処理時間を調べたい
+２）　Statement よりも PreparedStatementを使ったほうが
+　　同一のSQL（かつパラメータのみ異なる場合）を複数回
+　　実行した場合、２回目以降のSQLの解析時間がなくなる
+　　だろうと期待。
+３）　２）が本当かどうか確認したい。
+
+例えばOracleのライブラリキャッシュ（SQLのキャッシュ）
+のような機能がPostgreSQLにもあることを期待しています。
+Oracleであればこのキャッシュヒット率でCPU使用率が
+かなり変わるので、PostgreSQLでも同様なのかと想像
+していました。
+（予想でなくてちゃんと調べろというのはごもっともですが）
+
+ということでI/Oはあまり気にしていません。
+また、SQL自体のチューニングはまだ実施していません。
+
+
+&gt; ;;; 　SQLの動作情報（処理時間の詳細）を取得したい。
+
+Parser, Rewriter, Planner, Executor 等の処理時間を調べて
+上記２）を確認しようと試みました。
+
+
+&gt; 〓timing の方がよいと考えています。
+
+この方法は知りませんでした、参考になります。
+explain analyze より正確な結果が得られるわけですね。
+
+
+&gt;   以下のコードで表示されている内容が上記に該当しています。
+&gt; 
+&gt;     src/backend/tcop/postgres.c の ShowUsage() での getrusage()
+&gt;     src/backend/storage/buffer/bufmgr.c の ShowBufferUsage() 
+
+
+〓timing と同じ情報が getrusage() で取得できると嬉しいかなと
+期待しながら、上記ソースをこれから確認してみます。
+
+
+悩んでみても始まらないので、StatementとPreparedStatementの
+それぞれで同じSQLを実行した場合の処理時間を比較してみました。
+
+結果はどちらも、全くと言っていいほど同じ処理時間でした。
+
+
+参考までに、使用したコードを載せます。
+
+// ------ Statement での処理-----
+ResultSet rs = null;
+ResultSetMetaData md = null;
+Statement stmt = con.createStatement();
+
+//ここでSQLつくってます
+String[] sql = new String[SQL_LOOP];
+for (int i=0;i&lt;SQL_LOOP;i++){
+sql[i] = "SELECT a, b "
+　+ " FROM table_a "
+　+ " WHERE a &gt; " + i
+　+ " LIMIT 10";
+}
+
+//計測開始
+start = System.currentTimeMillis();
+
+for (int i=0;i&lt;SQL_LOOP;i++){
+　　stmt.executeQuery(sql[i]);
+}
+
+//計測終了
+end = System.currentTimeMillis();
+
+// ------ ここまで-----
+
+// ----PreparedStatement での処理-----
+PreparedStatement stmt2 = null;
+ResultSet rs2 = null;
+String sql2 = 
+" SELECT a, b "
+ + " FROM table_a "
+ + " WHERE a &gt; ? "
+ + " LIMIT 10 ";
+
+stmt2 = con.prepareStatement(sql2);
+
+//計測開始
+start = System.currentTimeMillis();
+
+for (int i=0;i&lt;SQL_LOOP;i++){
+ stmt2.setInt(1, i);
+ rs2 = stmt2.executeQuery();
+}
+
+//計測終了
+end = System.currentTimeMillis();
+
+// ------ ここまで-----
+
+----------------------------------------
+株式会社 NTTデータ ビジネス開発事業本部  
+基盤システム事業部 第二ソリューション技術担当
+岡安 一将
+<A HREF="mailto:okayasuk@nttdata.co.jp">mailto:okayasuk@nttdata.co.jp</A> 
+Tel: 03-5541-9580
+Fax: 03-5541-9590
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp: 26289] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00069.html">[pgsql-jp: 26290] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp: 26295] Re: 大変恐縮なのですがError メッセージについて【解決いたしました】</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00067.html">[pgsql-jp: 26288] Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00070"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00070"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

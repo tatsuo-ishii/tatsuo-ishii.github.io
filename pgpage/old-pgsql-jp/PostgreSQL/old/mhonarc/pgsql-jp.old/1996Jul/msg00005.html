@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 503] Re: Self&#45;intro. -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 04 Jul 1996 13:03:10 +0900 -->
+<!--X-Message-Id: 199607040403.NAA17751@srashc.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199607040230.LAA03080@take.math.g.hiroshima&#45;dit.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 503] Re: Self-intro. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00006.html">Date Prev</A>][<A HREF="msg00007.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00010.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 503] Re: Self-intro.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 04 Jul 1996 13:03:10 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;  高石＠広島電機大です。
+&gt;
+&gt;  実はこの frontend 側をどうしたら良いかがわからず、困ってます。
+&gt;  さきほど、<A HREF="http://www.sra.co.jp/people/t-ishii/postgres95/pg95W3/">http://www.sra.co.jp/people/t-ishii/postgres95/pg95W3/</A> か
+&gt;らソースをとってきて眺めていたのですが、肝心の exec_query の呼び出し方
+&gt;がわからない状態です。
+&gt;  もし sample の HTML ファイルがあるようでしたら、見せていただけないで
+&gt;しょうか？
+
+そうですね、HTML が登録されていなかったのは手落ちでした。お詫びがてら
+ちょっと解説させていただきます。
+
+まず、最初の HTML はこうなっています。
+-------------------------------------------------------------------
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;postgres95 W3 frontend&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;form method=post action="/usr/people/ishii/cgi-bin/view_table"&gt;
+
+検索するデータベース名とテーブル名を入力して下さい。&lt;p&gt;
+&lt;input type="hidden" name="hostname" value="localhost"&gt;
+&lt;input type="text" name="dbname" value="template1" length=16&gt;データベース名
+&lt;input type="text" name="table_name" value="pg_class" length=16&gt;テーブル名
+&lt;p&gt;
+&lt;input type=submit value="  start  "&gt;検索
+&lt;input type=reset value="  reset  "&gt;やり直し
+
+&lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+-------------------------------------------------------------------
+御覧のように、フォームからホスト名、データベース名、テーブル名を入力し
+て検索を開始すると、view_table が起動されます。
+
+view_table は shell script で、CERN の httpd に附属の cgiparse などを
+使ってフォームから渡されたパラメータを環境変数にセットし、処理の本体で
+ある view_table.tcl を起動します。この時フォームから入力されたデータは、
+ホスト名、データベース名、テーブル名 の順で引数として view_table.tcl 
+に渡ります。
+
+view_table.tcl は、まずpg_query.tclを source して必要な手続きを登録し
+た後、起動引数からホスト名、データベース名、テーブル名を取得した後 
+pgq_get_schema（pg_query.tcl 中に定義）を呼び出して、該当テーブルのス
+キーマ定義を得ます。そして、次のフォームを動的に生成します。
+
+このフォームでは、スキーマ定義を元に、アトリビュートを表示し、ユーザは
+検索条件を設定します。検索の対象となるアトリビュートと、検索データ値を
+入力できます。
+
+このフォームから起動されるのが exec_query です。（これはただ単に 
+exec_query.tcl を呼んでいるだけです。）view_table.tcl を見るとわかりま
+すが、exec_query への引数は PATH_INFO として、ホスト名、データベース名、
+テーブル名が以下のように渡されます。
+
+	exec_query/$hostname/$dbname/$table_name
+
+アトリビュートの方はどうなったかというと、動的に生成されるフォームの中
+で、アトリビュート名がそのままフォームの変数名になっています。したがっ
+て、exec_query.tcl では、cgiparse を呼び出してアトリビュートに設定され
+た検索条件を読みとっています。検索が終ると、exec_query.tcl は選択され
+たアトリビュートのリストを表示し、その中から詳細を表示するレコードを選
+択させるフォームを生成します。
+
+選択は、oid (object id: postgres95 特有のデータで、インスタンス ID の
+ようなもの）を次の CGI である show_detail に引き渡します。show_detail 
+は show_detail.tcl を起動します。show_detail へのパラメータは 
+PATH_INFO で渡されます。こんな感じです。
+
+	show_detail/$hostname/$dbname/$table_name/$oid
+
+以上ですが、質問の答えになっていたでしょうか。
+
+&gt;  私の方は以前公開されていた umindex というパッケージの中の目次データ
+&gt;を使っています。（今でも ftp.iij.ad.jp にはあるはずです。）'93.4 以降
+&gt;は ASCII がデータを公開してくれていないので、夏休みに学生さんを焼肉で
+&gt;釣ろうかと画策しています。
+&gt;  とりあえず text ファイルからサーチするものは現在下記でテスト中です。
+&gt;
+&gt;	<A HREF="http://take.math.g.hiroshima-dit.ac.jp/~ttks/UMindex/UMindex-J.html">http://take.math.g.hiroshima-dit.ac.jp/~ttks/UMindex/UMindex-J.html</A>
+
+早速使ってみましたが、なかなかのものですね。
+
+&gt;t-ishii&gt; なお、翻訳ボランティア参加希望の方を募集中です。
+&gt;
+&gt;  能力未知数（？）ですが、手伝わせてもらえるでしょうか。
+
+是非お願いします！こちらのプロジェクトの方は、この ML とは別の 
+ML(pg95doc) で連絡を取りながら進めています。早速高石さんをこの ML に登
+録させていただきますので、よろしくお願いします。なお、プロジェクトの方
+は、manual.ps の翻訳が一通り終ったところで、次は、ref.ps に取り掛かる
+ことになっています。したがって、高石さんには ref.ps から翻訳をお願いす
+ることになると思います。では、続きは pg95doc で。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[postgres95 508] Re: Self-intro.</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Takaishi &lt;ttks@take.math.g.hiroshima-dit.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[postgres95 502] Re: Self-intro.</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Takaishi &lt;ttks@take.math.g.hiroshima-dit.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00006.html">[postgres95 504] Re: Self-intro.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00007.html">[postgres95 505] Re: Self-intro.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[postgres95 502] Re: Self-intro.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00010.html">[postgres95 508] Re: Self-intro.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

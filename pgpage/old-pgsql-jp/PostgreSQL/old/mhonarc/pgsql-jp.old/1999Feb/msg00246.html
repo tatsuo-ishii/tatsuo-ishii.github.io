@@ -1,0 +1,172 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7121] 8K &#45;> 32K block size -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 18 Feb 1999 13:13:09 +0900 -->
+<!--X-Message-Id: 199902180413.NAA07056@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7121] 8K -&gt; 32K block size </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00245.html">Date Prev</A>][<A HREF="msg00247.html">Date Next</A>][<A HREF="msg00256.html">Thread Prev</A>][<A HREF="msg00231.html">Thread Next</A>][<A HREF="index.html#00246">Date Index</A>][<A HREF="threads.html#00246">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7121] 8K -&gt; 32K block size</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 18 Feb 1999 13:13:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。実験シリーズその２:-)
+
+よく「8KBの壁」と言われるように、PostgreSQL では、タプルサイズなどは 
+8KB が限界ですが、実はこれを32KBまで拡張することが出来ます。方法は簡単
+で、include/config.h の
+
+#define BLCKSZ	8192
+を
+#define BLCKSZ	32768
+
+にするだけです。ただし、これだけで20KB のテキストを扱えるようになるか
+かと言うと、残念ながらそうではありません。libpq などが query buffer の
+上限を 8193 とか固定で持っているような箇所がたくさんあるからです。
+
+じゃ、何が嬉しいかというと、場合によっては処理スピードが劇的に向上する
+のです！ちょっと試してみたところ、5000レコード程の copy で 4倍、select 
+count(*) で 6 倍のスピードアップが得られました。これはおそらく I/O の
+単位も 32KB になるからだと思います。
+
+ただ、いつも速くなるかと言うとそうではないようで、benchmark をやってみ
+ると項目によって速かったり、逆に遅くなったり、色々です。また、
+regression のトータル時間では、少しですがかえって遅くなりました。
+
+推測ですが、タプルサイズが大きい場合にのみ32KB化の効果があるのではない
+でしょうか。ちなみに、上記テストで使ったテーブルは、タプルサイズが 4KB 
+ほどの大きなものです。
+
+というわけで、テーブルによって BLCKSZ が変えられればいいのに... という
+ひとまかせの結論でした:-)
+
+参考：benchmark 結果
+(PostgreSQL 6.4.2/PowerMac7600/120/MkLinux DR3/MaxPowerG3 220/150/
+memory 64MB)
+------------------------ BLCKSZ 8K の場合 ---------------------------
+query  0:   0.001 real   0.000 user   0.000 sys
+query  1:   0.063 real   0.020 user   0.050 sys
+query  2:   1.140 real   0.190 user   0.350 sys
+query  3:   0.046 real   0.040 user   0.010 sys
+query  4:   1.125 real   0.180 user   0.390 sys
+query  5:   0.044 real   0.050 user   0.000 sys
+query  6:   0.162 real   0.080 user   0.050 sys
+query  7:   0.011 real   0.000 user   0.000 sys
+query  8:   0.189 real   0.110 user   0.070 sys
+query  9:   0.448 real   0.360 user   0.040 sys
+query 10:   1.819 real   0.950 user   0.180 sys
+query 11:   0.921 real   0.460 user   0.050 sys
+query 12:   0.938 real   0.310 user   0.060 sys
+query 13:   1.690 real   0.930 user   0.190 sys
+query 14:   0.854 real   0.540 user   0.070 sys
+query 15:   2.380 real   0.560 user   0.760 sys
+query 16:   2.178 real   0.940 user   0.170 sys
+query 17:   2.584 real   0.650 user   0.890 sys
+query 18:   1.185 real   0.400 user   0.260 sys
+query 19:   0.119 real   0.100 user   0.020 sys
+query 20:   0.001 real   0.000 user   0.000 sys
+query 21:   0.001 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.000 sys
+query 23:   0.001 real   0.000 user   0.000 sys
+query 24:   0.001 real   0.000 user   0.000 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.001 real   0.000 user   0.000 sys
+query 27:   0.007 real   0.000 user   0.000 sys
+query 28:   0.030 real   0.020 user   0.000 sys
+query 29:   0.001 real   0.000 user   0.000 sys
+query 30:   0.005 real   0.020 user   0.000 sys
+query 31:   0.016 real   0.010 user   0.000 sys
+query 32:   7.708 real   0.010 user   0.010 sys
+
+------------------------ BLCKSZ 32K の場合 ---------------------------
+query  0:   0.001 real   0.000 user   0.000 sys
+query  1:   0.070 real   0.040 user   0.020 sys
+query  2:   0.731 real   0.140 user   0.120 sys
+query  3:   0.060 real   0.040 user   0.010 sys
+query  4:   0.747 real   0.110 user   0.140 sys
+query  5:   0.048 real   0.030 user   0.010 sys
+query  6:   0.126 real   0.090 user   0.030 sys
+query  7:   0.011 real   0.000 user   0.010 sys
+query  8:   0.236 real   0.130 user   0.070 sys
+query  9:   1.416 real   0.740 user   0.240 sys
+query 10:   1.391 real   0.730 user   0.230 sys
+query 11:   0.540 real   0.420 user   0.100 sys
+query 12:   2.452 real   0.750 user   0.240 sys
+query 13:   1.387 real   0.730 user   0.270 sys
+query 14:   0.563 real   0.450 user   0.080 sys
+query 15:   1.707 real   0.710 user   0.410 sys
+query 16:   1.289 real   0.760 user   0.200 sys
+query 17:   2.919 real   0.690 user   1.680 sys
+query 18:   0.980 real   0.330 user   0.370 sys
+query 19:   0.120 real   0.110 user   0.020 sys
+query 20:   0.001 real   0.000 user   0.000 sys
+query 21:   0.001 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.000 sys
+query 23:   0.001 real   0.000 user   0.000 sys
+query 24:   0.001 real   0.000 user   0.000 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.001 real   0.000 user   0.000 sys
+query 27:   0.010 real   0.010 user   0.000 sys
+query 28:   0.032 real   0.000 user   0.030 sys
+query 29:   0.001 real   0.010 user   0.000 sys
+query 30:   0.005 real   0.010 user   0.000 sys
+query 31:   0.022 real   0.010 user   0.010 sys
+query 32:   7.898 real   0.020 user   0.010 sys
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 7120] Re: semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 7122] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00256.html">[pgsql-jp 7131] RE: [pgsql-jp 7061] PostgreSQL6.4.2とACCESS97の接続について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00231.html">[pgsql-jp 7106] semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00246"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00246"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

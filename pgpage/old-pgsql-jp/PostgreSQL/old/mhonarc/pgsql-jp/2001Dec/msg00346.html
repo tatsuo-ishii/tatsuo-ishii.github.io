@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24238] Re: インデックスが利用されない -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 22 Dec 2001 23:06:30 +0900 -->
+<!--X-Message-Id: 20011222230630D.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011221.163830.11597649.sugita@sra.co.jp -->
+<!--X-Reference-Id: 200112211621.BAA23118@mail1.rim.or.jp -->
+<!--X-Reference-Id: 20011222.203334.74748981.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24238] Re: インデックスが利用されない </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00345.html">Date Prev</A>][<A HREF="msg00347.html">Date Next</A>][<A HREF="msg00345.html">Thread Prev</A>][<A HREF="msg00426.html">Thread Next</A>][<A HREF="index.html#00346">Date Index</A>][<A HREF="threads.html#00346">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24238] Re: インデックスが利用されない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 22 Dec 2001 23:06:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00333.html">20011221.163830.11597649.sugita@sra.co.jp</A>&gt;&lt;<A HREF="msg00343.html">200112211621.BAA23118@mail1.rim.or.jp</A>&gt;&lt;<A HREF="msg00345.html">20011222.203334.74748981.sugita@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt;   LIMIT に ORDER BY がなければ順序が分からないから勝手に順序を決めずにシーケン
+&gt; シャルスキャンを使うというのは、ひとつの考え方だと考えられます。
+
+sequential scanが採用されるのは単にコストが安いからでしょう．たとえば，
+WHERE i &gt; 1000 のような問い合わせに対して，
+
+(1) 検索結果がある程度以上ならsequetial scanを採用．なぜなら，大量に検
+    索結果を取り出す場合はindex scanよりも速いから
+
+(2) ただし，ORDER BYがiに対して指定されると，ソートするコストが節約で
+    きるので，index scan を採用
+
+ということだけのことだけだと思います．
+
+&gt; ;;; 単にresult setを得た後に必要件数をクライアントに送信しているだけだと
+&gt; ;;; 思います。
+&gt; 
+&gt;   result set の得方ですよね？ result set を得るために、インデックスツリーがあ
+&gt; り、順序と件数 (少ないという前提) があれば、データ部分のアクセスを減らせます。
+
+そうなんですか?
+
+pgbench -i -s 10 で100万件のテーブルを作ります．すると，accountsという
+テーブルが作られ，そこに aid という列があります．aid は整数型で，1から
+100万までの値が設定されます．つまり，極めて均質なデータが入っているわ
+けですね．また，aid は主キーですから，インデックスが設定されています．
+この状態で，aid &gt; 1を満たす行を求めようとします．結果は100万行近くなの
+で，明らかにsequential scanが有利．実際，
+
+test=# explain select * from accounts where aid &gt; 1;
+NOTICE:  QUERY PLAN:
+
+Seq Scan on accounts  (cost=0.00..29260.00 rows=999900 width=100)
+
+という結果になります．で，ここでlimit 1を追加します．杉田さんの推測通
+ならindex scanになるはずですが，
+
+test=# explain select * from accounts where aid &gt; 1 limit 1;
+NOTICE:  QUERY PLAN:
+
+Limit  (cost=0.00..0.03 rows=1 width=100)
+  -&gt;  Seq Scan on accounts  (cost=0.00..29260.00 rows=999900 width=100)
+
+となり，やはりindexは使われません．
+
+ちなみに，order byを追加すると先に説明した通り，
+
+test=# explain select * from accounts where aid &gt; 1 order by aid;
+NOTICE:  QUERY PLAN:
+
+Index Scan using accounts_pkey on accounts  (cost=0.00..135930.19 rows=999900 width=100)
+
+NOTICE:  QUERY PLAN:
+
+test=# explain select * from accounts where aid &gt; 1 order by aid limit 1;
+NOTICE:  QUERY PLAN:
+
+Limit  (cost=0.00..0.14 rows=1 width=100)
+  -&gt;  Index Scan using accounts_pkey on accounts  (cost=0.00..135930.19 rows=999900 width=100)
+
+NOTICE:  QUERY PLAN:
+
+となって，limitがあろうがなかろうがindexが使われます．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00426" HREF="msg00426.html">[pgsql-jp 24318] Re: インデックスが利用されない</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00333" HREF="msg00333.html">[pgsql-jp 24225] Re: インデックスが利用されない</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00343" HREF="msg00343.html">[pgsql-jp 24235] Re: インデックスが利用されない</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00345" HREF="msg00345.html">[pgsql-jp 24237] Re: インデックスが利用されない</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00345.html">[pgsql-jp 24237] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00347.html">[pgsql-jp 24239] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00345.html">[pgsql-jp 24237] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00426.html">[pgsql-jp 24318] Re: インデックスが利用されない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00346"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00346"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

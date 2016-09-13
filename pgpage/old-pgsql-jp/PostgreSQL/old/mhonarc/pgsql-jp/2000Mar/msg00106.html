@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13395] swap_pager:out of swap space -->
+<!--X-From: y_saeki@is.tokyu&#45;cnst.co.jp -->
+<!--X-Date: Tue, 7 Mar 2000 09:48:23 +0900  -->
+<!--X-Message-Id: 6318CD1398C6D011BC7000805FFEF00B033CF175@BH01NT05 -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13395] swap_pager:out of swap space </TITLE>
+<LINK REV="made" HREF="mailto:y_saeki@is.tokyu-cnst.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00105.html">Date Prev</A>][<A HREF="msg00107.html">Date Next</A>][<A HREF="msg00128.html">Thread Prev</A>][<A HREF="msg00251.html">Thread Next</A>][<A HREF="index.html#00106">Date Index</A>][<A HREF="threads.html#00106">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13395] swap_pager:out of swap space</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:y_saeki@is.tokyu-cnst.co.jp">y_saeki@is.tokyu-cnst.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 7 Mar 2000 09:48:23 +0900 </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐伯です。
+昨日は神戸さん、大嶋さんありがとうございました。
+おかげさまでコンパイルはうまくいき無事インストールできました。
+
+２点程分からない点があります。申し訳ございませんがよろしくお願いします。
+
+1)FreeBSD(3.2)にもpostgres(6.5.2)をインストールしてphp(3.0.12)＋
+apache(1.3.9)でデータベースの検索をするページ
+  を作成しています。
+  ６万５千件の物件情報テーブルをselect * from busho where name like '%東%'
+(カラムは50程あります)を実行すると
+  swap_pager:out of swap space を表示して落ちてしまいました。
+  表示が遅いので/usr/sbin/pstat -Tをしてちょくちょく確認していたら確かにswap
+0/127Mがどんどん増えて
+  120/127Mになり先程のメッセージが出力されました。
+
+  この場合再起動するしかないと思いますが、この後、なにか対策を立てる方法があ
+りましたら教えてください。
+  13265番のメーリングリストを参考にするとスワップをこの場合128M−＞330Mにし
+たら大丈夫とありましたが
+  落ちる前に防ぐ方法があればと思いました。
+  （また、スワップハどうやったら増やせるのですか？
+  やはり再インストールしかないのでしょうか？）
+
+2)インストールの後にregressのテストをしたのですが、
+  以下のエラー出力がregress.diffsに出力されてしまいました。
+  これは
+<A HREF="http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.5/install-basic.html#regres">http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.5/install-basic.html#regres</A>
+sionに載っている
+  「エラーメッセージの違い、浮動小数点の違い、乱数を使った違い」と判断してい
+いのでしょうか？
+  0割りをしているようなメッセージが出るとちょっと不安になり、投稿しました。
+
+＝以下がregress.diffの一部です。＝
+*** expected/float8.out	Sun Jan 24 09:12:59 1999
+--- results/float8.out	Tue Mar  7 21:26:17 2000
+***************
+*** 189,201 ****
+  QUERY: SELECT '' AS bad, f.f1 * '1e200' from FLOAT8_TBL f;
+  ERROR:  Bad float8 input format -- overflow
+  QUERY: SELECT '' AS bad, f.f1 ^ '1e200' from FLOAT8_TBL f;
+! ERROR:  pow() result is out of range
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 = '0.0' ;
+  ERROR:  can't take log of zero
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 &lt; '0.0' ;
+  ERROR:  can't take log of a negative number
+  QUERY: SELECT '' AS bad, : (f.f1) from FLOAT8_TBL f;
+! ERROR:  exp() result is out of range
+  QUERY: SELECT '' AS bad, f.f1 / '0.0' from FLOAT8_TBL f;
+  ERROR:  float8div: divide by zero error
+  QUERY: SELECT '' AS five, FLOAT8_TBL.*;
+--- 189,217 ----
+  QUERY: SELECT '' AS bad, f.f1 * '1e200' from FLOAT8_TBL f;
+  ERROR:  Bad float8 input format -- overflow
+  QUERY: SELECT '' AS bad, f.f1 ^ '1e200' from FLOAT8_TBL f;
+! bad|?column?
+! ---+--------
+!    |0       
+!    |NaN     
+!    |NaN     
+!    |NaN     
+!    |NaN     
+! (5 rows)
+! 
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 = '0.0' ;
+  ERROR:  can't take log of zero
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 &lt; '0.0' ;
+  ERROR:  can't take log of a negative number
+  QUERY: SELECT '' AS bad, : (f.f1) from FLOAT8_TBL f;
+! bad|            ?column?
+! ---+--------------------
+!    |                   1
+!    |7.39912306090513e-16
+!    |                   0
+!    |                   0
+!    |                   1
+! (5 rows)
+! 
+  QUERY: SELECT '' AS bad, f.f1 / '0.0' from FLOAT8_TBL f;
+  ERROR:  float8div: divide by zero error
+  QUERY: SELECT '' AS five, FLOAT8_TBL.*;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00251" HREF="msg00251.html">[pgsql-jp 13557] Re: swap_pager:out of swap space</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00105.html">[pgsql-jp 13394] initdb</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00107.html">[pgsql-jp 13396] jdbc Compile error.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 13418] Re: jdbc Compile error.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 13557] Re: swap_pager:out of swap space</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00106"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00106"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

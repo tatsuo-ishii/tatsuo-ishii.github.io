@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23838] Re: oid が2^32を超えた場合(7.2beta2にて) -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Thu, 22 Nov 2001 20:06:09 +0900 (JST) -->
+<!--X-Message-Id: 20011122.200609.102570642.sugita@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 003b01c170d9$7d0bbd20$020aa8c0@win2000 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23838] Re: oid が2^32を超えた場合(7.2beta2にて) </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00253.html">Date Prev</A>][<A HREF="msg00255.html">Date Next</A>][<A HREF="msg00248.html">Thread Prev</A>][<A HREF="msg00256.html">Thread Next</A>][<A HREF="index.html#00254">Date Index</A>][<A HREF="threads.html#00254">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23838] Re: oid が2^32を超えた場合(7.2beta2にて)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 22 Nov 2001 20:06:09 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00212.html">003b01c170d9$7d0bbd20$020aa8c0@win2000</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;
+Subject: [pgsql-jp 23796] oid が 2^32 を超えた場合(7.2beta2 にて)
+Date: Mon, 19 Nov 2001 18:05:02 +0900
+
+;;; 志村＠つみきソフトウェアです。
+
+  杉田です。
+
+;;; 7.2beta2でoidが2^32を超えた場合にどうなるか
+;;; 試してみました。結果をご報告します。
+...
+;;; (3) 2^32を超えた後のpg_dump
+;;; 問題なく完了。
+;;; (テーブル、インデックス、ビュー、ファンクション、
+;;;  集約関数、シーケンスなどを含むDBで確認)
+;;; 7.1で
+;;; oidが2^31を超える場合に発生していたエラー
+;;; 'ERROR:  dtoi4: integer out of range'
+;;; は発生せず。
+
+  7.1.3 でこれを直すパッチを添付します。9/6 に Tom Lane がカレントにコミットし
+たのと同様な修正を真似て 7.1.3 で作成し、そばの近藤さんにテストしてもらったも
+のです。大きな oid は、copy with oids ... で設定して検証しました。
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+<PRE>
+Index: pg_dump.c
+===================================================================
+RCS file: /home/mgr/sugita/jobs/cvs-master/pgsql/src/7.1.3/build/src/bin/pg_dump/pg_dump.c,v
+retrieving revision 1.1.1.1
+diff -u -3 -p -r1.1.1.1 pg_dump.c
+--- pg_dump.c	2001/08/16 18:36:43	1.1.1.1
++++ pg_dump.c	2001/11/21 03:48:19
+@@ -2289,7 +2289,7 @@ getTables(int *numTables, FuncInfo *finf
+ 
+ 			resetPQExpBuffer(query);
+ 			appendPQExpBuffer(query,
+-							  "SELECT Oid FROM pg_index i WHERE i.indisprimary AND i.indrelid = %s ",
++							  "SELECT Oid FROM pg_index i WHERE i.indisprimary AND i.indrelid = '%s'::oid ",
+ 							  tblinfo[i].oid);
+ 			res2 = PQexec(g_conn, query-&gt;data);
+ 			if (!res2 || PQresultStatus(res2) != PGRES_TUPLES_OK)
+@@ -2328,13 +2328,13 @@ getTables(int *numTables, FuncInfo *finf
+ 				appendPQExpBuffer(query,
+ 							  "  SELECT c.relname "
+ 							  "    FROM pg_index i, pg_class c "
+-							  "    WHERE     i.indrelid = %s"
++							  "    WHERE     i.indrelid = '%s'::oid"
+ 							  "        AND   i.indisprimary "
+ 							  "        AND   c.oid = i.indexrelid"
+ 							  " UNION ALL "
+ 							  "  SELECT NULL "
+ 							  "    FROM pg_index i "
+-							  "    WHERE i.indrelid = %s"
++							  "    WHERE i.indrelid = '%s'::oid"
+ 							  "    AND   i.indisprimary "
+ 							  "    And NOT Exists(Select * From pg_class c Where c.oid = i.indexrelid)",
+ 							  tblinfo[i].oid, tblinfo[i].oid);
+@@ -2343,7 +2343,7 @@ getTables(int *numTables, FuncInfo *finf
+ 				appendPQExpBuffer(query,
+ 							  "SELECT c.relname "
+ 							  "FROM pg_index i LEFT OUTER JOIN pg_class c ON c.oid = i.indexrelid "
+-							  "WHERE i.indrelid = %s"
++							  "WHERE i.indrelid = '%s'::oid "
+ 							  "AND   i.indisprimary ",
+ 							  tblinfo[i].oid);
+ 			}
+@@ -3033,8 +3033,7 @@ dumpComment(Archive *fout, const char *t
+ 	/*** Build query to find comment ***/
+ 
+ 	query = createPQExpBuffer();
+-	appendPQExpBuffer(query, "SELECT description FROM pg_description WHERE objoid = ");
+-	appendPQExpBuffer(query, oid);
++	appendPQExpBuffer(query, "SELECT description FROM pg_description WHERE objoid = '%s'::oid", oid);
+ 
+ 	/*** Execute query ***/
+ 
+@@ -3394,7 +3393,7 @@ dumpOneFunc(Archive *fout, FuncInfo *fin
+ 
+ 	/* becomeUser(fout, finfo[i].usename); */
+ 
+-	sprintf(query, "SELECT lanname FROM pg_language WHERE oid = %u",
++	sprintf(query, "SELECT lanname FROM pg_language WHERE oid = '%u'::oid",
+ 			finfo[i].lang);
+ 	res = PQexec(g_conn, query);
+ 	if (!res ||
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00256" HREF="msg00256.html">[pgsql-jp 23840] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 23796] oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00253.html">[pgsql-jp 23837] Re: レコードの一番上からの順位を特定するには</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00255.html">[pgsql-jp 23839] ecpg で地理データの取得方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 23832] Re: create view</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00256.html">[pgsql-jp 23840] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00254"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00254"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

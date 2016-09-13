@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14323] Re: ブラウザフォームからのテーブル一括更新方法 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Fri, 05 May 2000 17:12:53 +0900 -->
+<!--X-Message-Id: 39128285.3BD9D405@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 002b01bfb625$e1afc020$ea18a5cb@urawa1.home.ne.jp -->
+<!--X-Reference-Id: 20000505094250X.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Reference-Id: 005701bfb630$45c224e0$ea18a5cb@urawa1.home.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14323] Re: ブラウザフォームからのテーブル一括更新方法 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00034.html">Date Prev</A>][<A HREF="msg00036.html">Date Next</A>][<A HREF="msg00061.html">Thread Prev</A>][<A HREF="msg00037.html">Thread Next</A>][<A HREF="index.html#00035">Date Index</A>][<A HREF="threads.html#00035">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14323] Re: ブラウザフォームからのテーブル一括更新方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 05 May 2000 17:12:53 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00026.html">002b01bfb625$e1afc020$ea18a5cb@urawa1.home.ne.jp</A>&gt; &lt;<A HREF="msg00028.html">20000505094250X.kgotoh@cic-kk.co.jp</A>&gt; &lt;<A HREF="msg00029.html">005701bfb630$45c224e0$ea18a5cb@urawa1.home.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Taro Yamamoto wrote:
+&gt; 
+&gt; 山本太郎です。
+
+。。。バッサリ省略。。。
+&gt; 各フィールドにデータとは別にユニークな oid 等があれば
+&gt; それで update できれば簡単かなぁって思ってたんですけど...
+
+山本さんのねらいがいまひとつわからないのですが、汎用的な
+ツールを作るのが目的でしたら、pg_fieldname で取得したカラ
+ム名を INPUT TAG の NAME にできます。
+PostgreSQL には、行の oid に相当する ＤＢ列番号のようなも
+のはありませんが、pg_fieldname を使って、FOR 文でまわすよ
+うな汎用的処理は可能です。
+ご参考まで。
+
+$sql = "SELECT oid, * FROM 表 WHERE ...略...";
+$exec = pg_exec($dbcon, $sql) or die();
+$numfields = pg_numfields($exec);
+$numrows = pg_numrows($exec);
+echo "&lt;FORM ACTION='./a.php' METHOD=POST&gt;";
+echo "&lt;INPUT TYPE=SUBMIT&gt; &lt;TABLE&gt; \n";
+echo "&lt;TR&gt;";
+for($col=0; $col&lt;$numfields; ++$col){
+    echo "&lt;TH&gt;".pg_fieldname($exec,$col)."&lt;/TH&gt;";
+}
+for($row=0; $row&lt;$numrows; ++$row){
+    echo "&lt;/TR&gt;&lt;TR&gt;\n";
+    for($col=0; $col&lt;pg_numfields($exec); ++$col){
+        echo "&lt;TD&gt;&lt;INPUT NAME='".pg_fieldname($exec,$col)."[]'
+              VALUE='".pg_result($exec,$row,$col)."'&gt;&lt;/TD&gt;\n";
+    }
+}
+echo "&lt;/TR&gt;&lt;/TABLE&gt;&lt;/FORM&gt;\n";
+
+これで、カラム名の配列に、各ＤＢ行に対応した入力値が入って
+POST されます。
+
+細かいことをいうと、HTML 表示には、htmlspecialchars() を、
+ＤＢ書き込みには、addslashes() を通した方がいいです。
+
+# 変則的な方法なら、名前に 行ID や、OID を埋め込んでしまう
+# という方法もあります。
+# NAME='".pg_fieldname($exec,$col)."_".pg_fieldname($exec,'oid')."'
+# として、explode で、'_'(下線)で区切って配列にしてやると、
+# カラム名と OID が取得できます。特殊な用途ですが、結構便利。
+
+pg_fieldname() の取得値は、SELECT した集合のカラム名です。
+AS がある場合は、AS した名前に、計算式やリテラルは、固定
+の名前になります。
+
+$顧客名[$ii] など、カラム名が日本語でも動くようですが、
+コード(EUC、SJIS。。。)の違いによる問題が出るかもしれません。
+このあたりは、経験された方がいらしたら、ご教授ください。
+
+WEB ベースでＤＢ更新する場合は、入力中に他のプロセスで変更
+された列がある場合にどうするとか、検討が十分に必要です。
+
+汎用的に作るときは、UPDATE/DELETE の KEY をどうするかが、
+問題です。私は、面倒なのと、Informix の習慣で、全ての表の
+oid に INDEX を付けて、OID を KEY にして更新しています。
+oid の INDEX 分だけ、オーバーヘッドになりますが。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+        <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+PostgreSQL 汎用ＤＢ検索フリーソフト(2000-02-18 版)公開
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp 14325] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00026" HREF="msg00026.html">[pgsql-jp 14314] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 14316] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00029" HREF="msg00029.html">[pgsql-jp 14317] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 14322] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 14324] postgres/ruby</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 14349] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 14325] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00035"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00035"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

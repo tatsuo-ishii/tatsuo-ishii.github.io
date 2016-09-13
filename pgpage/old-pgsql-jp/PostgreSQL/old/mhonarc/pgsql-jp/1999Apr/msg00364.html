@@ -1,0 +1,379 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8173] float4 &#45;> float8 convertion probrem -->
+<!--X-From: Ikuo Tanaka <ikuo_ml@sannet.ne.jp> -->
+<!--X-Date: Thu, 22 Apr 1999 13:04:45 +0900 -->
+<!--X-Message-Id: 01BE8CC0.C4000E20@max1&#45;ppp50.nagaoka.sannet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8173] float4 -&gt; float8 convertion probrem </TITLE>
+<LINK REV="made" HREF="mailto:ikuo_ml@sannet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00363.html">Date Prev</A>][<A HREF="msg00365.html">Date Next</A>][<A HREF="msg00366.html">Thread Prev</A>][<A HREF="msg00363.html">Thread Next</A>][<A HREF="index.html#00364">Date Index</A>][<A HREF="threads.html#00364">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8173] float4 -&gt; float8 convertion probrem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ikuo Tanaka &lt;<A HREF="mailto:ikuo_ml@sannet.ne.jp">ikuo_ml@sannet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 22 Apr 1999 13:04:45 +0900</LI>
+<LI><em>Encoding</em>: 174 TEXT, 132 UUENCODE</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中いくおです。
+
+&gt; 境田です。
+&gt; 
+&gt; On Wed, 21 Apr 1999 16:20:23 +0900
+&gt; Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt; さん wrote:
+&gt; &gt; 
+&gt; &gt; 市川＠お茶大です．
+&gt; &gt; 
+&gt; &gt; 変換以前に，1.23 の IEEE 単精度表現が持っている問題ですから，
+&gt; &gt; ftod() をどうしようと，修正はできませんねぇ ...
+ひゃ〜 IEEE 754ですか〜
+IEEEって、決め事、例えば通信のプロトコルや電気的条件の
+ようなものを定めている物だと思っていたのですが、計算の
+精度まで規定されていたんですね。奥が深い。勉強になります。
+
+&gt; &gt; 
+&gt; 
+&gt; 　おっしゃるように、SQL構文解析時に 1.23 を無条件に倍精度変
+&gt; 数にセットしている場合、ftod() をどうしょうと修正はできない
+&gt; ですね。
+&gt; 
+&gt; 　田中さんのSQLに戻りますが、
+&gt;   select field_a - 1.23         from test_table;  を
+&gt;   select field_a - float4(1.23) from test_table;
+&gt; 
+&gt;   とすると、postgresql-6.3.2と同じ結果になります。
+
+なるほど。
+次のようになることを確認しました。
+
+testdb=&gt; select field_a - 1.23, field_b - 1.23 from test_table;
+            ?column?|?column?
+--------------------+--------
+1.90734863458886e-08|       0
+(1 row)
+
+testdb=&gt; select field_a - float4(1.23), field_b - float4(1.23)
+testdb-&gt; from test_table;
+?column?|             ?column?
+--------+---------------------
+       0|-1.90734863458886e-08
+(1 row)
+
+testdb=&gt; select field_a - float8(1.23), field_b - float8(1.23)
+testdb-&gt; from test_table;
+            ?column?|?column?
+--------------------+--------
+1.90734863458886e-08|       0
+(1 row)
+
+----------
+この件については市川様，境田様をはじめ、実に沢山の方々からreplyを
+いただきました。
+1つ1つのご意見がすべてとても参考になりました。ありがとうございます。
+
+[pgsql-jp 8164] 
+&gt; SQL92の規格としては，「実装定義」になってるようです．
+&gt; 参考文献：
+&gt;	「SQL92完全ガイド」  pp.453-454, J.Melton &amp; A.R. Simon著　トッパン発行
+&gt;	ISBN 4-8101-8922-8
+えーっと、「SQL92完全ガイド」 P.454「11.明示的な精度によって定義された
+それぞれの値をFLOATとして定義されたデータ型にした場合のバイナリ
+精度は、実装が定義する。」ってことでしょうか？
+でも、一方、 P.466「3.データ型の物理的な表現方法は実装に依存する」
+なんですよねぇ（？＿？）ちょっと、私には理解できなくなりました。
+しかし、
+[pgsql-jp 8160]
+&gt; &gt; 　postgresql 6.4.2 は C言語と同じ実装なんですね。
+&gt;
+&gt; 同じです．src/backend/utils/adt/float.c にある ftod() が
+&gt; 変換をしているのですが，中身は単に代入しているだけです:
+ソースがそのようにコーディングされているのなら、Postgreに関しては
+C処理系に依存するのでしょう。
+
+[pgsql-jp 8166]
+&gt; 久しぶりに一年生用の計算問題をやってみました．
+私も10年ほど前にやったのを思い出しました。
+
+&gt; 1.23 を 2 進になおすと，
+&gt;
+&gt;	1.001 1101 0111 0000 1010 0011 1101 ...
+&gt;
+&gt; となります．IEEE 754 では 0捨1入 を取っているようですから，
+&gt; IEEE 754 単精度の仮数部が 23 bit 長 (24 bit 精度) であることを
+&gt; 考えると，
+&gt; 
+&gt; 	1.001 1101 0111 0000 1010 0100
+&gt;         --- ---- ---- ---- ---- ----| ここまで
+&gt; 
+&gt; というようになりますね．
+&gt; 
+その、
+1.001 1101 0111 0000 1010 0100を10進数に戻すと、
+
+2進                       1.23の
+の桁 2の-n乗              2進数値 各2進数桁の10進数値
+ 0   1.00000000000000E+00    1    1.00000000000000E+00
+ 1   5.00000000000000E-01    0    0.00000000000000E+00
+ 2   2.50000000000000E-01    0    0.00000000000000E+00
+ 3   1.25000000000000E-01    1    1.25000000000000E-01
+
+ 4   6.25000000000000E-02    1    6.25000000000000E-02
+ 5   3.12500000000000E-02    1    3.12500000000000E-02
+ 6   1.56250000000000E-02    0    0.00000000000000E+00
+ 7   7.81250000000000E-03    1    7.81250000000000E-03
+
+ 8   3.90625000000000E-03    0    0.00000000000000E+00
+ 9   1.95312500000000E-03    1    1.95312500000000E-03
+10   9.76562500000000E-04    1    9.76562500000000E-04
+11   4.88281250000000E-04    1    4.88281250000000E-04
+
+12   2.44140625000000E-04    0    0.00000000000000E+00
+13   1.22070312500000E-04    0    0.00000000000000E+00
+14   6.10351562500000E-05    0    0.00000000000000E+00
+15   3.05175781250000E-05    0    0.00000000000000E+00
+
+16   1.52587890625000E-05    1    1.52587890625000E-05
+17   7.62939453125000E-06    0    0.00000000000000E+00
+18   3.81469726562500E-06    1    3.81469726562500E-06
+19   1.90734863281250E-06    0    0.00000000000000E+00
+
+20   9.53674316406250E-07    0    0.00000000000000E+00
+21   4.76837158203125E-07    1    4.76837158203125E-07
+22   2.38418579101562E-07    0    0.00000000000000E+00
+23   1.19209289550781E-07    0    0.00000000000000E+00
+
+                            合計：1.230000019073486328125
+
+となり、単精度の時点で既に誤差は出ているのでした。
+で、多分、慣習的に単精度は10進数に直すときに6桁まで、
+倍精度は14桁までに丸められてしまっていて、誤差が表面化して
+いなかっただけのようです。
+10進6桁に丸められるというのは、24ビット目に当たる
+2^-24が5.9604644....E-08ですから、24ビット以降が
+落ちていては、10進8桁以降はあてにならない
+でしょうから。で、10進7桁を四捨五入に使うとすると、
+10進では仮数部6桁というのは妥当な線かも。
+(慣習ではなくて、10進6桁とか、14桁とかもIEEEで規定されて
+いるのでしょうか？)
+ですから、あえて倍精度に変換しなくとも、
+[pgsql-jp 8166]
+&gt; &gt; 　このx の値って、フォーマット使ってy と同じ桁数だけ出せますでしょうか。
+&gt; 
+&gt; 同じです:
+&gt; 	real*4  x
+&gt; 	real*8  y
+&gt; 	x = 1.23
+&gt; 	y = x
+&gt; 	write(*, 100) x, y
+&gt; 	stop
+&gt;   100	format(F20.18, ', ', F20.18)
+&gt; 	...
+&gt; 
+&gt; 1.230000019073486328, 1.230000019073486328
+のように、無理矢理(?)6桁以上出力するだけで単精度の誤差を
+目の当たりにすることができるのですね。
+
+[pgsql-jp 8161]
+&gt; 境田です。
+&gt;
+&gt;   技術系アプリで数値計算を多用してますから、上記のような微
+&gt; 妙な計算誤差でも致命的なエラーになる可能性があります。
+そうですネ。
+私も皆様のおかげて将来起こるであろうトラブルを未然に防ぐことが
+できました。
+皆様のご報告を参考に、数字のマジックに陥らぬよう、今後の開発に
+生かしていこうと思います。
+
+今後もいろいろと質問する機会があると思いますが、
+その時はよろしくお願いいたします。
+--------------------------------------------------
+田中活朗(Ikuo Tanaka)
+ikuo_ml@sannet.ne.jp
+
+begin 600 WINMAIL.DAT
+M&gt;)\^(A $`0:0" `$```````!``$``0&gt;0!@`(````I ,```````"G``$-@ 0`
+M`@````(``@`!!) &amp;`!0!```!````# ````,``# #````"P`/#@`````"`?\/
+M`0```$,`````````@2L?I+ZC$!F=;@#=`0]4`@````!P9W-Q;"UJ&lt;$!S&lt;F$N
+M8V\N:G `4TU44 !P9W-Q;"UJ&lt;$!S&lt;F$N8V\N:G ``!X``C !````!0```%--
+M5% `````'@`#, $````3````&lt;&amp;=S&lt;6PM:G! &lt;W)A+F-O+FIP```#`!4,`0``
+M``,`_@\&amp;````'@`!, $````5````)W!G&lt;W%L+6IP0'-R82YC;RYJ&lt;"&lt;`````
+M`@$+, $````8````4TU44#I01U-13"U*4$!34D$N0T\N2E ``P``.0`````+
+M`$ Z`0````(!]@\!````! ````````/++P$(@ &lt;`&amp; ```$E032Y-:6-R;W-O
+M9G0@36%I;"Y.;W1E`#$(`02 `0`Z`````0%;&lt;&amp;=S&lt;6PM:G @.#$V.5T@4F4Z
+M(&amp;9L;V%T-" M/B!F;&amp;]A=#@@8V]N=F5R=&amp;EO;B!P&lt;F]B&lt;F5M`-(2`06 `P`.
+M````SP&lt;$`!8`#0`$`"T`! `R`0$@@ ,`#@```,\'! `6``T`! `M``0`,@$!
+M"8 !`"$````X.3&lt;P,#DY-34X1CA$,C$Q0C(T,#0T-#4U,S4T,# P, "L!@$#
+MD 8`A!0``!(````+`",```````,`)@``````"P`I```````#`#8``````$ `
+M.0" E--!=8R^`1X`&lt; `!````.@````$!6W!G&lt;W%L+6IP(#@Q-CE=(%)E.B!F
+M;&amp;]A=#0@+3X@9FQO870X(&amp;-O;G9E&lt;G1I;VX@&lt;')O8G)E;0````(!&lt;0`!````
+M%@````&amp;^C'5!RYSNW3#XLQ'2LD!$15-4`````!X`'@P!````!0```%--5% `
+M````'@`?# $````5````:6MU;U]M;$!S86YN970N;F4N:G ``````P`&amp;$/^H
+MR7,#``&lt;06A(``!X`"! !````90```)-#DH:"HH*M@JB"Q8*W@4*+JY-#@L6"
+MMX%"3TY7140L,C%!4%(Q.3DY,38Z,C Z,C,K,#DP,%E/4TA)2$E+3TE#2$E+
+M05=!/$E#2$E+05=!0$E33T-(04%#2E""LX+Q5U)/5$4``````@$)$ $```#E
+M$@``X1(```@^``!,6D9U]F?\E_\`"@$/`A4"J 7K`H,`4 +R"0(`8V@*P'-E
+M=#(7!@`&amp;PP*#,A$%&lt;')Q(Q*Q$74Q,C@1\7-T=&amp;5M`H,S!$83'Q0@7.0G.!*P
+M)S8`X!;#`&lt;#-%J9F%K$4\"&lt;U&amp;'$88YHV&amp;$0V%N$88C1E`H.^-!$,%G\7CQB?
+M&amp;:TU%0O?$/$;'QPL'8\&gt;G'T*@ C/'PG9`H *@0VQ"V!N9S%X,#0Q```+@ (0
+M``!H006P&gt;F1O8R "D2H!$54@(24I+"XZ@2%@,V(_75Q](6#N80!0*C BH6$:
+MD"HP'Z!5*C W*B$X*B$Y*B%A;RHA## J,!PQ80LP*C!EZRHA'4%B#? G#; M
+MH1U"_RI1)V N)1FR+E(BXBY2*M'_+D,K$2Y#(V(N4BM1+D,KD7\N0RO1+D,L
+M$2Y#+%$N0C6O+Q4BTS/2,!4U,)4U,A6J-3.5-C$5-C(5-C,5[QPC-M(M$2Y"
+M-RV1.4,O%:HW,!4W,14W,A4W,Q7J.#.5.#B5."S1/$,Y%;HY+I4Y+Y4`02%S
+M.1U"_R&amp;1*D) 0R+B0%(PDD!2,9*U(9%C/Y5E0I9!%65!E?\%D!G%.9(9\AFV
+M,!(9\B-E_S(#'HE'QS"2(N(QDB+B.1*E(J$Y2)4Y-BB#;"CD&lt;"0H6UP``"HP
+M+Q4VU3"5-C&amp;5-C*5-C:6/957'3,Y4BZ5-R^5-S"5-U4QE3&lt;RE3@N%3DYE3G&amp;
+M,B2""O1L:3$P``+1?&amp;DM4[,,T%.S"U4?H7/V,2%"/P(V2=(9LB-B0%+_&amp;;) 
+M4CV20%(R$D)2094!L/\NI@J+5(]5D@J/53=&lt;$ -@]11P8P5 /B%2+%(L457V
+MKUA_68I&gt;(&amp;#'3P.@5PF 0"P@,C$@016@(,PQ.6+@8L V.@'08T!P,R K,%)0
+M"G9&gt;(%D0;W-H:63 :V\@`$E#2$E+05=!&amp;" \:1%P9/!A=V%:0 0`+BA0$8 N
+M`- N/&amp;IP7B-?\D$5`$ @=_U=LCI@QV$Y7B,M$4_24E+_1(,^4D(5*X)6&lt;TG2
+M*E%$!MU?KS1HSVG52@)C'4(L$;M@(RN18VP2+E) %6,REC@S,2YC@4(E*&amp;!)
+M1;=S\%7"(9$U+9%24F)L$K&lt;BH3N"2@(U'#(&lt;,6(SDK= 4C,2+1$Y5\5"AF,P
+M$OU7"64KT4J 0N$_TFS26$_O0"4RDD+2,98S;JD!@ 1P?"@I(54-X4(T:Y9X
+MI6+W1!96QGBE8S$6(N(=02^"7W337S9WID&amp;6=J5D'#5BBWPE/X9C=J8U("Z'
+M8+];]U4-A/-^Q4,#-M(P&lt;]3_4%"!1GLOB?9;]7/B=[\N.'\&lt;,GJE+@-W8C$6
+M:U5#!F&amp;]5L5C=V)"4BP14E(T=Z;_1)4[`R+B/9(&gt;@DD5- ,BXO]VI7H3'H(P
+M$BQ1@K,9\C*2[QU!?K,&lt;,G'V8UOV@&amp;]"0_]ZI0I@D[E^A59R&gt;I8N`WAO]WEU
+M*Q)ZI6(Y$H&amp;&amp;:E*2)O]X+U_%DZJ+/W;UCND[`RT1_C4S$IGL=-Z$^FV#E^)&gt;
+MLON=V6&gt;V9:&gt;6HQ^%W8M]AK/_+M9YHAPU+ )24C:#5P8NU?U*`F0QDBQ2=Z9\
+M)9P'J8W_8"^'GUU=83FYIRXE?L58-S\_E8 W0I9\)H#.,I8Q4]Q13#UD=A)*
+M`F(C8BO1_YV#+9&amp;#LW=BH19C`7,8G8.O(V%GLYCO&lt;D0Y*M$W7K+_=.]P0KHY
+M4E+%\G(G(J(S$O\&gt;B4S3@ F?#YBEK',]DC&amp;6_C%][W[_@ I!EH%*@H^#G_^$
+MIYP&amp;2]"Z.J[/K]JYK[JY_U7_9XMS5K_$Q88C89Z&amp;M7_OI9_89^"P$;!L7&gt;)4
+M`.#PX&amp;1?82 MPO3B-@-2MB 4&lt;!1@7P&amp;1X0`[X+ /SM;@/^%))O!O870T_BAS
+M`LZPXL[8;^3A@5E[:5.]IH&amp;W,7!DH'0)P7/ &lt;6PM-BXS&lt;Q"!6/\_`BU"MC,C
+M8APR,Y(KT9,2?[0_W&gt;^V7[=OB(N&lt;!WPE9'_OIEE/=T29I[W/[T^]:F+_HI96
+MQ&lt;\S+!%.4L7R,0. "1^%-U^V/97R'N,29&amp;(]WUX@Y1]S`F) X51BX&lt;;F_PM&lt;
+M! 2J/R3A=6UN/[9\!79;]2T&amp;_P&lt;@*P&lt;F_UOU&lt;P!24$_0,@!6,#" &lt;2#!5K!E
+M+3 X?.(U8_;EYH @:'!W*?]_`(_ES^\I8 ))YBH,6RU]P0-?\E,_!7&lt;$KP9/
+M"!D6.P1,,'Q_5" )3PI0"P\,'PTOY?8X_P[/'.L0KQ&amp;_!&amp;\%?P:/!Y__"*\)
+MOPK/&amp;FT6K_I]=B7%.O]"0U=&amp;[*:!1L'E:HIK@CB&amp;_X(S7GTOY\\*5\7 TX_F
+MIE;]IU%CST9YHC]2RE*G4NRF?&lt;!E9DWE&amp;0![ONP`6Q!Y_^/MK1^@NX2__F\E
+MMBS&amp;/O?MG*QBRE)Q,61'TK$!?!;_=Q-[:;-S+?J2)JT%G(.G4O^)XE?!,B;Y
+M7_"N/7_558EF_]5&amp;K(: S4#S\6*M#?$?\BW86W!G[")G$""F0)&gt;0_EVYF-R!
+M5G.3YJK%_!/JJO_+'].5@@9LT8K0-,ALPJ!"_YW'E^&amp;*4%95DB9'#:*.O:__
+MBO]N+T6?P(A!PE9%_-#G]KY&lt;(-&amp;ZM8K04@9PL6&amp;2HK\W\I9BF&amp;*R`IAB8_4V
+MU4(C60/DX'!P+ACP,RW%&amp;/ T`C!*+DWA&lt;,YP`&amp;X@)B!!+E(NV5'P:6UG0-J$
+M.65UNR/[E6G*1C=I)&gt;U2Q?*S\S,Q`QB086M)4T).(#2R+:9 ,#%M8-J@,FU@
+M_SH&lt;D*6Q]J*'D*EB7V-O9'_=98=09D&amp;.I8K0,&gt;'PP]7_._*G49(2F%&gt;;U:B_
+M+'E&lt;-O^BBE?_J\\]PBI&lt;EJ9"AO?F!Z&gt;7VH0R*$9,3T%4_U/?&gt;H][GWRKRF5O
+M"LF2._*_L0&amp;'$RQY2/O-'I/I-I B_W.:R553&lt;*@O&gt;)O^YC2Y5W;_L3&gt;#;^G]
+ML$99"J*=^MY=-__0SSA)IE)N'%TVG(.F5D%!_ZQR-VJF@'3BAA9Q&lt;.R A;_O
+MAL\VZKNB+^(Y_&amp;)W+L"A_\!2[E)^0C=FP_*[)L'6CX[_+*-!0:_R-&gt;(SII(.
+MDX"8K/_51:Y_ZB:3EK(&amp;T4(U\5.S[YA3-\5Q!:SF-D*&amp;W:;+5OMP#\'T./CN
+M_&amp;*@1&lt;$6T___U0K3QD&gt;/B#_V'[QY0?:\HW/?ZE![,%WG]]EHZ[@@C&gt;Q@-,,0
+MUE9D($.B%?^')7_'[2^D'ZB?J:_7G]BB#\?:[6Y=#UX2&lt;W)C+P!B86-K96YD
+M+T!U=&amp;EL&lt;R]KD'1R+P_C+F/65D(&amp;2H8YW^% SGK?D,8Z8!%C[:)3@?_?%C*F
+M5+XZYNJ71H;$+=^77]IYC4)ID[(VDQ$U-3UE_6KE9K;]T)_Z9COV+#;(-_XZ
+M]HB&gt;0C UG?=+#7Y&amp;]]__^.J&gt;0I,5G?:=&lt;W,2:B7&amp;XG]S`^VFA*W8G]&amp;NM?;U
+M]C'N4.O$+$E3@62"+RY&amp;\J7_OR+MHJ )[E(G$*4?IB_EWV^5WY;M3T]073:\
+M1BCP;!1A:6@@9DV 9G,Q_CA&gt;M%,!DX;]5T4&amp;&gt;.J:QO_\HG)2C5)VXM,A:I,K
+M&gt;9.#]T7"D))@465H8M;BPR9*AOLMMI0=9#,UMN\]]EY&amp;L0S_17!M@/CX,^-'
+M!J!"-'(L/?_]WCMF0'8RHR[R3 :3$C0Q_XL3]JK_[_(OO'4&gt;XID%.?#^(+YR
+MU--'!D&lt;-G_+$6W"&amp;OVPF].9@$/6$86L&gt;X#!MD/\^X&amp;V!)]!UP!11%,$^X +1
+M]Q2Q%)$4(RX6`,6_1!VU_ZE=7DE%&amp;E @&lt;7 TF0W_OO%%A4!P5X+78PU'=G1Y
+MW__E+]\_TD\X;!$-QJ :2=76_XU/0$:S,7]")5)K4E&gt;S38;&amp;80W0#3!B:70D
+MI4[P^" H,AJP*/4E:\T&amp;L^?_S!&gt;4KSFL7L-&amp;26[S[UH0_G_&amp;H,8X$X\4G&amp;V 
+M+E@U1BWO-= UPC7_-F)\N.8&amp;=I05_PIFR" Q?Q&lt;]3?8@]B!_1P__&amp;,_$S%Y(
+M?7_OQ[JJ,N\S^[\-5@+C#C4G5M978%%DXZ;_$'ZZY@P%:&amp;(.,S5'2YP-`F?O
+MIIBLH@4X-4J2[\0M_V@AB5-E\4N:2J&lt;G.8"3F0+]TZ$VX1)&amp;;TZ#[Z9&amp;+U'W
+MGPP%%+!,&lt;Q3"5ZA%*Q3A7TQR3&amp;17KRY66/,U66XM]T/Q-4%8LS!9;UIXOG!0
+MT?XNUA!;GURO7;]F``TP3(/_7TM@)ED%8Q])O6U -4&amp;^,/]D[U[B6/1G/VA!
+M5L9.P&amp;*1_"XQ:2MH.VL/:AE0`G70_#4V:2IH-F"O6AXIH')!_BZ\`&amp;\=8K)8
+M]'*O&lt;[%F#?_UL&amp;RR)5!O"G.F&lt;%]:'DLB^UE0SE S;/ESJWJ_=8@5,?UZ42ZG
+M\&amp;[Z8"%F\ECT?H_??Y%#5ED"OE#L`#)TF7^+WX)?@6A#5E[D`5 QO6!O!Y=_
+MAGAO6ATQ8K4R,/I0OWKWAY^(KT-E9O05,#.M8']N]V A:L*+WXSO:L2/4#'_
+MG- F$&amp;SUCS^03X5\;I5I(/XX)A!W!I,&amp;6066;SFFDD#_=$-O`,;@^1!\MF A
+M4 .3CY&gt;)+G:DO `T2Q W,H"%;YL6;(6&gt;#Z@&amp;,7IUBJ S^:S@-C."E)L?G"])
+MW'Y$_WRPU1#4$/0PAN1@(7)BHR_=&gt;6XR@A2 &lt;.'0-XZ0'S!OBL.F]H/5J&gt;\W
+M2C9&gt;Y#/_L6#UH))@[D 5(&amp;[QIO^H#[]*16*TH6"*D-70LR UUA#_DG&amp;NGZ^O
+M9ARU7[8(+O26D/OZ^0NR-@T"LU.A8*'J# R_%T_WB$ES)+\ES_N2.?EBM]QB
+MVJK3H68.&gt;@IQ94)"_PMQ/[&lt;+&lt;@DY'O_OGPJ/"YS_(1F\ENY2U:+.8=.7."+.
+MXOOPDN.A-.X2XV(.&gt;;T/)&gt;K^9%4O1SHM$C].((9"1D?B[U1*.1A)3?CT-^X2
+MS0_.$_]4'=-KZ-I"14@FYY/D;PG/?QYOQ$;#P\H&amp;P9_)E"?2-?LG(OMA8^2B
+M)N)"1&gt;H(06NOW?&lt;/=CW&amp;!GUB[15A!/;_"G4\OR&amp;*"[K.6-)]V/_:#_\O_SMO
+MQ0L+=FSPP](J\CO"_RKQ;P#R101R1_+;!LQ"*O'/TF,&amp;N1_P2C9&gt;+?&amp;C*&amp;/_
+M6U!'X'^@IH"KD!8!8"$F)G\ACR*=\9_RJH1 NZ4+&lt;3?=YG9AU(A(L@-U8L-?
+M_RS_\0C.6 _R5%;\;\*E+!D`A]\]SDBV#W;'7\7[92O6P];_(HY.YLA'SEBW
+MA52&amp;'78O4_\&lt;([&gt;4&amp;2(&lt;I 59#J+Y!NAV__2VVH8P;D-'SFD:_":_)\7OZQ[O
+M'_ OR.-C]'+T&gt;;O"W]62$%8*IRQ2Z;HHRE\5G__D*R$&amp;WH?J?QA_+-(!5%0&gt;
+M\R2Z'&lt;-)12?P^!E 0&lt;LS_3Z)8DS5VOCC'\2/"'\)CWDE&amp;#@I!]_XO_G+!%QA
+MO[M64?+5+[XIS$+H\6-(,G_*@DBUXG&lt;ACN?U'??4=W H;&amp;%I3X!F-,!F&lt;P&amp;=
+MD5MP9W-Q;"W,:G!VD*9P-EU UT% R^F%195BW09C&gt;$W)4B2_W)_)Z+X2^J6B
+M$.F$-&gt;("W[X2QM+[;A$IW/AYNMD0$KWFYF(CN&lt;\:YFO#&amp;6+D]?_&lt;=M#7+8\N
+MG^F&lt;/5 \YT;?E3"M.D]H=-'0('+:\'1L*HN1&gt;%(/4Q!VH7G[4WP_$#UDLG6F
+M4G5&amp;,%7@`5-M=W)I=&amp;4H*G(LZF$P*5-06,!4W7-X=&amp;]P/.=DH;D`4I-F@&amp;]R
+M;6%T*$:*D/5LX#A8P"=&lt;DUPT,!92=?_WD4[?5?.XWEC!7\^"D#J=_^CP.Z/G
+M#^@&lt;)3?A%"H"_D(V.&lt;E"X4%EOU)FXR@_[BDCN@,&amp;_Q%E*A+#%?Y"_P0V$M[F
+M;Q&gt;RS(^^+=]/#C+_U(CS&gt;@_E]*\V"6L?/DKG]M_;!DU&amp;X@4L?S$-8^("Z;K[
+MN@4[^S$\UCL-/7/B`='2WQ 2HC!X[\;]8MP^?+]]Q7NV\^(!-=L"_Q&amp;*L+&gt;4
+M-O_](LN"0:;G\BH2=MD7)S_F_[?&amp;_2&amp;$(PXER/?0X82CXDO_2M\QK\GW::8H
+MTBT&amp;9"\&lt;&amp;?TTP6:LQD_3X4$A]P)%B*O_;Z]Y*!WR;9*W\F93R4++BO_X`LN"
+MT.(J$B4U0Q,%CW@E_&gt;3Q8]X!-++@\PYAT=9VQO\$MBF&amp;2SO''^'GZ&amp;^8Q0[3
+M_Y^-_2+#U1WSVP$7\HIB0!?['0;D?6($RO\1?I/\)2C#__Z6Y75X1TU&amp;G&lt;:@
+MNOOFF0;_OA)_HHZUB6&gt;2@IO"0N+&gt;!OO,0N%!-N1VJ:UV2# OT9K?2S?&amp;7RLH
+MI.]XJ&amp;*;PN#!WF;E&lt;LE"!,4.5C6YA4 7WV6JSR:_4G'90UHUHC;[)?^IENP'
+MVH;0YNX6Y_K*!K81_F'?!G\FT&amp;*W0N""-,$A]__UMFWU)MV++BOV/G81V_TA
+M_X8C*\F&gt;OWK=PY\=J"O*G,;_T%W*YO\"9U/)=A+J*-(.8OWD\67_%9T_[IK+
+M/XP/=K3_.DN@6WC#9Z(#S9 FK!:UAO\A]J:3=M$IAAEWR7;E]G^E^\QO'H8M
+MX\_DW^7=@+]C97]^UFV28*"&amp;A6YB^ &amp;ID"@`26MU;R!486XH86MA,!9IZF%?
+M;0AL0'/JL&amp;YE="ZM[# N/&amp; &gt;E7T&gt;D #M&lt; ````,`$! ``````P`1$ ````! 
+I``&lt;P(#3$1!J,O@% ``@P@)33076,O@$&gt;`#T``0````$`````````"08`
+`
+end
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00363.html">[pgsql-jp 8172] money型の表示フォーマット変更</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 8174] Re: money型の表示フォーマット変更</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00366.html">[pgsql-jp 8175] sorry for No.8154</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00363.html">[pgsql-jp 8172] money型の表示フォーマット変更</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00364"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00364"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

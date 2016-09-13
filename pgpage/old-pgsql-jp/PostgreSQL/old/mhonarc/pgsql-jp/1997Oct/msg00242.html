@@ -1,0 +1,189 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2828] Re: converter: text &#45;> int -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 30 Oct 1997 11:07:53 +0900 -->
+<!--X-Message-Id: 199710300207.LAA22832@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710292354.IAA02168@mail.na.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2828] Re: converter: text -&gt; int </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00241.html">Date Prev</A>][<A HREF="msg00243.html">Date Next</A>][<A HREF="msg00238.html">Thread Prev</A>][<A HREF="msg00246.html">Thread Next</A>][<A HREF="index.html#00242">Date Index</A>][<A HREF="threads.html#00242">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2828] Re: converter: text -&gt; int</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 30 Oct 1997 11:07:53 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;text 形を int4 とかに変換したく、次のようにしたところ
+&gt;ウマクいきました。
+&gt;
+&gt;けど、
+&gt;src/backend/utils/adt/numutils.c にある pg_atoi() を使っており、
+&gt;こんなことをしていいものか、不安になってメールしました。
+&gt;Cでわざわざ作らなくても、もっと簡単な方法があるんでしょうか？
+
+いえ、6.2.1 の段階ではこれしか方法がないと思います。
+
+	select cast '0123' as int4;
+とか、
+	select '0123'::int4;
+
+ならできるんですが。もっとも、今後のバージョンでサポートされる可能性が
+あります。(添付記事参照)
+
+&gt;また、たとえば
+&gt;    SELECT int( text_field ) FROM aTable;
+&gt;のようなカンジで、int のコンストラクタのようなものに text を引数と
+&gt;しても呼べるようにすることは不可能なのでしょうか？
+&gt;CREATE TYPE の input は、一つしか指定できないから、やっぱり無理な
+&gt;のかなあ？
+
+「int のコンストラクタ」という表現は良く分かりませんが、同じ関数名で、
+引数が異なるものを定義できるか、ということなら yes です。
+
+# システムの組み込み関数がどのように定義されているかが 
+# src/include/catalog/pg_proc.h に書いてあります。眺めてみると、面白いで
+# す。
+
+&gt;＃ PostgreSQL おもしろいですね。ハマリそうです。
+
+もっとハマって下さい:-)
+
+P.S.	メールで、日経インターネットテクノロジー1997/11号の
+「素晴らしきフリーソフトの世界」という記事に PostgreSQL が登場している
+ことを教えてもらったのですが、御覧になった方いますか？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+------------------------ 本家 ML より ----------------------------
+Message-ID: &lt;3450AE97.C1DD8726@alumni.caltech.edu&gt;
+Date: Fri, 24 Oct 1997 14:20:08 +0000
+From: "Thomas G. Lockhart" &lt;lockhart@alumni.caltech.edu&gt;
+Organization: Caltech/JPL
+X-Mailer: Mozilla 4.03 [en] (X11; I; Linux 2.0.30 i686)
+MIME-Version: 1.0
+To: Mattias Kregert &lt;matti@algonet.se&gt;
+CC: pgsql-questions@postgreSQL.org
+Subject: Re: [QUESTIONS] Q: How to cast int attribute to text?
+References: &lt;344F1914.4C40A163@algonet.se&gt;
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+Sender: owner-pgsql-questions@hub.org
+Precedence: bulk
+
+&gt;     create table people (id int, name text, info text);
+&gt; Then I want users to be able to enter a search word (text or integer)
+&gt; and run a CGI script to find the ID of this person:
+&gt;     select info from people
+&gt;     where name='search-crit' or char(id)='search-crit';
+&gt; Unfortunately, there is no int-to-char or int-to-text function.
+
+The text data type is the most general fundamental string data type in
+Postgres. I plan on having more conversions to-and-from text and other
+types.
+
+We already have this conversion for some date/time types. I've just
+included oid_text(), int2_text(), and int4_text() in my source code and
+will commit to the source tree soon. Will work on others for v6.3.
+
+&gt; I have tried "cast id as char", but I get error on "id", so it seems
+&gt; as if "cast" can not cast column names.
+
+Will be possible in v6.3 (my source tree already has it but not
+committed yet).
+
+&gt; I don't want to split this into a int-query and a text-query!
+&gt; How can I do this in one single query???
+
+(in the next release):
+
+postgres=&gt; select info from people
+postgres-&gt; where name='search-crit'
+postgres-&gt; or cast id as text = 'search-crit'; -- text(id) also works
+info
+----
+(0 rows)
+
+There are several possible problems with this:
+- leading zeros in 'search_crit' will cause the match to fail
+- converting a column in the query is much slower than converting the
+constant in the comparison (i.e. you would have better performance by
+converting 'search-crit' to an integer, or by storing "id" as text).
+- however, converting 'search-crit' to integer may fail for some
+'search-crit'
+
+I would suggest checking for integer-like 'search-crit' in your CGI
+script before forming the query.
+
+                                                                       -
+Tom
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00246" HREF="msg00246.html">[pgsql-jp 2832] Re: converter: text -&gt; int</A></STRONG>
+<UL><LI><EM>From:</EM> omata@na.rim.or.jp (Ken-ichi Omata)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00238" HREF="msg00238.html">[pgsql-jp 2824] converter: text -&gt; int</A></STRONG>
+<UL><LI><EM>From:</EM> omata@na.rim.or.jp (Ken-ichi Omata)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00241.html">[pgsql-jp 2827] System Configuration of PostODBC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00243.html">[pgsql-jp 2829] RE: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00238.html">[pgsql-jp 2824] converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 2832] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00242"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00242"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,126 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12782] Re: Q) select .. limit 1とfunction -->
+<!--X-From: Yamada Ken Takeshi <ken@tydfam.machida.tokyo.jp> -->
+<!--X-Date: Sun, 23 Jan 2000 20:16:26 +0900 -->
+<!--X-Message-Id: 20000123201626J.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000123191019Z.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12782] Re: Q) select .. limit 1とfunction </TITLE>
+<LINK REV="made" HREF="mailto:ken@tydfam.machida.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00325.html">Date Prev</A>][<A HREF="msg00327.html">Date Next</A>][<A HREF="msg00324.html">Thread Prev</A>][<A HREF="msg00319.html">Thread Next</A>][<A HREF="index.html#00326">Date Index</A>][<A HREF="threads.html#00326">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12782] Re: Q) select .. limit 1とfunction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yamada Ken Takeshi &lt;<A HREF="mailto:ken@tydfam.machida.tokyo.jp">ken@tydfam.machida.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 23 Jan 2000 20:16:26 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00324.html">20000123191019Z.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  山田＠町田市です。
+  早速、回答有難うございます。
+
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+  :        :            :
+t-ishii&gt; 業務ロジックを理解していないので間違っているかも知れませんが、
+t-ishii&gt; 
+t-ishii&gt; create function get_price (int, int, date) returns float8 as '
+t-ishii&gt;   select price from price
+t-ishii&gt;   where ($3 - effective_date) =
+t-ishii&gt;   (select max($3 - effective_date) from price where
+t-ishii&gt;   product_id = $1 and customer_id = $2
+t-ishii&gt;   and effective_date &lt;= $3);
+t-ishii&gt; ' language 'SQL';
+t-ishii&gt; CREATE
+t-ishii&gt; 
+t-ishii&gt; では如何?
+
+  create function get_price (int, int, date) returns float8 as'
+    select price from price
+    where product_id = $1 and customer_id = $2 
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      and ($3 - effective_date) =
+      (select min($3 - effective_date) from price where
+              ^^^
+      product_id = $1 and customer_id = $2
+      and effective_date &lt;= $3);
+ ' language 'SQL';
+
+  で、出来ました。(同日に変更するものがあるので、期日だけでは特定できない。又、
+  実施日との間隔がもっとも短い＝最も新しい価格、というロジックです。)
+
+t-ishii&gt; 
+t-ishii&gt; create function get_price (int, int, date) returns setof float8 as '
+t-ishii&gt; 						   ~~~~~
+t-ishii&gt;   select price from price
+t-ishii&gt;    where prod_id = $1 and customer_id = $2
+t-ishii&gt;     and effective_date &lt;= $3
+t-ishii&gt;   order by ($3 - effective_date) limit 1
+t-ishii&gt; ' language 'SQL';
+t-ishii&gt; 
+t-ishii&gt; とやっても
+t-ishii&gt; 
+t-ishii&gt; &gt; ERROR:  function declared to return float8 returns \
+t-ishii&gt; &gt;         multiple values in final retrieve
+t-ishii&gt; 
+t-ishii&gt; でした。order by が入っていると駄目みたいですね。なんでだろう?
+
+ これは、私もやって見ましたがダメでした。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp 12780] Re: Q) select .. limit 1とfunction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 12781] Re: pgaccessでエラーメッセージが出ます。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00327.html">[pgsql-jp 12783] Re: はじめまして。　　</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp 12780] Re: Q) select .. limit 1とfunction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00319.html">[pgsql-jp 12775] はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00326"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00326"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

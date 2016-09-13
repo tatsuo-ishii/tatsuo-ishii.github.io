@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14441] Re: oidからのデータ取得方法について -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Fri, 12 May 2000 20:10:37 +0900 -->
+<!--X-Message-Id: 391BE6AD398.F929JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 391BB73628.F926JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 391BD909.C52FD765@hitachi&#45;ul.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14441] Re: oidからのデータ取得方法について </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00151.html">Date Prev</A>][<A HREF="msg00153.html">Date Next</A>][<A HREF="msg00153.html">Thread Prev</A>][<A HREF="msg00155.html">Thread Next</A>][<A HREF="index.html#00152">Date Index</A>][<A HREF="threads.html#00152">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14441] Re: oidからのデータ取得方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 12 May 2000 20:10:37 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00146.html">391BB73628.F926JUN-N@mail.ga2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00148.html">391BD909.C52FD765@hitachi-ul.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは
+
+&gt; 詳しく説明させていただきますと、以下の通りです。
+&gt; 
+&gt; 以下のような２つのテーブル（shun,shinamono）がtestDBという名称に存在した
+&gt; とします。
+&gt; 
+&gt; testdb=&gt; select oid,* from shun;
+&gt;   oid|hinmei|kisetsu
+&gt; -----+------+-------
+&gt; 38519|kuri  |aki
+&gt; 38520|mikan |fuyu
+&gt; 38521|meron |natsu
+&gt; 38522|suika |natsu
+&gt; 38523|ringo |aki
+&gt; (5 rows)
+&gt; 
+&gt; testdb=&gt; select oid,* from shinamono;
+&gt;   oid|hinmei|nedan
+&gt; -----+------+-----
+&gt; 38506|mikan |  100
+&gt; 38507|ringo |  150
+&gt; 38508|meron |   80
+&gt; (3 rows)
+&gt; 
+&gt; ここで、各データに付くoidは、ユニークになっています。
+&gt; 例えば、shunテーブル→（38521|meron |natsu）のoidが既知のデータであった
+&gt; 場合、これ（oid）をキーにtestDB内からデータ取得をしたいのですが、可能で
+&gt; しょうか？
+&gt; （oid=38521のみが、既知のデータであり、どのテーブルに属しているか？は分
+&gt; からない・・）
+すみません。私の方こそ勘違いしてしまって・・・。
+他にもっと良い方法があるかもしれませんが、以下の方法でできます。
+どのテーブルに属しているか・・・ってありますが、調べるテーブルが固定の場
+合です。
+union句を使うと、２つのテーブルの結果を出せますので、それで可能です。
+１．ビューを作ります。
+=&gt;create view vOid as
+-&gt; select oid,hinmei,kisetu,0::int4 as nedan from shun
+-&gt; union
+-&gt; select oid,hinmei,''::text as kisetu,nedan from shinamono
+-&gt;;
+とやると、vOidというビューが出来ます（・・と思います。上のは実行したわけ
+じゃありませんので文法が間違ってるかもしれません）。
+で、vOidを
+=&gt;select * from vOid where oid = xxxxx;
+でselectすると、oidによる結果を得られます。
+union句は、フィールドを合わせる必要があるので、上記ビュー作成部で、 shun
+にはnedan(int4)、shinamonoにはkisetu(text)を追加::ネストして無理矢理フィー
+ルドを合わせています。この辺はunion句を調べてください。
+もっとも、これでoidをキーに検索すると、レコード数によっては時間がかかるの
+で、テーブルにぶちこんでキーを設定した方が良いと思います。
+既にデータがある場合は
+insert into t1 slect * from vOid;
+で、t1にぶちこみます。(t1は、oid,kisetu,nedanフィールドを持つテーブルです）
+shunテーブル,shinamonoテーブルにルールなどでその都度 t1に insertと
+deleteをしてあげれば、その後は問題なかろうか・・と。（多分）
+
+&gt; &gt; \d pg_tables
+&gt; 実行してみました。結果は、以下のようになりました。
+&gt; 
+&gt; SELECT "c"."relname" AS "tablename", "pg_get_userbyid"("c"."relowner")
+&gt; AS "tableowner", "c"."relhasindex" AS "hasindexes", "c"."relhasrules" AS
+&gt; "hasrules", ("c"."reltriggers" &gt; '0'::"int4") AS "hastriggers" FROM
+&gt; "pg_class" "c" WHERE ((("c"."relkind" = 'r'::"char") OR ("c"."relkind" =
+&gt; 's'::"char")) AND (NOT (EXISTS (SELECT "pg_rewrite"."rulename" FROM
+&gt; "pg_rewrite" WHERE (("pg_rewrite"."ev_class" = "c"."oid") AND
+&gt; ("pg_rewrite"."ev_type" = '1'::"char"))))));
+&gt; 
+&gt; &gt; ってやって出てきたSQL文に、oidを加えれたものを独自のビューにして使えばOK
+&gt; &gt; だと思います。
+&gt; 何所の部分にoid判定を加えるべきなのか？分かりませんでした。
+&gt; 宜しければ、もう少し詳しく御教示頂けますか？
+これは、
+=&gt;create view pg_tables as
+-&gt;select c.relname as tablename,pg_get_userbyid(c.relowner) as
+tableowner,c.relhasindex as hasindex, c.relhasrules・・・以下略
+としたのと同じ事なんです。""を抜けば良いだけなんですが。
+で、最初のところを、
+=&gt;create view vTablesWithOid as 
+-&gt;select c.oid as oid ,c.relname as tablename・・・・
+ってしてやれば、oid付きのpg_tables、vTablesWithOidの出来上がりです。(大文
+字は小文字にされちゃいますが）
+
+&gt; 
+&gt; &gt; 複数ある全DBのテーブル名となると、oidがDB毎に重複しない事が前提ですが、ど
+&gt; &gt; うなんでしょう。たぶん重複するでしょう。（oidが32bit-integerなのでしばら
+&gt; &gt; （省略）
+&gt; 過去のＭＬ「[pgsql-jp 11648] Re: 同じOIDは作られるんでしょうか？」の石井
+&gt; さんの御回答では、
+&gt; 
+&gt; ＭＬ参照先：
+&gt; <A HREF="http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2804">http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2804</A>
+&gt; 
+&gt; という回答でした。（御参考まで）
+うーん。ってことは、完全にユニークですね。知らなかった。
+システムテーブルからユーザーテーブルまでの全てのoidがユニークなのであれば、
+32bit-integerだと・・・・ 全部合わせて4,294,967,295(?)レコードがマックス
+って事ですよね？
+ってことは、[14089 レコード数の限界は？]の答えは・・・と思って見てみたら、
+石井さんがちゃんと「OIDが使い尽くされるまで」って書いてましたね。
+
+&gt; 以上、たびたび申し訳ありませんが、御教示の程、宜しくお願い致します。
+いえいえ。ただ、正直、上の例で、oidを使う理由などがわからないのですが・・。
+oidがユニークだからですか・・ね？テーブル毎にキー作れば問題ないと思います
+が。
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00146" HREF="msg00146.html">[pgsql-jp 14435] Re: oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00148" HREF="msg00148.html">[pgsql-jp 14437] Re: oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> "kawaba@hitachi-ul.co.jp" &lt;kawaba@hitachi-ul.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp 14440] Re: 香りも記録できるデータベース</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 14442] Re: oidからのデータ取得方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 14442] Re: oidからのデータ取得方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 14444] Re: oidからのデータ取得方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00152"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00152"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

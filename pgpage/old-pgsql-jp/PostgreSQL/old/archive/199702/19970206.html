@@ -1,0 +1,481 @@
+<A NAME="3">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 06 Feb 1997 15:22:23 +0900
+Subject: [postgres95 1323] Re: Benchmark test 
+Message-Id: &lt;199702060622.PAA11641@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+桑村さん：
+&gt;&gt; そんなことないですよ。私もベンチマークの一覧表を集めたいと思ってました。
+&gt;&gt; 以下に 6.0 の Solaris2.4/Sparc5 と MkLinux のbench.out.perquery を載せ
+&gt;&gt; ておきます。他の方もよろしく！集まった Benchmark は、グラフにして web
+&gt;&gt; page に掲載する予定です。
+&gt;&gt; 
+&gt;&gt; # bench.out.perquery の作り方は、
+&gt;&gt; # http://www.sra.co.jp/people/t-ishii/postgres95/
+&gt;&gt; # の「インストールのヒント(postgresql) 」に書いてあります。
+&gt;.....
+&gt;
+&gt;  さっそく計ってみました。
+&gt;
+&gt;DEC OSF1 V3.2japanese/DEC3800(AlphaAXP200MHz) 255MB RAM + アサーション
+&gt;あり（デフォルト）+ JP patch です
+
+いしかわ＠岐阜大さん：
+&gt;あとBenchmarkですが。
+&gt;Linux/SparcClassic(MicroSparc ??MHz) 32MB RAM + アサーション
+&gt;あり（デフォルト）+ JP patch です.
+
+早速のデータ、ありがとうございます。というわけで、ベンチマークのページ
+を作りました。
+
+http://www.sra.co.jp/people/t-ishii/postgres95/bench/bench.html です。
+
+#さすがにDEC OSF1 V3.2japanese/DEC3800(AlphaAXP200MHz) 255MB RAMがダン
+#トツの速さですね:-)
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;
+Date: Thu, 06 Feb 1997 12:40:25 +0900
+Subject: [postgres95 1322] SPARC/Linux Port
+Message-Id: &lt;199702060340.MAA24202@sekine.densi.gifu-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+
+いしかわ＠岐阜大学です。
+
+SPARC/Linux用のパッチです。
+おまけに、きちんとした自己紹介をつけておきます。
+＃メールでか過ぎますか？
+
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+
+#書式はMklinux のREADMEを借ります。m(__)m
+#
+#おかしなところがあったら教えて下さい。
+
+PostgreSQL 6.0 の SPARC/Linux port について
+							1997/2/6
+					power@densi.gifu-u.ac.jp
+
+
+このパッチは、SPARC/Linux で PostgreSQL6.0 を利用するためのパッチです。
+このパッチは、
+   
+	SparcClassic
+	kernel 2.0.27 + RedHat-colgate
+
+の環境でテストしました。
+
+使い方：
+
+0. postgresql 本体を 
+   ftp://ftp.jaist.ac.jp/pub/dbms/postgres95/postgresql-v6.0.tar.gz
+   または
+   ftp://ftp.postgreSQL.org/pub/postgresql-v6.0.tar.gz
+   より入手します。
+
+1. /usr/local/pgsql というディレクトリを作り、上記を展開します。src や 
+   doc などのディレクトリができるはずです。
+
+2. sparc_linux patch をあてます。patch を置いてある場所を somewhere と
+   すると、
+
+	% cd /usr/local/pgsql
+        % patch -p1 &lt; somewhere/sparc_linux.patch
+
+3. /usr/local/pgsql/src に行き、custmize というスクリプトを起動します。
+   質問に答えていくと、/usr/local/pgsql/src/Makefile.custom が生成され
+   る仕組みになっています。ポイントは、
+   
+	portname は linux
+	と答える
+
+   ということです。
+	
+4. Makefile.custom に以下の2行を追加します。
+
+	sparc_linux = 1
+	CFLAGS += -Dsparc_linux
+
+5. 後は標準のインストール手順に従います。詳しくは 
+   /usr/local/pgsql/INSTALL を見て頂くとして、概要を述べると、
+
+	% make all
+	% gmake install
+	% initdb --pgdata=/usr/local/pgsql/data --pglib=/usr/local/pgsql/lib
+	% postmaster -D/usr/local/pgsql/data
+
+   でインストールが完了します。
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+
+diff -Nru pgsql.org/src/backend/port/linux/Makefile pgsql-6.0/src/backend/port/linux/Makefile
+--- pgsql.org/src/backend/port/linux/Makefile	Sat Nov  9 20:00:46 1996
++++ pgsql-6.0/src/backend/port/linux/Makefile	Wed Feb  5 11:35:03 1997
+@@ -17,7 +17,11 @@
+ CFLAGS+=$(INCLUDE_OPT)
+ 
+ ifdef LINUX_ELF
+-OBJS = port.o
++  ifdef sparc_linux
++  OBJS = port.o tas.o
++  else 
++  OBJS = port.o
++  endif
+ else
+ OBJS = dynloader.o
+ endif
+diff -Nru pgsql.org/src/backend/port/linux/tas.s pgsql-6.0/src/backend/port/linux/tas.s
+--- pgsql.org/src/backend/port/linux/tas.s	Thu Jan  1 09:00:00 1970
++++ pgsql-6.0/src/backend/port/linux/tas.s	Wed Feb  5 11:35:19 1997
+@@ -0,0 +1,50 @@
++	!!
++	!! $Header: /usr/local/cvsroot/postgres95/src/backend/port/sparc_solaris/tas.s,v 1.1.1.1 1996/07/09 06:21:45 scrappy Exp $
++	!!
++	!! this would be a piece of inlined assembler but it appears
++	!! to be easier to just write the assembler than to try to 
++	!! figure out how to make sure that in/out registers are kept
++	!! straight in the asm's.
++	!!
++	.file	&quot;tas.c&quot;
++.section	&quot;.text&quot;
++	.align 4
++	.global tas
++	.type	 tas,#function
++	.proc	04
++tas:
++	!!
++	!! this is a leaf procedure - no need to save windows and 
++	!! diddle the CWP.
++	!!
++	!#PROLOGUE# 0
++	!#PROLOGUE# 1
++	
++	!!
++	!! write 0xFF into the lock address, saving the old value in %o0.
++	!! this is an atomic action, even on multiprocessors.
++	!!
++	ldstub [%o0],%o0
++	
++	!!
++	!! if it was already set when we set it, somebody else already
++	!! owned the lock -- return 1.
++	!!
++	cmp %o0,0
++	bne .LL2
++	mov 1,%o0
++		
++	!!
++	!! otherwise, it was clear and we now own the lock -- return 0.
++	!!
++	mov 0,%o0
++.LL2:
++	!!
++	!! this is a leaf procedure - no need to restore windows and 
++	!! diddle the CWP.
++	!!
++	retl
++	nop
++.LLfe1:
++	.size	 tas,.LLfe1-tas
++	.ident	&quot;GCC: (GNU) 2.5.8&quot;
+diff -Nru pgsql.org/src/backend/storage/ipc/s_lock.c pgsql-6.0/src/backend/storage/ipc/s_lock.c
+--- pgsql.org/src/backend/storage/ipc/s_lock.c	Mon Jan 27 08:01:01 1997
++++ pgsql-6.0/src/backend/storage/ipc/s_lock.c	Wed Feb  5 11:35:52 1997
+@@ -164,7 +164,8 @@
+  */
+ 
+ #if defined(i386_solaris) || \
+-    defined(sparc_solaris)
++    defined(sparc_solaris) || \
++    defined(sparc_linux) 
+ /* for xxxxx_solaris, this is defined in port/.../tas.s */
+ 
+ void
+diff -Nru pgsql.org/src/include/config.h pgsql-6.0/src/include/config.h
+--- pgsql.org/src/include/config.h	Fri Jan 31 02:01:16 1997
++++ pgsql-6.0/src/include/config.h	Wed Feb  5 11:33:02 1997
+@@ -154,7 +154,9 @@
+ #  define HAVE_INT_TIMEZONE
+ #  undef HAVE_CBRT
+ #  undef HAVE_CBRT
++# if !defined (sparc_linux)
+ #  define NEED_I386_TAS_ASM
++# endif
+ #  define HAS_TEST_AND_SET
+    typedef unsigned char slock_t;
+ #endif
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+
+きちんとした自己紹介を書いておりませんでしたので、
+ここで書いておきます。
+
+仕事：  
+	岐阜大学 工学部 技術部から電子情報工学科へ出向という形で、
+	主に電子コースの学生実験を担当してますが、ハンダも握れん私に何
+	をしろというのか、「むちゃくちゃな人事を行なうところやなぁ」と
+	ずうっと思っております。（大学時代も習っとへんのにぃ）
+	
+	まあ、それがないときはフリーなのでUNIXいじりです。
+
+職場でのコンピュータ環境：
+	Windowsが数台ありますが、好きでないのでSparcClassicをLinuxにしていじっております。
+
+家庭でのコンピュータ環境：
+	TOMWNIIにLinuxを入れて使っております。RAM 48MB でいいのですが、TOWNSのSCSIはちょ〜遅い。
+	AMD5x83-133用のボードが入院しており、ちょっといらいら。
+
+興味を持っていること：
+	DBMSと書かないと(^^;。
+	Linux,tcl/Tk などなど。
+	あとMacTenがいじってみたいな〜と思っとります。
+	Macも安くなってきたしなぁ。
+
+Postgres歴：
+	まだかけだし君です。
+
+以上こんなところで。
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+
+
+End Of Message.  
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+石川 諭 （いしかわ さとし）power@densi.gifu-u.ac.jp
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+
+
+----Next_Part(Thu_Feb__6_12:39:50_1997)----
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;
+Date: Thu, 06 Feb 1997 11:57:36 +0900
+Subject: [postgres95 1321] Re: Benchmark test 
+Message-Id: &lt;199702060257.LAA24061@sekine.densi.gifu-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+いしかわ＠岐阜大です。
+
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Subject: [postgres95 1318] Re: Benchmark test 
+Date: Wed, 05 Feb 1997 16:57:49 +0900
+Message-ID: &lt;199702050757.QAA28673@srashd.sra.co.jp&gt;
+
+t-ishii&gt; &gt;
+t-ishii&gt; &gt;assertion check 外すとregression test がうまく通らなくなりました。
+t-ishii&gt; &gt;パッチがおかしいのかなぁ(; ;)。
+t-ishii&gt; 
+t-ishii&gt; 実は、こちらでも同じ状態です。Solaris も MkLinux 同じ。
+t-ishii&gt; 
+
+それはひと安心(??)
+
+t-ishii&gt; &gt;初めてパッチ(SPARC/Linux用)作ってみましたが、
+t-ishii&gt; &gt;こちらに流してみていいでしょうか？
+t-ishii&gt; &gt;おかしいかも知れないし。
+t-ishii&gt; 
+t-ishii&gt; 是非お願いします。
+
+それでは、とりあえず別便で。
+
+あとBenchmarkですが。
+Linux/SparcClassic(MicroSparc ??MHz) 32MB RAM + アサーション
+あり（デフォルト）+ JP patch です.
+
+no X11 console only!
+-------------------------------------------------
+query  0:   0.003 real   0.000 user   0.000 sys
+query  1:   0.968 real   0.880 user   0.070 sys
+query  2:   4.351 real   2.530 user   0.860 sys
+query  3:   0.832 real   0.800 user   0.020 sys
+query  4:   4.114 real   2.500 user   0.830 sys
+query  5:   0.863 real   0.840 user   0.020 sys
+query  6:   2.498 real   2.430 user   0.070 sys
+query  7:   0.122 real   0.100 user   0.020 sys
+query  8:   1.722 real   1.650 user   0.060 sys
+query  9:  26.591 real  23.300 user   0.940 sys
+query 10:  22.829 real  21.090 user   0.480 sys
+query 11:  13.171 real  12.420 user   0.310 sys
+query 12:  26.660 real  23.520 user   0.950 sys
+query 13:  22.813 real  20.970 user   0.540 sys
+query 14:  13.320 real  12.470 user   0.270 sys
+query 15:  28.525 real  23.770 user   1.610 sys
+query 16:  24.404 real  21.060 user   0.490 sys
+query 17:  17.813 real  12.770 user   2.100 sys
+query 18:  12.880 real  10.730 user   0.810 sys
+query 19:   2.215 real   2.070 user   0.060 sys
+query 20:   0.003 real   0.000 user   0.000 sys
+query 21:   0.003 real   0.000 user   0.010 sys
+query 22:   0.003 real   0.000 user   0.000 sys
+query 23:   0.003 real   0.000 user   0.000 sys
+query 24:   0.003 real   0.010 user   0.000 sys
+query 25:   0.003 real   0.000 user   0.000 sys
+query 26:   0.003 real   0.010 user   0.000 sys
+query 27:   0.092 real   0.050 user   0.010 sys
+query 28:   0.254 real   0.210 user   0.010 sys
+query 29:   0.003 real   0.000 user   0.000 sys
+query 30:  -1.948 real   0.040 user   0.000 sys
+query 31:   0.169 real   0.130 user   0.010 sys
+query 32: 204.964 real   4.150 user   0.010 sys
+-------------------------------------------------
+
+また自宅の、Linux/TOWNSII(i486SX 33Mhz :p) 48MB RAM + アサーション
+あり（デフォルト）+ JP patch です
+
+no X11 console only!
+-------------------------------------------------
+query  0:   0.007 real   0.000 user   0.000 sys
+query  1:   1.033 real   0.980 user   0.050 sys
+query  2:   5.287 real   2.910 user   1.210 sys
+query  3:   0.853 real   0.820 user   0.040 sys
+query  4:   5.145 real   3.120 user   0.940 sys
+query  5:   0.874 real   0.810 user   0.070 sys
+query  6:   2.857 real   2.740 user   0.120 sys
+query  7:   0.874 real   0.810 user   0.070 sys
+query  8:   1.950 real   1.860 user   0.100 sys
+query  9:  48.594 real  24.680 user   5.150 sys
+query 10:  24.414 real  22.270 user   0.660 sys
+query 11:  16.642 real  13.830 user   1.330 sys
+query 12:  37.994 real  24.480 user   5.680 sys
+query 13:  25.065 real  22.430 user   0.770 sys
+query 14:  16.480 real  13.840 user   1.380 sys
+query 15:  37.619 real  25.200 user   6.210 sys
+query 16:  25.046 real  22.600 user   0.790 sys
+query 17:  21.318 real  14.890 user   3.560 sys
+query 18:  18.012 real  13.280 user   1.050 sys
+query 19:   2.529 real   2.400 user   0.130 sys
+query 20:   0.004 real   0.010 user   0.000 sys
+query 21:   0.001 real   0.010 user   0.010 sys
+query 22:   0.006 real   0.000 user   0.000 sys
+query 23:   0.003 real   0.000 user   0.000 sys
+query 24:   0.003 real   0.000 user   0.000 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.003 real   0.000 user   0.000 sys
+query 27:   0.059 real   0.030 user   0.030 sys
+query 28:   0.210 real   0.170 user   0.030 sys
+query 29:   0.006 real   0.000 user   0.000 sys
+query 30:   0.062 real   0.010 user   0.050 sys
+query 31:   0.156 real   0.090 user   0.060 sys
+query 32: 223.502 real   6.150 user   0.010 sys
+-------------------------------------------------
+
+End Of Message.  
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+石川 諭 （いしかわ さとし）power@densi.gifu-u.ac.jp
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@rccm.co.jp&gt;
+Date: Thu, 6 Feb 1997 09:51:12 +0900 (JST)
+Subject: [postgres95 1320] Re: Benchmark test
+Message-Id: &lt;Pine.LNX.3.91LJ1.0.4.970206092910.6820A-100000@earth.astea.rccm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村です。
+
+&gt; 石井＠SRAです。サブジェクト変えました。
+&gt; 
+&gt; &gt;いしかわ＠岐阜大です。
+&gt; 
+&gt; &gt;すいません。ベンチマークの結果の一覧みたいなのはどこかにないでしょうか？
+&gt; &gt;
+&gt; &gt;個人的興味で、solarisやSunOS4あるいはPCと比べたりしたいだけですが。
+&gt; &gt;もちろん、SPARC/Linuxと。
+&gt; &gt;＃意味ないのかな？
+&gt; 
+&gt; そんなことないですよ。私もベンチマークの一覧表を集めたいと思ってました。
+&gt; 以下に 6.0 の Solaris2.4/Sparc5 と MkLinux のbench.out.perquery を載せ
+&gt; ておきます。他の方もよろしく！集まった Benchmark は、グラフにして web
+&gt; page に掲載する予定です。
+&gt; 
+&gt; # bench.out.perquery の作り方は、
+&gt; # http://www.sra.co.jp/people/t-ishii/postgres95/
+&gt; # の「インストールのヒント(postgresql) 」に書いてあります。
+.....
+
+  さっそく計ってみました。
+
+DEC OSF1 V3.2japanese/DEC3800(AlphaAXP200MHz) 255MB RAM + アサーション
+あり（デフォルト）+ JP patch です
+
+query  0:   0.001 real   0.001 user   0.000 sys
+query  1:   0.303 real   0.232 user   0.018 sys
+query  2:   1.674 real   0.661 user   0.296 sys
+query  3:   0.312 real   0.196 user   0.015 sys
+query  4:   1.813 real   0.698 user   0.266 sys
+query  5:   0.264 real   0.209 user   0.010 sys
+query  6:   0.710 real   0.602 user   0.035 sys
+query  7:   0.021 real   0.020 user   0.001 sys
+query  8:   0.372 real   0.327 user   0.011 sys
+query  9:   6.583 real   4.872 user   0.262 sys
+query 10:   5.695 real   4.582 user   0.150 sys
+query 11:   3.743 real   3.169 user   0.086 sys
+query 12:   7.029 real   4.896 user   0.288 sys
+query 13:   5.745 real   4.647 user   0.163 sys
+query 14:   3.639 real   3.094 user   0.081 sys
+query 15:   7.000 real   5.050 user   0.452 sys
+query 16:   5.788 real   4.669 user   0.159 sys
+query 17:   6.164 real   3.471 user   0.668 sys
+query 18:   4.158 real   2.845 user   0.338 sys
+query 19:   0.665 real   0.541 user   0.035 sys
+query 20:   0.000 real   0.000 user   0.000 sys
+query 21:   0.000 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.001 sys
+query 23:   0.000 real   0.000 user   0.000 sys
+query 24:   0.000 real   0.000 user   0.000 sys
+query 25:   0.001 real   0.001 user   0.000 sys
+query 26:   0.000 real   0.000 user   0.000 sys
+query 27:   0.014 real   0.011 user   0.003 sys
+query 28:   0.046 real   0.044 user   0.002 sys
+query 29:   0.001 real   0.001 user   0.000 sys
+query 30:   0.008 real   0.008 user   0.000 sys
+query 31:   0.033 real   0.031 user   0.002 sys
+query 32:   0.032 real   0.030 user   0.002 sys
+--
+
+ちなみに、全体では：
+
+bench&gt; tail -3 bench.out
+Real   85.6
+User   47.2
+System 4.2
+
+です。
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+
+<HR>
+</PRE>

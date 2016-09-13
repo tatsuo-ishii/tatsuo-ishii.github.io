@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5670] Re: ShmemCreate: cannot create region -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 19 Oct 1998 13:18:44 +0900 -->
+<!--X-Message-Id: 199810190418.NAA20953@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199810190326.MAA26598@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5670] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00154.html">Date Prev</A>][<A HREF="msg00155.html">Date Next</A>][<A HREF="msg00150.html">Thread Prev</A>][<A HREF="msg00149.html">Thread Next</A>][<A HREF="index.html#00153">Date Index</A>][<A HREF="threads.html#00153">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5670] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Oct 1998 13:18:44 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;塩崎です。
+&gt;動いているbackendを次々gdbでattachするようにして、問題の尻尾を掴みました。
+&gt;調べたのは本家の
+&gt;	postgresql.snapshot.tar.gz . . .  [Oct 18 07:01]   4152k
+&gt;ですが、昔からあんまり変わってないと思います。
+&gt;
+&gt;[On Sep 29, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;&gt;
+&gt;&gt;elog(FATAL, "btree: BTP_CHAIN flag was expected in %s (access = %s)",
+&gt;&gt;rel-&gt;rd_rel-&gt;relname, access ? "bt_write" : "bt_read");
+&gt;&gt;
+&gt;&gt;該当部分の elog() の呼び出しはこんな感じですが、おそらく
+&gt;&gt;
+&gt;&gt;rel-&gt;rd_rel-&gt;relname
+&gt;&gt;
+&gt;&gt;が不正なアドレスを指しているのでしょうね。ちなみに、
+&gt;
+&gt;そのとおりでした。ただ、
+&gt;
+&gt;&gt;rel-&gt;rd_rel-&gt;relname
+&gt;&gt;には本来ならば表の名前が入っているはずです。
+&gt;
+&gt;と石井さんでさえも勘違いされてますが、表(やインデックス)の名前が
+&gt;入っているのは
+&gt;	rel-&gt;rd_rel-&gt;relname.data
+&gt;ですよね。
+
+失礼、その通りです。だから elog が落ちちゃうのか。
+
+ただ、relname はこんな構造体なので、
+
+typedef struct nameData
+{
+	char		data[NAMEDATALEN];
+} NameData;
+
+たまたま &amp;rel-&gt;rd_rel-&gt;relname でも動いちゃうんですよね。したがって、
+以下列挙されてる例ではとりあえず動くと思います。
+
+# &amp;NameData と nameData.data が違うアドレスを返すようなプラットフォー
+# ムはあるでしょうか？
+
+&gt;# 可変長関数に渡すとどこでも型の整合性が検査されなくて難儀ですね。
+&gt;ただ、この問題は本質ではなくて、
+&gt;	btree: BTP_CHAIN flag was expected ...
+&gt;というFATALな事態にどうしてなるのか、というのが知りたいのですが、
+&gt;何か心当たりのある方はいらっしゃいますか。
+&gt;
+&gt;ちなみに、
+&gt;========================================================================
+&gt;#!/bin/sh
+&gt;
+&gt;cd /usr/local/src/postgresql.snapshot/pgsql/src
+&gt;find . -type f -name '*.[ch]' -print |
+&gt;xargs egrep -e 'rd_rel-&gt;relname' /dev/null |
+&gt;egrep -v 'relname\)?\.data'
+&gt;========================================================================
+&gt;というような簡単なスクリプトで調べただけでも、他にも怪しいのがあります。
+&gt;
+&gt;./backend/access/heap/heapam.c:		 relation-&gt;rd_rel-&gt;relkind, &amp;relation-&gt;rd_rel-&gt;relname,
+&gt;./backend/access/heap/heapam.c:			 &amp;relation-&gt;rd_rel-&gt;relname, (long) tid);
+&gt;	このファイルには正しい個所もあるのに、こういう個所もある。
+&gt;	この「&amp;」はますます怪しい。
+&gt;
+&gt;./backend/access/heap/hio.c:			 blockIndex, &amp;relation-&gt;rd_rel-&gt;relname);
+&gt;	この「&amp;」も同じく怪しい。
+&gt;
+&gt;./backend/catalog/heap.c:	namestrcpy(&amp;(rel-&gt;rd_rel-&gt;relname), relname);
+&gt;	これは正しそうですね。
+&gt;
+&gt;./backend/catalog/heap.c:			 &amp;rel-&gt;rd_rel-&gt;relname);
+&gt;./backend/catalog/heap.c:			 &amp;rel-&gt;rd_rel-&gt;relname);
+&gt;./backend/catalog/heap.c:			 &amp;rel-&gt;rd_rel-&gt;relname, relid);
+&gt;./backend/catalog/heap.c:			 &amp;rel-&gt;rd_rel-&gt;relname);
+&gt;	これらの「&amp;」も同じく怪しい。
+&gt;
+&gt;./backend/executor/execMain.c:	rte-&gt;relname = nameout(&amp;(rel-&gt;rd_rel-&gt;relname));
+&gt;	これは正しそうですね。
+&gt;
+&gt;./backend/rewrite/rewriteDefine.c:					elog(ERROR, "%s is already a view", nameout(&amp;(event_relation-&gt;rd_rel-&gt;relname)));
+&gt;	これはelogに渡すだけにしては豪勢ですね。
+&gt;
+&gt;./backend/utils/cache/catcache.c:						&amp;relation-&gt;rd_rel-&gt;relname,
+&gt;	この「&amp;」も同じく怪しい。
+&gt;
+&gt;./backend/utils/cache/relcache.c:	namestrcpy(&amp;relation-&gt;rd_rel-&gt;relname, relationName);
+&gt;	これは正しそうですね。
+&gt;
+&gt;./include/utils/rel.h:#define RelationGetRelationName(relation) (&amp;(relation)-&gt;rd_rel-&gt;relname)
+&gt;	これが使われているところも(とくにelog周りは)怪しいところ多いですね。
+&gt;
+&gt;./pl/plpgsql/src/pl_exec.c:	var-&gt;value = (Datum) namein(nameout(&amp;(trigdata-&gt;tg_relation-&gt;rd_rel-&gt;relname)));
+&gt;	これは正しそうですね。
+&gt;
+&gt;
+&gt;それから、これはバグではないんですが、namestrcpyがあるのにStrNCpyを使っ
+&gt;ているところもいくつか見受けられます。
+&gt;
+&gt;-- 
+&gt;ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+&gt;--
+&gt;塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+&gt;Technical Center,	ASCII CORPORATION
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 5667] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 5671] Re: KEYってないのですか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 5672] Re: where is xmalloc and xrealloc?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 5667] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 5666] RE: KEYってないのですか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00153"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00153"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

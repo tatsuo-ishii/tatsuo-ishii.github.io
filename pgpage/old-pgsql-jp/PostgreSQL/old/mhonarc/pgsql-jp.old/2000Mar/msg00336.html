@@ -1,0 +1,324 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13642] PostgreSQL 7.0&#45;Beta3 Available -->
+<!--X-From: yutaka tanida <yutaka@marin.or.jp> -->
+<!--X-Date: Sat, 25 Mar 2000 15:50:55 +0900 -->
+<!--X-Message-Id: 38DC61CF227.34C9YUTAKA@s34gway.s34.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13642] PostgreSQL 7.0-Beta3 Available </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@marin.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00334.html">Date Prev</A>][<A HREF="msg00337.html">Date Next</A>][<A HREF="msg00346.html">Thread Prev</A>][<A HREF="msg00339.html">Thread Next</A>][<A HREF="index.html#00336">Date Index</A>][<A HREF="threads.html#00336">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13642] PostgreSQL 7.0-Beta3 Available</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: yutaka tanida &lt;<A HREF="mailto:yutaka@marin.or.jp">yutaka@marin.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 25 Mar 2000 15:50:55 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:jpug-users@jp.postgresql.org">jpug-users@jp.postgresql.org</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+　本家にて、PostgreSQL 7.0 Beta3が公開されていますね。
+　添付のAnnounceによるとこれはリリース候補版のようで、正式版の登場も近そ
+うです。
+
+　Cygwin版のバイナリもさっそく公開しました。
+
+<A HREF="http://www.s34.co.jp/~luster/pgsql/">http://www.s34.co.jp/~luster/pgsql/</A>
+
+--
+Yutaka tanida / S34 Co., Ltd.
+tanida@s34.co.jp (Office)
+yutaka@marin.or.jp(Private, or if you *HATE* Microsoft Outlook)
+
+
+---
+
+Just a quick announcement that we've put beta3 up for download today ...
+
+Since there has been very little bug reports between beta2 and beta3, this
+one is considered to be the first Candidate for Release.  Altho its still
+beta, there should be negligible risk of a subsequence "beta requiring an
+initdb" happening ...
+
+The actual tar ball and web page changes were made at ~midnight, so that
+the mirror sites had a chance to get sync'd up before the announcement,
+with changes from beta2 as follows.
+
+Any bugs or problems with this beta should be reported to 
+pgsql-bugs@postgresql.org using the bug report template that is included
+with the distribution ...
+
+Marc G. Fournier                   ICQ#7615664               IRC Nick: Scrappy
+Systems Administrator @ hub.org 
+primary: scrappy@hub.org           secondary: scrappy@{freebsd|postgresql}.org 
+
+---------------------------------------------------------------------------
+
+- Since PORTNAME is no longer used at the level of C code (it's only in
+  Makefiles now), there's no reason for os2client to maintain its own
+  copy of c.h just to change #define PORTNAME.  Simplify Makefile
+  accordingly.  Get rid of horribly-out-of-date modified copy of c.h,
+  which should never have been in the distribution to start with, since
+  it's actually a derived file.  Now it's not needed anyway.
+
+- Add exp(), ln(), and some other functions to numeric-functions table.
+
+- Fold PQsetenv working state into PGconn, rather than trying to maintain
+  it in a separate object.  There's no value in keeping the state
+  separate, and it creates dangling-pointer problems.  Also, remove
+  PQsetenv routines from public API, until and unless they are redesigned
+  to have a safer interface.  Since they were never part of the documented
+  API before 7.0, it's unlikely that anyone is calling them.
+
+- Add note that ':' and ';' operators are deprecated.
+
+- Modify lexing of multi-char operators per pghackers discussion around
+  16-Mar-00: trailing + or - is not part of the operator unless the
+  operator also contains characters not present in SQL92-defined
+  operators.  This solves the 'X=-Y' problem without unduly constraining
+  users' choice of operator names --- in particular, no existing Postgres
+  operator names become invalid.
+
+- Also, remove processing of // comments, as agreed in the same thread.
+
+- empty define that results in an empty but terminated line ( ; ) easy
+  (maybe dumb) fix for 5 in attachment define.patch greetings, Andreas
+
+- Back out // compiler flag.
+
+- absolute pathnames for the copy 
+
+- This patch corrects spelling, grammar and euphony for the psql reference
+  page for 7.0: Oliver Elphick
+
+- Add safety check on expression nesting depth.  Default value is set by a
+  config.h #define, and the runtime value can be controlled via SET.
+
+- Change configure.in to note that since we are using expr(1)'s regex
+  match command, the entries in template/.similar can really be regular
+  expressions.  This isn't a new feature, just an observation of what the
+  code already did.
+
+- Turn XLOG off (do not create log file).
+
+- ExecSubPlan needs to be able to cope with RelabelType nodes atop the
+  Const placeholder nodes for subplan result values.
+
+- Correct typo in error message.
+
+- Several calls to StrNCpy incorrectly subtracted 1 from the length arg,
+  leading to postmaster accepting args 1 shorter than it had room for.
+
+- Repair logic flaw in cost estimator: cost_nestloop() was estimating CPU
+  costs using the inner path's parent-&gt;rows count as the number of tuples
+  processed per inner scan iteration.  
+
+- Restructure planning code so that preprocessing of targetlist and quals
+  to simplify constant expressions and expand SubLink nodes into SubPlans
+  is done in a separate routine subquery_planner() that calls
+  union_planner().
+
+- A little further tweaking of the range-query selectivity logic: to avoid
+  undue sensitivity to roundoff error, believe that a zero or slightly
+  negative range estimate should represent a small positive selectivity,
+  rather than falling back on a generic default estimate.
+
+- If we cannot get a real estimate for the selectivity of a range query,
+  use a default value that's fairly small.  We were generating a result of
+  about 0.1, but I think 0.01 is probably better --- want to encourage use
+  of an indexscan in this situation.
+
+- Minor code rearrangement &amp; doc improvement in eval_const_expressions().
+
+- Add syntax for BIT() and BIT VARYING(), but no underlying implementation
+  is available yet.
+
+- Remove redundant call to xlateSqlType() in the character type handling
+  code.
+
+- Emit 'this operator is deprecated' warnings for ':' and ';'.
+
+- Add FORCE keyword to ColID
+
+- Just noticed that the grammar actually has no provision for '+' as a
+  prefix operator :-(.  Bad enough that we have no implementation of unary
+  plus, but at least with this fix the grammar will take it.
+
+- Add translation of timespan to interval.
+
+- Remove no-longer-necessary restriction against uplevel correlation vars
+  outside WHERE clause.  Fix a couple of places that didn't handle uplevel
+  refs cleanly.
+
+- Hack parse_coerce so it won't try to constant-fold the dummy Const nodes
+  introduced by make_subplan().  It'd be better if we used a different
+  node type for subplan result placeholders, but for now...
+
+- Reverse out BYTEA type coersion.
+
+- Add compatiblity information for bytea.
+
+- In can_coerce_type, verify that a possible type-coercion function
+  actually returns the type it is named for.
+
+- transformExpr() did the Wrong Thing if applied to a SubLink node that
+  had already been transformed.  This led to failure in examples like
+  UPDATE table SET fld = (SELECT ...).  Repair this, and revise the
+  comments to explain that transformExpr has to be robust against this
+  condition. 
+
+- Another go-round with resolution of ambiguous functions and operators.
+  In function parsing, try for an actual function of the given name and
+  input types before trying to interpret the function call as a type
+  coercion request, rather than after.  Before, a function that had the
+  same name as a type and operated on a binary-compatible type wouldn't
+  get invoked.  Also, cross-pollinate between func_select_candidates and
+  oper_select_candidates to ensure that they use as nearly the same
+  resolution rules as possible.  A few other minor code cleanups too.
+
+- Improve error message wording in unary_op_error() --- suggest that
+  problem could be lack of parentheses.  This addresses cases like X
+  UserOp UserOp Y, which will be parsed as (X UserOp) UserOp Y, whereas
+  what likely was wanted was X UserOp (UserOp Y).
+
+- cash_words_out function truncated its output by 1 character due to
+  incorrect use of StrNCpy.
+
+- Float-to-int conversion functions should return NULL when given NULL
+  input, not throw a gratuitous elog().
+
+- Clean up minor compiler warnings.
+
+- Improve selectivity estimation involving string constants: pay attention
+  to more than one character, and try to do the right thing in non-ASCII
+  locales.
+
+- Update for BYTEAOID.
+
+- Rename bytea functions to not have upper-case letters in their names.
+  Clean up grotty coding in them, too.  AFAICS from the CVS logs, these
+  have been broken since Postgres95, so I'm not going to insist on an
+  initdb to fix them now...
+
+- Update pg_dumpall again.
+
+- Fix pg_dumpall for new psql output.
+
+- it seems in the beta2 release DBUSERID in pg_dumpall is the _name_ of
+  the user, so it doesn't need to be translated from the number to the
+  name. also ``create database ...'' does not take numbers for the
+  encoding, so the ENCODING variable does not need to be translated to a
+  number, but left as the text representation.  a patch is supplied to
+  make the changes i have found to work.  i was successful dumping and
+  reloading my database after these changes. - John M. Flinchbaugh
+
+- Fixed psql -c "\slashcmd"
+
+- Change MemSet and StrNCpy to evaluate their arguments only once. 
+
+- Fix inadequate parenthesization in several other macros.
+
+- Fix incorrect implementation of log(x) for numeric, as well as incorrect
+  descriptions of a couple of log-related functions. I will not force an
+  initdb for this, but log() on a numeric won't work until you do one...
+
+- Update bytea type description
+
+- Patch possible portability problem: a few places had // style comments,
+  which is not ANSI C, even though some compilers will take it...
+
+- Repair typos: &lt;xb&gt; EOF rule should be &lt;xh&gt;, likewise &lt;xq&gt; to &lt;xd&gt;
+
+- compiler finds wrong include file extern.h in ecpg/lib/descriptor.c from
+  include path instead of workdir (rename it ?)
+
+- fe-connect getsockopt takes a socklen_t as fifth arg not int (use
+  SOCKET_SIZE_TYPE instead)
+
+- char vs unsigned char in psql calls to libpq
+
+- empty define that results in an empty but terminated line ( ; )
+
+- This would allow to write applications which do not have a link to
+  postgres_ext.h in their source directory. Andreas Kardos
+
+- Forgot that odbc had its own copies of config.sub/config.guess. Update
+  those to latest Autoconf sources, too.
+
+- Fix query for primary keys to reflect new DISTINCT ON () syntax.
+
+- Make use of pre-existing regexp match capability to eliminate redundant
+  entries in template selection rules.  
+
+- change alpha-dec-osf pattern to cope with version info attached to the
+  'alpha' part.
+
+- Convert float8 regress test to use exp() and ln() instead of ':' and ';'
+  operators.
+
+- Update test for new ORDER BY clause from Tom Lane.
+
+- subselect regress test was kind of silly; it claimed to test correlation
+  cases but actually did no such thing.  Make it test some more cases than
+  before (including things that didn't work in 6.5).
+
+- Typo correction (// -&gt; /)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00339" HREF="msg00339.html">[pgsql-jp 13645] Re: [jpug-users 268] PostgreSQL 7.0-Beta3 Available</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00334.html">[pgsql-jp 13640] 自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00337.html">[pgsql-jp 13643] Apache起動時のエラーについて質問です。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00346.html">[pgsql-jp 13652] Re: Apache起動時のエラーについて質問です。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00339.html">[pgsql-jp 13645] Re: [jpug-users 268] PostgreSQL 7.0-Beta3 Available</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00336"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00336"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

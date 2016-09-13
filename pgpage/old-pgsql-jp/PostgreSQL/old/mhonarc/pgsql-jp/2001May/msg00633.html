@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21591] Re: PostgreSQL が突然動かなくなった -->
+<!--X-From: SaitoMasaru <daisaito@lares.dti.ne.jp> -->
+<!--X-Date: Thu, 31 May 2001 02:23:46 +0900 -->
+<!--X-Message-Id: 20010531020123.FC90.DAISAITO@lares.dti.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010526230319.9F06.DAISAITO@lares.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21591] Re: PostgreSQL が突然動かなくなった </TITLE>
+<LINK REV="made" HREF="mailto:daisaito@lares.dti.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00632.html">Date Prev</A>][<A HREF="msg00634.html">Date Next</A>][<A HREF="msg00566.html">Thread Prev</A>][<A HREF="msg00562.html">Thread Next</A>][<A HREF="index.html#00633">Date Index</A>][<A HREF="threads.html#00633">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21591] Re: PostgreSQL が突然動かなくなった</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SaitoMasaru &lt;<A HREF="mailto:daisaito@lares.dti.ne.jp">daisaito@lares.dti.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 May 2001 02:23:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00566.html">20010526230319.9F06.DAISAITO@lares.dti.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+自己リプライです。
+
+2001/05/26 23:16:06 ごろ
+SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt; さんは書いたそうな
+
+&gt; 齋藤＠横浜です。
+&gt; 
+&gt; 今まで正常に動いていたPostmasterが突然動かなくなってしまいました。
+&gt; pg_ctl start すると以下のようになります。
+&gt; ちなみにpg_ctl stopは正常に動きます。
+&gt; 
+&gt; $ pg_ctl start
+&gt; postmaster successfully started up.
+&gt; DEBUG:  Data Base System is starting up at Sat May 26 23:09:16 2001
+&gt; DEBUG:  Data Base System was shut down at Sat May 26 23:07:31 2001
+&gt; DEBUG:  Data Base System is in production state at Sat May 26 23:09:16 2001
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+&gt; 
+&gt; 
+&gt; インストール及び設定したのがもう1年くらい前なので細かいことが思い出せま
+&gt; せんが、DBI+DBD::PgをインストールしてPerlによるCGIを動かしています。
+&gt; あとApacheも動かしています。
+&gt; 直接は関係ないと思うのですが、思い出せるのはこのくらいです。
+&gt; 
+&gt; 環境は
+&gt; slackware Linux 
+&gt; バージョンは失念 とりあえずuname -aは
+&gt; Linux sv 2.2.13 #22 Wed Oct 20 17:32:52 CDT 1999 i586 unknown
+&gt; postgresql-7.0.2
+&gt; 
+&gt; 情報が少なくて恐縮ですがよろしくお願いします。
+&gt; 
+
+あれから少し調査してわかったのですが、
+/usr/local/pgsql/data/base/dbname/以下に
+pg_noname.XXXXXX.X
+というような名前のファイルが大量にできていて(全部で13万個ほど)
+これが原因でディレクトリ中のi-nodeのスキャンに時間がかかってしまって
+いるのでは？と考えました。間違っているのかもしれませんが、
+これ以外には原因は思いつきません。
+またこのファイルはなぜできるんでしょうか？トランザクションのロック情報
+でも入っていたんでしょうか？ちなみに一部を除いてほとんどファイルサイズは
+0でした。
+
+とりあえず現在は前日深夜のバックアップから復旧して、クライアントには
+事情を説明して納得してもらいました。(半ば強引に)
+
+で、あれから数日が経ったのでまたこのディレクトリを調べたのですが、
+同様のファイルが20個程度できていました。やはり定期的にDBを止めて
+メンテナンスしなければいけないのでしょうか？？
+
+一応、dropdb dbname としてから createdb dhname をしてから
+psql -e dbname &lt; dbname_yyyymmdd.out というようにして
+リストアしたら、このときには上記のファイルはできていなかったので
+この作業を定期的にする必要があるのかな・・と思っています。
+
+確かに今まで手抜きをしてvacuumを1回も実行していなかったので、
+していればこの問題も解消したのかもしれませんが、これとの因果関係も
+よくわからないので、ちょっと不安です。
+
+ちなみに
+&gt; FATAL 1:  GetCCHashFunc: type 0 unsupported as catcache key
+このメッセージはpostmasterを立ち上げたあとにクライアントからの
+リクエストが発生するたびに出ていたものと判明しました。
+勝手に出てきたのかと思っていましたがそうでは無かったようです。
+
+で、本題なのですが、上記の現象(からファイルが大量にできてしまう)
+を防ぐ方法は無いのでしょうか？もちろんからファイルだからといって
+むやみに削除するのはやめた方がいいですよね。。
+
+# もちろん空ファイルが大量にできてしまった事以外にも
+# 原因があったのかもしれません調査する時間が取れません。
+
+-- 
+SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00566" HREF="msg00566.html">[pgsql-jp 21522] PostgreSQL が突然動かなくなった</A></STRONG>
+<UL><LI><EM>From:</EM> SaitoMasaru &lt;daisaito@lares.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00632.html">[pgsql-jp 21590] Re: 日時をUNIX式日付（1970/01/01からの秒数）で出力するには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00634.html">[pgsql-jp 21592] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00566.html">[pgsql-jp 21522] PostgreSQL が突然動かなくなった</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00562.html">[pgsql-jp 21518] テーブルが作成できなくなりました。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00633"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00633"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

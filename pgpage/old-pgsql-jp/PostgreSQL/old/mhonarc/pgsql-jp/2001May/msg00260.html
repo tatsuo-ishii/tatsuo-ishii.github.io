@@ -1,0 +1,123 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21214] Re: index について -->
+<!--X-From: "Toshikazu Yoshikawa" <toshi@uncut00.com> -->
+<!--X-Date: Tue, 15 May 2001 17:59:51 +0900 -->
+<!--X-Message-Id: 010c01c0dd1d$66b85380$737e1580@nikon.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010515144728.6B9A.ICE&#45;MAN@tomato.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21214] Re: index について </TITLE>
+<LINK REV="made" HREF="mailto:toshi@uncut00.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00251.html">Thread Prev</A>][<A HREF="msg00241.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21214] Re: index について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Toshikazu Yoshikawa" &lt;<A HREF="mailto:toshi@uncut00.com">toshi@uncut00.com</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 15 May 2001 17:59:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00248.html">20010515144728.6B9A.ICE-MAN@tomato.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+吉川＠アンカットです。
+INDEXについては、自己解決されたようですが・・・
+
+&gt; telは送信ボタンを押下された時にチェックして重複しないようにしており、
+
+としているのに、
+
+&gt; しかしアクセス過多のためか同じデータが複数インサートされてしまいます。
+
+となってしまうのは、多分、まず同じtel項目があるかどうか、selectで確認し、
+もしなければinsertするというロジックを用いられていると思うのですが、
+ただ、ほぼ同時刻にアクセスがあった場合、破綻するときがありますね。
+
+user1：select
+user2：select
+user3：select
+user1：insert
+user2：insert
+user3：insert
+
+時系列で上記のようになると、チェックには引っかからず、
+同じレコードが３つ登録されてしまう可能性があります。
+（もちろんUNIQUE INDEXが張ってあれば、残りの２つははじかれますが。
+ただし、せっかくのチェック機構は稼動していないことになります）
+
+こういうのは、selectとinsertをひとつのトランザクション内に囲み、
+さらに、テーブルをロックするしかないのでしょうね。
+
+begin;
+lock table ... in share row exclusive mode;
+select ...
+(ここで重複値があるかどうかのチェック）
+insert ...
+commit;
+
+私はよくこうするのですが、いかがでしょうか？
+
+同時アクセスが起こるようなアプリケーションを作成する場合、
+きちんと考えないとおかしなことになるので、結構頭が痛いです。
+
+もし、もっと効率のいいやり方をご存知の方がいらっしゃいましたら、
+お教えください。よろしくお願いいたします。
+
+---
+unCut  Toshikazu Yoshikawa
+<A HREF="mailto:toshi@uncut00.com">mailto:toshi@uncut00.com</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00248" HREF="msg00248.html">[pgsql-jp 21202] index について</A></STRONG>
+<UL><LI><EM>From:</EM> Tybalt of Capulet &lt;ice-man@tomato.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 21213] Re: php4.0.4pl1 のmakeがうまくいかない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 21215] PostgreSQL 7.1 &amp; JDK1.1.8環境でのJDBCドライバのビルド</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 21205] Re: index について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00241.html">[pgsql-jp 21195] シリアル型の動作について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

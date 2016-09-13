@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16714] Re: Group byを使った平均値と順位の出し方 -->
+<!--X-From: "K.Harada" <omiomi@anet.ne.jp> -->
+<!--X-Date: Thu, 17 Aug 2000 00:52:55 +0900 -->
+<!--X-Message-Id: 002301c0079a$2fe579e0$0201a8c0@dell -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000001c00650$b1696a80$4787a5d2@&#45;&#45;&#45;&#45;&#45;&#45; -->
+<!--X-Reference-Id: 007301c006da$11b537a0$0201a8c0@dell -->
+<!--X-Reference-Id: 399A677F.EA486967@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16714] Re: Group byを使った平均値と順位の出し方 </TITLE>
+<LINK REV="made" HREF="mailto:omiomi@anet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00327.html">Date Prev</A>][<A HREF="msg00329.html">Date Next</A>][<A HREF="msg00320.html">Thread Prev</A>][<A HREF="msg00281.html">Thread Next</A>][<A HREF="index.html#00328">Date Index</A>][<A HREF="threads.html#00328">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16714] Re: Group byを使った平均値と順位の出し方</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "K.Harada" &lt;<A HREF="mailto:omiomi@anet.ne.jp">omiomi@anet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Aug 2000 00:52:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00284.html">000001c00650$b1696a80$4787a5d2@------</A>&gt; &lt;<A HREF="msg00296.html">007301c006da$11b537a0$0201a8c0@dell</A>&gt; &lt;<A HREF="msg00320.html">399A677F.EA486967@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+原田＠プロトスターです。
+
+&gt; ソフト工房の近藤です。
+&gt;
+&gt; "K.Harada" wrote:
+&gt; &gt; こんにちは
+&gt; &gt; （株）プロトスターの原田と申します。
+&gt; &gt;
+&gt; &gt; PostgreSQL7.0.2+PHP3.0.15で開発をしているのですが
+&gt; &gt; 不明な点がありますので質問させてください。
+&gt; &gt;
+&gt; &gt; 現在、下記のようなテーブルがあります。
+&gt; &gt;
+&gt; &gt; Table名 T1
+&gt; &gt;      名前  点数
+&gt; &gt; id  |name| point
+&gt; &gt; --+----+-
+&gt; &gt; 1   | A    |  5
+&gt; &gt; 2   | B    |  4
+&gt; &gt; 3   | C    |  3
+&gt; &gt; 4   | C    |  5
+&gt; &gt; 5   | A    |  3
+&gt; &gt; 6   | A    |  1
+&gt; &gt; (5rows)
+&gt; &gt;
+&gt; &gt; このテーブルから名前(name)でGroup byして
+&gt; &gt; 下記のように点数の平均値と平均値の順位をだしたいのです。
+&gt; &gt;
+&gt; &gt; 名前
+&gt; &gt; name| 平均点| 順位
+&gt; &gt; ----+------+-
+&gt; &gt; A     | 3        |  3位
+&gt; &gt; B     | 4        |  １位
+&gt; &gt; C     | 4        |  １位
+&gt;
+&gt;
+&gt; こういう問題は、PHP, pgbash などプログラムで書いた方が簡単です。
+やはりPHP等プログラムで書いたほうが簡単そうですね。
+PHPで試してみたいと思います。
+
+&gt; # でも、こういう問題をSQLだけで書くことに喜びを覚える人も
+&gt; # 多いみたいですね。
+&gt; # トッパンの『ＳＱＬパズル』にでも載ってそうな気がするけど、
+&gt; # ちょっとみあたらなかった。 ML db_ml あたりにあるかな?。
+そうなんですよ。
+SQLだけでうまくいくと結構うれしかったりするんですよね。
+つい最近までプログラムに頼りすぎていたので
+SQLだけで書こうと思ったら
+はまってしまいました。
+トッパンの『ＳＱＬパズル』っておもしろそうな本ですね。
+さっそく購入してみようと思います。
+
+&gt; awk を併用した、シェルスクリプトと実行結果です。
+&gt;
+&gt; #!/bin/sh
+&gt; psql -F' ' -t idb -c 'SELECT name, AVG(point::float)
+&gt;         FROM tb GROUP BY name ORDER BY 2 DESC;'         \
+&gt;     | cat -n    \
+&gt;     | awk       \
+&gt;         'BEGIN{ord=1;pred=0.0;  \
+&gt;             printf("名前 :平均点: 順位\n");\
+&gt;         }       \
+&gt;         { if (pred != $3){ pred=$3; ord=$1; } \
+&gt;             printf("%-4s : %4.1lf : %2d 位\n", $2,$3,ord);\
+&gt;         }'
+&gt;
+&gt; ---- 実行結果 ----
+&gt;
+&gt; 名前 :平均点: 順位
+&gt; B    :  4.0 :  1 位
+&gt; C    :  4.0 :  1 位
+&gt; A    :  3.0 :  3 位
+上記を参考にさせてもらい
+PHPで書いてみようと思います。
+
+ご教授どうもありがとうございました。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00284" HREF="msg00284.html">[pgsql-jp 16670] data型</A></STRONG>
+<UL><LI><EM>From:</EM> "Furuno Akihiro" &lt;afuruno@mbc.sphere.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 16682] Group byを使った平均値と順位の出し方</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Harada" &lt;omi@protostar.cosm.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00320" HREF="msg00320.html">[pgsql-jp 16706] Re: Group byを使った平均値と順位の出し方</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00327.html">[pgsql-jp 16713] Re: 「紅」の検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00329.html">[pgsql-jp 16715] Re:データベースの初期化について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00320.html">[pgsql-jp 16706] Re: Group byを使った平均値と順位の出し方</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00281.html">[pgsql-jp 16667] Re: JDBCのコンパイル及びインストールについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00328"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00328"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

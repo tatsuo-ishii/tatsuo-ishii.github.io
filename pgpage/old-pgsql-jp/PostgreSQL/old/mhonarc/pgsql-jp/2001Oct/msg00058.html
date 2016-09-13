@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？ -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Wed, 03 Oct 2001 21:31:12 +0900 -->
+<!--X-Message-Id: 3BBB0510.733AA599@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBE02@mailtokyo.bell24.co.jp -->
+<!--X-Reference-Id: 3BBACA8C.3E056F5B@komine&#45;ag.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00057.html">Date Prev</A>][<A HREF="msg00059.html">Date Next</A>][<A HREF="msg00055.html">Thread Prev</A>][<A HREF="msg00050.html">Thread Next</A>][<A HREF="index.html#00058">Date Index</A>][<A HREF="threads.html#00058">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 03 Oct 2001 21:31:12 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00051.html">F1AF4AA92A61D5118EE100105A069AD02CBE02@mailtokyo.bell24.co.jp</A>&gt; &lt;<A HREF="msg00055.html">3BBACA8C.3E056F5B@komine-ag.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田＠修行中 wrote:
+
+書き忘れましたが、さっきの
+
+&gt; テスト用として適当かどうかわかりませんが、こんなんです。
+
+は、pid=0のデータを作ってしまうのであとでnullにupdateかけてました。
+いきあたりばったりだなあ(^^;
+
+&gt; 石井さんのが速かったので、北村さんのが遅いのが疑問に思えてきました。
+&gt; （実テーブルを使ってるだけで処理はほとんど同じはず）今日作ったデータで
+&gt; 改めて試すと、ちゃんと秒単位で検索が完了しました！
+&gt; どういうデータを使うかよく吟味する必要があるでしょうね(^^;
+&gt; 昨日やった自宅のマシンでもう一回試してみます(^^;
+
+昨日のデータでは、id=3 の子を検索して結果が3830レコードになってました。
+子の数に比例して時間がかかるので、遅くて当然ですね(^^;
+こっちは7.1.3なので石井さんのは試せませんが、45レコードで数秒なら、
+このデータでは数百秒かかるかも。ただしあくまでPentium120のマシン
+ですから、最近の普通のマシンでならせいぜい数十秒でしょうけど…
+
+tKaisouのval部分をちゃんと作ってなかったので、あとから入れてみました。
+DROP FUNCTION makeparentlist();
+CREATE FUNCTION makeparentlist(int) RETURNS boolean AS '
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN SELECT * FROM tKaisou ORDER BY id LIMIT $1 LOOP
+    UPDATE tKaisou SET val = COALESCE((SELECT val FROM tKaisou 
+WHERE id = r.pid), '''') || ''-'' || r.id || ''-'' WHERE id = r.id;
+  END LOOP;
+  return true;
+END;
+' language 'plpgsql';
+
+さいしょっからこういうデータになってれば、単純な
+select * from tkaisou where val like '%-3-%';
+で
+    3 |      | -3-
+    7 |    3 | -3--7-
+−−中略−−
+ 9999 | 5250 | -3--12--16--49--370--1908--4644--5250--9999-
+(3830 rows)
+これだけあっても２秒で検索できます。
+データ更新時に手間がかかりますが、検索が主用途ならば無理に
+「階層問合せ」するよりいいのかも（^^;
+（もっと単純に、id,cid（child id）だけのテーブル作ってもいいかな）
+
+ちなみに「平均の祖先の数」
+select avg((char_length(val)-
+char_length(translate(val,'--','')))/2) from tkaisou;
+     avg
+--------------
+ 8.8790000000
+で、私の方式では９万回近くSELECTを実行していたことになるようで。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00051" HREF="msg00051.html">[pgsql-jp 23306] RE: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00055" HREF="msg00055.html">[pgsql-jp 23310] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 23312] Re: postgres on New Mac OS10.1</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 23314] RE: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 23310] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 23305] 半角カナの入ったCSVデータをEUCでinsertしたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00058"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00058"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

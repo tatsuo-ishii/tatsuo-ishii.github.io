@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23833] [Q}Access(ODBC)のTransaction 中のSELECT -->
+<!--X-From: Jun YOSHIZAWA <juney@be.mbn.or.jp> -->
+<!--X-Date: Thu, 22 Nov 2001 16:27:29 +0900 -->
+<!--X-Message-Id: 200111220723.QAA26867@thales.ic.daito.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23833] [Q}Access(ODBC)のTransaction 中のSELECT </TITLE>
+<LINK REV="made" HREF="mailto:juney@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00248.html">Date Prev</A>][<A HREF="msg00250.html">Date Next</A>][<A HREF="msg00252.html">Thread Prev</A>][<A HREF="msg00266.html">Thread Next</A>][<A HREF="index.html#00249">Date Index</A>][<A HREF="threads.html#00249">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23833] [Q}Access(ODBC)のTransaction 中のSELECT</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun YOSHIZAWA &lt;<A HREF="mailto:juney@be.mbn.or.jp">juney@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 22 Nov 2001 16:27:29 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+ 吉澤と申します。
+
+ PostgreSQL ODBCドライバーのバージョンを下記のとおり上げましたら
+Accessが固まる現象が発生したので報告いたします。
+
+ psqlodbc-jp-20010406-bin.zip を
+ psqlodbc-jp-20010713-bin.zip にバージョンアップ
+
+ 環境：
+   ホスト側 VineLinux2.1.5  PostgreSQL 7.1.2 (PATCHレベル不明)
+   クライアント側 Windows95 MicrosoftAccess2000(9.0.4402 SR-1)
+
+ 以下のような簡単なテーブルを二つ作ってみました。
+
+CREATE TABLE T_TEST (
+        コード  int2,
+        名称    varchar(10),
+        PRIMARY KEY (コード)
+);
+GRANT ALL ON T_TEST TO PUBLIC;
+INSERT INTO "t_test" VALUES (1,'あああ');
+INSERT INTO "t_test" VALUES (2,'いいい');
+INSERT INTO "t_test" VALUES (3,'ううう');
+
+CREATE TABLE T_TEST2 (
+        番号    int2,
+        名前    varchar(10),
+        PRIMARY KEY (番号)
+);
+GRANT ALL ON T_TEST2 TO PUBLIC;
+INSERT INTO "t_test2" VALUES (100,'試験　一郎');
+INSERT INTO "t_test2" VALUES (300,'試験　三郎');
+INSERT INTO "t_test2" VALUES (200,'試験　二郎');
+
+ Access2000からODBC経由で二つのテーブルにリンクしました。
+モジュールに以下のような関数を作成したところ、FORループの
+中にあるINSERT 文のところでAccessがフリーズします。
+ホスト側の ps コマンドで確認すると
+
+ postgres: exten odbctest 192.168.11.104 idle in transaction
+ postgres: exten odbctest 192.168.11.104 INSERT waiting
+
+ というようにデッドロックしているようです。
+
+ トランザクションの中で SELECT コマンドをリンクテーブルに対して発行
+していることが良くないような気がするのですが、20010406のバージョンの
+ODBCではちゃんと動きます。(正直なところ、作った時はこの方法しかわかり
+ませんでした。)
+
+ 今はバージョンを下げて対処しているのですが、やはり今後のことも考えて
+最新のバージョンでも動くようにしたいと考えています。別の方法も考慮に
+入れて良い方法がありましたら、ご教授いただけますか。
+
+ 見当違いな質問やFAQな内容でしたらお許しください。
+
+
+sub test()
+
+    Dim wrk As Workspace
+    Dim dbs As Database
+    Dim qdf As QueryDef
+
+    Set wrk = DBEngine.Workspaces(0)
+    Set dbs = CurrentDb()
+    Set qdf = dbs.CreateQueryDef("")
+
+    qdf.Connect = dbs.TableDefs("t_test").Connect
+    qdf.ReturnsRecords = False
+
+    wrk.BeginTrans
+
+    qdf.SQL = "DELETE FROM T_TEST;"
+    qdf.Execute dbFailOnError
+
+    Dim rst As Recordset
+    Set rst = dbs.OpenRecordset("SELECT * FROM T_TEST2;")
+    rst.MoveLast
+    rst.MoveFirst
+
+    Dim ii As Integer
+    For ii = 1 To rst.RecordCount
+
+        If IsNull(rst.Fields(0)) = False Then
+
+            qdf.SQL = "INSERT INTO T_TEST (コード,名称) VALUES (" &amp; ii &amp; _
+                                        ",'" &amp; rst.Fields(1) &amp; "');"
+            qdf.Execute dbFailOnError
+
+            rst.MoveNext
+        End If
+
+    Next ii
+
+    rst.Close
+
+    wrk.CommitTrans
+
+    qdf.Close
+    dbs.Close
+    wrk.Close
+
+End Sub
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00266" HREF="msg00266.html">[pgsql-jp 23850] Re: [Q]Access(ODBC)のTransaction 中のSELECT</A></STRONG>
+<UL><LI><EM>From:</EM> Jun YOSHIZAWA &lt;juney@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 23832] Re: create view</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 23834] レコードの一番上からの順位を特定するには</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00252.html">[pgsql-jp 23836] Re: レコードの一番上からの順位を特定するには</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 23850] Re: [Q]Access(ODBC)のTransaction 中のSELECT</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00249"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00249"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

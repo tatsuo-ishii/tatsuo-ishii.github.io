@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15819] Re: distinct の使用方法 -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Tue, 04 Jul 2000 23:37:32 +0900 -->
+<!--X-Message-Id: 3961F6AC2DA.62CFJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OF2ED589A8.9D40B470&#45;ON49256912.000E13FA@nomura&#45;nms.co.jp -->
+<!--X-Reference-Id: 3961AA962E.ADB6HIRO@smtp.karuizawa.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15819] Re: distinct の使用方法 </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00051.html">Date Prev</A>][<A HREF="msg00053.html">Date Next</A>][<A HREF="msg00043.html">Thread Prev</A>][<A HREF="msg00031.html">Thread Next</A>][<A HREF="index.html#00052">Date Index</A>][<A HREF="threads.html#00052">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15819] Re: distinct の使用方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 04 Jul 2000 23:37:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00032.html">OF2ED589A8.9D40B470-ON49256912.000E13FA@nomura-nms.co.jp</A>&gt; &lt;<A HREF="msg00043.html">3961AA962E.ADB6HIRO@smtp.karuizawa.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+On Tue, 04 Jul 2000 18:12:54 +0900
+竹内 浩司 &lt;hiro@mccj.com&gt; wrote:
+
+&gt; kitamuraさん、早速の返答ありがとうございます。
+&gt; 
+&gt; &gt; このクエリは、coテーブルの全レコードを表示対象としていますよね？
+&gt; &gt; この状態で、coのco_01カラムの重複を見る理由がわかりません。
+&gt; &gt; 単純に、coテーブルだけで重複を見れば良いのでは・・？
+&gt; coテーブルは重複していなく、これに連結しているmcoテーブルが複数あることで
+&gt; 重複してしまいます。
+&gt; 
+&gt; どんな事にすればよいのでしょうか？
+
+こんばんは。
+未だに理解できていないのですが・・
+&gt;select co.co_01,mco.mco_03,mco.mco_06,mco.mco_09,co.co_03,co.co_06,co.co_13 
+&gt;&gt;from co,mco where co.co_01 = mco.mco_02 union all 
+&gt;select co.co_01,null as null_03,null as null_06,null as null_09,co.co_04,co.co_06,co.co_13 
+&gt;&gt;from co where not exists (select * from mco where co.co_01 = mco.mco_02) 
+
+テーブルcoのco_01カラムと、テーブルmcoのmco_02が１：多で結ばれているとい
+うことですよね。で、当然上記クエリではco_01が複数行表示されてしまう・・・
+その重複を排除したいという事ですかね？
+mco.mco_03、mco.mco_06、mco.mco_09は、多で結ばれているmcoテーブルの値だと
+思うのですが、これらのカウントを見たいのでしょうか？
+
+create table t1 (a int2, b int2);
+create table t2 (c int2, d int2);
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+insert into t2 values(1,3);
+insert into t2 values(1,4);
+の状態で、
+select t1.a, t1.b, t2.d from t1,t2 where t1.a = t2.c
+ union all
+select t1.a, t1.b, null as d from t1 where not exists
+ (select * from t2 where t1.a = t2.c);
+の結果は当然、
+a|b|d
+-+-+-
+1|1|3
+1|1|4
+2|2|
+(3 rows)
+です。この場合の、aカラムの1という値が重複しているので、コレをまとめたい
+と言うことならば、t2のdはカウント値や最大値、最小値といった値しかとれませ
+ん。t1.a=t2.cのt2のレコードが0か否か、という事であれば以下の方法です。
+select t1.a, t1.b,
+ (select count(*) from t2 where t1.a = t2.c) as count_t2
+ from t1;
+ただ、このSQLは PostgreSQL 6.5.2 では動きませんので(7でもムリ？)、
+(select count(*) from t2 where t1.a = t2.c) as count_t2 をユーザー関数に
+置き換えます。
+create function fGetCountT2d(int2) returns int4 as
+ 'select count(*) from t2 where t2.c = $1'
+ language 'sql';
+として、
+select t1.a, t1.b, fGetCountT2d(t1.a);
+とすれば、
+a|b|fgetcountt2d
+-+-+------------
+1|1|           2
+2|2|           0
+(2 rows)
+となります。仮にt1.bとt2.dの値の最大値を見比べたいというのであれば、ユー
+ザー関数内のcount(*)をmax(d)などとすればＯＫです。
+
+t2の重複を無くして行をまとめてしまう場合、まとめられるカラム以外のカラム
+は、何らかの集合関数（って名前でいいのかな？）にせざるを得ないと思います。
+
+・・・で、いいのかな？
+
+一応、削除用。笑
+drop table t1;
+drop table t2;
+drop function fGetCountT2d(int2);
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00032" HREF="msg00032.html">[pgsql-jp 15797] Re: distinct の使用方法</A></STRONG>
+<UL><LI><EM>From:</EM> j-kitamura@nomura-nms.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00043" HREF="msg00043.html">[pgsql-jp 15810] Re: distinct の使用方法</A></STRONG>
+<UL><LI><EM>From:</EM> 竹内 浩司 &lt;hiro@mccj.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 15818] Re: sql 関数のchar型引数について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 15820] ODBCエラー？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 15810] Re: distinct の使用方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 15796] sql関数のchar型引数について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00052"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00052"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

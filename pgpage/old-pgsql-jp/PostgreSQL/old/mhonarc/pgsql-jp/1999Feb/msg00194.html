@@ -1,0 +1,292 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7069] large object fix patch -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 15 Feb 1999 10:39:07 +0900 -->
+<!--X-Message-Id: 199902150139.KAA18489@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7069] large object fix patch </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00193.html">Date Prev</A>][<A HREF="msg00195.html">Date Next</A>][<A HREF="msg00204.html">Thread Prev</A>][<A HREF="msg00296.html">Thread Next</A>][<A HREF="index.html#00194">Date Index</A>][<A HREF="threads.html#00194">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7069] large object fix patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 15 Feb 1999 10:39:07 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+すでにご存知の方も多いと思いますが、現状の large object では、large
+object の途中に seek してから write する、すなわち large object の一部
+書き換えをしようとすると、バックエンドが落ちます。そこで、このバグを修
+正するパッチを作ってみました。
+
+また、この調査の過程で、large object が不必要に大きくなる問題を発見、
+解決しました。large object を作ると専用の xinv* で始まるテーブルができ
+ますが、このテーブルの大きさが常に 8192 バイト余計なのです。具体的には、
+このテーブルの先頭に 8192バイトの all 0 の領域が作られてしまいます。こ
+のパッチでは、このバグも修正しています。
+
+以上、お試し下さい。
+
+P.S.	
+large object には固有の oid が割り当てられますが、考えてみると、データ
+ベース内でユニークなら別に識別子が oid でなくたって構わないのですね。
+pg_dump のことを考えると、ユーザが明示的に large object に名前を指定す
+る方が良いような気もします。また、一つの large object に一つのテーブルっ
+て言うのも必然性がありません。別に複数の large object で一つのテーブル
+を共有することもできるはずです。こうすればデータベースディレクトリの下
+に山のようにファイルができて困ることもなくなるだろうし。
+---
+t-ishii@sra.co.jp	石井達夫
+
+---------------------------- cut here ---------------------------
+*** postgresql-6.4.2/src/backend/storage/large_object/inv_api.c.orig	Sun Dec 13 14:08:19 1998
+--- postgresql-6.4.2/src/backend/storage/large_object/inv_api.c	Fri Feb 12 20:21:05 1999
+***************
+*** 545,555 ****
+  			tuplen = inv_wrnew(obj_desc, buf, nbytes - nwritten);
+  		else
+  		{
+! 			if (obj_desc-&gt;offset &gt; obj_desc-&gt;highbyte)
+  				tuplen = inv_wrnew(obj_desc, buf, nbytes - nwritten);
+  			else
+  				tuplen = inv_wrold(obj_desc, buf, nbytes - nwritten, tuple, buffer);
+! 			ReleaseBuffer(buffer);
+  		}
+  
+  		/* move pointers past the amount we just wrote */
+--- 545,561 ----
+  			tuplen = inv_wrnew(obj_desc, buf, nbytes - nwritten);
+  		else
+  		{
+!           		if (obj_desc-&gt;offset &gt; obj_desc-&gt;highbyte) {
+  				tuplen = inv_wrnew(obj_desc, buf, nbytes - nwritten);
++ 				ReleaseBuffer(buffer);
++ 			}
+  			else
+  				tuplen = inv_wrold(obj_desc, buf, nbytes - nwritten, tuple, buffer);
+! 			/* inv_wrold() has already issued WriteBuffer()
+! 			   which has decremented local reference counter
+! 			   (LocalRefCount). So we should not call
+! 			   ReleaseBuffer() here. -- Tatsuo 99/2/4
+! 			ReleaseBuffer(buffer); */
+  		}
+  
+  		/* move pointers past the amount we just wrote */
+***************
+*** 624,648 ****
+  		|| obj_desc-&gt;offset &lt; obj_desc-&gt;lowbyte
+  		|| !ItemPointerIsValid(&amp;(obj_desc-&gt;htid)))
+  	{
+  
+  		/* initialize scan key if not done */
+  		if (obj_desc-&gt;iscan == (IndexScanDesc) NULL)
+  		{
+- 			ScanKeyData skey;
+- 
+  			/*
+  			 * As scan index may be prematurely closed (on commit), we
+  			 * must use object current offset (was 0) to reinitialize the
+  			 * entry [ PA ].
+  			 */
+- 			ScanKeyEntryInitialize(&amp;skey, 0x0, 1, F_INT4GE,
+- 								   Int32GetDatum(obj_desc-&gt;offset));
+  			obj_desc-&gt;iscan =
+  				index_beginscan(obj_desc-&gt;index_r,
+  								(bool) 0, (uint16) 1,
+  								&amp;skey);
+  		}
+- 
+  		do
+  		{
+  			res = index_getnext(obj_desc-&gt;iscan, ForwardScanDirection);
+--- 630,655 ----
+  		|| obj_desc-&gt;offset &lt; obj_desc-&gt;lowbyte
+  		|| !ItemPointerIsValid(&amp;(obj_desc-&gt;htid)))
+  	{
++ 		ScanKeyData skey;
++ 
++ 		ScanKeyEntryInitialize(&amp;skey, 0x0, 1, F_INT4GE,
++ 				       Int32GetDatum(obj_desc-&gt;offset));
+  
+  		/* initialize scan key if not done */
+  		if (obj_desc-&gt;iscan == (IndexScanDesc) NULL)
+  		{
+  			/*
+  			 * As scan index may be prematurely closed (on commit), we
+  			 * must use object current offset (was 0) to reinitialize the
+  			 * entry [ PA ].
+  			 */
+  			obj_desc-&gt;iscan =
+  				index_beginscan(obj_desc-&gt;index_r,
+  								(bool) 0, (uint16) 1,
+  								&amp;skey);
++ 		} else {
++ 			index_rescan(obj_desc-&gt;iscan, false, &amp;skey);
+  		}
+  		do
+  		{
+  			res = index_getnext(obj_desc-&gt;iscan, ForwardScanDirection);
+***************
+*** 666,672 ****
+  			tuple = heap_fetch(obj_desc-&gt;heap_r, SnapshotNow,
+  							   &amp;res-&gt;heap_iptr, buffer);
+  			pfree(res);
+! 		} while (tuple == (HeapTuple) NULL);
+  
+  		/* remember this tid -- we may need it for later reads/writes */
+   		ItemPointerCopy(&amp;tuple-&gt;t_ctid, &amp;obj_desc-&gt;htid);
+--- 673,679 ----
+  			tuple = heap_fetch(obj_desc-&gt;heap_r, SnapshotNow,
+  							   &amp;res-&gt;heap_iptr, buffer);
+  			pfree(res);
+! 		} while (!HeapTupleIsValid(tuple));
+  
+  		/* remember this tid -- we may need it for later reads/writes */
+   		ItemPointerCopy(&amp;tuple-&gt;t_ctid, &amp;obj_desc-&gt;htid);
+***************
+*** 675,680 ****
+--- 682,691 ----
+  	{
+  		tuple = heap_fetch(obj_desc-&gt;heap_r, SnapshotNow,
+  						   &amp;(obj_desc-&gt;htid), buffer);
++ 		if (!HeapTupleIsValid(tuple)) {
++ 		  elog(ERROR,
++ 		       "inv_fetchtup: heap_fetch failed");
++ 		}
+  	}
+  
+  	/*
+***************
+*** 746,757 ****
+  
+  	nblocks = RelationGetNumberOfBlocks(hr);
+  
+! 	if (nblocks &gt; 0)
+  		buffer = ReadBuffer(hr, nblocks - 1);
+! 	else
+  		buffer = ReadBuffer(hr, P_NEW);
+! 
+! 	page = BufferGetPage(buffer);
+  
+  	/*
+  	 * If the last page is too small to hold all the data, and it's too
+--- 757,771 ----
+  
+  	nblocks = RelationGetNumberOfBlocks(hr);
+  
+! 	if (nblocks &gt; 0) {
+  		buffer = ReadBuffer(hr, nblocks - 1);
+! 		page = BufferGetPage(buffer);
+! 	}
+! 	else {
+  		buffer = ReadBuffer(hr, P_NEW);
+! 		page = BufferGetPage(buffer);
+! 		PageInit(page, BufferGetPageSize(buffer), 0);
+! 	}
+  
+  	/*
+  	 * If the last page is too small to hold all the data, and it's too
+***************
+*** 865,876 ****
+  
+  		nblocks = RelationGetNumberOfBlocks(hr);
+  
+! 		if (nblocks &gt; 0)
+  			newbuf = ReadBuffer(hr, nblocks - 1);
+! 		else
+  			newbuf = ReadBuffer(hr, P_NEW);
+  
+- 		newpage = BufferGetPage(newbuf);
+  		freespc = IFREESPC(newpage);
+  
+  		/*
+--- 879,894 ----
+  
+  		nblocks = RelationGetNumberOfBlocks(hr);
+  
+! 		if (nblocks &gt; 0) {
+  			newbuf = ReadBuffer(hr, nblocks - 1);
+! 			newpage = BufferGetPage(newbuf);
+! 		}
+! 		else {
+  			newbuf = ReadBuffer(hr, P_NEW);
++ 			newpage = BufferGetPage(newbuf);
++ 			PageInit(newpage, BufferGetPageSize(newbuf), 0);
++ 		}
+  
+  		freespc = IFREESPC(newpage);
+  
+  		/*
+***************
+*** 973,978 ****
+--- 991,999 ----
+  	WriteBuffer(buffer);
+  	if (newbuf != buffer)
+  		WriteBuffer(newbuf);
++ 
++ 	/* Tuple id is no longer valid */
++ 	ItemPointerSetInvalid(&amp;(obj_desc-&gt;htid));
+  
+  	/* done */
+  	return nwritten;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 7171] Re: large object fix patch</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 7068] [Q]about to shutdown postmaster and use psql</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00195.html">[pgsql-jp 7070] Re: [Q]about to shutdown postmaster and use psql</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00204.html">[pgsql-jp 7079] Re: [Q]about to shutdown postmaster and use psql</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 7171] Re: large object fix patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00194"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00194"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

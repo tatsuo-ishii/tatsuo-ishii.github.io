@@ -1,0 +1,729 @@
+<A NAME="14">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Thu, 5 Dec 96 23:39:39 JST
+Subject: [postgres95 1122] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;9612051439.AA28263@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+坂本＠中央電子です。
+
+&lt;199612051427.XAA16008@log.tramp.co.jp&gt;の記事にて
+1996年12月05日(木)、mitsu@tramp.co.jpさんの記述は:
+ &gt; &gt; $input = &quot;試験&quot;;
+(略)
+ &gt; JIS コードとこういったスクリプト言語との関係について
+ &gt; 何かご存知の方はいらっしゃいますか?
+
+&quot;試験&quot;はISO-2022-JP(JIS)では、
+
+% echo 試験|nkf -Ej|od -xc
+0000000     1b24    423b    6e38    331b    2842    0a00
+	 033   $   B   ;   n   8   3 033   (   B  \n
+0000013
+
+です。ひょっとして、この&quot;ESC $ B ; n 8 3 ESC ( B&quot;ってのの、
+$BがPHP/FIのインタプリタ(っていうのでしょうか)に
+変数として解釈されてしまっているのでは?
+
+今確かめられる環境ではないので、推測ですが。
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="13">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Thu, 05 Dec 1996 23:27:48 +0900
+Subject: [postgres95 1121] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612051427.XAA16008@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+From: Rui Hirokawa &lt;louis@city.fujisawa.kanagawa.jp&gt;
+Subject: [postgres95 1120] Re: KANJI-CODE on Postgres95
+Date: Thu, 05 Dec 1996 22:41:57 +0900
+
+&gt; ...
+&gt;
+&gt; は OK でしたが、JIS -&gt; EUC
+&gt; とで以下のようなコード(JISで記述)を書くと、
+&gt; 出力されるファイルは、以下のようになってしまいます。
+&gt; 
+&gt; ------------------------------sample.phtml
+&gt; &lt;!
+&gt; $input = &quot;試験&quot;;
+&gt; $str = KanjiConv($input,&quot;EUC&quot;);
+&gt; $fp = fopen(&quot;/tmp/test.txt&quot;,&quot;w&quot;);
+&gt; fputs($fp,$str);
+&gt; &gt;
+&gt; ------------------------------output
+&gt; &gt;cat /tmp/test.txt
+&gt; n83
+&gt; ------------------------------
+
+早速こちらでも試してみました。
+はてさて。ほんとにこの通りになります...
+
+しかし、変換エンジンのとこのコードだけ取り出して、
+main() をつけて試してみるとすんなりうまくいくのです。
+
+不思議に思って PHP/FI のコードを JIS コードで記述し、
+以下のようにやってみると、さらに不思議なことになりました。
+
+======================================================================
+test1.phtml
+----------------------------------------------------------------------
+&lt;?
+  $input=&quot;試験&quot;;
+  $str = KanjiConv($input,&quot;EUC&quot;);
+
+  echo &quot;str = $str\n&quot;;
+  echo &quot;input = $input\n&quot;;
+&gt;
+----------------------------------------------------------------------
+output (php.cgi から実行)
+----------------------------------------------------------------------
+Content-type: text/html
+
+str=n83
+input = n83
+----------------------------------------------------------------------
+むむむ。
+
+JIS コードとこういったスクリプト言語との関係について
+何かご存知の方はいらっしゃいますか?
+
+あと、
+&gt; 
+&gt; $num = strlen($input);
+&gt; echo $num;
+&gt; 
+&gt; で上の文字の長さは、8 となるのですが、
+&gt; これで良いのでしょうか？
+&gt; 
+&gt; それとも私のシステムが変なのでしょうか。
+&gt; 
+
+文字の長さは10 にならないといけないはずなのに... :-&lt;
+この辺にヒントが隠されてるのでしょうかねえ。
+
+
+== おみつ
+
+<HR>
+</PRE>
+<A NAME="12">
+<PRE><B>
+From: Rui Hirokawa &lt;louis@city.fujisawa.kanagawa.jp&gt;
+Date: Thu, 05 Dec 1996 22:41:57 +0900
+Subject: [postgres95 1120] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612051343.WAA09532@elephant.dtinet.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+広川です。
+
+mitsu&gt; おみつ@Tramp です。
+mitsu&gt; 
+mitsu&gt; 常々気になっていた PHP/FI &lt;-&gt; Postgres95 間での日本語のデータ
+mitsu&gt; 受渡しの話題がこの ML に流れまして、なんとなくモチベーション
+mitsu&gt; が上がってしまい、PHP/FI 上で漢字の変換関数を書いてみました。
+mitsu&gt; filters-2.0 と qkcc からのコードを拝借したものです。
+
+ありがとうございます。
+
+私も似たようなものを書いていましたが、
+JIS の変換がうまくいかず、壁にぶちあたっていました。
+
+さっそく、テストさせていだきました。
+apache-1.1.1 + PHP-2.0b7 + Linux-2.1.13 
+という環境です。
+
+1.SJIS -&gt; EUC
+2.EUC  -&gt; EUC (当たり前？)
+
+は OK でしたが、JIS -&gt; EUC
+とで以下のようなコード(JISで記述)を書くと、
+出力されるファイルは、以下のようになってしまいます。
+
+------------------------------sample.phtml
+&lt;!
+$input = &quot;試験&quot;;
+$str = KanjiConv($input,&quot;EUC&quot;);
+$fp = fopen(&quot;/tmp/test.txt&quot;,&quot;w&quot;);
+fputs($fp,$str);
+&gt;
+------------------------------output
+&gt;cat /tmp/test.txt
+n83
+------------------------------
+
+$num = strlen($input);
+echo $num;
+
+で上の文字の長さは、8 となるのですが、
+これで良いのでしょうか？
+
+それとも私のシステムが変なのでしょうか。
+
+
+
+
+
+
+<HR>
+</PRE>
+<A NAME="11">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Thu, 05 Dec 1996 21:20:38 +0900
+Subject: [postgres95 1119] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612051220.VAA14947@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+常々気になっていた PHP/FI &lt;-&gt; Postgres95 間での日本語のデータ
+受渡しの話題がこの ML に流れまして、なんとなくモチベーション
+が上がってしまい、PHP/FI 上で漢字の変換関数を書いてみました。
+filters-2.0 と qkcc からのコードを拝借したものです。
+
+PHP/FI のソースディレクトリ (php-??/src)で
+phpkanji.tgz を展開すると、以下のファイルができます。
+---------------------------
+README.kanji (このファイル)
+kanji.h
+kanji.patch
+kanjiconv.c
+etoj.c
+etos.c
+jtoe.c
+jtos.c
+stoe.c
+stoj.c
+---------------------------
+
+% patch &lt; kanji.patch 
+を実行して、あとは PHP/FI のトップディレクトリ
+(php-??/)にて通常通りの install を行なうだけです。
+
+
+使い方は以下のようになります。
+[  $str=KanjiConv($input,&quot;EUC&quot;); ]
+第2引数には、[ &quot;EUC&quot; | &quot;JIS&quot; | &quot;SJIS&quot; ] の3種類が指定できます。
+# 多分 &quot;EUC&quot; しか使わないと思いますが ;-)
+
+確認済み動作環境は、
+  Linux 1.2.13 (Slackware 3.0) + JE 0.9.7
+ + postgres95-1.06 + pg95-1.06-jp.patch
+ + apache_1.1.1 + php-2.0b7
+のみです。
+
+
+いまさっき出来たばかりですので、
+どんなバグが待っているかも知れませんのであしからず... 
+
+== おみつ
+
+begin 644 phpkanji.tgz
+M'XL(`!ZWIC(``^U&lt;&gt;W,;1W+WO]A/T:)U$@&quot;&quot;(';!AR@*LD2:MJ@'J1+()&amp;59
+M82T7&quot;Q)\`#CLPI(C\&lt;-07MY=Q;ZR'.G.DBV?_)`EG6S+Y53N[+L\G+A225F^
+MBJODI&quot;IU5:E*]\SL&gt;T$0-$CYL2T*V!UT]_3TO'[3,[MG)HX^?6HBNZQ6ERI/
+M[!#)N=S0P``\`0##0X/L&amp;V!`?`/D97D88$@9E`?S@T.Y(0!9E@&lt;&amp;GH#&lt;3AGD
+MI:9AJ@V`)U8KIM'&lt;A$\MK&gt;Z&amp;.;M-9SSU#U`H%.#TL=/]STS&quot;&quot;4H9KU5?H$1)
+M2J?3,#DU&lt;V8:\$J2.)/U@77GVCMO_GGCZOK-C=]:#^Y_&lt;NV&amp;]&gt;CFN]??LFY8
+M7VU\LO'&gt;QFOXRW7KT3OWK&amp;^LN];GUK]8KUNWUE^2\.:&amp;]&lt;KZ9&gt;NJ]4&quot;(?VS]
+MH_5/F/H'Z\[Z[ZU/K%&gt;MA^N?$A^,]J5`DC;^@&amp;PWK(_7+TMR%HS%RH)^1#.6
+ML\=GIR9FP/H5YO``RI454V\8?4HV)RE9&gt;./:G9&gt;N_^]O?YX\D2VJ9BV%'#]=
+MUD#&amp;7ZV7K2_O_OW-/UJ6=0N-L@VSRP9HUUN4X&lt;;=C9&lt;V_K3QZL:]C8&gt;0K&quot;_6
+M^YYZJM]H:&quot;GKKH1WS'-9&lt;^%OP'KT_O6K+U/)K7OKEZ_&lt;_[N;J.)W&amp;^L;UL97
+MUBM8D%]B)C&lt;PB[[6)/GJ(\F\(U2D))[5HOBNJZ8FKC6LIJPFZ69MB7\9^+5D
+MUG3^17&lt;&amp;OS,XRV862#\!IAH.@2&lt;CD*AB;_P#&gt;ND.UMIEZY[U,;B&gt;NH=5_:G7
+M4Y+MJ10UDML?_N;KVQ]:#]']E2IVN)45]!8JNV_]S'K;&gt;HTJF;F&gt;-;-CTW_9
+M-R/:&amp;7.`VX[N4NV[+1.-L*R?W7H=C;*N?7;KOZU'M[_Y]3JK3-+WYKV//KG_
+M?Q^LD]#Z[QVQY/WK;_[YP3&gt;9C2^HV:6PC3$UU^Z_]QH:](7UP#;G+&amp;&lt;\)P'X
+M6S@U%&lt;OBOUJ/WOSL]D,GS[-&lt;*Y/Y@C=K=.3$[#A&lt;@N.31?PLTM=A=!KD;W[]
+MX%]!Y`8@]-TC%_MT&quot;K],_-714Z=/3G#'&quot;.97/OPWZ^%['Z'0??0NLI/UV$$`
+MLMDL?NXUS`84W,Z&lt;W%NIUIMFI@&lt;MZDF-$D=#-Y&quot;COC`W&lt;4'7DCV&amp;OJ)K)J2A
+MW*BM@EHJX&gt;\&amp;G%_4&amp;SK4L6?5JH7]I'5_3V8OMKLJ4T*926@$M?VK^(TFG*X9
+MY@+*C@R&quot;]1E6XEUTQBWKP&lt;W_&gt;?]C+-@75Q_&lt;?-?Z@!PC7'M78CWD*QP&amp;WO&quot;W
+MAU-'QX]-3HER7WUP]^=O?&amp;)]?N?*&amp;_]U[?:O?\F&amp;`X&quot;3E6KS`G9K)2OG(5E&lt;
+M4;7E\RI:G,_F4M`+QR&lt;@EQW)#DMX77&lt;,Z\-A8(A2%L1UWU)==&quot;M,5&gt;NJMJC/
+MR5G\1TS8G'%0F1^6T,6?.Q:2@5/3,Y/CPCX&lt;N&gt;YA35RV?F&amp;]&lt;&gt;&lt;*CF'8GK&quot;%
+M/7KW/]^Y&lt;EM4+@Z&amp;8B&quot;DVI*PZC[`P&gt;AUZ\L/__W=ARAP&amp;;WPLG7OS4^MKZT_
+ML4K%@?+:E7&gt;N61]\^*O[__R;/XK&lt;K]ZY]9'UX.W?W;50P=]B&amp;[YS_3^HS6.N
+M;^-P:#$#&quot;UTA25;Z&lt;NBDD9$A&gt;.?*^[??NGGC%Q*;,H^8#76UGM5JV:6Z)#WN
+MZ2RF#DG,*3N:1QO\)P\2YF/X3QG.#2(6E',#^&gt;$8_^T&amp;]:=!PL'&gt;AA9XR&gt;Z/
+MZ6I);Q&quot;:TJ%&lt;:WC0(/Z*?_V2I%]`H%6%%VJ5$A#R2#:K1F6AJI=`6U0;Z0Q.
+M#H8)_L34*&amp;&quot;&amp;;#KL.PQL0D15`4U&amp;YYJ*$9H(_W2@B3203:0QK*D3FX2F*)N,
+MCFPJ;F*3T9'''4W&quot;)LE\L:Z7]#+7E4P_,SLUGDKB5&quot;X]B:F5J@X5@S4)V3&quot;3
+M6@J2]'&amp;X`+D+!V38MP_H]A#=CI3ATJ7G)8@F1TK/^:3*6BJ8D5(M^3,:&quot;(K8
+MMWOH=KCLU:`W-;^PZK&gt;RK'NYERJ&amp;GUOQ&lt;_MUHW5J0+G?LA*R/^Y&gt;O'WR0/P=
+MRZ/-^(\#O^R,__G!/*W_\[E\//[O!C&amp;`K2[K--)G*]5LK;&amp;0F%ELPM.Z!C`(
+M2NZ@K!P&lt;&amp;`9&quot;?K1L]#)',,J&lt;,&gt;TGAI+EW&amp;!&amp;QIIF&quot;0`)`%U;K&amp;5K@,-6&quot;;^,
+M\Q5LA'A1FL&gt;/\XN4!Z::C4IU`2]6C9^NX-?S7+2A4YJ.*Q;\*G-6K?%BW&lt;3O
+M19R[\*M2+9-V@ONN'(U[/,LR?JD:B:_4-)54EZH&amp;NR/-1JU!4J5*`S\;*C/P
+M&gt;6D/J5B@Z]7**NDI&amp;S5MF=UJC9K)TV@UP?*MD5)S55VH8&quot;X2S:N`&quot;]^#L#&gt;)
+MZ^:YTV&gt;FGRVFX,BIZ:=G3T[,S1P]\^S$S!%B(R]S9^6!K&lt;A_=,ZRI=W@1HU!
+M#/Y%&amp;;/@!OLR7':#)[(81R&lt;.I]:YHE_(:BU:_P&amp;W]3.VSMJ],C20489&amp;&gt;+LG
+M'2QA..&gt;IVXO0@^MO7),V5\R&gt;#,79:$+.9TX_*Q)A+&gt;/E+,U7U57=Y921LS0_
+MA6E&gt;1D,WM5IMN4*,Q8F9\&gt;GI$Y,3F:G9DR&gt;)JU=P.3YVU2D9%^ZY^D@PDQ/R
+MF&amp;Y/\MS1B8LL2[-AUIKUNM[P&amp;E&lt;T&amp;S.U64HEL7X:&quot;@B$D'-P59U=;.]VQA;!
+MHK1V^PAZ&gt;61HR'4[3QBQW4[H&quot;-)HL-YHU!K)2M5DD8PG]6JI4J8R]9*EGO`:
+MF=S+`9,;3J%;E.N%[RL$\!1PQ_+8?/Z7Y8$A.;#^D_,#&lt;CS_[P;UI[M$_1*M
+M?;I!7)6WYWU+55VT:OY%J.63H&lt;!7:EM6J:423M=@+E8,,&amp;MV-%TU&lt;#:FA9ZZ
+M`N5F53,KM6I;55T@KFK64!=PV5,E:\#0&amp;I6Z&quot;0&gt;WIPH\XV3/(8Y-C,,X,?0&lt;
+M6JV5],,]N#;=LJHN$%&gt;%TWZQ2ZH`G%(=%-B+522U6KUA\N+C74G?@BK@3@'T
+M-M\M*/+M`OKLT*HN$%=U9F)F]LP4_,71D[,3WU(51Y.VFP#G6^Z&gt;/N:&gt;'BI[
+M3]M&gt;U/4&quot;VELJ75#5&gt;J\%Q&amp;9+!ZJZ0$Q5U\9VZ&lt;E*55MI8E6))I]=/.RF]3!\
+MUN--4!N&amp;3DF&gt;-!%C['&amp;#3%/34Q.0&lt;VZIW8/LW+*6KSBWK#_D)7)0,FT/C'.F
+M.K^BGRWIAGGNK-'0SJ62=)VA_5ER`4[N9D4#PJ$0D!DXAW^%BQ)A6X;CTBDL
+MFE9_,=/)+0&gt;TE&quot;=V7%8&gt;S+6]2EJ_9-B&quot;Q:?`CO1%**#U3T@-+77\&quot;D2`+UJ!
+MP3(V@D4`CP([:KDV*DFV]W`ZDN:T15U;+M&lt;:Y]5&amp;R1]XA'0])9$?_:D::@&quot;H
+ME)/IWMYZH;#_^=S^%`L4-G2SV:A244?YVH$M7Y-RZB+[&amp;24TQI[/[Q=)+!%3
+MT_7&gt;WI2M*C'?T-7E49&gt;!I/:22&quot;**&amp;T#P)P3KV'ZX=`GHZ@C_7=B%#D`F?&lt;70
+M*1''&lt;K-2;&gt;IV/FOBFWZW,SU!\EYIET5*^!5P&lt;4?X&lt;($BJMY2HCY,TNU2D.\B
+MRM#&quot;ED,%BLANR0.^L*NW^,4.RT]%X.%6EGVI@^Q5.VLWDX30BQ.$B.IZ;6--
+M9NNF[2'3&lt;F[=B!9G&lt;T88R14X3EZC%NP57O/V&quot;9#F!$@MZ&lt;$&gt;,=\L1_6)=#VC
+MD6*2;E:7J[7S=!K&quot;Q%DC9_&lt;6E&quot;P4V&quot;(;6R?&gt;G,V=B^@\--(PB7H!&gt;4@E+\EH
+MW)TVZTX=M$EO]5PJ@.)OFUWJ/-^)#BOJ+7&gt;A7'(OM^HR3R&lt;-N9&quot;/_LEZK^P5
+M#TX!&quot;;=R?3_Z9YQZBG&amp;Z?-L;$JCP?#.*%;ZL;=/WP;*'VHL&lt;;6Z@LL)J`IYQ
+M%407K:.1#-D\5A8*BF](*8J^QK(,#S6H@4&quot;#%(A]L4&amp;N:*K:,J0-&gt;VBK-4T$
+MOG,T,!9RHU'((#0P8F9\!.3B3%081$D((BG%&amp;?:,PNE:/&lt;DB=EBJ/8;H\Q,L
+MEM?#[6&amp;!/;`7&amp;F0R/_%DE\SKEST$A51#UU;K2:/O,-Z]H*Z(4U+&lt;2[918A*Q
+M6U0+030]*.AQ[R:&quot;Q0A);\V`[Y&gt;P/T1Q7)4IX9K336,QV=.3*&lt;Z&lt;F9QZ-MH1
+M_10'KRZ8BY`&amp;!:Q7K2\MRWK%(GK9NL]Q)8H4`AO/*7U575FI:4DY@V)I6N.A
+M&amp;H\)T`L3X\&gt;FY\9FGQ$FLNK$:&lt;\S@[KL9$\(XHLBGSO+91'HHR49KY`D&quot;DGI
+MGE+:95QC2X=F52PG5E6M43.H3$^R--;.[6NL9/N2G&amp;]?T^7C#MAUF?B9T9W-
+MH\W^[X&quot;&lt;&amp;PB&gt;_U&amp;&amp;X_/?NT+]Z80@%C!(\/:04+*YQ!!^#&amp;7EX&lt;3\B\'3UH(Y
+M))F@]2OKVG8,#`?O&amp;EN44FK68?9))DY,)DY,&gt;Q/^^NS&gt;,?Q(CB5(]$`^$2'8
+MS?!&amp;=Z-*IVJE2KF&quot;HV-2A96:R8ZO=QPX_@X'B;OF]LBHDAL.*HY#@B]&lt;G+03
+MDS*F[?4F*)@PYDF8)HZD-\'/D3AQ=.KHY%0BD;N0TWV)T[,S++7LI!:+&quot;J4&lt;
+MT!/HP&amp;-J=5E=;A*&lt;4-DA*H:'PD??(,U&quot;4!!Q'`LQ4D/CF*FA+U0,K$$&amp;;PB/
+MC7H3(T,IA(,R]9IAS_*HRUTJ[K%G7&lt;Q`3/ED!BT?&quot;1%&amp;`Q^.SE`EOW#7HF(5
+M2:&gt;&gt;,`%UGJWT]IYCAZ\8O@2&gt;`S^&amp;`$D2M-,(U$#NH+L&amp;8\N-0P5@)[@TYT06
+M7&quot;2\\=S$U(FC)V;)GPEF+QJ#.16P\D?]*5CUH10ED(+6[N,GN/`'41JYY6(`
+M&quot;@7`&amp;A:6!*O7GQ5K,ZC4ZXXM9)Z/S)RV(8KCDY.A;#2;W;,89_Z4;7\*O8K-
+MV,J`:#7*MZV6K3OX8MOZG`[5YS359Z6OS]6=&quot;^H.EBA_D*8#,GE1U-^RJ#^G
+MH)YZQOHK;*'VVA='#!&gt;=F+LF\?\40!#5B+ZCKFO?*&amp;#W(2P.+J``&lt;SD^V8?Y
+MV.4)&gt;328R)P:3E1&amp;1&gt;9.&quot;,/.,Y^&quot;,+]=.+XDP/%HM5)539U;87/:X\K:#PT2
+M_ZB(/RRVLWFT&gt;_XS/Y0/XO^\')__W!7JI]/\#+;WT9GU2MF&lt;8_MNXP*_G\%U
+M-R(A?N0_1MP_:,2=&gt;&amp;YN;.)9#HU5F2#O&lt;SJ?4\&lt;0EU99K,3AG)AZFOC*NI&lt;/
+M$SU&lt;-.E2$3:!T&amp;(WA2%I;'=SDV.GDDL50\[@AY*IS*_*]&quot;$&quot;E:W@L2N09A+T
+MB3/&gt;18Z2Z5=^&lt;'^PS&quot;J?)?2RAQER8@&gt;2`J@L^2&gt;`,`&amp;GQ9P]$S.-.+/SG_M0
+M*)]+]2O02^('1AT&gt;!7G(!/;#L.Z;;YV-&amp;,;`3!G*V2%:EN:1S&lt;FCK3*6G8Q'
+M6F0LE^V,N?@^!NI8(N=U$M;&lt;Y8NQX\N7C&quot;9G-&quot;4&lt;]&lt;5J,Q2[&quot;KZ?JQM(BD[#
+MH;2#I5D'L&lt;&amp;TZ!T$IC6J4QMJME^D0-M5RB8+$BU2Z;=??#@H5U-\A&gt;&amp;)=C=F
+M=9[9AW6\SU#X8TCVI$(S#(ZLSFSCH'6O.8;C$U^J$F'EFB&gt;`W1:MQG#52_PM
+M`3N;1QO\-S0\&amp;'K^,\9_NT3!6&quot;QO#]N)_Y)D@M[L8$=[_3%@.S*&lt;W7H(^`B%
+M@(^Q$/#P`1Q:@8X-:K5&amp;@UY00+I20&gt;;C7F8:B,Y,GSHZ%=(YYF5C@V$H\GQ&lt;
+M1)Y;:_(%J&quot;,TQ8'J'PEL9H'JB#AU,$R]_XCW/@_!J'4P:+W_N/&lt;&gt;^8]Y[P&lt;@
+M(J8=&amp;=(.1;0)C?N@-S#LC3W4@[WU)D[@^+%U[,TDZ%-@;Y;`T:D,EQRXS3AL
+MT&amp;HGVW`T_-#V3L!10$.A!2`%CC`\Q[R6C.$#V&amp;@1]V3P^D&quot;&gt;7^\,;.4Z=P&gt;X
+M,F2);3&lt;%81CJBY'SQI5RN(;\1[*VB&quot;'Y\_K%&lt;?8`UF%X&quot;ES8Q^VE)ZKMHUM,
+M!CO%02=3&quot;@W[CJAQEDD/2SZ:A5E_,&quot;H&lt;[98G0@Y9(H5\G-BKU.:*&amp;&lt;D8\(LG
+M1IR(/,89#M:3R[C'#K,1@OLM[+:`U[@@36)P$&amp;]G9R#)-V'Y))9R-0B!`5M@
+MS&quot;O`IC/&amp;G*#F(KH!MFK&gt;&quot;5)L/2(FTEH#Q$3(8M9,&quot;'R]A=W:'8G=&gt;ORQ%EEQ
+MTWG;KF-HESOUSS=Q(#&quot;PS_I-\QGD-Z.S?%LWF/#^Q;::4$LU\G;;5W@S93LM
+M+N]O&lt;9-;;7&amp;3=HO;&gt;P0KRJX!7!.3_X41`VB$4Q&amp;A&lt;@H]=H7O'1-ZJ$%%Z1'M
+MJH6&gt;+5;@9'&lt;J&lt;+(K%1C:W=Q.!?*.3([C[5_&amp;*=.S%&gt;89\UL.^&gt;`;\\'WZT4[
+M?N&amp;:-MC.I,&amp;`24JUY!E_%*Z-W]D@)!`YV$9LP&amp;TKT48-,:..'&gt;6;G%36\(YA
+MI`&gt;\/^(XF0KO_-F.8F&lt;R@&lt;Z;*G**OS&quot;$[[$.EL6A=SHFRM&amp;/K]X1H;6+XW0Q
+M]+'T^/=_AI7!7'C]'[__:5&lt;H8A5O;'O];VRR_B]Z#H'%`8!MKT3C`$`G!&gt;R:
+MV[__`8#05AMU2,]ZWV&quot;7]+GU%3^785\M]MN8ILXVW)C2=CMN1G#;K&quot;M;;A%9
+MA_?&lt;0EE[-MVX`N^N&amp;^&lt;.;;NQ5\J%PQN!J,:.!3,*3BBCD'M&lt;9PM;Q3&quot;^SR$,
+MB&amp;,8&lt;0QC.S&amp;,.(31M1`&amp;8J[M!C&amp;89#&gt;B&amp;+:B.(RQS3`&amp;&lt;^!W+(X1L*E-((/!
+MJ]V(9#&quot;SOINAC&quot;X%+N)#&amp;SM'QN,__Y%7%&quot;44_\D-QO&amp;?W2!^_M&lt;YB&lt;6!+7L1
+M3WP&quot;^(&lt;9R=C\&quot;/#F3[SQA:1D+,V9M3EZ;X&amp;Q1#&amp;#+9\6L-E#9P78(RE+LOVV
+M\!3-&quot;C.+.IMD,=-J26V4H%9V7V\$I`OZ&quot;L!&gt;%&gt;Y$%4B+6.^/E)V0@CB(P'+H
+M8V&amp;$5)JOW&gt;?%9&amp;&lt;?2B!I%A+P/S%CAQ,\ZH?+=CB!DOH*WCA&quot;*+\1)S\Y.K\A
+MF&gt;=GQP?&quot;+XK?F6.YD5&amp;#[_N9W*3])ACG/1_4%M#BJ/=_I#QH,/CD6[LG&quot;-UG
+MZ'RPJ(2PJ/TCA5O8Y^GV&gt;5VWWQ(P#9S-752K&quot;SH4%^VIP#FUMXNG&lt;V.DM]MD
+M//[W/PPJN8C]OUR,_W:#@OMPQK;?_T&quot;2B6+TYM\V]O[B]S_\&quot;+#HIE!T&lt;NKT
+M[`PV*RR_DS8].R,2&lt;572\?Y;N_VV;&gt;^G4;.G23/IV47+.!ME[3&quot;Q*Y+F&amp;VK&gt;
+M_33@.AUDG-@*,F;;5PXV3G@4A&lt;&amp;QO&gt;=E.)M&gt;+CS.V_!8['EQ#7VM]]M\F7@A
+M,I/S@&gt;2(?!V8G)=;Y6MOMGF`\E+[C;1N/JWV(\3%&quot;&lt;\(X(L1!X/!_A&lt;7B(CW
+M%E[BP55W`*_YPW#!5SZT&gt;F7'OH+]N%V+R'3D:SJ&quot;W';A.!IGDYP#C;?\O@Y_
+MH-@9-X(/RU%&gt;&amp;D?D!B'R/@&gt;1;_:\G,_]`0O;PO30&quot;T*ZW5J$AUN^'B3RK1&gt;/
+MYY4AF[:\35M41$O^X;XZ),S&gt;T9M#XM5&gt;3#'%%%-,,&lt;444TPQQ1133#'%%%-,
+A,&lt;444TPQQ1133#'%%%-,,&lt;444TPQ?3OZ?^B&gt;`8H`H```
+`
+end
+<HR>
+</PRE>
+<A NAME="10">
+<PRE><B>
+From: Koji Shimoji &lt;shimoji@mxj.meshnet.or.jp&gt;
+Date: Thu, 05 Dec 1996 20:10:40 +0900
+Subject: [postgres95 1118] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612051123.UAA05459@meshsv82.tk.mesh.ad.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+In message &lt;199612050425.NAA14517@log.tramp.co.jp&gt;
+ Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt; wrote:
+&gt; 1. テンポラリファイルに出力して、「Exec(&quot;nkf -e ファイル&quot;,$var);」で
+&gt;    変数 $var[0] 〜 $var[count($var)] までに格納し、 Postgres に渡す。
+
+この方法とほとんど同じなのですが、
+元の(S-JIS)のデータが、すでに変数にはいっていれば、
+
+  Exec( &quot;echo $var_in | nkf -e&quot; ,$var_out );
+
+という手もありだと思います。
+-- 
+しもじこうじ
+<HR>
+</PRE>
+<A NAME="9">
+<PRE><B>
+From: Rui Hirokawa &lt;louis@city.fujisawa.kanagawa.jp&gt;
+Date: Thu, 05 Dec 1996 20:07:38 +0900
+Subject: [postgres95 1117] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612051109.UAA05743@elephant.dtinet.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+広川です。
+
+
+sakamoto&gt; 坂本＠中央電子です。
+sakamoto&gt; 
+sakamoto&gt; &lt;199612041718.CAA04965@melchior.sq.maizuru-ct.ac.jp&gt;の記事にて
+sakamoto&gt; 1996年12月05日(木)、k-tanaka@keiko.maizuru-ct.ac.jpさんの記述は:
+sakamoto&gt;  &gt; Postgres95 では、EUC が通りますね。
+sakamoto&gt;  &gt; そして、SQL文を書きファイルからPostgres95 へ psql を使用し送る場合
+sakamoto&gt;  &gt; 
+sakamoto&gt;  &gt; 	nkf -e sample.sql | psql mydb
+sakamoto&gt;  &gt; 
+sakamoto&gt;  &gt; とやっていますが、ＷＷＷ上から送る場合はどう対処されているのでしょうか。
+sakamoto&gt;  &gt; 
+sakamoto&gt;  &gt; 特に、PHP/FI 上へブラウザが Shift-JIS で送った場合そのまま Postgres95
+sakamoto&gt;  &gt; に(Shift-JIS)で処理されてしまいます。
+sakamoto&gt;  &gt; 
+sakamoto&gt;  &gt; できれば、PHP/FI 上で漢字コードの変換ができればよいのですが・・
+sakamoto&gt; 
+sakamoto&gt; http://www.dtinet.or.jp/~rui/apps/phpfi/
+sakamoto&gt; で、louis@city.fujisawa.kanagawa.jpさん達がPHP/FIにnkfのソースを
+sakamoto&gt; 組み組んでいる最中だったのを見たような気がしたんですが、
+sakamoto&gt; 今見に行ったらなくなっているような?
+sakamoto&gt; 
+
+2.0b5 の頃にPHPの内部関数として組み込んだ版を作ろうとしました。
+フォームの入力を EUC に強制的に変換する仕組みが必要だったからです。
+関数の組み込み自体は、簡単だったのですが、どうにもデバッグが
+やりにくくて困っていました。
+現在、PHP のマニュアル翻訳の作業も一段落したので、
+また、再挑戦するつもりです。
+
+ページから消したのは、あんまり気を持たせては悪いかな、
+と思ったからです。
+
+
+
+<HR>
+</PRE>
+<A NAME="8">
+<PRE><B>
+From: Yuuitiro Matsumoto &lt;yuuitiro@vcnet.toyama.toyama.jp&gt;
+Date: Thu, 05 Dec 1996 19:02:56 +0900
+Subject: [postgres95 1116] (No Subject in original)
+Message-Id: &lt;9612051002.AA00966@mymachie.vcnet.toyama.toyama.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+subscribe postgress95 yuuitiro@vcnet.toyama.toyama.jp
+<HR>
+</PRE>
+<A NAME="7">
+<PRE><B>
+From: Kubo Ryuji &lt;kubo-r@cbnet.co.jp&gt;
+Date: Thu, 05 Dec 1996 16:04:42 +0900
+Subject: [postgres95 1115] Trouble of cookie using PHP/FI especially for Mac clients
+Message-ID: &lt;32A6740A.4C2C@cbnet.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+久保です。久しぶりに投稿します。
+現在、postgres95とPHP/FIを使用してデータベースの検索プログラムを作成して
+います。
+  プログラムは、一部にcookieを使用してクライアント側に検索情報を持たせよ
+うとして
+いる部分があり、WindowsやUnix(solaris2.5)ではうまく動くのですが、Macでは
+どうも
+うまく動きません。
+  MacではCookie自体は受け取っているようなのですが、それが保持されていな
+いようなの
+です(netscape2.02、3.01両方ともNG)。
+
+  Cookie自体の制限として20個/サイト、最大サイズ8KBというのがありますが、
+使用して
+いるCookieの数は3つで、大きなサイズではありません。会社にあるマシンは
+windows95や
+NTなのでMacでの動作確認がなかなかとれないこともありますが、これが、サー
+バーの問題
+なのか、クライアントの問題なのか判断に困っています。
+また、それ以外にもファイルのアップロードで、参照ボタンがunixでは参照と表
+示されますが、
+windowsではBrowse...と表示され、Macでは文字化けするなどの問題も起こって
+います。
+
+  Macユーザーを切り捨てるわけにもいかないので、何とか解決したいのです
+が、みなさん
+いい知恵があったらよろしくお願いします。
+
+ちなみに、サーバー環境は
+
+サーバー：SPARCstation sunos5.5(solaris2.5)
+WWWサーバー：NCSA 1.5.2a+PHP/FIパッチ
+データベース：postgres95-1.08+japanese-patch
+
+です。
+<HR>
+</PRE>
+<A NAME="6">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Thu, 5 Dec 96 13:29:04 JST
+Subject: [postgres95 1114] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;9612050429.AA23936@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+坂本＠中央電子です。
+
+&lt;9612050417.AA04207@domino.astec.co.jp&gt;の記事にて
+1996年12月05日(木)、hanai@astec.co.jpさんの記述は:
+ &gt; &gt; $EUC = system(&quot;echo $SJIS|nkf -Se&quot;);
+ &gt; &gt; とか。試した限りでは出来なかったような気がするけど、実は出来るのかも。
+ &gt; 
+ &gt; popen で nkf へのパイプを開いてやってもだめですか?
+
+おぉ、そんなものが(^^;
+マニュアルなんてあんまり読まないから…
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="5">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Thu, 05 Dec 1996 13:17:21 +0900
+Subject: [postgres95 1113] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;9612050417.AA04207@domino.astec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&gt; あんまり美しくないですが、
+&gt; いったんファイルに書き出して、system()あたりでnkf呼び出して変換のあと
+&gt; ファイルを読み込むとか…
+&gt; 
+&gt; 
+&gt; シェルを呼び出せて、その標準出力を読み込めればいいんですが。
+&gt; (shでいうとこの set user=`whoami` 相当のこと)
+&gt; 
+&gt; $EUC = system(&quot;echo $SJIS|nkf -Se&quot;);
+&gt; とか。試した限りでは出来なかったような気がするけど、実は出来るのかも。
+
+popen で nkf へのパイプを開いてやってもだめですか?
+
+-----はない
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Thu, 05 Dec 1996 13:25:28 +0900
+Subject: [postgres95 1112] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612050425.NAA14517@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+From: Kunihiro Tanaka &lt;k-tanaka@keiko.maizuru-ct.ac.jp&gt;
+Subject: [postgres95 1108] KANJI-CODE on Postgres95
+Date: Thu, 05 Dec 1996 02:19:26 +0900
+
+&gt; Postgres95 では、EUC が通りますね。
+&gt; そして、SQL文を書きファイルからPostgres95 へ psql を使用し送る場合
+&gt; 
+&gt; 	nkf -e sample.sql | psql mydb
+&gt; 
+&gt; とやっていますが、ＷＷＷ上から送る場合はどう対処されているのでしょうか。
+&gt; 
+&gt; 特に、PHP/FI 上へブラウザが Shift-JIS で送った場合そのまま Postgres95
+&gt; に(Shift-JIS)で処理されてしまいます。
+&gt; 
+&gt; できれば、PHP/FI 上で漢字コードの変換ができればよいのですが・・
+&gt; 
+
+残念ながら、PHP/FI では漢字コードの変換はできなかったと思います。
+# これができればかなり楽なんですけどね :-)
+# まあ英語圏の方々に漢字コードがどうのと要求するのも何ですが...
+
+解決方法として考えられるのは、
+
+1. テンポラリファイルに出力して、「Exec(&quot;nkf -e ファイル&quot;,$var);」で
+   変数 $var[0] 〜 $var[count($var)] までに格納し、 Postgres に渡す。
+   # 改行コードで分けて配列に入れるらしいですね。
+   # でも、きっと Postgres に渡すなら、そんなに長いものにはならないですよね :-)
+
+2. 簡易フィルタを PHP/FI で書く。
+
+3. CGI にして nkf などのフィルタを通す。
+
+4. PHP/FI または Postgres95 のソースをいじる ;-)
+
+ぐらいでしょうか。
+
+私も漢字コードをどうしようかと悩んでいるところでした。
+
+
+== おみつ
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: Akifumi Sekijima &lt;sekijima@crl.fujixerox.co.jp&gt;
+Date: Thu, 5 Dec 1996 13:07:25 +0900
+Subject: [postgres95 1111] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;199612050407.NAA14972@lance.rsl.crl.fujixerox.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは、関島です。
+
+&gt;&gt;&gt;&gt;&gt; On Thu, 05 Dec 1996 02:19:26 +0900, Kunihiro Tanaka &lt;k-tanaka@keiko.maizuru-ct.ac.jp&gt; said:
+
+&gt; 特に、PHP/FI 上へブラウザが Shift-JIS で送った場合そのまま Postgres95
+&gt; に(Shift-JIS)で処理されてしまいます。
+
+&gt; できれば、PHP/FI 上で漢字コードの変換ができればよいのですが・・
+
+Netscapeのような文字コード自動切替機能のついたブラウザしか使わないのな
+ら、HTMLファイルの&lt;head&gt;タグのところに、
+
+&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=x-euc-jp&quot;&gt;
+
+と書いて、文字コードをEUCに固定してしまえばいいんじゃないでしょうか？
+
+とりあえず私のところでは、Win95上のNetscape 3.01(英語版)を使って、問題
+無くデータベースにEUCコードの文字列を入れることは出来ました。
+
+--
+関島＠富士ゼロックス	(sekijima@crl.fujixerox.co.jp)
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Thu, 5 Dec 96 12:54:34 JST
+Subject: [postgres95 1110] Re: KANJI-CODE on Postgres95
+Message-Id: &lt;9612050354.AA23653@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+坂本＠中央電子です。
+
+&lt;199612041718.CAA04965@melchior.sq.maizuru-ct.ac.jp&gt;の記事にて
+1996年12月05日(木)、k-tanaka@keiko.maizuru-ct.ac.jpさんの記述は:
+ &gt; Postgres95 では、EUC が通りますね。
+ &gt; そして、SQL文を書きファイルからPostgres95 へ psql を使用し送る場合
+ &gt; 
+ &gt; 	nkf -e sample.sql | psql mydb
+ &gt; 
+ &gt; とやっていますが、ＷＷＷ上から送る場合はどう対処されているのでしょうか。
+ &gt; 
+ &gt; 特に、PHP/FI 上へブラウザが Shift-JIS で送った場合そのまま Postgres95
+ &gt; に(Shift-JIS)で処理されてしまいます。
+ &gt; 
+ &gt; できれば、PHP/FI 上で漢字コードの変換ができればよいのですが・・
+
+http://www.dtinet.or.jp/~rui/apps/phpfi/
+で、louis@city.fujisawa.kanagawa.jpさん達がPHP/FIにnkfのソースを
+組み組んでいる最中だったのを見たような気がしたんですが、
+今見に行ったらなくなっているような?
+
+
+あんまり美しくないですが、
+いったんファイルに書き出して、system()あたりでnkf呼び出して変換のあと
+ファイルを読み込むとか…
+
+
+シェルを呼び出せて、その標準出力を読み込めればいいんですが。
+(shでいうとこの set user=`whoami` 相当のこと)
+
+$EUC = system(&quot;echo $SJIS|nkf -Se&quot;);
+とか。試した限りでは出来なかったような気がするけど、実は出来るのかも。
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Katsuyuki Hoshiyama &lt;hoshi@hoshi.or.jp&gt;
+Date: Thu, 05 Dec 1996 03:26:58 +0900
+Subject: [postgres95 1109] hoshi@ilc.or.jp
+Message-Id: &lt;199612041826.DAA00625@pdew06.hoshi.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Kunihiro Tanaka &lt;k-tanaka@keiko.maizuru-ct.ac.jp&gt;
+Date: Thu, 05 Dec 1996 02:19:26 +0900
+Subject: [postgres95 1108] KANJI-CODE on Postgres95
+Message-Id: &lt;199612041718.CAA04965@melchior.sq.maizuru-ct.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんばんは
+たなか＠舞鶴高専と申します。
+最近、本格的にデータベースを始めました。（このＭＬは長いのですが・・）
+
+Postgres95 では、EUC が通りますね。
+そして、SQL文を書きファイルからPostgres95 へ psql を使用し送る場合
+
+	nkf -e sample.sql | psql mydb
+
+とやっていますが、ＷＷＷ上から送る場合はどう対処されているのでしょうか。
+
+特に、PHP/FI 上へブラウザが Shift-JIS で送った場合そのまま Postgres95
+に(Shift-JIS)で処理されてしまいます。
+
+できれば、PHP/FI 上で漢字コードの変換ができればよいのですが・・
+
+データベースとＷＷＷの連携は初めてなもので、すいません。
+
+--
+たなか＠舞鶴高専（電子制御工学科４年）
+E-Mail: k-tanaka@keiko.maizuru-ct.ac.jp
+http://keiko.maizuru-ct.ac.jp/~k-tanaka/
+電子制御研究会所属 SQUARES-NET 管理人
+
+
+<HR>
+</PRE>

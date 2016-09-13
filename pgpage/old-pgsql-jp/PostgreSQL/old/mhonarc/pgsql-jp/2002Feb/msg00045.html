@@ -1,0 +1,130 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24640] Re: 複数行を返す関数からcolumn を取り出すときの効率について -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Tue, 05 Feb 2002 20:26:03 +0900 -->
+<!--X-Message-Id: 3C5FC14B.F8A4C741@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: B8859BD4.86AB%basuke3@siesta.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24640] Re: 複数行を返す関数からcolumn を取り出すときの効率につ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00044.html">Date Prev</A>][<A HREF="msg00046.html">Date Next</A>][<A HREF="msg00041.html">Thread Prev</A>][<A HREF="msg00050.html">Thread Next</A>][<A HREF="index.html#00045">Date Index</A>][<A HREF="threads.html#00045">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24640] Re: 複数行を返す関数からcolumn を取り出すときの効率について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 05 Feb 2002 20:26:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00041.html">B8859BD4.86AB%basuke3@siesta.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Yosuke Basuke Suzuki wrote:
+
+&gt; &gt; ドキュメントによれば「行を返す関数を呼び出す時、行全体を取り出すことは
+&gt; &gt; できません。」ということなので、無理では？
+&gt; 
+&gt; やはり、残念ながらそうなのですか。しかし、そう考えると行を返すメリットという
+&gt; のがわからなくなってしまいますね。どんな使い方を想定しているのでしょうか？
+
+わかりません(^^;他の関数には渡せるとも書いてありますが。
+あるいは、実装途中なので機能が中途半端だとか？
+
+&gt; 実は今回書いた関数では、コラムリストの部分で引数を使った演算を行っているので
+&gt; す。なので、その部分のロジックを含めて隠蔽したいと思って模索中だったのです。
+&gt; 結局引数を外に出さなくてはいけないのなら、関数を使うメリットがほとんど無くなっ
+&gt; てしまうという状況です。
+
+なるほど。「引数を条件に」とあったのでWHEREの中と思い込んでました。
+関数の中で SELECT INTO TEMP TABLE することはできますけど。。。
+ 
+&gt; 気分的には、引数を渡せるVIEWというような使い方が出来れば、と期待していたので
+&gt; すが。
+
+パラメータクエリーみたいなものですかね〜。
+そういうことなら、引数を入れるテーブルを決めておいて、それをVIEWに
+使ったらどうにかなりませんかね。関数の出番はなくなりますが(^^;
+create table params(bairitu int);
+insert into params values(2);
+create view test3_params as 
+   select id*(select bairitu from params) as calculated,
+　 id as original, text from test3;
+select * from test3_params;
+
+paramsに２レコード以上入れるとだめです。
+無理やり関数使って、
+create function set_bairitu(int) returns boolean as '
+update params set bairitu = $1;
+select true;
+' language 'sql';
+
+なんてこともできましたが、呼び出すタイミングがありませんでした。
+SELECT * FROM test3_params WHERE set_bairitu(3);
+では手遅れで、updateする前の値で計算されてしまいました。
+（手遅れでないとしても、レコード数回呼ばれそうだし。）
+SELECT set_bairitu(3);
+SELECT * FROM test3_params;
+としないとだめみたい。
+
+和田＠修行中
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 24645] Re: 複数行を返す関数からcolumn  を取り出すときの効率について</A></STRONG>
+<UL><LI><EM>From:</EM> Yosuke Basuke  Suzuki &lt;basuke3@siesta.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00041" HREF="msg00041.html">[pgsql-jp 24636] Re: 複数行を返す関数からcolumn を取り出すときの効率について</A></STRONG>
+<UL><LI><EM>From:</EM> Yosuke Basuke  Suzuki &lt;basuke3@siesta.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00044.html">[pgsql-jp 24639] テーブルへのデータインポートエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 24641] windows クライアントからPostgresqlサーバへのJDBC接続</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00041.html">[pgsql-jp 24636] Re: 複数行を返す関数からcolumn を取り出すときの効率について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 24645] Re: 複数行を返す関数からcolumn  を取り出すときの効率について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00045"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00045"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

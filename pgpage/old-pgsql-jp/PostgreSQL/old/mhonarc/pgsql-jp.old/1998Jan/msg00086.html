@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3299] Re: はじめまして -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Wed, 28 Jan 1998 18:21:10 +0900 -->
+<!--X-Message-Id: 199801280921.SAA15820@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199801280713.QAA14070@oowashi.synergy.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3299] Re: はじめまして </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00085.html">Date Prev</A>][<A HREF="msg00087.html">Date Next</A>][<A HREF="msg00083.html">Thread Prev</A>][<A HREF="msg00082.html">Thread Next</A>][<A HREF="index.html#00086">Date Index</A>][<A HREF="threads.html#00086">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3299] Re: はじめまして</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 Jan 1998 18:21:10 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00083.html">199801280713.QAA14070@oowashi.synergy.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．簡単な実験で解ったことを書きます．
+何かヒントになってくれればいいのですが ...
+
+In message &lt;<A HREF="msg00083.html">199801280713.QAA14070@oowashi.synergy.co.jp</A>&gt;, Tomonori Mitsui write
+s:
+&gt; 市川さんからも御指摘いただきましたが、フィールドタイプをTEXTにすれば問題無い
+&gt; ことは判っていました。
+&gt; 
+&gt; At 14:00 98/01/28 +0900, you wrote:
+&gt; &gt; 
+&gt; &gt; 市川＠お茶大です．
+&gt; &gt; 
+&gt; &gt; もう少し調べて見ないとなんとも言えないですが，char をやめて text にするのが
+&gt; &gt; 賢明でしょうか．
+&gt;  
+&gt; ただし、どうしても可変長フィールドにしたくない目的がありましたので、みなさん
+&gt; のお知恵を借りようとしました。
+&gt; postgreのマニュアルでも、solaris x86
+&gt; の正常動作は保証してませんし、根の深い問題のような気もしますので、とりあえず
+&gt; 開発するシステムはTEXTタイプで進めます。
+&gt; CHRAの問題は、今後も調査を進めますので、皆様も何か判りましたら御連絡ください
+
+可変長データのフィールド長 (char (6) なども内部では長さフィールドを
+持つようです) のデータがおかしくなっているようです．
+
+以下のように定義したとします:
+
+	CREATE TABLE book4 (
+	 a1 char (4),
+	 a2 char (4),
+	 a3 char (6),
+	 a4 char (6),
+	 a5 text)
+
+これにタプルを一つだけ挿入し，インスタンスを表示させます:
+
+       insert into book4 values ('1', '2', '3', '4');
+       select * from book4;
+
+既にご指摘の通り core をはきますので，直接の原因になっている
+DataFill() 関数の内部で，属性値の情報を書かせてみました．
+そうすると，log には
+
+   DataumGetPointer(value[0]) = 0x801d4c98, data_length = 8 (00000008)
+   DataumGetPointer(value[1]) = 0x801d4ca0, data_length = 8 (00000008)
+   DataumGetPointer(value[2]) = 0x801d4ca8, data_length = 10 (0000000a)
+   DataumGetPointer(value[3]) = 0x801d4cb2, data_length = 655360 (000a0000)
+   /home/postgres/bin/postmaster: reaping dead processes...
+
+と出力されました．上の 4 つの行は，a1, a2, a3, a4 の値を取り扱う時の情報で，
+最後の行はこけた旨のメッセージです．ここで，data_length = .... の項目が
+ヒントを与えてくれています．
+
+これは，可変長データの長さフィールド部分を出力させているもので，
+a1, a2, a3 については，それぞれ 8, 8, 10 (データ長 + 4 バイト) が
+正しく計算されています．
+
+それに対して，a4 については，655360 (16 進 000a0000) となっています．
+また，a4 の長さを char(6) から char(4) に変えると，これが 00080000 と変化
+します．このことから，内部でデータを記録をするときに矛盾が発生しており，
+2 バイト分のずれが生じているようです．
+
+石井さん@SRA の情報によると，Sparc の Solaris2.5.1でも，また，FreeBSD
+でもキチンと動作しているという事ですので，endian の問題ではなく，
+Solaris2.5.1_x86 特有の設定でどこかに間違いがあると推測されます．
+
+... と，今日はここまでしかわかりませんでした．もう少し時間があると良いの
+ですが．
+
+# 6.1.1 の時の x86 パッチと同じで，「泰山鳴動ねずみ一匹」式の，
+# 非常にシンプルなバグのような気がしてならないのです．
+
+それから本家の ML アーカイブの探索はまだやっておりません．もしかしたら
+関連するヒントがあるかも知れないです．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00083" HREF="msg00083.html">[pgsql-jp 3296] Re: はじめまして</A></STRONG>
+<UL><LI><EM>From:</EM> Tomonori Mitsui &lt;mitsui@synergy.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00085.html">[pgsql-jp 3298] Is there anyone try mpsql, mpmgr?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00087.html">[pgsql-jp 3300] Re: About SQL query.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00083.html">[pgsql-jp 3296] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00082.html">[pgsql-jp 3295] Re: About SQL Querry</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00086"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00086"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

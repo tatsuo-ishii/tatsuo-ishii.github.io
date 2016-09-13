@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6324] Re: Re: 日付の足し算について -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 24 Dec 1998 12:30:02 +0900 -->
+<!--X-Message-Id: 199812240330.MAA06968@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003201be2e91$ea0e64a0$1436b085@infomail.post.yamaha.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6324] Re: Re: 日付の足し算について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00347.html">Date Prev</A>][<A HREF="msg00349.html">Date Next</A>][<A HREF="msg00342.html">Thread Prev</A>][<A HREF="msg00338.html">Thread Next</A>][<A HREF="index.html#00348">Date Index</A>][<A HREF="threads.html#00348">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6324] Re: Re: 日付の足し算について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 24 Dec 1998 12:30:02 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;すみません。
+&gt;Ｃ言語やＰｅｒｌなどの知識が全くないもので、オンラインマニュアルなどの
+&gt;文章が難しくてよく分かりません。
+&gt;ＯＲＡＣＬＥのマニュアルを見ていたら、たまたま関数があったみたいなの
+&gt;でもしかしたらＰｏｓｔｇｒｅにもあるのではないかとおもいメールさせていただ
+&gt;きました。
+
+ここは Oracle のメーリングリストではないので、add_month() とか 
+last_day() などと言われても分かりません。これらを例に取り上げるのなら、
+どんな機能を持ったものか位は説明して欲しいです。
+
+&gt;現段階では、自力で関数を作る以外に道はないのでしょうか？
+&gt;もしも他の手段があるのであればヒントを頂けると助かります。
+
+まずは SQL の解説書を読んだほうが良いでしょう。そうすれば Oracle など
+持ち出さなくても SQL 標準の範囲でどうすればやりたいことができるか分か
+ります。そして次のステップで PostgreSQL ではどうすれば良いかが自然に理
+解できて来ると思います。ちなみに、ここまでの過程で、C だとか Perl の知
+識は一切要りません。
+
+では頑張って下さい... ではあまりに不親切なので:-)、私なりの解を考えて
+みました。これがベストであるとは言いませんが。
+
+前提となるテーブルは以下のようにして作りました。また、6.4.1 で試した結
+果なので、他のバージョンではうまく行かないかも知れません。また、できる
+だけ SQL 標準の構文になるようにしています。
+
+test=&gt; create table test (t1 text, t2 date);
+CREATE
+test=&gt; copy test from '/tmp/aaa';
+COPY
+test=&gt; select * from test;
+t1       |        t2
+---------+----------
+Giants   |12-28-1998
+Dragons  |01-03-1999
+Tigers   |01-15-1999
+Swallows |02-01-1999
+Bay Stars|03-03-1998
+Carp     |02-10-1998
+(6 rows)
+
+&gt;sample=&gt; select * from test where 「今日から今月分」 ;
+&gt;t1             |        t2
+&gt;----------+----------
+&gt;Giants       |1998-12-28
+&gt;(1 rows)
+
+test=&gt; select * from test where date_trunc('month',t2) = date_trunc('month',current_date);
+
+&gt;sample=&gt; select * from test where 「 'now' の翌月分」 ;
+&gt;t1             |        t2
+&gt;----------+----------
+&gt;Dragons     |1999-01-03
+&gt;Tigers        |1999-01-15
+&gt;(2 rows)
+
+test=&gt; select * from test where date_trunc('month',t2) = date_trunc('month', date 'current_date' + interval '1 month');
+
+&gt;
+&gt;sample=&gt; select * from test where 「 'now' の翌々月分」 ;
+&gt;t1             |        t2
+&gt;----------+----------
+&gt;Swallows    |1999-02-01
+&gt;Carp         |1998-02-10
+&gt;(2 rows)
+
+？ Carp は 1998 年だから検索されてはいけませんね。
+
+select * from test where date_trunc('month',t2) = date_trunc('month', date 'current_date' + interval '2 month');
+
+&gt;sample=&gt; select * from test where 「 'now' の三ヶ月後の一ヶ月分」 ;
+&gt;t1             |        t2
+&gt;----------+----------
+&gt;Bay Stars  |1998-03-03
+&gt;(1 rows)
+
+
+あれれ？これも 1998/3 のが出ている。もしかして、「翌月分」というのは、
+年を無視していいということなんでしょうか？であれば、
+
+select * from test where date_trunc('month',t2) = date_trunc('month', date 'current_date' + interval '3 month');
+
+ではなくて、
+
+select * from test where date_part('month',t2) = date_part('month',date 'current_date' + interval '3 month');
+
+になりますね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 6318] Re: 日付の足し算について</A></STRONG>
+<UL><LI><EM>From:</EM> "Yamaguchi Norikazu" &lt;ymgc-n@post.yamaha.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00347.html">[pgsql-jp 6323] Re: 主キーについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 6325] 6.4.1 (Re: snapshot install memo)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 6318] Re: 日付の足し算について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00338.html">[pgsql-jp 6314] 日付の足し算について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00348"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00348"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

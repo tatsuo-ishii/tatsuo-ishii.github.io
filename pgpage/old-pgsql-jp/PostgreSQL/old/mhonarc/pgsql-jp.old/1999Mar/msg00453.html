@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7709] KANJI code conversion -->
+<!--X-From: Katsumasa TOKUBUCHI<buchi1@sag.bekkoame.or.jp> -->
+<!--X-Date: Wed, 24 Mar 1999 19:35:35 +0900 -->
+<!--X-Message-Id: 199903241205.VAA10577@soda1.bekkoame.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7709] KANJI code conversion </TITLE>
+<LINK REV="made" HREF="mailto:buchi1@sag.bekkoame.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00451.html">Date Prev</A>][<A HREF="msg00452.html">Date Next</A>][<A HREF="msg00503.html">Thread Prev</A>][<A HREF="msg00456.html">Thread Next</A>][<A HREF="index.html#00453">Date Index</A>][<A HREF="threads.html#00453">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7709] KANJI code conversion</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Katsumasa TOKUBUCHI&lt;<A HREF="mailto:buchi1@sag.bekkoame.or.jp">buchi1@sag.bekkoame.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 24 Mar 1999 19:35:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳渕と申します。
+「PostgreSQL完全攻略ガイド」のp.215〜を参考に、下記のようなCGIプログラム
+とHTMLファイルを書いて、検索をかけて見ましたが、
+
+ERROR: regcomp failed with error parentheses not balanced
+
+なる、エラーメッセージが表示されて、正常に動作しません。shellのコマンドラ
+インから当該のプログラムを動作させると正常に検索を行います。
+
+＃また、htmlファイルに
+＃&lt;meta http-equive=content-type content=text/html; charset=x-euc-jp&gt;
+＃を記述するとブラウザに表示される文字そのものが化けてしまいます。
+
+原因としては、ブラウザからCGIに送る漢字のコード変換に問題があると思うので
+すがjcode.plを使って見ても同様のエラーが表示されます。どのような解決方法が
+あるのでしょうか？postgreSQLそのものについての質問ではないので恐縮なのです
+が、御教授よろしくお願い致します。
+
+システムはFreeBSD 2.2.7 + postgreSQL 6.4.2です。.bashrcのLANGはja_JP.EUCに
+しています。また、ブラウザはNetscape 4.04を使用しています。
+
+[htmlファイル]
+#&lt;html&gt;
+#&lt;head&gt;
+#&lt;title&gt;図面・文書データベース検索&lt;/title&gt;
+#&lt;meta http-equive=content-type content=text/html; charset=euc&gt;
+#&lt;/head&gt;
+#
+#&lt;body bgcolor="gray"&gt;
+#&lt;h2&gt;図面・文書データベースの検索&lt;/h2&gt;
+#&lt;p&gt;
+#入力の書式
+#&lt;ul&gt;
+# &lt;li&gt;「半角カタカナ」は絶対に使用しないで下さい
+# &lt;li&gt; 図面・文書番号は「半角」で入力して下さい
+# &lt;li&gt; 年月日の書式は98年12月1日の場合、半角で「1998/12/01」の様に入力し
+#     て下さい。
+#&lt;/ul&gt;
+#&lt;form method="POST" action="/cgi-bin/search.pl"&gt;
+#&lt;table&gt;
+#&lt;tr&gt;
+#&lt;td&gt;書類の種類
+#&lt;td&gt;&lt;input name="doc_kind" type="radio" value="図面" checked&gt;図面&lt;input
+# name="doc_kind" type="radio" value="文書"&gt;文書
+#&lt;tr&gt;
+#&lt;td&gt;図面文書番号
+#&lt;td&gt;&lt;input type="text" name="doc_number"&gt;を含む
+#&lt;/tr&gt;
+#&lt;tr&gt;
+#&lt;td&gt;提出先
+#&lt;td&gt;&lt;input type="text" name="distnation"&gt;を含む
+#&lt;/tr&gt;
+（以下省略）
+
+[CGIプログラム]
+#!/usr/local/bin/jperl
+
+use CGI;
+use Pg;
+use CGI::Carp qw(fatalsToBrowser);
+
+my $qstr = "select distinct doc_kind, doc_number, distnation, title, paper_size, sale
+r_name, engineer_name, publish_date, order_number, file_name, file_box_name, file_box
+_number from list_tab ";
+my $haskey = 0;
+my ($query, $conn, $result, $i, $n);
+my $dbname = "document_list";
+my $pre_page = "search.html";
+
+$query = new CGI;
+print $query-&gt;header;
+
+my $doc_kind = $query-&gt;param('doc_kind');
+my $doc_number = $query-&gt;param('doc_number');
+my $distnation = $query-&gt;param('distnation');
+my $title = $query-&gt;param('title');
+my $paper_size = $query-&gt;param('paper_size');
+my $saler_name = $query-&gt;param('saler_name');
+my $engineer_name = $query-&gt;param('engineer_name');
+my $publish_date = $query-&gt;param('publish_date');
+my $order_number = $query-&gt;param('order_number');
+my $file_name = $query-&gt;param('file_name');
+$conn = Pg::connectdb("dbname=$dbname");
+if(PGRES_CONNECTION_OK ne $conn-&gt;status){
+    printf("データベース %s に接続できませんでした。理由: %s",$dbname,$conn-&gt;errorMes
+sage);
+    exit;
+}
+
+if($doc_kind ne ""){
+    $qstr .= "where doc_kind ~* '$doc_kind' ";
+    $haskey = 1;
+}
+
+if($number ne ""){
+    ($haskey != 0)
+        and $qstr .= "and "
+            or $qstr .= "where ";
+    $qstr .= "doc_number ~* '$number'";
+    $haskey = 1;
+}
+（以下省略）
+
+           ________________________________________________________
+          |                                                        |
+          |    Katsumasa TOKUBUCHI                                 |
+          |                    SHIBATA Industrial Co., Ltd.        |
+          |                    Research and Development Group      |
+          |                    E-mail: buchi1@sag.bekkoame.or.jp   |
+          |                    ICQ   : 29512456                    |
+          |________________________________________________________|
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00480" HREF="msg00480.html">[pgsql-jp 7736] Re: KANJI code conversion</A></STRONG>
+<UL><LI><EM>From:</EM> Katsumasa TOKUBUCHI&lt;buchi1@sag.bekkoame.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00456" HREF="msg00456.html">[pgsql-jp 7712] Re: KANJI code conversion</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00451.html">[pgsql-jp 7707] Re: about postgresql make</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00452.html">[pgsql-jp 7708] Re: RE: Linux WORLD  の記事</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00503.html">[pgsql-jp 7759] Re: php with gd</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 7712] Re: KANJI code conversion</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00453"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00453"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

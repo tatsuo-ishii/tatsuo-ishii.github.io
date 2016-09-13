@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9866] Re: aggregates(集計関数 )の演算精度 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 02 Aug 1999 09:54:25 +0900 -->
+<!--X-Message-Id: 37A4EC4135C.AB9DNKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37A3E65F28.CA77NKON@mail.shonan.ne.jp -->
+<!--X-Reference-Id: NDBBKLBKJJMLDCBMIODFAEOLCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9866] Re: aggregates(集計関数 )の演算精度 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00027.html">Date Prev</A>][<A HREF="msg00023.html">Date Next</A>][<A HREF="msg00011.html">Thread Prev</A>][<A HREF="msg00065.html">Thread Next</A>][<A HREF="index.html#00022">Date Index</A>][<A HREF="threads.html#00022">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9866] Re: aggregates(集計関数 )の演算精度</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 02 Aug 1999 09:54:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00009.html">37A3E65F28.CA77NKON@mail.shonan.ne.jp</A>&gt; &lt;<A HREF="msg00010.html">NDBBKLBKJJMLDCBMIODFAEOLCAAA.kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+On Sun, 1 Aug 1999 16:48:09 +0900
+"Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt; wrote:
+
+&gt; 片岡です。
+&gt; 
+&gt; &gt; リテラルでなくても、cast できるんですね。
+&gt; &gt; マニュアルのどのあたりに出ているでしょうか？。
+&gt; 
+&gt;   特にリテラルじゃなきゃだめという記述もなかったような…
+
+grep -iw cast で探し回ったら、 
+CAST 'string'::type-name とか  
+CAST 'string' AS type-name なんかがあって、
+試に、select AVG(CAST aa AS float) とやったら parse 
+error になったので、駄目なんだと思ってしまった。
+
+
+ところで、マニュアル類の検索は、みなさんどうされて
+ます。なまずでも入れればいいんでしょうけど、面倒な
+んで、grep なんかでやってますが、なんかいい方法あり
+ましたら、お教えください。
+
+
+&gt; &gt; ところで、cast できるデーター型の制限はどこかに書い
+&gt; &gt; てありますか？。float や integer には、cast できる
+&gt; &gt; けど、decimal には、cast できなかった。
+&gt; &gt; とりあえず float にできれば問題ないです。
+。。。略。。。。
+&gt;   PostgreSQLの内部仕様です。明示的なものも暗黙的なものも含めて型変換する際に
+&gt; は、「変換後の型(変換前の型)」という関数を呼び出す仕様になっています。該当す
+&gt; る関数がなかった場合、明示的な型変換では上記のようなエラーが、暗黙的な型変換
+&gt; では他の変換候補を探す、という動作をします。
+&gt; 
+&gt;   なお以上のことから、function numeric(int2) returns numeric という仕様の
+&gt; ユーザ定義関数を作成すれば、PostgreSQLはお望みの型変換を行ってくれるようにな
+&gt; ります。
+&gt; 
+&gt; create function "numeric" (int2) returns numeric as 'select
+&gt; $1::int4::numeric' language 'sql';
+
+なるほど、奥が深いですね。ありがとうございました。
+
+
+ところで、decimal 型の列を作って集計してみると、
+次のようになりました。
+
+create table test2 (
+    dd          float,
+    ee          decimal(15,2),
+    ff          decimal(19,6)
+);
+３列(tupple)とも、0.01 を６行、-0.01 を４行 INSERT済み。
+
+select count(*), sum(dd), sum(ee), sum(ff) from test2;
+count| sum| sum|     sum
+-----+----+----+--------
+   10|0.02|0.02|0.020000
+
+select count(*), avg(dd) from test2;
+count|  avg
+-----+-----
+   10|0.002
+
+小数点指定の decimal の場合、SUM は正常に処理される
+けど、AVG で、overflow エラーになります。UNDERFLOWで
+切捨てになるから、エラーにするのも悪くないけど、
+Integer は、overflow してもエラーにならないのに、
+decimal だけエラーになるというのは。最近実装された
+ものだから、統一がとれていないんでしょうかね。
+
+select count(*), avg(ff) from test2;        -- ERR OVER FLOW
+ERROR:  overflow on numeric ABS(value) &gt;= 10^-1 
+	for field with precision 0 scale 1723
+
+decimal でも、sum して、count で除算してやると結果
+が出ます。勿論、元の列の精度とは無関係のようです。
+何型で演算しているんだろう。
+
+select count(*), sum(dd)/count(*), sum(ee)/count(*), 
+	sum(ff)/count(*) from test2;
+count|?column?|    ?column?|    ?column?
+-----+--------+------------+------------
+   10|   0.002|0.0020000000|0.0020000000
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00122" HREF="msg00122.html">[pgsql-jp 9966] Re: aggregates( 集計関数 ) の演算精度</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00065" HREF="msg00065.html">[pgsql-jp 9909] Re: aggregates(集計関数 )の演算精度</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00009" HREF="msg00009.html">[pgsql-jp 9853] Re: aggregates(集計関数 )の演算精度</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[pgsql-jp 9854] Re: aggregates(集計関数 )の演算精度</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 9872] Re: シーケンスのcopy</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 9867] Re: 漢字の扱いで困っています</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 9855] Re: aggregates(集計関数 )の演算精度</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 9909] Re: aggregates(集計関数 )の演算精度</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00022"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00022"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

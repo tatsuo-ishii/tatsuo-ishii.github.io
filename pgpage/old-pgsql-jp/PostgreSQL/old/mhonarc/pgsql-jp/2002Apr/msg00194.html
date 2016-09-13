@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25674] Re: ラージオブジェクトの削除後の領域開放 -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Tue, 23 Apr 2002 19:16:02 +0900 (JST) -->
+<!--X-Message-Id: 20020423.191602.39151680.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020423.174225.112628010.sugita@sra.co.jp -->
+<!--X-Reference-Id: JMEEJKFBLNAJDBDBDBCMOELDCAAA.naito@mdsnet.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25674] Re: ラージオブジェクトの削除後の領域開放 </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00193.html">Date Prev</A>][<A HREF="msg00195.html">Date Next</A>][<A HREF="msg00193.html">Thread Prev</A>][<A HREF="msg00198.html">Thread Next</A>][<A HREF="index.html#00194">Date Index</A>][<A HREF="threads.html#00194">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25674] Re: ラージオブジェクトの削除後の領域開放</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 23 Apr 2002 19:16:02 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00192.html">20020423.174225.112628010.sugita@sra.co.jp</A>&gt;&lt;<A HREF="msg00193.html">JMEEJKFBLNAJDBDBDBCMOELDCAAA.naito@mdsnet.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: "kumiko naito" &lt;naito@mdsnet.co.jp&gt;
+Subject: [pgsql-jp: 25673] Re: ラージオブジェクトの削除後の領域開放
+Date: Tue, 23 Apr 2002 18:12:13 +0900
+
+;;; 早速の回答、有難うございます。
+
+  念のためですが、Windows2000 で試したのではないので、Windows2000 でどうなるか
+は分からないです。
+
+;;; &gt;   Windows2000 でなく FreeBSD 4.5 RELEASE での PostgreSQL 7.2.1 では次のよ
+;;; う
+;;; &gt; に
+;;; &gt; なりました。BLOB にはアイコンが 9000 強入っています。
+;;; &gt;
+;;; &gt;     最初			  174285
+;;; &gt;     DELETE 後			  174285
+;;; &gt;     vacuumdb 後			  129707
+;;; &gt;     BLOB の再ロード&amp;vacuumdb後	  164581
+;;; &gt;     再 DELETE 後		  164581
+;;; &gt;     再 vacuumdb 後		  130555
+;;; &gt;     BLOB の再々ロード&amp;vacuumdb後  165645
+;;; &gt;
+;;; １度目のdelete&amp;vacuumの後が129707
+;;; １度目のdelete&amp;vacuumの後が130555
+;;; という事は、delete&amp;vacuumしても幾らかのごみは残ってしまうという事でしょうか
+;;; ？
+
+  以下の実行例のように、インデックスファイルのごみは VACUUM では削除されないの
+も効いているようです。
+
+;;; 画像＆音楽データを頻繁に挿入＆更新する処理を行いますので、不要になった領域は
+;;; 開放してディスク容量を節約する必要があるのですが、回避方法はありませんでしょ
+;;; うか？
+
+  さらに続けてみます。他のことでデータベースを触っているので、さっきの直後の操
+作ではないです。また、reindex は、ラージオブジェクトの oid を保存しているテー
+ブルのみです。
+
+			du      ls -l 「pg_largeobject に対応するファイル」
+			======  ==========================================
+    DELETE 後		171293  34152448
+    vacuumdb 後		136851  0
+    ロード&amp;vacuumdb 後	172341  34152448
+    REDINDEX 後		172197  34152448
+
+    DELETE 後		172197  34152448
+    vacuumdb 後		138203  0
+    ロード&amp;vacuumdb 後	173293  34152448
+    REDINDEX 後		173077  34152448
+
+  全部を DELETE しているので上記のようですが、実際には INSERT&amp;DELETE が繰り返
+されるので、多少の再利用領域の「空き」はできると思えます。定期メンテナンス時に、
+バックアップからスクラッチでデータベース再構成して一新するとか。
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00192" HREF="msg00192.html">[pgsql-jp: 25672] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00193" HREF="msg00193.html">[pgsql-jp: 25673] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+<UL><LI><EM>From:</EM> "kumiko naito" &lt;naito@mdsnet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00193.html">[pgsql-jp: 25673] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00195.html">[pgsql-jp: 25675] Re: time 型データの表示</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00193.html">[pgsql-jp: 25673] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp: 25678] Re: ラージオブジェクトの削除後の領域開放</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00194"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00194"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

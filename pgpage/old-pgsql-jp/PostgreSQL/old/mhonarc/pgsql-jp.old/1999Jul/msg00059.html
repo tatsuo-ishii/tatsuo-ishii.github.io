@@ -1,0 +1,202 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9255] can't exec one more postmaster with "semget failed" Error -->
+<!--X-From: takayasu@wendy.perfect&#45;liberty.or.jp -->
+<!--X-Date: Mon, 5 Jul 99 18:47:00 JST -->
+<!--X-Message-Id: 9907050947.AA14788@wendy.perfect&#45;liberty.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9255] can't exec one more postmaster with "semget failed" Erro </TITLE>
+<LINK REV="made" HREF="mailto:takayasu@wendy.perfect-liberty.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00072.html">Date Prev</A>][<A HREF="msg00075.html">Date Next</A>][<A HREF="msg00075.html">Thread Prev</A>][<A HREF="msg00063.html">Thread Next</A>][<A HREF="index.html#00059">Date Index</A>][<A HREF="threads.html#00059">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9255] can't exec one more postmaster with "semget failed" Error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takayasu@wendy.perfect-liberty.or.jp">takayasu@wendy.perfect-liberty.or.jp</A></LI>
+<LI><em>Date</em>: Mon, 5 Jul 99 18:47:00 JST</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岩梨＠6.5で悪戦苦闘中、です。
+
+どなたか FreeBSD で、postmaster(Ver 6.5) を２つ以上稼働させている方、
+いらっしゃいませんでしょうか？
+以前には 6.4.2 を３つくらい動かしていました。
+
+現在、１つなら稼働しますが、２つ目を稼働させようと、カーネルを作り直した
+のですが、変更が効いていないように見えます。
+どうにも、わからなくて、この１週間ほど悩んでおります。
+ついつい、長文になってしまいましたが、なにとぞよろしくお願いします。
+
+[環境]
+ FreeBSD 3.1-RELEASE 
+ CPU: AMD-K6(tm) 3D processor (300.68-MHz 586-class CPU)
+ real memory  = 268435456 (262144K bytes)
+ avail memory = 257892352 (251848K bytes)
+ postgresql-6.5 &amp; 6.4.2
+ 自作AT機
+
+[症状(及び考察)]
+ a.２つ目の postmaster を起動すると "IpcSemaphoreCreate: semget failed"
+ b.バックエンドを減らす -N 16 と起動できる。(= shmmax を増やせば解決するはず。)
+ c.カーネルを作り直しても、改善しない。(= 使える memory が増えていない?)
+ 
+#a'.最初はコンパイルのミスだと思って２、３個所から ftp してきて
+#何回も作り直したが、症状は同じだった。
+
+[作業内容]
+ 1. postgresql-6.5 作成
+  configure  --with-mb=EUC_JP --with-tch --with-perl --with-odbc
+  gmake;gmake install
+ 2.kernel のリコンフィグ
+ % ipcs -M (FreeBSD 3.1,option SYSVSHM)
+ shminfo:
+        shmmax: 4194304 (max shared memory segment size)
+        shmmin:       1 (min shared memory segment size)
+        shmmni:      32 (max number of shared memory identifiers)
+        shmseg:       8 (max shared memory segments per process)
+        shmall:    1024 (max amount of shared memory in pages)
+だったものを
+ % ipcs -M
+ shminfo:
+        shmmax: 1073741824      (max shared memory segment size)
+        shmmin:       1 (min shared memory segment size)
+        shmmni:      32 (max number of shared memory identifiers)
+        shmseg:       8 (max shared memory segments per process)
+        shmall:    1024 (max amount of shared memory in pages)
+に増やした（つもり）。
+
+=============================================================================
+以下、リブート後の実際の作業 log です。
+
+% postmaster -S -i
+% ps auxw | grep post
+takayasu  1442  0.0  0.6  3420 1528  ??  Ss    4:44PM   0:00.00 /usr/local/pg/bin/postmaster -S -i (postgres)
+takayasu  1460  0.0  0.5  1400 1164  p0  RV    4:44PM   0:00.00 grep post (tcsh)
+
+% postmaster -d 3 -p 5555
+FindExec: found "/usr/local/pg/bin/postgres" using PATH
+binding ShmemCreate(key=54c339, size=832644)
+IpcSemaphoreCreate: semget failed (No space left on device) key=5555015, num=16, permission=600
+proc_exit(3) [#0]
+shmem_exit(3) [#0]
+exit(3)
+
+しかし、カーネルを作り直す前と同じで、
+% postmaster -S -i -p 5555 -N 16  &lt;- これなら出来ちゃうので、
+やっぱりshared memory の問題らしい
+ということで、カーネルを作り直した（ハズな）のに、症状が改善しません。
+
+[追加]バージョンの違うのが混在しているのが原因かも知れないと思い
+ 6.5 だけのマシンで試してみるも、１つだけしか起動できません。
+
+=============================================================================
+[新たな疑問]
+ ところが、 6.4.2 がこの状態から起動できてしまいます。
+
+% which postmaster(環境変数を変更した)
+/usr/local/pgsql6.4.2/bin/postmaster &lt;- 6.4.2 を起動できるようにした。
+% postmaster -d 3 -p 5577
+FindExec: searching PATH ...
+FindExec: found "/usr/local/pgsql6.4.2/bin/postgres" using PATH
+binding ShmemCreate(key=551929, size=831176)
+^C                            &lt;- ctrl+c で正常終了
+pmdie 2
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+% postmaster -S -p 5577              &lt;- そこで、-S にて起動、
+% postmaster -S -p 5578              &lt;- もう一つ起動できちゃう
+% postmaster -S -p 5579              &lt;- さすがに３つ目は駄目。
+IpcMemoryCreate: shmget failed (Cannot allocate memory) key=5579001, size=831176, permission=600
+FATAL 1:  ShmemCreate: cannot create region
+
+最終的には以下のような事になっているようです。
+% ipcs -b
+Message Queues:
+T     ID     KEY        MODE       OWNER    GROUP QBYTES
+
+Shared Memory:
+T     ID     KEY        MODE       OWNER    GROUP  SEGSZ
+m 1900544    5432001 --rw------- takayasu    wheel 832644
+m 3538945    5432010 --rwa------ takayasu    wheel    120
+m  65538    5432007 --rw------- takayasu    wheel 108324
+m 131075    5555010 --rwa------ takayasu    wheel    120
+m 131076    5555001 --rw------- takayasu    wheel 742752
+m  65541    5555007 --rw------- takayasu    wheel 108324
+m 131078    5577010 --rwa------ takayasu    wheel  24588
+m 131079    5577001 --rw------- takayasu    wheel 831176
+m 131080    5577007 --rw------- takayasu    wheel  96804
+m  65545    5578010 --rwa------ takayasu    wheel  24588
+m  65546    5578001 --rw------- takayasu    wheel 831176
+m  65547    5578007 --rw------- takayasu    wheel  96804
+
+Semaphores:
+T     ID     KEY        MODE       OWNER    GROUP NSEMS
+s  65536    5432014 --rw------- takayasu    wheel     16
+s  65537    5432015 --rw------- takayasu    wheel     16
+s 131074    5555014 --rw------- takayasu    wheel     16
+
+実はここら辺りの情報の意味が全然判っていないのですが
+あまりサイズの変わらないかのように見える KEY(5577*) 
+関連が起動できているのは確かなようです。（自信なし）
+
+よろしくご指導ください。m(_ _)m
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[pgsql-jp 9260] RE: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00063" HREF="msg00063.html">[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+<UL><LI><EM>From:</EM> TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 9268] Re: ODBC (large object)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 9271] pg_dumpできない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 9271] pg_dumpできない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00059"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00059"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 24991] レコードをひとつだけ取り出すViewの作り方 -->
+<!--X-From: Minoru Fukuda <fukuda@kinol.co.jp> -->
+<!--X-Date: Wed, 27 Feb 2002 16:21:53 +0900 -->
+<!--X-Message-Id: 3C7C8911.A65800E@kinol.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 24991] レコードをひとつだけ取り出すViewの作り方 </TITLE>
+<LINK REV="made" HREF="mailto:fukuda@kinol.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00403.html">Date Prev</A>][<A HREF="msg00405.html">Date Next</A>][<A HREF="msg00411.html">Thread Prev</A>][<A HREF="msg00407.html">Thread Next</A>][<A HREF="index.html#00404">Date Index</A>][<A HREF="threads.html#00404">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 24991] レコードをひとつだけ取り出すViewの作り方</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Minoru Fukuda &lt;<A HREF="mailto:fukuda@kinol.co.jp">fukuda@kinol.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 27 Feb 2002 16:21:53 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: kinol interactive</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、福田＠キノルインタラクティブです。
+
+SELECT分の使い方についてお聞きしたいので、Postgresとは
+直接関係ないかもしれないのですが、結果によってはPostgres独自の
+関数を使うのかな。と思いポストしました。
+
+質問はあるテーブルの中のレコードのうち、条件に一致するレコードを
+ひとつだけ取り出すというものなのです。
+
+/* 顧客テーブル
+*/
+CREATE TABLE kokyaku_table (
+	kokyakuid	serial,
+	namae		text
+);
+
+COPY kokyaku_table FROM stdin;
+1	'Aさん'
+2	'Bさん'
+3	'Cさん'
+\.
+
+/* 来店テーブル
+*/
+CREATE TABLE raiten_table (
+	raitenid	serial,
+	kokyakuid	int4,
+	hizuke		timestamp,
+	tenpomei	text
+);
+
+COPY raiten_table FROM stdin;
+11	1	2002-1-27 16:02:0+09	'本店'
+12	1	2002-3-27 12:02:0+09	'駅前店'
+13	1	2002-3-27 16:02:0+09	'駅前店'
+14	2	2002-3-28 16:02:0+09	'本店'
+15	2	2002-3-29 16:02:0+09	'本店'
+\.
+
+というテーブルとレコードがあるときに、顧客の最後の来店日を表示する View を
+作るときは...
+
+CREATE VIEW saishuu_raiten_view 
+AS
+SELECT k.kokyakuid, k.namae, r.hizuke
+FROM kokyaku_table as k
+INNER JOIN 
+(SELECT MAX(hizuke) AS hizuke, kokyakuid FROM raiten_table GROUP BY kokyakuid) AS r 
+ON k.kokyakuid=r.kokyakuid;
+
+で、結果は
+
+# SELECT * FROM saishuu_raiten_view;
+
+ kokyakuid | namae     |         hizuke
+-----------+-----------+------------------------
+         1 | 'Aさん'   | 2002-03-27 16:02:00+09
+         2 | 'Bさん'   | 2002-03-29 16:02:00+09
+(2 rows)
+
+ここで質問なのですが、下のように顧客の最終来店日と
+そのときの tenpomei を表示する view を作るとすると
+どのような形になるのでしょうか？
+
+ kokyakuid | namae     |         hizuke         | tenpomei
+-----------+-----------+----------------------------------
+         1 | 'Aさん'   | 2002-03-27 16:02:00+09 | '駅前店'
+         2 | 'Bさん'   | 2002-03-29 16:02:00+09 | '本店'
+(2 rows)
+
+長々としたメールになってしまいましたが、よろしくお願いします。
+
+-- 
+福田稔 Minoru Fukuda
+fukuda@kinol.co.jp
+kinol interactive inc.
+<A HREF="http://www.kinol.co.jp">http://www.kinol.co.jp</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00407" HREF="msg00407.html">[pgsql-jp: 24994] Re: レコードをひとつだけ取り出すViewの作り方</A></STRONG>
+<UL><LI><EM>From:</EM> h-kato@hokkaido.nsc-kk.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00403.html">[pgsql-jp: 24990] Re: オプションの切り替えについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00405.html">[pgsql-jp: 24992] Re: Postgresql7.0.2の設定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00411.html">[pgsql-jp: 24998] PoolManとLargeObject</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00407.html">[pgsql-jp: 24994] Re: レコードをひとつだけ取り出すViewの作り方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00404"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00404"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

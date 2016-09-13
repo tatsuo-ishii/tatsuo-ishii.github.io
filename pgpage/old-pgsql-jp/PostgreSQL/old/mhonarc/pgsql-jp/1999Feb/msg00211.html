@@ -1,0 +1,231 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7086] patch for NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Tue, 16 Feb 1999 13:22:16 +0900 -->
+<!--X-Message-Id: 199902160422.NAA08972@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902160308.MAA11757@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7086] patch for NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00210.html">Date Prev</A>][<A HREF="msg00212.html">Date Next</A>][<A HREF="msg00209.html">Thread Prev</A>][<A HREF="msg00212.html">Thread Next</A>][<A HREF="index.html#00211">Date Index</A>][<A HREF="threads.html#00211">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7086] patch for NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 16 Feb 1999 13:22:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00209.html">199902160308.MAA11757@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt;&gt;&gt;&gt;&gt;&gt; Tue, 16 Feb 1999 12:08:00 +0900,
+	"TI" == Tatsuo Ishii wrote:
+TI&gt; 石井です。
+TI&gt;
+TI&gt; 青木さんへ:
+TI&gt; えーと、NetBSD/macppc の方は一段落でしょうか？
+
+pgsql-jp 7057で書いたように、
+&gt;&gt;&gt;&gt;&gt;&gt; Fri, 12 Feb 1999 14:01:33 +0900,
+	"TA" == Toshimi Aoki wrote:
+TA&gt; これでregressionは
+TA&gt; float8 .. failed
+TA&gt; inet .. failed
+TA&gt; になりました。
+
+これは最適化を外した状態での結果です。
+最適化する(-Oや-O2)とinitdbで
+
+Creating view pg_rules
+
+で終わってしまい(ここまで表示される)ちゃんと作成されません。
+
+
+
+TI&gt; 良かったら、今までのパッ
+TI&gt; チを一つにまとめて頂けるとありがたいのですが。
+
+石井さんのパッチ(pgsql-jp 7040)は除いてあります。
+
+sonameをどうするか、という話もありますが、現状はこれでいいと思います。
+
+
+*** postgresql-6.4.2/src/backend/port/dynloader/bsd.c.orig	Tue Sep  1 13:30:54 1998
+--- postgresql-6.4.2/src/backend/port/dynloader/bsd.c	Thu Feb 11 18:50:30 1999
+***************
+*** 79,84 ****
+--- 79,86 ----
+  #if defined(__mips__) || (defined(__NetBSD__) &amp;&amp; defined(vax))
+  	sprintf(error_message, "dlsym (%s) failed", name);
+  	return NULL;
++ #elif defined(__ELF__)
++ 	return dlsym(handle, name);
+  #else
+  	void	   *vp;
+  	char		buf[BUFSIZ];
+*** postgresql-6.4.2/src/include/port/bsd.h.orig	Sun Jul 19 10:19:53 1998
+--- postgresql-6.4.2/src/include/port/bsd.h	Thu Feb 11 18:07:39 1999
+***************
+*** 24,30 ****
+--- 24,38 ----
+  #define HAS_TEST_AND_SET
+  #endif
+
++ #if defined(__powerpc__)
++ #define HAS_TEST_AND_SET
++ typedef unsigned int slock_t;
++ #endif
++
+  #if defined(__mips__)
+  /* #	undef HAS_TEST_AND_SET */
+  #endif
++
++ #if !defined(__powerpc__)
+  typedef unsigned char slock_t;
++ #endif
+*** postgresql-6.4.2/src/makefiles/Makefile.bsd.orig	Sat Dec 20 09:11:13 1997
+--- postgresql-6.4.2/src/makefiles/Makefile.bsd	Fri Feb 12 13:07:53 1999
+***************
+*** 1,4 ****
+--- 1,11 ----
++ ifdef ELF_SYSTEM
++ LDFLAGS += -Wl,-E
++ endif
++
+  %.so: %.o
++ ifdef ELF_SYSTEM
++ 	$(LD) -x -Bshareable -o $@ $&lt;
++ else
+  	$(LD) -x -r -o $&lt;.obj $&lt;
+  	@echo building shared object $@
+  	@rm -f $@.pic
+***************
+*** 7,9 ****
+--- 14,17 ----
+  	@rm -f $@
+  	$(LD) -x -Bshareable -Bforcearchive \
+  	  -o $@ $@.pic
++ endif
+*** postgresql-6.4.2/src/Makefile.shlib.orig	Mon Nov 30 09:31:19 1998
+--- postgresql-6.4.2/src/Makefile.shlib	Thu Feb 11 19:12:56 1999
+***************
+*** 73,79 ****
+    ifdef BSD_SHLIB
+      install-shlib-dep	:= install-shlib
+      shlib		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+!     LDFLAGS_SL		:= -x -Bshareable -Bforcearchive
+      CFLAGS		+= $(CFLAGS_SL)
+    endif
+  endif
+--- 73,83 ----
+    ifdef BSD_SHLIB
+      install-shlib-dep	:= install-shlib
+      shlib		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+!     ifdef ELF_SYSTEM
+!       LDFLAGS_SL	:= -x -Bshareable -soname $(shlib)
+!     else
+!       LDFLAGS_SL	:= -x -Bshareable -Bforcearchive
+!     endif
+      CFLAGS		+= $(CFLAGS_SL)
+    endif
+  endif
+*** postgresql-6.4.2/src/configure.in.orig	Mon Dec 14 05:08:20 1998
+--- postgresql-6.4.2/src/configure.in	Thu Feb 11 18:13:05 1999
+***************
+*** 22,28 ****
+      bsdi*) os=bsdi need_tas=no ;;
+   freebsd3*) os=freebsd need_tas=no elf=yes ;;
+   freebsd1*|freebsd2*) os=freebsd need_tas=no ;;
+!   netbsd*|openbsd*) os=bsd need_tas=no ;;
+      dgux*) os=dgux need_tas=no ;;
+       aix*) os=aix need_tas=no ;;
+  nextstep*) os=nextstep need_tas=no ;;
+--- 22,33 ----
+      bsdi*) os=bsdi need_tas=no ;;
+   freebsd3*) os=freebsd need_tas=no elf=yes ;;
+   freebsd1*|freebsd2*) os=freebsd need_tas=no ;;
+!   netbsd*)
+! 	os=bsd need_tas=no
+! 	case "$host_cpu" in
+! 	  powerpc) elf=yes ;;
+! 	esac ;;
+!   openbsd*) os=bsd need_tas=no ;;
+      dgux*) os=dgux need_tas=no ;;
+       aix*) os=aix need_tas=no ;;
+  nextstep*) os=nextstep need_tas=no ;;
+*** postgresql-6.4.2/src/config.guess.orig	Sun Jul 19 13:16:48 1998
+--- postgresql-6.4.2/src/config.guess	Tue Feb  9 11:42:19 1999
+***************
+*** 129,134 ****
+--- 129,137 ----
+      mac68k:OpenBSD:*:*)
+  	echo m68k-apple-openbsd${UNAME_RELEASE}
+  	exit 0 ;;
++     macppc:NetBSD:*:*)
++ 	echo powerpc-apple-netbsd${UNAME_RELEASE}
++ 	exit 0;;
+      powerpc:machten:*:*)
+  	echo powerpc-apple-machten${UNAME_RELEASE}
+  	exit 0 ;;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 7087] Re: patch for NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 7084] Re: NetBSD/macppc(&amp; FreeBSD 3.0RELEASE)</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 7085] Re: cannot Grant</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 7087] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 7084] Re: NetBSD/macppc(&amp; FreeBSD 3.0RELEASE)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 7087] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00211"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00211"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

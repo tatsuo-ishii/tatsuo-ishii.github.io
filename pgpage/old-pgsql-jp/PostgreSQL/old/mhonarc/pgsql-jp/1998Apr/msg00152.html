@@ -1,0 +1,218 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3854] Re: data/base中のファイル -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Tue, 21 Apr 1998 20:12:25 +0900 -->
+<!--X-Message-Id: 19980421201225J.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980421180024T.sugino@intruder.ics.es.osaka&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3854] Re: data/base中のファイル </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00151.html">Date Prev</A>][<A HREF="msg00153.html">Date Next</A>][<A HREF="msg00150.html">Thread Prev</A>][<A HREF="msg00161.html">Thread Next</A>][<A HREF="index.html#00152">Date Index</A>][<A HREF="threads.html#00152">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3854] Re: data/base中のファイル</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 21 Apr 1998 20:12:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00150.html">19980421180024T.sugino@intruder.ics.es.osaka-u.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+From: sugino@ics.es.osaka-u.ac.jp (杉野　陽一)
+Subject: [pgsql-jp 3852] data/base中のファイル
+Date: Tue, 21 Apr 1998 18:00:24 +0900
+&gt;
+&gt; 　PostgreSQL-6.1までの話なのかもしれませんが．．．
+&gt; 　データベースの中にあるファイルの中で，気になるファイルがあるのです
+&gt; が，それがどういう意味を持つファイルなのか，よくわからないんです．
+&gt; 　そのファイルとは，
+&gt; 
+&gt; 	pg_psort.4461.0
+&gt; 	pg_psort.4461.1
+&gt; 	pg_psort.4461.2
+&gt; 	pg_psort.4461.3
+&gt; 	pg_psort.4461.4
+&gt; 	pg_psort.4461.5
+&gt; 	pg_psort.4461.6
+&gt; 
+&gt; 　といったファイルです．数字の部分は固定ではありません．
+&gt; 　比較的小さなデータベースの中にはないのですが，タップル数が20万，90万
+&gt; といった，大きめのデータベースの中には上記のようなファイルがあり，デー
+&gt; タベースのサイズを数倍に膨れ上がらせています．
+&gt; 　作成日時を見ると，データベースにデータを突っ込み終わったあとくらいに
+&gt; なっています．なお，データベースへは，最初にデータを一気に突っ込んだだ
+&gt; けで，それからinsertはかけていません．
+&gt; 　データ登録の後にインデックスを振っていたので，そのためのテンポラリファ
+&gt; イルが（データベースのサイズの大きさが何かしら悪さをして）消されずに残っ
+&gt; たままになっているのでは，と思っているのですが，どなたか，このファイル
+&gt; の意味を知っておられませんでしょうか．
+
+  詳しくは分からないのですが，添付しました src/backend/utils/sort/psort.c
+のコメントによりますと，ソーティングのための一時ファイルのようです．
+また，6.1 から 6.2 に version が上がった時に，実装は変更されているようです．
+6.1 と 6.3.2 のコメントを添付します．
+
+  プログラムの中身はきちんと見ていないのですが，polyphase merge sort
+と言っているのは，おそらく polyphase sort [Wirth76, Sec. 2.3.4]
+と同じだと思います．複数のテープ間の merge を繰り返しながら
+ソーティングを行うものですが，そこで使われる作業用テープファイルが，
+何らかの理由で unlink() されそこなっているのでしょう．
+
+  断言はできないのですが，消してしまっても問題は無いように思いますが．
+
+  試しに bench DB で sorting をさせるとどうなるのかを見てみました．
+psql から
+
+     select * from tenk1 order by unique1
+
+を実行する一方で，data/base/bench で
+
+postgres% ls pg_psort*
+
+を繰り返し実行してみます．そのうちに
+
+pg_psort.1849.28   pg_psort.1849.30   pg_psort.1849.32   pg_psort.1849.34
+pg_psort.1849.29   pg_psort.1849.31   pg_psort.1849.33
+
+などというのがごそっと生成され，検索が終わると同時に消えてなくなる
+というのが観察できます．(disk と CPU があまり早いと観測されないかも
+知れないですが)
+
+あまり自信はありませんが，ご参考までに．
+
+----
+[Wirth76] Wirth, N: Algorithms + Data Structures = Programs, 1976.
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+
+
+○ 6.1 から:
+/*-------------------------------------------------------------------------
+ *
+ * psort.c--
+ *    Polyphase merge sort.
+ *
+ * Copyright (c) 1994, Regents of the University of California
+ *
+ *
+ * IDENTIFICATION
+ *    $Header: /usr/local/cvsroot/postgres95/src/backend/utils/sort/psort.c,v 1.4 1997/
+05/20 11:35:50 vadim Exp $
+ *
+ * NOTES
+ *      Sorts the first relation into the second relation.  The sort may
+ * not be called twice simultaneously.
+ *
+ *    Use the tape-splitting method (Knuth, Vol. III, pp281-86) in the future.
+ *
+ *      Arguments? Variables?
+ *              MAXMERGE, MAXTAPES
+ *-------------------------------------------------------------------------
+ */
+
+○ 6.3.2 から:
+/*-------------------------------------------------------------------------
+ *
+ * psort.c--
+ *        Polyphase merge sort.
+ *
+ * Copyright (c) 1994, Regents of the University of California
+ *
+ *
+ * IDENTIFICATION
+ *        $Header: /usr/local/cvsroot/pgsql/src/backend/utils/sort/psort.c,v 1.39 1998/02/26 04:38:29 momjian Exp $
+ *
+ * NOTES
+ *              Sorts the first relation into the second relation.
+ *
+ *              The old psort.c's routines formed a temporary relation from the merged
+ * sort files. This version keeps the files around instead of generating the
+ * relation from them, and provides interface functions to the file so that
+ * you can grab tuples, mark a position in the file, restore a position in the
+ * file. You must now explicitly call an interface function to end the sort,
+ * psort_end, when you are done.
+ *              Now most of the global variables are stuck in the Sort nodes, and
+ * accessed from there (they are passed to all the psort routines) so that
+ * each sort running has its own separate state. This is facilitated by having
+ * the Sort nodes passed in to all the interface functions.
+ *              The one global variable that all the sorts still share is SortMemory.
+ *              You should now be allowed to run two or more psorts concurrently,
+ * so long as the memory they eat up is not greater than SORTMEM, the initial
+ * value of SortMemory.                                                                                 -Rex 2.15.1995
+ *
+ *        Use the tape-splitting method (Knuth, Vol. III, pp281-86) in the future.
+ *
+ *              Arguments? Variables?
+ *                              MAXMERGE, MAXTAPES
+ *-------------------------------------------------------------------------
+ */
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00161" HREF="msg00161.html">[pgsql-jp 3863] Re: Re: data/base中のファイル</A></STRONG>
+<UL><LI><EM>From:</EM> sugino@ics.es.osaka-u.ac.jp (杉野　陽一)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 3852] data/base中のファイル</A></STRONG>
+<UL><LI><EM>From:</EM> sugino@ics.es.osaka-u.ac.jp (杉野　陽一)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp 3853] postgreSQL 6.3.2 on RedHat Linux 4.2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 3855] OpenBSD PostgreSQL, japanese field name</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 3852] data/base中のファイル</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 3863] Re: Re: data/base中のファイル</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00152"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00152"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,109 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19768] Re: date_part 	使用時の高速化 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 02 Feb 2001 21:08:27 +0900 -->
+<!--X-Message-Id: 20010202210827S.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: mj9s2AdZXeUc8XQNVXeAExjyJv1EwUuwYfMy.8CkBbKjEK9.LEBGyZS3uVM5VLjc@mail7.dddd.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19768] Re: date_part 	使用時の高速化 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00011.html">Date Prev</A>][<A HREF="msg00013.html">Date Next</A>][<A HREF="msg00042.html">Thread Prev</A>][<A HREF="msg00011.html">Thread Next</A>][<A HREF="index.html#00012">Date Index</A>][<A HREF="threads.html#00012">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19768] Re: date_part 	使用時の高速化</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 02 Feb 2001 21:08:27 +0900</LI>
+<LI><em>References</em>: &lt;mj9s2AdZXeUc8XQNVXeAExjyJv1EwUuwYfMy.8CkBbKjEK9.LEBGyZS3uVM5VLjc@mail7.dddd.ne.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; HP-UX上で、PostgreSQL-7.0.2を使用してあるDBを管理してます。
+&gt; このDBはInformix DB（Linux）からインポートしました。
+&gt; そこで以下のようなSQLをPostgreSQLとinformixとで速度比較すると
+&gt; 結果表示（200件）までにPostgreSQLのほうが、約５倍くらい遅いです。
+&gt; 
+&gt; PostgreSQLの場合：
+&gt; select * from tbl where date_part('year',wk_date) and date_part('day',wk_date)
+&gt; 
+&gt; Informixの場合：
+&gt; select * from tbl where YEAR(wk_date) and DAY(wk_date)
+&gt; 
+&gt; PostgreSQLのほうにwk_dateのインデックスを作成しても４倍くらい遅いです。
+&gt; こんなものなのでしょうか？
+&gt; HP上のほうが負荷が高いとはいえちょっとショックです。
+&gt; もうちょっとパフォーマンスを上げたいのですが、
+&gt; 良い方法などありましたら教えてください。
+
+このような場合，PostgreSQLでは functional indexを作るのが効果的です．
+functional index は，date_partのような関数の実行結果をあらかじめ計算し
+ておいてindexにするものです．以下，7.1ベータでの例を示します．
+
+create table tbl (wk_date timestamp);
+create function extract_year(timestamp) returns integer as '
+select date_part(''year'',$1)::integer from tbl
+' language 'sql';
+create function extract_date(timestamp) returns integer as '
+select date_part(''date'',$1)::integer from tbl
+' language 'sql';
+create index myindex on tbl using btree(extract_year(wk_date));
+insert into tbl values('now');
+
+7.0.x以前では，SQL関数ではfunctional indexを作れないので，PL/pgSQLなど
+で代用してください．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 19767] Re: date_part 使用時の高速化</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 19769] Linux World のおみやげ&amp;宴会</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00042.html">[pgsql-jp 19798] Re: [lilo:15636] Linux Worldのおみやげ&amp;宴会</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 19767] Re: date_part 使用時の高速化</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00012"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00012"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,134 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25410] Re: デッドロックが発生する現象について -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Tue, 26 Mar 2002 12:41:25 +0900 -->
+<!--X-Message-Id: 3C9FEDE5.64E6B4D5@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020325110935.FF74.KIYOSHI.YOSHIDA@mail.toyota&#45;shokki.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25410] Re: デッドロックが発生する現象について </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00384.html">Date Prev</A>][<A HREF="msg00386.html">Date Next</A>][<A HREF="msg00382.html">Thread Prev</A>][<A HREF="msg00427.html">Thread Next</A>][<A HREF="index.html#00385">Date Index</A>][<A HREF="threads.html#00385">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25410] Re: デッドロックが発生する現象について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 26 Mar 2002 12:41:25 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00370.html">20020325110935.FF74.KIYOSHI.YOSHIDA@mail.toyota-shokki.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+"kiyoshi.yoshida" wrote:
+&gt; 
+&gt; MLの皆さま、こんにちは、吉田と申します。
+&gt; 今、下記の現象が発生しており困っています。回避する対策方法等ヒントでもい
+&gt; ただけないでしょうか。
+&gt; 
+&gt; テーブルは、
+&gt; create table m1(key serial primary key, a int);
+&gt; insert into m1(a) values(20);
+&gt; create table t1(mykey serial primary key
+&gt;         ,key int constraint t1_ref references m1,i int);
+&gt; insert into t1(key,i) values(1,10);
+&gt; create table t2(mykey serial primary key
+&gt;         ,key int constraint t2_ref references m1,j int);
+&gt; insert into t2(key,j) values(1,100);
+&gt; 
+&gt; 現象は、
+&gt; トランザクション１
+&gt; begin;
+&gt; lock table t1 in share row exclusive mode;
+&gt; update t1 set i=i+1 where i=10;
+&gt; （ここまで実行）
+&gt; 
+&gt;                                 トランザクション２
+&gt;                                 begin;
+&gt;                                 lock table t2 in share row exclusive mode;
+&gt;                                 （ここまで実行）
+&gt; トランザクション１
+&gt; insert into t2(key,j) values(1,200);
+&gt; （ブロックされる）
+&gt;                                 トランザクション２
+&gt;                                 update t2 set j=j+1 where j=100;
+&gt;                                 （なぜかブロックされる）
+&gt; ＜デッドロック発生＞
+&gt; となります。
+&gt; 
+&gt; この動作は、PostgerSQLの正常な動作なのでしょうか。
+
+外部キーの使用により多分m1テーブルの方でロックの競合
+が発生しているのではないでしょうか？ m1もあらかじめ
+ロックする手はあるかもしれません。もっともこんなに
+テーブルロックをかけなければいけない理由はよくわかり
+ませんが。
+
+Hiroshi Inoue
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00427" HREF="msg00427.html">[pgsql-jp: 25452] Re: デッドロックが発生する現象について</A></STRONG>
+<UL><LI><EM>From:</EM> "kiyoshi.yoshida" &lt;kiyoshi.yoshida@mail.toyota-shokki.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00370" HREF="msg00370.html">[pgsql-jp: 25395] デッドロックが発生する現象について</A></STRONG>
+<UL><LI><EM>From:</EM> "kiyoshi.yoshida" &lt;kiyoshi.yoshida@mail.toyota-shokki.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00384.html">[pgsql-jp: 25409] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00386.html">[pgsql-jp: 25411] Re: Access2000-&gt;ODBC-&gt;Postgres7.13 接続での不具合</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00382.html">[pgsql-jp: 25407] functionの戻り値</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00427.html">[pgsql-jp: 25452] Re: デッドロックが発生する現象について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00385"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00385"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

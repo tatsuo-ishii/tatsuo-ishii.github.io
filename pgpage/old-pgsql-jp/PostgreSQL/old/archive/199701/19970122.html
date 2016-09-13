@@ -1,0 +1,1004 @@
+<A NAME="21">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Wed, 22 Jan 1997 23:16:55 +0900
+Subject: [postgres95 1248] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701221416.XAA01614@pasar&gt;
+</A>
+</B></PRE>
+<PRE>
+
+花井です.
+
+深谷さん&gt;
+&gt; で、次に libpq.so.1 を作成すべく、以前石井さんに教えていただいた
+
+BSD44_derived だと, libpq.so.1 が作られませんからね.
+ただ, 石井さんは SunOS 4.1.x か SunOS 5.x でやってらっしゃったんじゃ
+なかったでしたっけ?
+
+&gt; 　｜o src/libpq に行く。
+&gt; 　｜
+&gt; 　｜o Makefile の 21 行目当たりに CFLAGS のオプションを追加する。
+&gt; 　｜
+&gt; 　｜CFLAGS+= -I$(srcdir)/backend/include \
+&gt; 　｜        -I$(srcdir)/backend \
+&gt; 　｜        -I$(CURDIR) \
+&gt; 　｜        $(CFLAGS_SL)
+&gt; 　｜        ~~~~~~~~~~~~追加
+&gt; 　｜
+&gt; 　｜o 念のため、gmake clean をする。
+&gt; 　｜
+&gt; 　｜o gmake libpq.so.1 を実行。これで、obj の下に libpq.so.1 ができます。
+
+多分, これだけじゃだめでしょうね.
+
+&gt; ところが、またまた下のようなエラーが出たのですが・・・
+&gt; コンパイラのバージョンは FreeBSD 2.1.5R をインストールした直後なので・・・・
+&gt; いくつなんだろー？？　gcc の２．６．ｘくらいでしょうか？
+
+gcc のバージョンは gcc --version でわかりますが, 今回は関係ないです.
+実は, FreeBSD で libpq.so.1 を作るようなパッチを作っておいたのですが,
+消してしまいました.
+＃ ちょっとした理由により, FreeBSD のインストールを毎日行なってるもので…
+
+&gt; 　｜cd obj; gcc -O  -shared fe-auth.o fe-connect.o fe-exec.o fe-misc.o
+&gt; fe-lobj.o dllist.o pqsignal.o -o libpq.so.1
+&gt; 　｜ld: No reference to __DYNAMIC
+
+これは, 恐らく, -fpic オプションを付けてコンパイルされていないからだと
+想像します.
+あ, それから, ld -x -r とかもやってないんじゃないでしょうか?
+
+libpq.so.1 を作るくらいなら, 非常に簡単ですので,
+src/mk/port/postgres.mk.BSD44_derived を参考に頑張ってみてください.
+＃ すみません, 私は時間がないので… _o_
+
+&gt; ＃　この次は pgperl95 です。
+
+この pgperl95 というのはどういうものなのでしょう?
+私が知っているのは, pg95perl と PostgresPerl なのですが…
+＃ 最近あまりそのヘンのことを追いかけていないので, 私のほうがへんなこと
+＃ 言ってたとしたらすみません.
+
+もし, pgperl95 というのが, pg95perl のことなら, 私はお勧めしません.
+PostgresPerl のほうが使いやすいと思いますよ.
+pg95perl だと, C でやってるのと大差ないですから.
+＃ あくまで, わたしの印象なのですが.
+
+-----花井
+<HR>
+</PRE>
+<A NAME="20">
+<PRE><B>
+From: yaku@jedi.seg.kobe-u.ac.jp (Masao Yakushijin)
+Date: Wed, 22 Jan 97 21:25:06 JST
+Subject: [postgres95 1247] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;970122212012.M0104285@jedi.seg.kobe-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&lt;199701221050.TAA19715@chubu.ksd.co.jp&gt;において
+1月22日(水)，深谷＠川鉄情報システムさんは書きました。
+
+  | で、次に libpq.so.1 を作成すべく、以前石井さんに教えていただいた
+  | 手順で作業を進めました。
+(中略)
+  | ところが、またまた下のようなエラーが出たのですが・・・
+  | コンパイラのバージョンは FreeBSD 2.1.5R をインストールした直後なので・・・・
+  | いくつなんだろー？？　gcc の２．６．ｘくらいでしょうか？
+2.6.3 のはずです．
+おそらく，コンパイラのバージョンが原因ではないと思
+います．
+
+  | 　｜cd obj; gcc -O  -shared fe-auth.o fe-connect.o fe-exec.o fe-misc.o
+  | fe-lobj.o dllist.o pqsignal.o -o libpq.so.1
+  | 　｜ld: No reference to __DYNAMIC
+  | 　｜gmake: *** [libpq.so.1] Error 1
+/usr/share/mk/bsd.lib.mk を見ると，
+	.c.so:
+		${CC} ${PICFLAG} -DPIC ${CFLAGS} -c ${.IMPSRC} -o ${.TARGET}
+		@${LD} -x -r ${.TARGET}
+		@mv a.out ${.TARGET}
+
+	SOBJS+= ${OBJS:.o=.so}
+	lib${LIB}.so.${SHLIB_MAJOR}.${SHLIB_MINOR}: ${SOBJS}
+		@rm -f lib${LIB}.so.${SHLIB_MAJOR}.${SHLIB_MINOR}
+		@${LD} -Bshareable \
+		    -o lib${LIB}.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
+		    `lorder ${SOBJS} | tsort` ${LDDESTDIR} ${LDADD}
+とありますから，
+	gcc -fpic -DPIC ${CFLAGS} -c foo.c -o foo.so
+	ld -x -r foo.so
+	mv a.out foo.so
+をライブラリを構成する全ての *.c に対して行い，
+	rm -f libpq.so.1
+	ld -Bshareable -o libpq.so.1 \
+		`lorder *.so | tsort` 
+を実行すれば，libpq.so.1 が作成されると思います．
+
+＃手元に FreeBSD のマシンが無いので，これでできる
+＃かどうか確認していません．
+
+--
+薬師神 昌夫	 yaku@jedi.seg.kobe-u.ac.jp
+神戸大学 自然科学研究科 情報知能工学専攻 M2
+<HR>
+</PRE>
+<A NAME="19">
+<PRE><B>
+From: &quot;Takashi Mega&quot; &lt;mega@rodan.misc.hit-u.ac.jp&gt;
+Date: Wed, 22 Jan 1997 20:43:46 +0900
+Subject: [postgres95 1246] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701221143.UAA14775@rodan.misc.hit-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+妻鹿＠一橋大です。
+
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Subject: [postgres95 1245] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Date: Wed, 22 Jan 1997 19:50:18 +0900
+Message-ID: &lt;199701221050.TAA19715@chubu.ksd.co.jp&gt;
+
+fukaya&gt; 深谷＠川鉄情報システムです。
+
+こんにちは。妻鹿も FreeBSD 2.1.5 で Postgres 95 をインストールする際に、
+flexをインストールしたくちです。
+
+fukaya&gt; で、次に libpq.so.1 を作成すべく、以前石井さんに教えていただいた
+fukaya&gt; 手順で作業を進めました。
+fukaya&gt; 
+fukaya&gt; ところが、またまた下のようなエラーが出たのですが・・・
+fukaya&gt; コンパイラのバージョンは FreeBSD 2.1.5R をインストールした直後なので・・・・
+fukaya&gt; いくつなんだろー？？　gcc の２．６．ｘくらいでしょうか？
+
+妻鹿は libpq.so.1 は作ってないのでよく分からないのですが…、FreeBSD
+2.1.5R の gcc はインストール時にはバージョン 2.6.3だったと思います。
+% gcc -v でバージョンを知ることが出来ると思います。
+
+****************************************************************************
+Hitotsubashi University(in Japan)                               Takashi Mega
+Keywords                               Japanese Sake, International Exchange 
+E-mail Address                                   mega@rodan.misc.hit-u.ac.jp
+****************************************************************************
+<HR>
+</PRE>
+<A NAME="18">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Wed, 22 Jan 1997 19:50:18 +0900
+Subject: [postgres95 1245] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701221050.TAA19715@chubu.ksd.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+深谷＠川鉄情報システムです。
+
+石井さんをはじめ、花井さん、五反田＠にふていさん、坂本＠中央電子さん
+からフォローをいただき、ありがとうございました。
+おかげさまで、かなり進展することができ感謝しています。
+
+Hanai Hiroyuki さんが 97.01.22ごろに
+「[postgres95 1242] Re: Q: FreeBSD gmake ld: -lfl: no match ?」の件で：
+・・・
+&gt; flex は GNU のモノなので, ftp.iij.ad.jp:/pub/GNU などの
+&gt; GNU アーカイブを置いてあるところにありますね.
+
+下記ＵＲＬからflexを入手し、見事に postgres95 の make が成功しました。
+
+　ftp://ftp.huie.hokudai.ac.jp/pub/gnu/flex-2.5.4.tar.gz
+
+で、次に libpq.so.1 を作成すべく、以前石井さんに教えていただいた
+手順で作業を進めました。
+
+　｜o src/libpq に行く。
+　｜
+　｜o Makefile の 21 行目当たりに CFLAGS のオプションを追加する。
+　｜
+　｜CFLAGS+= -I$(srcdir)/backend/include \
+　｜        -I$(srcdir)/backend \
+　｜        -I$(CURDIR) \
+　｜        $(CFLAGS_SL)
+　｜        ~~~~~~~~~~~~追加
+　｜
+　｜o 念のため、gmake clean をする。
+　｜
+　｜o gmake libpq.so.1 を実行。これで、obj の下に libpq.so.1 ができます。
+
+ところが、またまた下のようなエラーが出たのですが・・・
+コンパイラのバージョンは FreeBSD 2.1.5R をインストールした直後なので・・・・
+いくつなんだろー？？　gcc の２．６．ｘくらいでしょうか？
+
+　｜cd obj; gcc -O  -shared fe-auth.o fe-connect.o fe-exec.o fe-misc.o
+fe-lobj.o dllist.o pqsignal.o -o libpq.so.1
+　｜ld: No reference to __DYNAMIC
+　｜gmake: *** [libpq.so.1] Error 1
+
+＃　この次は pgperl95 です。
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>
+<A NAME="17">
+<PRE><B>
+From: Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;
+Date: Wed, 22 Jan 1997 15:22:20 +0900
+Subject: [postgres95 1244] はじめまして
+Message-Id: &lt;199701220622.PAA09932@sekine.densi.gifu-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+はじめまして。
+いしかわ＠岐阜大と申します。
+
+Linuxでpostgres95を使ってみたいと考えています。
+
+こないだLinux(TOWNS)にインストールを試みたのですが、ディスクが足りませ
+んでした(^^;。
+
+さらにSPARC/Linuxにもインストールを試みたのですが、こちらはエラーが出
+てしまいました。
+
+とういうことでまだ使える環境にないわけですが、ちょっとずつ勉強していき
+たいと思いますのでよろしくお願いします。
+
+それでは。
+
+End Of Message.  
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+石川 諭 （いしかわ さとし）power@densi.gifu-u.ac.jp
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+
+
+<HR>
+</PRE>
+<A NAME="16">
+<PRE><B>
+From: Junich Shimamura &lt;junich@center.nippon-ec.ac.jp&gt;
+Date: Wed, 22 Jan 1997 15:08:25 +0900
+Subject: [postgres95 1243] self introduction (自己紹介)
+Message-Id: &lt;9701220608.AA23006@pike.center.nippon-ec.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+自己紹介が遅れました。
+
+島村＠日本電子専門学校です。
+
+現在、学内ネットワークの設計・管理・運用をおこなっています。また、教務
+業務支援システムの開発も手掛けております。
+
+職場では、SunOS4.1.4、BSD/OS2.1, NEWS-OS6.1.1, WindowsNT4.0 workstation
+などを使用しております。Postgres95をインストールしているのは、
+BSD/OS2.1 です。
+
+自宅では、BSD/OS2.1, WindowsNT4.0 workstation を使用しております。
+
+Postgresは、触り始めたばかりです。開発している教務業務支援システムの
+DBMS としてつかえないかと興味を持ちました。
+
+
+よろしくお願いします。
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+学校法人 電子学園  日本電子専門学校 
+  島村 淳一          教務部 教育環境開発担当
+e-mail: junich@center.nippon-ec.ac.jp
+<HR>
+</PRE>
+<A NAME="15">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Wed, 22 Jan 1997 13:37:46 +0900
+Subject: [postgres95 1242] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701220437.NAA10436@pasar&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&gt; そうですか？　Walnut Creekの2.1.5 の CD-ROM からインストールした
+&gt; のですが・・・ありませんでした。
+
+ごめんなさい. ちょっと勘違いしてたかもしれません.
+FreeBSD 2.1.x には /usr/bin/flex などというものは無さそうですねぇ.
+
+&gt; ftp://ftp.iij.ad.jp/pub/FreeBSD の下のディレクトリを探してみたのですが
+&gt; flex のパッケージが見あたりません。
+&gt; （2.1.6 と 2.2 の packages/ を探してみましたが・・・）
+&gt; flex の所在を御存知でしたら教えて下さい。
+
+flex は GNU のモノなので, ftp.iij.ad.jp:/pub/GNU などの
+GNU アーカイブを置いてあるところにありますね.
+
+-----花井
+<HR>
+</PRE>
+<A NAME="14">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Wed, 22 Jan 97 13:26:25 JST
+Subject: [postgres95 1241] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;9701220426.AA14915@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+坂本＠中央電子です。
+
+&lt;199701220403.NAA13696@chubu.ksd.co.jp&gt;の記事にて
+1997年01月22日(水)、fukaya@chubu.ksd.co.jpさんの記述は:
+ &gt; ftp://ftp.iij.ad.jp/pub/FreeBSD の下のディレクトリを探してみたのですが
+ &gt; flex のパッケージが見あたりません。
+ &gt; （2.1.6 と 2.2 の packages/ を探してみましたが・・・）
+ &gt; flex の所在を御存知でしたら教えて下さい。
+
+packages-2.1.5のdevelには入ってました。
+	All/flex-2.5.2.tgz
+
+INDEXにgrepかけた結果:
+	flex-2.5.3|/usr/ports/devel/flex/flex-2.5.3|/usr/local|
+	GNU's lex replacement|/usr/ports/devel/flex/pkg/DESCR|
+	janek@gaja.ipan.lublin.pl|devel||
+# おや、versionが違う?
+
+確か、packages-2.1.6はpackages-2.1.5のにリンクされてましたよね。
+
+# 今FreeBSD 3.0のSNAPをインストールしたところなのですが、
+# 調べてみると、入っているflexのversionは2.5.4でした。
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="13">
+<PRE><B>
+From: 濱本雄二/Yuji Hamamoto &lt;hama@hexa.co.jp&gt;
+Date: Wed, 22 Jan 1997 13:13:52 +0900
+Subject: [postgres95 1240] Re: Introduction 自己紹介
+Message-Id: &lt;199701220413.NAA05957@winwork.hexa.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+濱本と申します。
+
+どうもすみません。
+はじめに自己紹介をしなければいけないとは知りませんでした。
+
+Postgres95は数ヵ月前に存在を知り、使っております。
+現在、
+
+http://www.hexa.co.jp/~hama/mlsearch/
+
+のホームページにて、Postgres95+Apache(PHP/FI)を使い、いろいろなMLのアー
+カイブからの検索のサービスを行っております。
+
+これからもよろしくお願い致します。
+
+-- 
+濱本雄二
+hama@hexa.co.jp
+<HR>
+</PRE>
+<A NAME="12">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Wed, 22 Jan 1997 13:03:39 +0900
+Subject: [postgres95 1239] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701220403.NAA13696@chubu.ksd.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+深谷＠川鉄情報システムです。
+
+石井さん、花井さん、フォローありがとうございます。
+
+石井さん&gt;FreeBSD のことは良く知らないのですが、
+石井さん&gt;
+石井さん&gt;http://www.y-min.or.jp/~nob/FreeBSD/postgres95.html
+
+上のURLは大変参考になりました。ありがとうございます。
+
+Hanai Hiroyuki さんが 97.01.22ごろに
+「[postgres95 1235] Re: Q: FreeBSD gmake ld: -lfl: no match ?」の件で：
+&gt; 花井です.
+&gt;
+&gt; 深谷さん&gt;
+・・・
+&gt; flex のライブラリが無い, と言っているんですね.
+&gt; FreeBSD をふつうにインストールすると, あるはずなんですけどねぇ.
+&gt; /usr/bin/flex とか /usr/lib/libfl.a って無いですか?
+
+そうですか？　Walnut Creekの2.1.5 の CD-ROM からインストールした
+のですが・・・ありませんでした。
+
+&gt; ただ, FreeBSD 2.1.5R に入っている flex はバージョンが 2.5.3 で,
+&gt; これはちょっとしたバグがあるために Postgres95 の make が上手くいかない
+&gt; ことがあるようです.
+&gt; 以前は, どっかから バージョン 2.5.2 の flex を取ってきて使っていたので
+&gt; すが, 現在はバージョン 2.5.4 が出ていますので, それを取ってきてインス
+&gt; トールして, それを使ってください.
+
+ftp://ftp.iij.ad.jp/pub/FreeBSD の下のディレクトリを探してみたのですが
+flex のパッケージが見あたりません。
+（2.1.6 と 2.2 の packages/ を探してみましたが・・・）
+flex の所在を御存知でしたら教えて下さい。
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>
+<A NAME="11">
+<PRE><B>
+From: 五反田　秋彦 &lt;NCA03530@niftyserve.or.jp&gt;
+Date: Wed, 22 Jan 1997 13:00:00 +0900
+Subject: [postgres95 1238] Re: Q: FreeBSD gmake ld: -
+Message-Id: &lt;199701220401.NAA20547@inetnif.niftyserve.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+五反田＠にふていです。
+
+あ、自己紹介以来一度も発言していない。改めまして、はじめまして。(^^;
+
+Wed, 22 Jan 1997 09:53:29 +0900 頃、
+fukaya@chubu.ksd.co.jp さんが
+「[postgres95 1230] Q: FreeBSD gmake ld: -」なるメールで仰ることに:
+
+&gt; 今回、FreeBSD 2.1.5R に postgres95 の 1.09 + 日本語パッチ　をインストール
+&gt; しているのですが、backend の postgres を作成するところで、
+&gt; 「ld: -lfl: no match」というエラーが出て止まります。
+&gt; port は BSD44_derived を指定しました。それ以外は変更していません。
+&gt; 
+&gt; 　｜gcc -O  -o obj/postgres obj/ACCESS.o obj/BOOTSTRAP.o obj/COMMANDS.o
+&gt; obj/EXECUTOR.o obj/MAIN.o obj/MISC.o obj/NODES.o obj/PARSER.o
+&gt; obj/OPTIMIZER.o obj/REGEX.o obj/REWRITE.o obj/STORAGE.o obj/TCOP.o
+&gt; obj/UTILS.o -L/usr/local/lib -lfl  -ll -lm
+&gt; 　｜ld: -lfl: no match
+
+libfl.* は flex のライブラリです。で、FreeBSD 2.1.5-RELEASE の lex は
+実は flex（つまり GNU flex と置き換えても害はないはず）なので、最新の 
+flex を GNU 関連のサイトから取り寄せてインストール（もしくは packages 
+を使うも吉）すると、幸せになれます。
+
+どーしても OS 附属の lex を使いたい場合は、-lfl を -ll に書き換えましょ
+う。
+
+                                   五反田 秋彦
+                                   nca03530@niftyserve.or.jp
+                                   gotanda@fs.cas.uec.ac.jp
+                                         (forwarded to the above)
+
+<HR>
+</PRE>
+<A NAME="10">
+<PRE><B>
+From: UO Youjiro 宇夫陽次朗 &lt;yuo@jaist.ac.jp&gt;
+Date: Wed, 22 Jan 1997 12:48:39 JST
+Subject: [postgres95 1237] heitml (Yet Another Postgerss Frontend fow www)
+Message-Id: &lt;199701220347.MAA23111@mikan.jaist.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+宇夫@JAISTです。
+
+comp.unix.bsd.freebsd.announceを見ていたら、以下の記事 
+	Message-ID:&lt;5c2koh$fqj@bonkers.taronga.com&gt;
+がありました。
+
+機能的にはPHP/FIと似た物で、同様にpostgressへのインターフェイスを
+持っているとのことですので転載しておきます。
+
+書いてあることをそのまま信じるなら、データベースに依存しない文法を
+持っているので、PHP/FIやw3-msqlよりも良い、らしいです。
+
+問題となりそうなのはシェアウェアという点ですが、使用条件として
+
+	heitml is free for research, non-commercial and private
+	usage, but Commercial Web Sites must pay a licensing
+	fee. The fully operational version of heitml can be
+	downloaded freely, and each Web Page you develop will
+	display a message identifying it as the version for
+	non-commercial use. After registration, you will receive a
+	key to switch off the message without having to reinstall
+	the program.
+
+となっているので、普通に使う分にはあんまり問題はないでしょう(かな?)。
+でも、商用ライセンス490DM(約$340)/ドメインっていうのは高い気がしま
+すね。
+
+						Youjiro UO
+
+# ううむ。IWEが終わってから海外が遠い…。WWWページがおそくって参照
+# がたいへん。
+
+
+Content-Type: message/rfc822
+Content-Description: Original Message
+
+To: announce@freebsd.org
+Subject: Announcing Heitml for FreeBSD (and other operating systems)...
+Date: Tue, 21 Jan 1997 06:44:11 -0800
+Message-ID: &lt;25523.853857851@time.cdrom.com&gt;
+From: &quot;Jordan K. Hubbard&quot; &lt;jkh@time.cdrom.com&gt;
+
+[Posting this on behalf of Michael Elbel &lt;me@FreeBSD.org&gt; - jkh]
+
+Note: I'm connected to the H.E.I people in that DITEC paid them money
+to support their product under FreeBSD, so I'm biased. But I still think
+it's the nicest thing since sliced bread if it comes to extending HTML
+and connect Databases to the web. I've used it for some pretty complex
+applications and it didn't take me 10% of the time I would have to have
+spent if I'd done it in, like, perl. It's also IMO nicer than w3-msql
+and PHP/FI in that its syntax is database independent (not regarding
+potential differences in the actual SQL implementations).
+
+Michael
+
+Michael Elbel, DITEC Internet Services, Muenchen, Germany - me@muc.ditec.de
+Fermentation fault (coors dumped)
+
+---------------------------------------------------------------------
+
+Subject: 
+        SHAREWARE: heitml 1.0, extended server side HTML (CGI &amp; apache
+        API) 
+
+H.E.I. releases heitml (extended interactive HTML) version 1.0.
+
+heitml (pronounced &quot;Hi&quot;-TML) is a server side extension of HTML.  It
+is designed to develop interactive Web Pages, Web Database
+Applications, and complex Web Sites in a structured, modular, and
+intelligent manner.
+
+heitml adds full-featured programming capabilities to HTML (e.g.
+&lt;if&gt;, &lt;while&gt;, and &lt;let&gt; Tags), plus powerful expression evaluation
+with integer, real, boolean, string, and tuple data types.  It is
+possible to define your own Tags or Environment Tags and, by using
+include files, you can build your own libraries of re-usable
+components.
+ 
+heitml makes it possible to
+-  develop Web Sites in a structured and modular way,
+   drastically reducing maintenance overhead.
+-  develop intelligent and interactive Web Sites, whose content
+   dynamically adapts itself to user needs.
+-  show the content of SQL databases with no programming other than
+   to use our library of prefined &quot;dba&quot; Tags.
+-  develop complete and complex database applications
+
+heitml runs on FreeBSD or Linux with any Web Server using the CGI
+interface, but is especially fast (avoiding the CGI overhead) within
+the apache Web Server using the apache API. Currently MSQL, Postgres
+95, and the yard databases are supported.  heitml also works on SunOS
+as well as Windows NT with CGI and ISAPI and ODBC.
+
+heitml is free for research, non-commercial and private usage, but
+Commercial Web Sites must pay a licensing fee. The fully operational
+version of heitml can be downloaded freely, and each Web Page you
+develop will display a message identifying it as the version for
+non-commercial use. After registration, you will receive a key to
+switch off the message without having to reinstall the program.
+
+heitml is suited for newcomers and professional programmers
+alike. Newcomers can use heitml just like HTML with additional
+powerful Tags. heitml pages are put on the web server, just like HTML
+pages, but with another file extension. Once heitml is installed, this
+is all what has to be done to use heitml.
+
+Libraries provided with heitml contain Tags suitable for many
+application tasks like Web Page Counters etc.
+Of special interest is the dba library which helps you to build
+complete database applications that browse and update tables. (Insert,
+update and delete records with no programming effort on your part.)
+Data fields can be validated and checked for consistency before entry
+or update, and a special password field can be assigned to each record
+to guard against unauthorized changes.
+
+An application created with the  dba Library merely requires you to
+- define how you want the data to appear in browse mode (Table View)
+- define how you want the data to appear in list mode (Form View)
+  See our guestbook application:
+      http://www.h-e-i.de/heitml/kguest.hei?first=t
+
+Professional programmers can use heitml also as a full featured
+programming language: A heitml page is actually a program,
+which is executed. The execution of &quot;&lt;if cond&gt;...&lt;else&gt;...&lt;/if&gt;&quot;,
+&quot;&lt;while cond&gt; ...&lt;/while&gt;&quot;, and &quot;&lt;let x=expression&gt;&quot; etc. have the usual
+meaning as found in a programming language. The execution of User
+Defined Tags correspond to traditional procedure calls. heitml offers
+positional and keyword parameters with default values, input and output
+parameters, global and local variables and recursion. Also Environment
+Tags such as &quot;&lt;box&gt; environment body &lt;/box&gt;&quot; can be defined and get the
+environment body as a functional parameter.
+
+heitml offers a dynamic tuple datatype, which works like a struct in C
+but fields can be added and processed dynamically. Tuple assignments
+follow reference semantics. heitml offers an alternate programming
+syntax, which allows to write several tags into &lt; &gt; signs seperated by
+semicolons, e.g. &lt;let s=&quot;*&quot;; while len(s)&lt;130; ? s; br; s=s+s; /while&gt;
+
+Within the configuration files of apache one can control which 
+resources heitml-pages can access. This feature is important when hosting
+heitml-pages prepared by somebody else.
+
+For more info and downloads see  http://www.h-e-i.de/heitml
+
+Helmut Emmelmann
+
+-- 
+Helmut Emmelmann H.E.I. Helmut Emmelmann Informationssyteme GmbH
+Wimpfenerstrasse 23                     Tel. 49-621-795141
+68259 Mannheim Germany                  Fax. 49-621-795161
+emmel@h-e-i.de				http://www.h-e-i.de
+
+
+<HR>
+</PRE>
+<A NAME="9">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Wed, 22 Jan 1997 12:09:48 +0900
+Subject: [postgres95 1236] Re: Is there any one who are using PG95 with Kerberos?
+Message-Id: &lt;199701220309.MAA09831@pasar&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村さん&gt;
+&gt;   Postgres95 を Kerberos の認証機能を使って動かしている方はいらっしゃ
+&gt; いますか？
+
+私じゃないですが, 私の知り合いで, FreeBSD + Postgres95 で, 認証に
+Kerberos を使っている人がいます.
+
+&gt;   Kerberos は暗号化機構に対称鍵方式の DES を使っているのですが、これが
+&gt; 合州国の輸出規制にひかかるため合州国とカナダ以外では合州国政府の許可無
+&gt; しでは使えないようです。ただし、古いバージョン(V4)については、その DES
+
+合衆国政府は, その輸出規制をなくす, という話をちょっと前に聞きましたけど,
+詳しいことは知りませんです.
+
+-----花井
+<HR>
+</PRE>
+<A NAME="8">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Wed, 22 Jan 1997 12:06:23 +0900
+Subject: [postgres95 1235] Re: Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701220306.MAA09818@pasar&gt;
+</A>
+</B></PRE>
+<PRE>
+
+花井です.
+
+深谷さん&gt;
+&gt; 今回、FreeBSD 2.1.5R に postgres95 の 1.09 + 日本語パッチ　をインストール
+&gt; しているのですが、backend の postgres を作成するところで、
+&gt; 「ld: -lfl: no match」というエラーが出て止まります。
+
+flex のライブラリが無い, と言っているんですね.
+FreeBSD をふつうにインストールすると, あるはずなんですけどねぇ.
+/usr/bin/flex とか /usr/lib/libfl.a って無いですか?
+
+ただ, FreeBSD 2.1.5R に入っている flex はバージョンが 2.5.3 で,
+これはちょっとしたバグがあるために Postgres95 の make が上手くいかない
+ことがあるようです.
+以前は, どっかから バージョン 2.5.2 の flex を取ってきて使っていたので
+すが, 現在はバージョン 2.5.4 が出ていますので, それを取ってきてインス
+トールして, それを使ってください.
+
+-----花井
+<HR>
+</PRE>
+<A NAME="7">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@rccm.co.jp&gt;
+Date: Wed, 22 Jan 1997 10:27:51 +0900 (JST)
+Subject: [postgres95 1234] Is there any one who are using PG95 with Kerberos?
+Message-Id: &lt;Pine.LNX.3.91LJ1.0.4.970122100908.25474A-100000@earth.astea.rccm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村＠RCCMです。
+
+  Postgres95 を Kerberos の認証機能を使って動かしている方はいらっしゃ
+いますか？
+
+  Kerberos は暗号化機構に対称鍵方式の DES を使っているのですが、これが
+合州国の輸出規制にひかかるため合州国とカナダ以外では合州国政府の許可無
+しでは使えないようです。ただし、古いバージョン(V4)については、その DES
+の部分を取り除いた(ピラニアに肉を食べられて骨だけになった) Bones とい
+うパッケージが使えるようです（もちろん暗号化されないためセキュリティの
+役には立たないですが）。Bones には、別の des プログラムを組み込んだ
+eBones というのがあるそうです。こちらのほうは、Anonymous FTP にて 
+ftp.funet.fi (128.214.6.100) の pub/unix/security/login/kerberos ディ
+レクトリから手に入るようです。
+
+--
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+
+<HR>
+</PRE>
+<A NAME="6">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 22 Jan 1997 10:36:44 +0900
+Subject: [postgres95 1233] Re: Q: FreeBSD gmake ld: -lfl: no match ? 
+Message-Id: &lt;199701220136.KAA27059@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;深谷＠川鉄情報システムです。
+&gt;
+&gt;いつも、質問ばかりで申し訳ありません。
+&gt;今回、FreeBSD 2.1.5R に postgres95 の 1.09 + 日本語パッチ　をインストール
+&gt;しているのですが、backend の postgres を作成するところで、
+&gt;「ld: -lfl: no match」というエラーが出て止まります。
+&gt;port は BSD44_derived を指定しました。それ以外は変更していません。
+&gt;
+&gt;なにしろ、FreeBSDもインストールしたばかりで、不足しているパッケージが
+&gt;あるかもしれません。
+&gt;
+&gt;ＦＡＱかもしれませんが・・・
+&gt;
+&gt;・FreeBSDの場合のMakefileなどの修正箇所
+&gt;・FreeBSDに postgres95 をインストールする場合の必須パッケージ
+&gt;
+&gt;など、ヒントになる情報を教えて下さい。情報の所在だけでも大変助かりま
+す。
+
+FreeBSD のことは良く知らないのですが、
+
+http://www.y-min.or.jp/~nob/FreeBSD/postgres95.html
+
+は御覧になりましたか？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="5">
+<PRE><B>
+From: TACHIKAWA Yasuto &lt;tatikawa@yodo.dpri.kyoto-u.ac.jp&gt;
+Date: Wed, 22 Jan 1997 09:59:22 +0900
+Subject: [postgres95 1232] はじめまして
+Message-Id: &lt;199701220059.JAA15671@yodo.dpri.kyoto-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+立川＠京大防災研ともうします。
+
+新しく、このメーリングリストに参加させていただきました。
+よろしくお願い申し上げます。これから Postgres をインス
+トールして、水災害に関する情報を整備していこうと考えて
+います。
+---
+TACHIKAWA Yasuto @ D.P.R.I., Kyoto Univ.
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Wed, 22 Jan 1997 10:34:31 +0900
+Subject: [postgres95 1231] Re: Introduction 	自己紹介  
+Message-Id: &lt;199701220134.KAA27030@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠SRAです。
+
+&gt;神戸大学情報知能工学専攻の2回生の薬師神と申します．
+&gt;学校では一応，研究室のマシンとネットワークの管理者
+&gt;ということになっています．
+&gt;新し物好きで，HDD を自分で持ってきて，学校のマシン
+&gt;に勝手に NetBSD/sparc やら MkLinux やら Hurd なん
+					 ~~~~
+&gt;かをインストールして遊んでいます．
+
+おおお。よろしくければ、Hurd をどんなプラットフォーム（多分Sparc?）に
+入れたのか、使い勝手はどうか、簡単に教えてもらえませんか？
+
+&gt;また，アルバイト先でFreeBSDを使っていまして，
+&gt;Postgres95 を入れてDBサーバにしています．
+&gt;今度 PowerMac に MkLinux を入れて，そちらにも 
+&gt;Postgres95 をインストールして，パフォーマンスを比
+&gt;較する予定です．
+&gt;＃以前石井さんにMkLinux用のパッチを頂いたんですが，
+&gt;＃まだ動かしてません．すみません．
+
+いいえ、どういたしまして。MLでもお知らせしましたが、一応今回 DR2 用の
+パッチを作りましたので、よろしかったら御利用下さい。
+
+http://www.sra.co.jp/people/t-ishii/postgres95/MkLinux.patch.gz
+
+です。関連ドキュメントは、
+http://www.sra.co.jp/people/t-ishii/postgres95/mklinux.html
+にあります。（「稼働プラットフォームの報告」のコーナーです。）
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Wed, 22 Jan 1997 09:53:29 +0900
+Subject: [postgres95 1230] Q: FreeBSD gmake ld: -lfl: no match ?
+Message-Id: &lt;199701220053.JAA10524@chubu.ksd.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+深谷＠川鉄情報システムです。
+
+いつも、質問ばかりで申し訳ありません。
+今回、FreeBSD 2.1.5R に postgres95 の 1.09 + 日本語パッチ　をインストール
+しているのですが、backend の postgres を作成するところで、
+「ld: -lfl: no match」というエラーが出て止まります。
+port は BSD44_derived を指定しました。それ以外は変更していません。
+
+なにしろ、FreeBSDもインストールしたばかりで、不足しているパッケージが
+あるかもしれません。
+
+ＦＡＱかもしれませんが・・・
+
+・FreeBSDの場合のMakefileなどの修正箇所
+・FreeBSDに postgres95 をインストールする場合の必須パッケージ
+
+など、ヒントになる情報を教えて下さい。情報の所在だけでも大変助かります。
+
+なお、今回発生したエラーメッセージは下記のとおりです。
+
+　｜gcc -O  -o obj/postgres obj/ACCESS.o obj/BOOTSTRAP.o obj/COMMANDS.o
+obj/EXECUTOR.o obj/MAIN.o obj/MISC.o obj/NODES.o obj/PARSER.o
+obj/OPTIMIZER.o obj/REGEX.o obj/REWRITE.o obj/STORAGE.o obj/TCOP.o
+obj/UTILS.o -L/usr/local/lib -lfl  -ll -lm
+　｜ld: -lfl: no match
+　｜gmake[1]: *** [postgres] Error 1
+　｜gmake[1]: Leaving directory `/usr/local/postgres95/src/backend'
+　｜gmake: *** [all] Error 2
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: yaku@jedi.seg.kobe-u.ac.jp (Masao Yakushijin)
+Date: Wed, 22 Jan 97 02:53:53 JST
+Subject: [postgres95 1229] Re: Introduction 自己紹介
+Message-Id: &lt;970122024922.M0200906@jedi.seg.kobe-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&lt;199701211607.BAA00395@elen.edp.eng.tamagawa.ac.jp&gt;
+において1月22日(水)，鈴木＠電通大さんは書きました．
+  | はじめに自己紹介をしないといけなかったんですね（後で気づきました）。
+
+おぉっ，そうだったんですね．
+僕も気づきませんでした．
+
+神戸大学情報知能工学専攻の2回生の薬師神と申します．
+学校では一応，研究室のマシンとネットワークの管理者
+ということになっています．
+新し物好きで，HDD を自分で持ってきて，学校のマシン
+に勝手に NetBSD/sparc やら MkLinux やら Hurd なん
+かをインストールして遊んでいます．
+最近は修論で忙しくて，あまりそういう時間が取れない
+のが残念です．
+
+また，アルバイト先でFreeBSDを使っていまして，
+Postgres95 を入れてDBサーバにしています．
+今度 PowerMac に MkLinux を入れて，そちらにも 
+Postgres95 をインストールして，パフォーマンスを比
+較する予定です．
+＃以前石井さんにMkLinux用のパッチを頂いたんですが，
+＃まだ動かしてません．すみません．
+
+そのうち apache と PHP/FI を入れて，WWW でデータの
+検索ができるようにする予定です．
+
+よろしくお願いします．
+
+--
+薬師神 昌夫	 yaku@jedi.seg.kobe-u.ac.jp
+神戸大学 自然科学研究科 情報知能工学専攻 M2
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Hajime Kusakabe &lt;hajime@pht.com&gt;
+Date: Tue, 21 Jan 1997 09:32:11 -0700
+Subject: [postgres95 1228] Say hi!
+Message-ID: &lt;32E4EF8B.6D31@pht.com&gt;
+</A>
+</B></PRE>
+<PRE>
+
+日下部 肇 (hajime@pht.com)です。はじめまして。
+
+
+やっていなかった自己紹介を今回させていただきます。
+-----------------------------------------------
+１９６２ ー 愛知県一宮市 生まれ
+１９８８ ー 渡米
+１９９５ ー ユタ大学コンピュータサイエンス卒
+    現在 ー ユタ州 Pacific HiTech, Inc. で働く。
+-----------------------------------------------
+
+sql は大丈夫ですが、php/fi, postgres は勉強始めたばかりです。
+よろしくお願いします。
+
+
+  /   / ___        ____  ___   Hajime Kusakabe        hajime@pht.com
+ /---/ /  /   / / / / / /__/   Japanese Specialist    Pacific HiTech
+/   / /__/_  / / / / / /__     (801)261-1024 x.217    http://www.pht.com 
+          __/                  _/ _/ _/ _/ _/ _/ _/ _/ _/ _/ _/ _/ _/ _/
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Suzuki Yoshiaki &lt;zensyo@ann.tama.kawasaki.jp&gt;
+Date: Wed, 22 Jan 1997 01:07:05 +0900
+Subject: [postgres95 1227] Re: Introduction 自己紹介
+Message-Id: &lt;199701211607.BAA00395@elen.edp.eng.tamagawa.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+鈴木＠電通大と申します。
+
+はじめに自己紹介をしないといけなかったんですね（後で気づきました）。
+
+---
+名前  鈴木 善昭
+
+現在、電気通信大学 大学院情報システム学研究科の二年生です。
+主にFreeBSDを使っているのですが本当はNEXTSTEPを使いたい隠れNeXT信者で
+す。SQLは一年生の時に授業があったので本当はSQLは分かっていないといけな
+いんですが当時はあまり真剣じゃなかったのでほとんど素人です。
+四月からは（株）リムネットで働きます。
+
+今後ともよろしくお願いします。
+<HR>
+</PRE>

@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23956] Re: 更新はシリアルに，参照は並列実行可能なロック種別は -->
+<!--X-From: Nobuaki Tanaka <nobuakit@rose.ocn.ne.jp> -->
+<!--X-Date: Wed, 5 Dec 2001 23:41:20 +0900 -->
+<!--X-Message-Id: 20011205234120.34caaab1.nobuakit@rose.ocn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011203225308.62f93ad0.nobuakit@rose.ocn.ne.jp -->
+<!--X-Reference-Id: 3C0C145F.21D09CD2@tpf.co.jp -->
+<!--X-Reference-Id: 20011205195540K.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23956] Re: 更新はシリアルに，参照は並列実行可能なロック種別は </TITLE>
+<LINK REV="made" HREF="mailto:nobuakit@rose.ocn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00065.html">Date Prev</A>][<A HREF="msg00067.html">Date Next</A>][<A HREF="msg00061.html">Thread Prev</A>][<A HREF="msg00127.html">Thread Next</A>][<A HREF="index.html#00066">Date Index</A>][<A HREF="threads.html#00066">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23956] Re: 更新はシリアルに，参照は並列実行可能なロック種別は</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Nobuaki Tanaka &lt;<A HREF="mailto:nobuakit@rose.ocn.ne.jp">nobuakit@rose.ocn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 5 Dec 2001 23:41:20 +0900</LI>
+<LI><em>Organization</em>: NTT Software</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00036.html">20011203225308.62f93ad0.nobuakit@rose.ocn.ne.jp</A>&gt;&lt;<A HREF="msg00042.html">3C0C145F.21D09CD2@tpf.co.jp</A>&gt;&lt;<A HREF="msg00061.html">20011205195540K.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは，田中と申します．お世話になっております．
+
+石井さん，北村さん，井上さん，リプライ頂きありがとうご
+ざいます．私は少し勘違いしていたようです．
+私が試したのは，
+
+create t test ( id int );
+
+という感じでテーブルを作り適当にレコードをINSERTした後，
+
+# Session1
+	begin;
+		lock table t in share row exclusive mode;
+		update t set id = 10 where id = 5;
+
+# Session2
+	begin;
+		lock table t in share row exclusive mode;
+    .... ここでロックによって待たされる．
+
+# Session1
+	end;
+
+# Session2
+   .... 処理が再開．
+   select * from t;
+ id 
+----
+  1
+  2
+  3
+  4
+ 10
+	end;
+
+という状況でした．で，言いたかったのは，このモードでは
+どんなトランザクションであっても(例えそれが参照のみの
+トランザクションになるにせよ)同時に実行できるのは１つ
+だけなので，どうしましょうか，ということでした．が，要
+するに参照しかしないトランザクションであればロックをか
+けなければ良い，ということなんですね．言われてみればあ
+ありまえですね．
+
+-- 
+              Nobuaki Tanaka
+	 - NTT SOFT Co, Musashino Tokyo Japan -
+	         +81-422-51-4153 (Tel)
+	         +81-422-51-6261 (Fax)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00036" HREF="msg00036.html">[pgsql-jp 23926] 更新はシリアルに，参照は並列実行可能なロック種別は</A></STRONG>
+<UL><LI><EM>From:</EM> Nobuaki Tanaka &lt;nobuakit@rose.ocn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00042" HREF="msg00042.html">[pgsql-jp 23932] Re: 更新はシリアルに，参照は並列実行可能なロック種別は</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00061" HREF="msg00061.html">[pgsql-jp 23951] Re: 更新はシリアルに，参照は並列実行可能なロック種別は</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 23955] Re: exited with status 139</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00067.html">[pgsql-jp 23957] Re: FILE OUTPUT について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 23951] Re: 更新はシリアルに，参照は並列実行可能なロック種別は</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 24017] function 内にテーブル名を入れるにはどうすればいいのでしょうか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00066"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00066"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

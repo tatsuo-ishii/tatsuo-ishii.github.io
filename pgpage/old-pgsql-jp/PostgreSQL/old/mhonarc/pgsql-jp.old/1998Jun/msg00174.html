@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4444] Re: How to set sequnce&#45;numner automatically -->
+<!--X-From: "梅崎浩司" <Hiroshi_Umezaki@justsystem.co.jp> -->
+<!--X-Date: Fri, 12 Jun 1998 18:04:39 +0900 -->
+<!--X-Message-Id: 3580EF27.6259BC97@justsystem.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199806120821.RAA05396@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4444] Re: How to set sequnce-numner automatically </TITLE>
+<LINK REV="made" HREF="mailto:Hiroshi_Umezaki@justsystem.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00172.html">Date Prev</A>][<A HREF="msg00173.html">Date Next</A>][<A HREF="msg00171.html">Thread Prev</A>][<A HREF="msg00175.html">Thread Next</A>][<A HREF="index.html#00174">Date Index</A>][<A HREF="threads.html#00174">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4444] Re: How to set sequnce-numner automatically</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "梅崎浩司" &lt;<A HREF="mailto:Hiroshi_Umezaki@justsystem.co.jp">Hiroshi_Umezaki@justsystem.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 12 Jun 1998 18:04:39 +0900</LI>
+<LI><em>Organization</em>: Justsystem Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00171.html">199806120821.RAA05396@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　初めまして，梅崎といいます．
+
+　しばらく前からPostgreSQLを調べはじめてこのMLの存在を知り，いろいろ参考にさせ
+ていただきました．どうも有益な情報をありがとうございます．
+
+t-ishii@sra.co.jp wrote:
+
+&gt; 石井です。
+&gt;
+&gt; &gt;井上＠セーレンです。
+&gt; &gt;
+&gt; &gt;&gt;石井です
+&gt; &gt;[略］
+&gt; &gt;&gt;
+&gt; &gt;&gt;"Transaction Processing" (Jim Gray)に出て来たのですが、あるトランザク
+&gt; &gt;&gt;ション T1 がトランザクション T2 によって書き込まれたデータを読んだ後で、
+&gt; &gt;&gt;T2 がこのデータを更新した場合 Dirty read と言うのだそうです。
+&gt; &gt;&gt;
+&gt; &gt;この本に書いてあるのは、少しニュアンスが違うような気がしますね。
+&gt; &gt;T2が更新してまだコミットしていないデータ（論理的にはまだ存在していない
+&gt; &gt;データ）を読んでしまうことをいっているのではないのかな。
+&gt; &gt;だれか正確にわかる人いませんか？
+&gt;
+&gt; 私が見ているのは 380 ページの
+&gt;
+&gt; "Dirty Read. T1 reads an object previously written by transaction T2,
+&gt; then T2 makes further changes to the object. The version read by T1
+&gt; may be inconsistent, because it is not the final (commited) value of o
+&gt; produced by T2...."
+&gt;
+&gt; のあたりです。で、381 ページの 図7.2 では、Dirty Read の説明として、
+&gt;
+&gt;         T2      WRITE   &lt;o,2&gt;
+&gt;         T1      READ    &lt;o,2&gt;
+&gt;         T2      WRITE   &lt;o,3&gt;
+&gt;
+&gt; とあるのですが...
+&gt;
+
+これは多分方言ですが，ある実装ではSELECT文単位で排他の指定が出来て，
+
+1.　select xxx from xxx whitout lock wait;
+
+  参照の瞬間だけSロックをかけて(つまり更新途中の行は参照できない)参照が終わっ
+たらロックをはずします．これがまぁ read commited に当たるのかな．参照が終われ
+ばロックをはずしますので,その後他のトランザクションからの更新は自由に出来てし
+まい，repeatable read は保証されません．これもきっとdirtyなのですが，更新中の
+行を参照しないと言う意味ではdirtyでないと言うことなのでしょうか．
+
+2.　select xxx from xxx whitout lock nowait;
+
+　これは排他処理をスキップしますので更新途中の行のアクセス出来ます．これが
+read uncommited ですね．でこれをdirty-readと呼んでいました．PostgreSQLのソース
+はまだ調べていませんが，更新途中のへんてこりんな状態の行を処理しなければならな
+いので実装は大変かも知れませんね．
+
+
+&gt; [略]
+&gt; &gt;&gt;次に write トランザクションもある場合。今のように table 単位のロックで
+&gt; &gt;&gt;は確かに苦しいのですが、row-level ロックが実現すれば問題無いのではない
+&gt; &gt;&gt;かと思います。SELECT * のようにテーブル全体をなめるようなトランザクショ
+&gt; &gt;&gt;ンと 1 レコードだけ update するトランザクションがあったとして、競合状
+&gt; &gt;&gt;態が発生するのはその 1 レコードを同時に読もう／書こうとしたときだけで
+&gt; &gt;&gt;すよね。
+&gt; &gt;&gt;
+&gt; &gt;&gt;なんか勘違いしているかな？
+&gt; &gt;&gt;
+
+　多分ロックがかかるのは条件にヒットした行だけですが，これでも条件が甘かったり
+すると多量のロックを作ってしまい性能劣化の要因にはなるのでしょうね．対策として
+はある程度以上でエスカレーションしてページ/テーブル単位のロックに切り替えちゃ
+うとか考えられますが，実装は大変そうだし．．．
+
+　あまり参考にならなかったかも知れませんが，それでは．
+
+--
+/*--------------------------------------------------------------------------
+  株式会社 ジャストシステム
+　先進技術開発本部　製品開発部  開発グループ　　　梅崎浩司
+  E-Mail:Hiroshi_Umezaki@justsystem.co.jp
+--------------------------------------------------------------------------*/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00171" HREF="msg00171.html">[pgsql-jp 4441] Re: How to set sequnce-numner automatically</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00172.html">[pgsql-jp 4442] Re: can't load library</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 4443] RE: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00171.html">[pgsql-jp 4441] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 4445] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00174"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00174"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

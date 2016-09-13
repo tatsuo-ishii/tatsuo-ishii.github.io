@@ -1,0 +1,198 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16769] RE: vacuumdb  実行後、検索が遅くなる問題 -->
+<!--X-From: tetsuya@synox.co.jp -->
+<!--X-Date: Fri, 18 Aug 2000 15:50:43 +0900 -->
+<!--X-Message-Id: 50158B900247D411B8120090CC01C0EC1E0582@leo.forest.synox.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16769] RE: vacuumdb  実行後、検索が遅くなる問題 </TITLE>
+<LINK REV="made" HREF="mailto:tetsuya@synox.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00382.html">Date Prev</A>][<A HREF="msg00384.html">Date Next</A>][<A HREF="msg00386.html">Thread Prev</A>][<A HREF="msg00385.html">Thread Next</A>][<A HREF="index.html#00383">Date Index</A>][<A HREF="threads.html#00383">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16769] RE: vacuumdb  実行後、検索が遅くなる問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:tetsuya@synox.co.jp">tetsuya@synox.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 18 Aug 2000 15:50:43 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+栗原です。
+
+先ほどは、マルチカラムインデックスの指定方法の問題で検索が遅くなるという
+現象でしたが、もうひとつ遅くなるクエリーのパターンがあり、再質問させてい
+ただきます。
+
+トラフィックの無駄かもしれませんが、もう一度テーブル構造等を示しておきま
+す。
+# 実行 QUERY とマルチカラムインデックスの指定の改良が変更点です。
+
+ただ、この QUERY に関しては、『&lt;&gt;』の部分が問題であると分かっています
+ので、現在のところ、『&lt;&gt;』の代わりとなる『in ()』で対応しています。
+対処 QUERY 例と、クエリープランも明記しておきます。
+
+クエリープランの中の「？？？」っていったい？
+
+----------------------------------------------------------------------
+[テーブル構造]
+create table test_a
+(
+  id      integer        not null check(id &lt; 999999999),
+  text1   varchar(200)   not null,
+  status  smallint       not null default 0,
+  constraint test_a_key primary key (id)
+);
+
+create table test_b
+(
+  id      integer        not null check(id &lt; 999999999),
+  a_id    integer        not null,
+  type1   integer        not null,
+  type2   integer        not null,
+  constraint test_b_key primary key (id),
+  constraint test_b_ukey unique (a_id, type1, type2)
+);
+
+create table test_c
+(
+  id      integer        not null check(id &lt; 999999999),
+  a_id    integer        not null,
+  type1   integer        not null default -1,
+  constraint test_c_key primary key (id),
+  constraint test_c_ukey unique (a_id)
+);
+
+[実行QUERY]
+select
+  count(*)
+from
+  test_a as a, test_b as b, test_c as c
+where
+  a.id = b.a_id and c.a_id = a.id and
+  a.status = 0 and
+  b.type1 = 0 and b.type2 = 0 and
+  c.type1 &lt;&gt; -1;
+
+[サンプルデータ]
+このテストでは、test_a, test_b, test_c のそれぞれに1万件のレコードを
+insertしています。
+上記 QUERY の where 句のなかで、a.status, b.type1, b.type2 の条件に
+関しては、全てのレコード（各テーブルの）が条件を満たすようなデータが想
+定されています。
+# つまり、test_a.status は全てのレコードが0、test_b.type1,
+# test_b.type2 も全てのレコードが0です。
+
+ただし、test_a.text1 には、10000始まりの数字が insert されています。
+# 10000〜19999です。
+
+さらに、test_c.type1 には、全て0が入っています。
+
+よって、上記 QUERY を実行すると、3439件がヒットします。
+
+[クエリープラン]
+
+vacuumdb 使用前（1秒かからずに応答）
+
+Aggregate  (cost=47.10 rows=2 width=12)
+  -&gt;  Nested Loop  (cost=47.10 rows=2 width=12)
+    -&gt;  Nested Loop  (cost=45.05 rows=1 width=8)
+      -&gt;  Seq Scan on test_b b  (cost=43.00 rows=1 width=4)
+      -&gt;  Index Scan using test_a_key on test_a a  (cost=2.05 rows=2
+width=4)
+    -&gt;  Index Scan using test_c_ukey on test_c c  (cost=2.05 rows=1000
+width=4)
+
+vacuumdb --analyze 使用後（？分かかって応答）
+
+Aggregate  (cost=389.00 rows=1 width=12)
+  -&gt;  Nested Loop  (cost=389.00 rows=1 width=12)
+    -&gt;  Seq Scan on test_c c  (cost=389.00 rows=0 width=4)
+    -&gt;  Seq Scan  (cost=1473.00 rows=10000 width=8)
+      -&gt;  ???  (cost=1473.00 rows=10000 width=8)
+        -&gt;  Hash Join  (cost=1473.00 rows=10000 width=8)
+          -&gt;  Seq Scan on test_b b  (cost=394.00 rows=10000 width=4)
+          -&gt;  Hash  (cost=394.00 rows=10000 width=4)
+            -&gt;  Seq Scan on test_a a  (cost=394.00 rows=10000 width=4)
+
+[問題対処 QUERY]
+select
+  count(*)
+from
+  test_a as a, test_b as b, test_c as c
+where
+  a.id = b.a_id and c.a_id = a.id and
+  a.status = 0 and
+  b.type1 = 0 and b.type2 = 0 and
+  c.type1 in (0, N...); -- N以降、5つぐらいの指定があります。
+
+[対処クエリープラン（vacuumdb 使用後）]
+Aggregate  (cost=2547.00 rows=10000 width=12)
+  -&gt;  Hash Join  (cost=2547.00 rows=10000 width=12)
+    -&gt;  Hash Join  (cost=1473.00 rows=10000 width=8)
+      -&gt;  Seq Scan on test_b b  (cost=394.00 rows=10000 width=4)
+      -&gt;  Hash  (cost=394.00 rows=10000 width=4)
+        -&gt;  Seq Scan on test_a a  (cost=394.00 rows=10000 width=4)
+    -&gt;  Hash  (cost=389.00 rows=10000 width=4)
+      -&gt;  Seq Scan on test_c c  (cost=389.00 rows=10000 width=4)
+
+----------------------------------------------------------------------
+
+---
+Tetsuya Kurihara
+tetsuya@synox.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00385" HREF="msg00385.html">[pgsql-jp 16771] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00382.html">[pgsql-jp 16768] Re:定期的なスクリプト【便乗】</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 16770] Re: [pgsql-jp 16767] Re: [pgsql-jp 16762] Re: 定期的なスクリプト【便乗】</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 16772] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00385.html">[pgsql-jp 16771] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00383"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00383"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

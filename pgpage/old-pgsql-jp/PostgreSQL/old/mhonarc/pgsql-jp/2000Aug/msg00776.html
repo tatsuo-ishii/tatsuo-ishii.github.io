@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17178] Re: null  値とEXCEPT -->
+<!--X-From: Jun TATEYAMA <tateyama@ase.co.jp> -->
+<!--X-Date: Thu, 31 Aug 2000 15:20:56 +0900 -->
+<!--X-Message-Id: 39ADF94846.AB33TATEYAMA@mxa.ase.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200008310528.AA04676@akaman.eastmail.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17178] Re: null  値とEXCEPT </TITLE>
+<LINK REV="made" HREF="mailto:tateyama@ase.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00775.html">Date Prev</A>][<A HREF="msg00777.html">Date Next</A>][<A HREF="msg00775.html">Thread Prev</A>][<A HREF="msg00778.html">Thread Next</A>][<A HREF="index.html#00776">Date Index</A>][<A HREF="threads.html#00776">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17178] Re: null  値とEXCEPT</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun TATEYAMA &lt;<A HREF="mailto:tateyama@ase.co.jp">tateyama@ase.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 Aug 2000 15:20:56 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:tateyama@ase.co.jp">tateyama@ase.co.jp</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00775.html">200008310528.AA04676@akaman.eastmail.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+pgsql-jpの皆様、こんにちは。舘山です。
+
+On Thu, 31 Aug 2000 12:28:06 +0700
+You(Akagi &lt;akaman@eastmail.com&gt; さま) wrote:
+
+&gt; 早速質問で恐縮ですがnull値を含むテーブルのexceptが正しいが得られ
+&gt; ないという問題がどうしてもわかりません。
+　（中略）
+
+&gt; select * from test1 except select * from test2 ; 
+&gt;  hinmei 
+&gt; --------
+&gt; (0 rows)
+&gt; 
+&gt; なお不思議なことに逆はOKで
+&gt; select * from test2 except select * from test1 ; 
+&gt;  hinmei 
+&gt; --------
+&gt;  ONION
+&gt;  POTATO
+&gt; (2 rows)
+&gt; 
+&gt; またnull値のカラムを削除すると正しい答えが得られますし
+&gt; null値を空文字列と入れ替えても正しい答えが得られます。
+&gt; これは仕様なのでしょうか、たぶん初歩的なミスをおかしていると
+&gt; 思いますがご指摘いただけると幸いです。
+
+　私も手元のPostgreSQL-7.0.2で確認してみましたが、当然のごとく
+　赤城さんと同じ結果となりました。
+
+　これは、やはり「仕様」と考えざるを得ないのではないでしょうか。
+　PostgreSQLでは、nullをしっかりと「不定値」として扱っている、
+　ということだと思われます。
+　＃不定なのだから、比較の基準(対象)にはなり得ない、ということ
+　＃でしょうか。
+
+　ちなみに、ORACLEで同様のことを試してみました。
+　＃なお、ORACLEでは'except'ではなく、'minus'という演算子を使います。
+
+　すると、最初のSQLでは、
+	HINMEI
+	----------
+	APPLE
+	BANANA
+	LEMON
+	MANGO
+　が、結果として得られ、2番目のSQLでは、
+	HINMEI
+	----------
+	ONION
+	POTATO
+	
+　が得られました。
+　＃画面上では見えませんが、2番目のSQLでは、hinmeiがnullのrowも
+　＃SELECTされています。
+
+　深読みすると、ORACLEで'except'ではなく'minus'としたのは、
+　こういう結果を求めるためだったのかもしれません。
+　＃unionやintersectはORACLEにもありますから。
+
+　話が逸れてしまいましたが、赤城さんが望む(望んでいると思われる)結果を
+　得るためには面倒でも、
+
+	select * from test1 
+	except 
+	select * from test2 
+	  where hinmei is not null 
+
+　とでもしてやらなければ、だめなのでしょうね。
+　こうすると、PostgreSQLでも
+	hinmei
+	--------
+ 	BANANA
+ 	LEMON
+ 	APPLE
+ 	MANGO
+	(4 rows)
+　という結果が返ってきました。
+　ご参考になれば、幸いです。
+---
+Jun TATEYAMA(tateyama@ase.co.jp)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00778" HREF="msg00778.html">[pgsql-jp 17180] Re: null 値とEXCEPT</A></STRONG>
+<UL><LI><EM>From:</EM> akaman@eastmail.com</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00775" HREF="msg00775.html">[pgsql-jp 17177] null 値とEXCEPT</A></STRONG>
+<UL><LI><EM>From:</EM> Akagi &lt;akaman@eastmail.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00775.html">[pgsql-jp 17177] null 値とEXCEPT</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00777.html">[pgsql-jp 17179] Re: アップデート時のおかしな現象。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00775.html">[pgsql-jp 17177] null 値とEXCEPT</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00778.html">[pgsql-jp 17180] Re: null 値とEXCEPT</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00776"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00776"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

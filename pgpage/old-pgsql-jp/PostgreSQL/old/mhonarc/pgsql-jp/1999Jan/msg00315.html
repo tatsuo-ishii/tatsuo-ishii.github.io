@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6728] Re: LOW LEVEL LOCKINGとは？ -->
+<!--X-From: Toru Aiba <taiba@ca2.so&#45;net.or.jp> -->
+<!--X-Date: Thu, 21 Jan 1999 14:26:22 +0900 -->
+<!--X-Message-Id: 36A6BA7E.ECF2808E@ca2.so&#45;net.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000601be44d8$dc948c20$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6728] Re: LOW LEVEL LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:taiba@ca2.so-net.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00314.html">Date Prev</A>][<A HREF="msg00316.html">Date Next</A>][<A HREF="msg00309.html">Thread Prev</A>][<A HREF="msg00328.html">Thread Next</A>][<A HREF="index.html#00315">Date Index</A>][<A HREF="threads.html#00315">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6728] Re: LOW LEVEL LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toru Aiba &lt;<A HREF="mailto:taiba@ca2.so-net.or.jp">taiba@ca2.so-net.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 21 Jan 1999 14:26:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00309.html">000601be44d8$dc948c20$2801007e@cadzone.tpf.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+相場＠ＩＳＯＬです。なるほど、なるほど。
+
+ということは LOW-LEVEL LOCKING （とかつて言われたもの?）の実態は MVCC
+(Multi-Versioning Concurrency Control 、あるいはそれに ROW-LEVEL LOCKING
+を組み合わせた新しい機能で 6.5 で導入が予定されているということですね。
+ROW-LEVEL LOCKING の実態はまだ見えませんが、これは期待出来そうです。
+
+Hiroshi Inoue wrote:
+
+&gt; &gt; &gt; まず、私は LLL(Low-Level Locking) ということばを本家のMLの議論で知りま
+&gt; &gt; &gt; した。LLL が学術的に確立された用語かどうかは知りませんが、彼らは明らか
+&gt; &gt; &gt; に Row-Level Locking とは区別しています。私の解釈では、LLL は
+&gt; 
+&gt; 実装者であるVadim氏も、最近はLLLという言葉を使っていないようです。
+&gt; できるだけロックをかけないようにしようという思想的なものでしょうか？
+&gt; 
+&gt; &gt; &gt; Row-Level Lock や Page-Level Locking も含んだ、ようするに Table-Level
+&gt; &gt; &gt; Locking よりも粒度の細かいロック一般を指しているのだろうと思います。で
+&gt; &gt; &gt; すから、LLL によって複数のトランザクションが並行して走る可能性が増えま
+&gt; &gt; &gt; す。これが嬉しい理由です。
+&gt; &gt; &gt;
+&gt; &gt; &gt; では、実際には 6.5 の LLL はどのようなものになるのでしょう。私は最初は
+&gt; &gt; &gt; 極単純に Row-Level か Page-Level のロックを行うんだろう、位の認識しか
+&gt; &gt; &gt; なかったのですが、どうも違うようです。
+&gt; &gt; &gt;
+&gt; &gt; &gt; 6.5 では MVCC (Multi-Versioning Concurrency Control(?))を使います。こ
+&gt; &gt; &gt; れは DELETE や UPDATE で行を更新しても、以前の行の内容が保存されるシス
+&gt; &gt; &gt; テムです。これと各行が持つトランザクションIDを併用することにより、並行
+&gt; &gt; &gt; して走るトランザクションがお互いに干渉することがなくなります。これは、
+&gt; &gt; &gt; 基本的にはロックが不要であることを意味します。実際、6.5 では、違う行を
+&gt; &gt; &gt; アクセスする限り、テーブル全体にロックを掛けることなしに、複数のトラン
+&gt; &gt; &gt; ザクションが同じテーブルを同時に更新することができます(今は、どちらか
+&gt; &gt; &gt; のトランザクションが commit するまで待たされる)。
+&gt; &gt; &gt;
+&gt; &gt; &gt; 6.5 のもう一つのロックは、バッファからの読み書きです。PostgreSQL では、
+&gt; &gt; &gt; 効率を上げるためにバックエンドプロセス間で共有されるバッファを使います。
+&gt; &gt; &gt; テーブルやインデックスを読み時は、まずそのテーブル全体に shared lockを
+&gt; &gt; &gt; かけ、1 ページ読みだしてバッファに格納したらすぐにロックを解除します。
+&gt; &gt; &gt; これはテーブル全体をロックしますが、トランザクションの終了を待たずにロッ
+&gt; &gt; &gt; クを解除するので short-term locking と呼ばれています。これに対して、通
+&gt; &gt; &gt; 常の 2 phase lock では、一度かけたロックは commit/abort まで解除されま
+&gt; &gt; &gt; せんので、long-term locking ということになります。
+&gt; &gt; &gt;
+&gt; &gt; &gt; とりあえず6.5のトランザクション管理について、私が理解しているのはこの
+&gt; &gt; &gt; 位です。引続き勉強しなくては。
+&gt; &gt; &gt;
+&gt; 
+&gt; 私が理解していいる新MVCCのおおまかな内容は次のとおりです。
+&gt; 
+&gt; １．読み込み時には基本的にロックがかからない（現在はテーブル単位の共有
+&gt;      ロックがかかる）。
+&gt;      私の場合現在のロック方式では、おちおち検索もできないという気持ちに
+&gt;      なってしまうのですが、みなさんはどうなのでしょう。
+&gt; 
+&gt; ２．書き込み（UPDATE/INSERT/DELETE)時には基本的に行単位ロックが
+&gt;      かかる。
+&gt; 
+
+-- 
+Toru Aiba : とりあえず MB 抜きでの AIX での6.4.2のビルドは完了！
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00309" HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00314.html">[pgsql-jp 6727] テーブルロックについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 6729] Re: 6.4.2でpg_dump できない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00315"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00315"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

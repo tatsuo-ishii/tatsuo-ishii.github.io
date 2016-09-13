@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23760] Re: oid が2^32を超えた場合 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 16 Nov 2001 10:11:29 +0900 -->
+<!--X-Message-Id: 20011116101129F.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 004f01c16db3$0a1ab2e0$020aa8c0@win2000 -->
+<!--X-Reference-Id: 20011115231851I.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 003701c16de9$83586360$020aa8c0@win2000 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23760] Re: oid が2^32を超えた場合 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00175.html">Date Prev</A>][<A HREF="msg00177.html">Date Next</A>][<A HREF="msg00175.html">Thread Prev</A>][<A HREF="msg00177.html">Thread Next</A>][<A HREF="index.html#00176">Date Index</A>][<A HREF="threads.html#00176">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23760] Re: oid が2^32を超えた場合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 16 Nov 2001 10:11:29 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00166.html">004f01c16db3$0a1ab2e0$020aa8c0@win2000</A>&gt;&lt;<A HREF="msg00172.html">20011115231851I.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00175.html">003701c16de9$83586360$020aa8c0@win2000</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; DEBUG:  database system was shut down at 2001-11-14 07:51:32 JST
+&gt; DEBUG:  CheckPoint record at (62, 722574388)
+&gt; DEBUG:  Redo record at (62, 722574388); Undo record at (0, 0); Shutdown TRUE
+&gt; DEBUG:  NextTransactionId: 8157; NextOid: 12
+&gt; FATAL 2:  Invalid NextTransactionId/NextOid
+&gt; postmaster: Startup proc 881 exited with status 512 - abort
+&gt; 
+&gt; NextOidが12でInvalidだと言われているのではないかと
+&gt; 思うのですが、
+
+その通りです．
+
+&gt; 何か対処法などありますでしょうか。
+
+本当はWALログのnext oid レコードや，checkpointレコードに書かれている
+NextOidをそれらしい値(16385以上)に書き換えてあげればよいのですが，バイ
+ナリファイルをeditするのはなかなか骨なので，src/backend/transam/xlog.c 
+の2374行目あたり
+
+	if (checkPoint.nextXid &lt; FirstTransactionId ||
+		checkPoint.nextOid &lt; BootstrapObjectIdData)
+		elog(STOP, "Invalid NextTransactionId/NextOid");
+
+	if (checkPoint.nextXid &lt; FirstTransactionId)
+		elog(STOP, "Invalid NextTransactionId/NextOid");
+
+と書き換えてOIDのチェックを外してpostmasterを作り直せば，とりあえず
+postmasterは立ち上がるようになると思います．そしてすかさずpg_dumpして
+DBを再構築すればよいでしょう．
+(作業が終わったら元のpostmasterに戻しておいた方が良いでしょう)
+
+以上，試していないのでまったくの無保証です．
+
+ところでお願いですが，7.2ではこういうエラーは発生しないはずなので，で
+きれば7.2beta2あたりで「2^32 OIDテスト」をして頂けないでしょうか?
+
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/7.2beta/postgresql-7.2b2.tar.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/7.2beta/postgresql-7.2b2.tar.gz</A>
+
+で入手できます．
+
+# 2^32のOIDを作り出す方法ですが，やはり地道にデータをたくさん登録し続
+# けたのですか?
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 23771] WAL file name (was: oidが2^32	を超えた場合)</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00178" HREF="msg00178.html">[pgsql-jp 23762] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 23761] Re: oid  が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> naoki kishida &lt;kishida@fk.urban.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp 23750] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp 23756] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp 23759] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 23759] Re: oid が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 23761] Re: oid  が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 23759] Re: oid が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 23761] Re: oid  が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00176"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00176"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,127 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4888] Postgresカーソルについて -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Tue, 28 Jul 1998 19:02:48 +0900 -->
+<!--X-Message-Id: 000001bdba0e$dfd48fc0$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4888] Postgresカーソルについて </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00274.html">Date Prev</A>][<A HREF="msg00272.html">Date Next</A>][<A HREF="msg00280.html">Thread Prev</A>][<A HREF="msg00274.html">Thread Next</A>][<A HREF="index.html#00273">Date Index</A>][<A HREF="threads.html#00273">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4888] Postgresカーソルについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 Jul 1998 19:02:48 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上＠セーレンです。
+
+すでに議論されたことがあるのかもしれませんが？。
+Postgresにも、SQL-92でいうINSENSITIVEなカーソルが必要だと思うの
+ですがどうでしょうか？
+TODOリストにも対応予定がないみたいなんですが。
+
+たとえば、次のようなおかしなケースが発生します。
+実データは１行しかないのに、fetchはいつまでも成功するようです。
+
+create table curtest (
+key int4 primary key,
+data int4);
+insert into curtest values (1,1);
+begin;
+declare tstcur cursor for
+select * from curtest;
+fetch in tstcur;
+update curtest set data=data+1 where key=1;
+fetch in tstcur;
+update curtest set data=data+1 where key=1;
+fetch in tstcur;
+update curtest set data=data+1 where key=1;
+fetch in tstcur;
+update curtest set data=data+1 where key=1;
+．
+．
+
+Postgres v 6.3.2では
+    Postgresのカーソルは更新不可。
+    他のトランザクションからの更新は不可（テーブルロックがかかるため）。
+ではありますが、自身のトランザクションによる通常の更新系のコマンドは
+使用可能です。
+そして、上記の場合カーソルのfetch処理にそれが反映されてしまいます。
+Postgresの更新処理が追記型に近いためかupdateを行うと同じ行に再会
+することになってしまうようです。
+
+しかし、カーソル宣言を次のように修正するとfetchは１度しか成功しません。
+declare tstcur cursor for
+select * from curtest order by data;
+
+この場合はSortのためにFetchの前に全データを読み込む必要があるため、
+INSENSITIVEにしかできないのでしょう。
+
+上記の例からすると、最適化のやり方によっては結果が変わってしまうこと
+も十分あると思われます。
+
+一方で、Postgresにはlibpqがあるのでカーソルそのものがいらないという
+意見まであるようです。上記にこだわらずカーソル使用に関することなら
+何でも結構です。
+ご意見をお願いします。
+
+セーレン（株） マルチＣＡＤ開発部
+           井上 博史
+       E-mail:Inoue@tpf.co.jp
+                 Inoue@seiren.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00274.html">[pgsql-jp 4889] perl5でのインターフェースの訳文</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 4887] ML server change</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 4895] Re: ML server change</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00274.html">[pgsql-jp 4889] perl5でのインターフェースの訳文</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00273"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00273"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

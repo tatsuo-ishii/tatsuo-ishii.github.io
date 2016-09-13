@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22786] Re: Re: JOIN -->
+<!--X-From: Masaru Sugawara <rk73@echna.ne.jp> -->
+<!--X-Date: Fri, 17 Aug 2001 00:38:20 +0900 -->
+<!--X-Message-Id: 20010817001434.79F0.RK73@echna.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010815123710.99885.qmail@web116.mail.yahoo.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22786] Re: Re: JOIN </TITLE>
+<LINK REV="made" HREF="mailto:rk73@echna.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00122.html">Date Prev</A>][<A HREF="msg00124.html">Date Next</A>][<A HREF="msg00115.html">Thread Prev</A>][<A HREF="msg00110.html">Thread Next</A>][<A HREF="index.html#00123">Date Index</A>][<A HREF="threads.html#00123">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22786] Re: Re: JOIN</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaru Sugawara &lt;<A HREF="mailto:rk73@echna.ne.jp">rk73@echna.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 17 Aug 2001 00:38:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00112.html">20010815123710.99885.qmail@web116.mail.yahoo.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すがわら/ＲＫ７３です。
+
+Message-ID:&lt;<A HREF="msg00112.html">20010815123710.99885.qmail@web116.mail.yahoo.co.jp</A>&gt;  
+Mail-Count:pgsql-jp 22775    Date&amp;Time:2001/08/15 21:37:10
+W T &lt;who_top@yahoo.co.jp&gt;さんのφ(..@)について
+
+
+&gt; SELECTの外部結合ですが、これは、三つ以上のテーブルを結合
+&gt; することはできますでしょうか。
+
+ outer joinが使えないということであれば、山口さんが書かれてい
+ るようにunionになるでしょうね。三つ以上もunionを繰り返せば可
+ 能は可能です。でも重そうです
+
+-- ============================================================== --
+create table 
+ メイン(顧客番号 varchar(5) primary key, 
+        顧客氏名 varchar(50),
+        年齢 int2, check((年齢&gt;=0 and 年齢&lt;=130) or 年齢 is null)
+        );
+
+create table
+ サブ１(顧客番号 varchar(5) primary key references メイン(顧客番号),
+        性別 varchar(5), check(性別 in ('男性', '女性', null))
+        );
+
+create table
+ サブ２(顧客番号 varchar(5) references メイン(顧客番号),
+        職業 varchar(50)
+        -- 一人で二つ以上の職業を持っているかもしれないので、
+        -- インデックスは付けませんでした。重複しないことが
+        -- 確定していれば付けたほうがよいですね。
+        );
+
+insert into メイン values('001', '一郎', 10);
+insert into メイン values('002', '花子', 20);
+insert into メイン values('003', '三郎', 30);
+insert into メイン values('004', '四郎', 40);
+insert into サブ１ values('001', '男性');
+insert into サブ１ values('002', '女性');
+insert into サブ１ values('003', '男性');
+insert into サブ２ values('001', '学生');
+insert into サブ２ values('002', 'フリーター');
+
+
+-- ============================================================= --
+select a.顧客番号, a.顧客氏名, a.年齢, b.職業, a.性別
+  from (
+         --&gt;&gt; ここから
+         select m1.*, s1.性別 from メイン m1, サブ１ s1
+         where m1.顧客番号 = s1.顧客番号
+         union all
+         select m2.*, null from メイン m2
+         where not exists
+           (select * from サブ１ s2 where m2.顧客番号=s2.顧客番号)
+         --&lt;&lt; ここまでがunionを使ってメインとサブ１を外部結合
+        ) a,
+        (
+         --&gt;&gt; ここから
+         select m3.*, s3.職業 from メイン m3, サブ２ s3
+         where m3.顧客番号 = s3.顧客番号
+         union all
+         select m4.*, null from メイン m4
+         where not exists
+           (select * from サブ２ s4 where m4.顧客番号=s4.顧客番号)
+         --&lt;&lt; ここまでがunionを使ってメインとサブ２を外部結合
+        ) b
+  where a.顧客番号 = b.顧客番号    -- 最後にa,bを結合する
+;
+
+
+--------------------------------
+  Masaru Sugawara
+  e-mail:&lt;rk73@echna.ne.jp&gt;
+ -------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00112" HREF="msg00112.html">[pgsql-jp 22775] Re:Re: JOIN</A></STRONG>
+<UL><LI><EM>From:</EM> W T &lt;who_top@yahoo.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00122.html">[pgsql-jp 22785] Re: 7.1.2 のクエリプランナ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 22787] Re: まとめてupdate</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 22778] Re: Re: JOIN</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 22773] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00123"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00123"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

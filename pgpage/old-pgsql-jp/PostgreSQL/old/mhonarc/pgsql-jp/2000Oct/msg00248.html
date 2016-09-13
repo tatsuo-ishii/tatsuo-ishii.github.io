@@ -1,0 +1,194 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18204] Re: psql の\copyのエラー時の処理継続 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 17 Oct 2000 15:28:07 +0900 -->
+<!--X-Message-Id: 20001017152807W.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: v04210a08b5f7661d1abb@[192.168.0.110] -->
+<!--X-Reference-Id: 20000927210315H.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200009280022.JAA08916@localhost.localdomain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18204] Re: psql の\copyのエラー時の処理継続 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00247.html">Date Prev</A>][<A HREF="msg00249.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00245.html">Thread Next</A>][<A HREF="index.html#00248">Date Index</A>][<A HREF="threads.html#00248">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18204] Re: psql の\copyのエラー時の処理継続</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 17 Oct 2000 15:28:07 +0900</LI>
+<LI><em>References</em>: &lt;v04210a08b5f7661d1abb@[192.168.0.110]&gt;&lt;20000927210315H.t-ishii@sra.co.jp&gt;&lt;200009280022.JAA08916@localhost.localdomain&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; 細川＠グッデイです。
+&gt; 
+&gt; On Wed, 27 Sep 2000 21:03:15 +0900
+&gt; Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+&gt; 
+&gt; &gt; \copyやpg_dumpからのimportでエラーになるという報告を他にも知っています．
+&gt; &gt; どうも同じデータでも，ファイルからcopyするとOKで，copy from stdinや
+&gt; &gt; \copyだとエラーになる傾向があるようです．再現性さえあればデバッグでき
+&gt; &gt; るのですが... どなたか再現性のあるデータを提供していただけないでしょう
+&gt; &gt; か?
+&gt; 
+&gt; おっしゃっている現象とは違うかも知れませんが、漢字の泣き別れ
+&gt; の問題は添付のスクリプトで再現できます。
+
+とりあえずcopy時の漢字の泣き別れ対処用のパッチを作りました．よかったら
+お試し下さい(7.0.2用)．
+
+ところで，7.0.xでは，copy どころか，insert でも char()型のカラムにデー
+タを格納すると、漢字の泣き別れが起きることを確認しました．このパッチに
+より、その問題もfixするはずです(varcharにはこの障害はありません)．
+--
+Tatsuo Ishii
+</PRE>
+<PRE>
+*** postgresql-7.0.2/src/backend/utils/adt/varchar.c.orig	Tue Oct 17 09:07:02 2000
+--- postgresql-7.0.2/src/backend/utils/adt/varchar.c	Tue Oct 17 15:11:57 2000
+***************
+*** 79,85 ****
+--- 79,95 ----
+  		atttypmod = len + VARHDRSZ;
+  	}
+  	else
++ #ifdef MULTIBYTE
++ 	{
++ 		/*
++ 		 * truncate multi-byte string preserving multi-byte
++ 		 * boundary
++ 		 */
++ 		len = pg_mbcliplen(s, atttypmod - VARHDRSZ, atttypmod - VARHDRSZ);
++ 	}
++ #else
+  		len = atttypmod - VARHDRSZ;
++ #endif
+  
+  	result = (char *) palloc(atttypmod);
+  	VARSIZE(result) = atttypmod;
+***************
+*** 96,102 ****
+--- 106,116 ----
+  #endif
+  
+  	/* blank pad the string if necessary */
++ #ifdef MULTIBYTE
++ 	for (; i &lt; atttypmod - VARHDRSZ; i++)
++ #else
+  	for (; i &lt; len; i++)
++ #endif
+  		*r++ = ' ';
+  	return result;
+  }
+***************
+*** 160,166 ****
+  #ifdef MULTIBYTE
+  
+  	/*
+! 	 * truncate multi-byte string in a way not to break multi-byte
+  	 * boundary
+  	 */
+  	if (VARSIZE(s) &gt; len)
+--- 174,180 ----
+  #ifdef MULTIBYTE
+  
+  	/*
+! 	 * truncate multi-byte string preserving multi-byte
+  	 * boundary
+  	 */
+  	if (VARSIZE(s) &gt; len)
+***************
+*** 325,331 ****
+  
+  	len = strlen(s) + VARHDRSZ;
+  	if (atttypmod &gt;= (int32) VARHDRSZ &amp;&amp; len &gt; atttypmod)
+! 		len = atttypmod;		/* clip the string at max length */
+  
+  	result = (char *) palloc(len);
+  	VARSIZE(result) = len;
+--- 339,352 ----
+  
+  	len = strlen(s) + VARHDRSZ;
+  	if (atttypmod &gt;= (int32) VARHDRSZ &amp;&amp; len &gt; atttypmod)
+! 	{
+! 		/* clip the string at max length */
+! #ifdef MULTIBYTE
+! 		len = pg_mbcliplen(s, len - VARHDRSZ, atttypmod - VARHDRSZ) + VARHDRSZ;
+! #else
+! 		len = atttypmod;
+! #endif
+! 	}
+  
+  	result = (char *) palloc(len);
+  	VARSIZE(result) = len;
+***************
+*** 386,392 ****
+  #ifdef MULTIBYTE
+  
+  	/*
+! 	 * truncate multi-byte string in a way not to break multi-byte
+  	 * boundary
+  	 */
+  	len = pg_mbcliplen(VARDATA(s), slen - VARHDRSZ, slen - VARHDRSZ);
+--- 407,413 ----
+  #ifdef MULTIBYTE
+  
+  	/*
+! 	 * truncate multi-byte string preserving the multi-byte
+  	 * boundary
+  	 */
+  	len = pg_mbcliplen(VARDATA(s), slen - VARHDRSZ, slen - VARHDRSZ);
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 18203] Re: 正規化について。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 18205] Re: mod_auth_pgphp(Re: 格納の為にファイルアップロード)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 18216] Re: Serial</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 18201] PostgreSQL をNTのサービスとして登録する(invoker)について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00248"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00248"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

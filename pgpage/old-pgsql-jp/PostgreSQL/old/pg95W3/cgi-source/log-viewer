@@ -1,0 +1,51 @@
+#! /bin/sh
+CGIPARSE=/usr/people/ishii/cgi-bin/cgiparse
+CGIUTILS=/usr/people/ishii/cgi-bin/cgiutils
+MKGRAPH=/usr/people/ishii/cgi-bin/mkgraph
+LOGDIR=/disk2/www/log
+tmp1=/tmp/log1$$
+tmp2=/tmp/log2$$
+trap "rm -f $tmp1 $tmp2 $tmp3; exit" 0 1 2 13 15
+
+eval `$CGIPARSE -init`
+eval `$CGIPARSE -form`
+
+$CGIUTILS -ct text/html
+
+echo "<html>"
+echo "<title>log graph</title>"
+echo "<body>"
+
+cd $LOGDIR
+if [ "$FORM_key" != "" ];then
+     grep $FORM_key log* > $tmp1
+else
+     cat log* > $tmp1
+fi
+
+cat $tmp1|awk '{print $4}'|sed -e 's/\[//' -e 's/:.*//'|
+awk -F/ '{print $3 $2 $1}'|
+sed -e 's/Jan/01/' \
+	-e 's/Feb/02/' \
+	-e 's/Mar/03/' \
+	-e 's/Apr/04/' \
+	-e 's/May/05/' \
+	-e 's/Jun/06/' \
+	-e 's/Jul/07/' \
+	-e 's/Aug/08/' \
+	-e 's/Sep/09/' \
+	-e 's/Oct/10/' \
+	-e 's/Nov/11/' \
+	-e 's/Dec/12/' |
+awk '{
+cnt[$1] += 1
+}
+END {
+for (date in cnt) print date, cnt[date]
+}' |
+sort -n +0 -1  > $tmp2
+#echo "<img src=\"$MKGRAPH?$tmp1\">"
+cat $tmp2
+
+echo "</body>"
+echo "</html>"

@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3643] Re: LANG (Re: Benchmark result on HP&#45;UX B.10.20) -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 20 Mar 1998 10:59:07 +0900 -->
+<!--X-Message-Id: 199803200159.KAA20185@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9803191019.AA23585@pbsun11.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3643] Re: LANG (Re: Benchmark result on HP-UX B.10.20) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00210.html">Date Prev</A>][<A HREF="msg00209.html">Date Next</A>][<A HREF="msg00209.html">Thread Prev</A>][<A HREF="msg00212.html">Thread Next</A>][<A HREF="index.html#00211">Date Index</A>][<A HREF="threads.html#00211">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3643] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 20 Mar 1998 10:59:07 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;たかばです。
+
+&gt;&gt; 環境変数 PGLANG などですべて設定ができると有りがたいですね．
+&gt;&gt; overhead も随分なものになりそうですが，昔 sybase 使って
+&gt;&gt; いたときには，言語指定でエラーメッセージもすべて日本語対応に
+&gt;&gt; なっていたような気がします．あの方式ですと，授業には使い
+&gt;&gt; やすくていいですね．
+
+パーサの出すエラーメッセージを日本語にする位なら overhead も問題になら
+ないでしょうから、やってみても良いかも知れないですね。
+
+&gt;私は、コード変換の場所は 「2 libpq の中」 が良いと思います。
+
+ふむふむ。
+
+&gt;	o libpq からサーバに現在の encoding を問い合わせる。
+&gt;		SELECT dblang FROM pg_locale
+
+どうでもいいんですが、PostgreSQL では、サーバの内部ステータスを問い合
+わせるのは "SHOW" というコマンドを使うように統一されているので、
+		SHOW SERVER_ENCODING
+のようになるのではと思っています。
+
+&gt;	  の様な感じ。エラーになったら en_US.8859-1 とする。
+
+というか、エラーになったら無変換ですね。MB patch の当たっていないサー
+バでも、 EUC なら(regexp とlikeを除き)使えますから。
+
+&gt;	o libpq がこの情報と PGLANG (仮称) をみて、
+&gt;	  変換出来ればサーバにコネクションをはる。
+&gt;
+&gt;	o libpq で DB encoding と FE encoding 変換を行う。
+
+セッションを張ったまま、クライアント側のコード系を変更したい場合はどう
+するのでしょう？サーバ側でコード変換を行なうのであれば、
+
+	SET CLIENT_ENCODING EUC_JP
+
+のようなコマンドを発行することにより可能になると思いますが。
+
+&gt;フロントエンド側の作業が増えますが、
+&gt;サーバとは別のマシンにコード変換を必要とする
+&gt;クライアントをたくさん抱える場合、
+&gt;DB システムの総合処理能力の点から見て有利であると思います。
+
+一般論としてはそうだと思います。ただ、変換コストを詳細に検討すると、高
+くつくのは UTF-8 との変換だけなんですね(変換テーブルが必要なため)。MB
+patch を当てた場合、regexp や like では読み出すタプル分だけ multi-byte
+&lt;---&gt; wchar の変換を内部的に行なっています。そのコストと比較すれば、入
+力 query をコード変換する場合や、検索結果をクライアントに返すときのコー
+ド変換のコストはたいしたことないような気がします(UTF-8を除く)。
+
+&gt;また、mb patch のあたっていないサーバにもアクセス可能となります。
+
+ここはちょっと意味が分かりませんでした。
+
+&gt;ODBC はよくわからないですが、
+
+是非片岡さんの御意見をお伺いしたいですね。
+
+&gt;JDBC では、DB encoding がコネクションの段階でわかれば、
+&gt;PostgreSQL-JDBC ドライバのなかでコード変換は可能です。
+&gt;( 先日私が mail した patch の "UTF-8" ってところを、
+&gt;  コネクションを張ったときに得られる DB encoding に合うものにする。)
+
+ちょっと一貫していないし、直交していないのですが、UTF-8 なデータベース
+を Java 以外のクライアントが使うとは思えないので、
+
+o UTF-8 はクライアント側でコード変換
+o それ以外はサーバ側で変換する
+
+というのはどうでしょう。
+
+# Unix magazine の今月号の記事で、Java の encoding ことが書いてありまし
+# た。まともにやろうとすると、Unicode と他のコード系の変換は思ったよりも
+# 難しいし、問題を含んでいるのですね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 3644] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+<UL><LI><EM>From:</EM> kageyama@roland.co.jp (Morihiro Kageyama)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 3641] LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+<UL><LI><EM>From:</EM> Toshiharu Takaba &lt;tosh-t@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 3642] 6.3ベンチマーク</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 3641] LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 3641] LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 3644] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00211"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00211"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

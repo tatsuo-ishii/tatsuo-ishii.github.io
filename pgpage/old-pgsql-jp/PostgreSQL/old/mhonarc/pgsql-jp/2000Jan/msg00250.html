@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12703] Re: search&#45;key: how to omit '&#45;' from phone number? -->
+<!--X-From: "杉原　俊介" <sugihara@central&#45;lib.pref.osaka.jp> -->
+<!--X-Date: Tue, 18 Jan 2000 11:13:01 +0900 -->
+<!--X-Message-Id: 002d01bf6159$8d48b800$c4aca3d2@centrallib.pref.osaka.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200001170930.SAA34776@korosuke.edit.ne.jp -->
+<!--X-Reference-Id: 20000117183837U.priest@admin.aimcom.co.jp -->
+<!--X-Reference-Id: 200001172346.GFC26817.F7Y77S62@nifty.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12703] Re: search-key: how to omit '-' from phone number? </TITLE>
+<LINK REV="made" HREF="mailto:sugihara@central-lib.pref.osaka.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00249.html">Date Prev</A>][<A HREF="msg00251.html">Date Next</A>][<A HREF="msg00249.html">Thread Prev</A>][<A HREF="msg00242.html">Thread Next</A>][<A HREF="index.html#00250">Date Index</A>][<A HREF="threads.html#00250">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12703] Re: search-key: how to omit '-' from phone number?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "杉原　俊介" &lt;<A HREF="mailto:sugihara@central-lib.pref.osaka.jp">sugihara@central-lib.pref.osaka.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 18 Jan 2000 11:13:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00240.html">200001170930.SAA34776@korosuke.edit.ne.jp</A>&gt;&lt;<A HREF="msg00241.html">20000117183837U.priest@admin.aimcom.co.jp</A>&gt; &lt;<A HREF="msg00249.html">200001172346.GFC26817.F7Y77S62@nifty.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+杉原＠大阪府立中央図書館です。
+
+&gt; &gt; 登録速度よりも、検索速度を重視されるならば、 ハイフン無しの値を
+&gt; &gt; 格納する fieldを作っておいて、 insert,update時にハイフンあり、
+&gt; &gt; なし双方に 値を格納するのが良いと思うのですが。
+&gt; &gt;
+&gt; でもこれってDB設計をする上で重要なことと思いますよ。
+&gt; ディスク領域とトレードオフになりますが、十分検討した
+&gt; 方がいいと思います。
+
+私もそう思います。
+
+&gt;
+&gt; PostgreSQLに限らずRDBMSでは、データ件数の多いテーブル
+&gt; であれば、ハイフン付きデータを登録して検索時にワイルド
+&gt; カードや変換関数を使うと、急激にパフォーマンスが悪化し
+&gt; ます。
+&gt; 当然INDEXを使った検索も出来ませんし。
+
+邪道かも知れませんが、functional index を利用する方法もあります。
+
+これは、関数をindexに使用する方法ですが、
+仮に hcut(text) という関数があって、文字列から'-'を取り去る関数とすると
+
+create index インデックス名 on テーブル名 using btree (hcut(カラム名)
+text_ops);
+
+とすることにより、カラム名から'-'を取り去ったindexが作成されます。
+このindexから検索するには、
+select * from テーブル名 where hcut(カラム名) = '-'をとった文字列;
+とすれば検索ができます。
+
+こうすると、テーブルに余分なカラムを作成せずにindexを使った検索ができます。
+
+なお、hcut(text)の作成方法ですが、
+
+#私も試してみましたが、野口さんのおっしゃるよに
+#translate(tel,'-','') はどうも使用でいないみたいですね？
+#translate(a,b,c)で、bとcは１バイトの文字だけみたいです。
+
+そこで、すこし面倒ですがPL/pgSQLを用いたユーザー関数を作成してみました、
+#ユーザ関数の知識は少ないので自信はありませんが (^^;;
+
+create function hcut(text)
+returns text
+as '
+declare
+  a text;
+  b text := '''';
+begin
+ for i in 1 .. 13 loop                       /* 引数が13文字の場合 */
+  a := substring($1 from i for 1);
+  if a &lt;&gt; ''-'' then
+     b := b || a;
+  end if;
+ end loop;
+ return b;
+end;
+'
+language 'plpgsql';
+
+
+PL/pgSQLの関数を作成する前には、次のＳＱＬ文を実行しておく必要があります。
+
+create function plpgsql_call_handler()
+returns opaque
+as '/usr/local/pgsql/lib/plpgsql.so'
+language 'c';
+
+create trusted procedural language 'plpgsql'
+handler plpgsql_call_handler
+lancompiler 'PL/pgSQL';
+
+詳しくは、シーラカンス本などを参照してください。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+大阪府立中央図書館　司書部企画協力課　杉原　俊介
+〒577-0011 大阪府東大阪市荒本北５７−３番地
+tel:06-6745-0170(代表)　　fax:06-6745-0262
+<A HREF="Mailto:sugihara@central-lib.pref.osaka.jp">Mailto:sugihara@central-lib.pref.osaka.jp</A>
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00240" HREF="msg00240.html">[pgsql-jp 12693] search-key: how to omit '-' from phone number?</A></STRONG>
+<UL><LI><EM>From:</EM> Noguchi Takashi &lt;noguchi@EditNet.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00241" HREF="msg00241.html">[pgsql-jp 12694] Re: search-key: how to omit '-' from phone number?</A></STRONG>
+<UL><LI><EM>From:</EM> minematu@aimcom.co.jp (Hiroki Minematu)</LI></UL></LI>
+<LI><STRONG><A NAME="00249" HREF="msg00249.html">[pgsql-jp 12702] Re: search-key: how to omit '-' from phone number?</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuyuki Saeki &lt;RXE16665@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 12702] Re: search-key: how to omit '-' from phone number?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 12704] AUTO-COMMIT ON/OFF（御礼）＆INDEXについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 12702] Re: search-key: how to omit '-' from phone number?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 12695] Re: search-key: how to omit '-' from phone number?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00250"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00250"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

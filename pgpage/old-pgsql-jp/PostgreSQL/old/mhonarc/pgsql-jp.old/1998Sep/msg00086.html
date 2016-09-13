@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5293] Re: Ports of postgreSQL&#45;j -->
+<!--X-From: SEI Hideki (清秀紀) <seih@baf.sumiyoshi.osaka.jp> -->
+<!--X-Date: Tue, 08 Sep 1998 05:45:32 +0900 -->
+<!--X-Message-Id: 19980908054532V.seih@baf.sumiyoshi.osaka.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 19980907192302A.seih@baf.sumiyoshi.osaka.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5293] Re: Ports of postgreSQL-j </TITLE>
+<LINK REV="made" HREF="mailto:seih@baf.sumiyoshi.osaka.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00085.html">Date Prev</A>][<A HREF="msg00087.html">Date Next</A>][<A HREF="msg00079.html">Thread Prev</A>][<A HREF="msg00078.html">Thread Next</A>][<A HREF="index.html#00086">Date Index</A>][<A HREF="threads.html#00086">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5293] Re: Ports of postgreSQL-j</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SEI Hideki (清秀紀) &lt;<A HREF="mailto:seih@baf.sumiyoshi.osaka.jp">seih@baf.sumiyoshi.osaka.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 08 Sep 1998 05:45:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00079.html">19980907192302A.seih@baf.sumiyoshi.osaka.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+引続き、インストールを試してみましたが、
+
+# make install
+
+で下記のようなメッセージが出て止まってしまいます。
+
+--- 引用開始 ---
+cat ../register.txt
+
+
+(1998-04-07)
+PostgreSQL has a Web site at <A HREF="http://www.postgresql.org/">http://www.postgresql.org/</A> which carries details
+on the latest release, upcoming features, and other information to make your
+work or play with PostgreSQL more productive.
+
+You may wish to subscribe to the PostgreSQL user-support mailing list.
+To do this, send e-mail to pgsql-questions-request@postgresql.org with the
+text "subscribe" in the message body. You should receive back an e-mail
+welcoming you to the list. Other mailing lists and support information are
+detailed on the Web site.
+
+Thank you for choosing PostgreSQL, a leading-edge freeware product.
+
+
+Initializing PostgreSQL Databases - this may take a few minutes...
+initdb: using /usr/local/postgreSQL/lib/local1_template1.bki.source as input to create the template database.
+initdb: using /usr/local/postgreSQL/lib/global1.bki.source as input to create the global classes.
+initdb: using /usr/local/postgreSQL/lib/pg_hba.conf.sample as the host-based authentication control file.
+
+pg_id: not found
+[: syntax error
+pg_id: not found
+pg_id: not found
+[: syntax error
+We are initializing the database system with username postgres (uid=).
+This user will own all the files and must also own the server process.
+
+initdb: creating template database in /usr/local/postgreSQL/data/base/template1
+Running: postgres -boot -C -F -D/usr/local/postgreSQL/data -Q template1
+postgres: not found
+initdb: could not create template database
+initdb: cleaning up by wiping out /usr/local/postgreSQL/data/base/template1
+*** Error code 1
+
+Stop.
+*** Error code 1
+
+Stop.
+*** Error code 1
+
+Stop.
+--- 引用終了 ---
+
+「Makefile」の121行目の「initdb」スクリプト中で「pg_id」コマ
+ンドを呼出していますが、パスが通っていないためエラーが出てい
+るようです。
+
+        @ su ${PGSQL_UID} -c '${PREFIX}/${INSTALL_DIR}/bin/initdb --pglib=${PREFIX}/${INSTALL_DIR}/lib --pgdata=${PREFIX}/${INSTALL_DIR}/data'
+
+この「su」コマンドを
+
+	su ${PGSQL_UID} -c '...'
+
+ではなく、
+
+	su -l ${PGSQL_UID} -c '...'
+
+とすることで、「/usr/local/postgreSQL/.profile」のPATHが生き
+てくると思います。
+
+この変更で当方では無事インストールできましたようですので、取
+急ぎご報告まで。
+
+-- 
+清 秀紀 (セイ・ヒデキ)
+542-0073 大阪市中央区日本橋2-8-15 ユーロハイツ日本橋1006
+Tel: 06-636-8595  Fax: 06-636-8601
+</PRE>
+<PRE>
+--- Makefile.orig	Tue Sep  8 05:32:47 1998
++++ Makefile	Tue Sep  8 05:32:47 1998
+@@ -118,7 +118,7 @@
+ 	@ chown -R ${PGSQL_UID}:${PGSQL_GID} ${PREFIX}/${INSTALL_DIR}
+ 	@ ${ECHO} 'Initializing PostgreSQL Databases - this may take a few minutes...'
+ 	@ ${LDCONFIG} -m ${PREFIX}/${INSTALL_DIR}/lib
+-	@ su ${PGSQL_UID} -c '${PREFIX}/${INSTALL_DIR}/bin/initdb --pglib=${PREFIX}/${INSTALL_DIR}/lib --pgdata=${PREFIX}/${INSTALL_DIR}/data'
++	@ su -l ${PGSQL_UID} -c '${PREFIX}/${INSTALL_DIR}/bin/initdb --pglib=${PREFIX}/${INSTALL_DIR}/lib --pgdata=${PREFIX}/${INSTALL_DIR}/data'
+ 	@ ${SED} "s=!!PG_PATH!!=${PREFIX}/${INSTALL_DIR}=g ; s=!!PGSQL_UID!!=${PGSQL_UID}=g" \
+ 		&lt; ${FILESDIR}/pgsql.sh.tmpl &gt; ${PREFIX}/etc/rc.d/pgsql.sh
+ 	@ chmod 554 ${PREFIX}/etc/rc.d/pgsql.sh
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00079" HREF="msg00079.html">[pgsql-jp 5286] Re: Ports of postgreSQL-j</A></STRONG>
+<UL><LI><EM>From:</EM> SEI Hideki (清秀紀) &lt;seih@baf.sumiyoshi.osaka.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00085.html">[pgsql-jp 5292] PHPは危険？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00087.html">[pgsql-jp 5294] How do you do?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 5286] Re: Ports of postgreSQL-j</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 5285] text型がBorland C++Builder3でMemo型？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00086"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00086"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

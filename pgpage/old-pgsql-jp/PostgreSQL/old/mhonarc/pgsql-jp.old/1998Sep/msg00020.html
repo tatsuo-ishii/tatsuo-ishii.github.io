@@ -1,0 +1,184 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5227] Re: backslash with escape sequence. -->
+<!--X-From: kataoka@interwiz.koganei.tokyo.jp (片岡 裕生) -->
+<!--X-Date: Wed, 02 Sep 1998 05:44:35 +0900 -->
+<!--X-Message-Id: 19980902054435L.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980902034229K.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5227] Re: backslash with escape sequence. </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00019.html">Date Prev</A>][<A HREF="msg00021.html">Date Next</A>][<A HREF="msg00019.html">Thread Prev</A>][<A HREF="msg00021.html">Thread Next</A>][<A HREF="index.html#00020">Date Index</A>][<A HREF="threads.html#00020">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5227] Re: backslash with escape sequence.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A> (片岡 裕生)</LI>
+<LI><em>Date</em>: Wed, 02 Sep 1998 05:44:35 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00019.html">19980902034229K.kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)
+Subject: [pgsql-jp 5226] Re: backslash with escape sequence. 
+Date: Wed, 02 Sep 1998 03:42:29 +0900
+Message-ID: &lt;<A HREF="msg00019.html">19980902034229K.kataoka@interwiz.koganei.tokyo.jp</A>&gt;
+
+&gt; 片岡＠インターウィズです。
+&gt; 
+&gt; From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+&gt; Subject: [pgsql-jp 5212] Re: backslash with escape sequence. 
+&gt; Date: Tue, 01 Sep 1998 13:28:04 +0900
+&gt; Message-ID: &lt;<A HREF="msg00005.html">199809010428.NAA24217@srapc451.sra.co.jp</A>&gt;
+&gt; 
+&gt; &gt; 石井です。
+&gt; &gt; 
+&gt; &gt; &gt;市川＠お茶大です．
+
+（引用省略）
+
+&gt; &gt; 同じデータで、libpgtcl だとどうなるかやってみました。
+&gt; &gt; 
+&gt; &gt; % pg_connect test -host localhost -port 5432
+&gt; &gt; pgsql4
+&gt; &gt; % pg_exec pgsql4 "select * from aaa"
+&gt; &gt; pgsql4.0
+&gt; &gt; % pg_result pgsql4.0 -numTuples
+&gt; &gt; 3
+&gt; &gt; % pg_result pgsql4.0 -getTuple 0
+&gt; &gt; case1 sed|grep
+&gt; &gt; % pg_result pgsql4.0 -getTuple 1
+&gt; &gt; case2 {two
+&gt; &gt; lines}
+&gt; &gt; % pg_result pgsql4.0 -getTuple 2
+&gt; &gt; case3 latex
+&gt; &gt; 
+&gt; &gt; あれれ... latex の前の \ が消えてしまいました。バグですかね。
+&gt; 
+&gt;   げげ、ちょっとあせりました。
+&gt; 
+&gt;   というわけでこちらでも同じデータでlibpgtclをテストしてみました。
+
+（引用省略）
+
+&gt;   あれれ、大丈夫ですね。また、石井さんのpg_connectやpg_execが返すID文
+&gt; 字列も私のと違いますね。
+&gt; 
+&gt;   そう思って調べたら結果、6.3のlibpgtclはOKで、6.3.2のlibpgtclはOUTで
+&gt; した。私は6.3のlibpgtclを（スタティック）リンクして使っていたのでした。
+
+  どうも問題はlibpgtclのビルド時にTCL_ARRAYSを定義するかどうかにあるよ
+うです。
+
+  私が6.3のlibpgtclをビルドした際には、どう言うわけかTCL_ARRAYSが定義
+されておらず、PostgreSQLの配列形式をTCLのリストに変換する機能が組み込
+まれておりませんでした。この場合には、今回の'\'がなくなる問題は起きな
+いようです（pgtclCmd.cを見た感じでは）。
+
+# この「PostgreSQLの配列形式をTCLのリストに変換する機能」はPostgreSQL
+# の配列形式以外のデータにも影響します。
+
+  そこで、TCL_ARRAYSを定義して（デフォルトでは定義されるようだ）ビルド
+した6.3.2のlibpgtclを使って同じテストをしてみたところ、石井さんと同じ
+バグが再現しました。
+
+  TCL_ARRAYSを定義すると組み込まれる、pgtclCmd.cの「PostgreSQLの配列形
+式をTCLのリストに変換する機能」のコードですが、ぱっと見た感じでは「ちょっ
+と違うんじゃないかなぁ」と思いました。TCL使いの方（石井さん？）、どう
+でしょう？
+
+  そこで、PostgreSQLの配列形式っていったいどういう風に出力されるのが正
+しいのかを調べてみました。でもちょっとおかしいです。
+
+kataoka=&gt; create table bbb (a text[]);
+CREATE
+kataoka=&gt; insert into bbb values ('{"\\""}');
+INSERT 18529 1
+kataoka=&gt; insert into bbb values ('{"\\\\"}');
+INSERT 18530 1
+kataoka=&gt; select bbb.a[1], bbb.a[1:1] from bbb;
+a |a
+--+-------
+" |{"\\""}
+\\|{"\\"}
+(2 rows)
+
+  1行目にはダブルコーテーションを、2行目にはバックスラッシュをそれぞれ
+１文字格納しています。この出力結果の2カラム目はPostgreSQLの配列形式で
+すが、これを見たがぎりではPostgreSQLの配列形式の出力をパースするのは簡
+単ではなさそうです（エスケープが不完全？）。バックスラッシュの直後のダ
+ブルコーテーションが、配列要素の終わりをあらわしているのかデータそのも
+のなのか、すぐには判別つきません。
+
+  そんなわけで、完全なTCL_ARRAYSをインプリメント（もしくは今回のバグを
+修正）するのは難しいんではないでしょうか（というか面倒くさい）。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 5254] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 5228] Perl CGI can't exec</A></STRONG>
+<UL><LI><EM>From:</EM> "Hopemoon Internet Y.Mochizuki" &lt;support@hopemoon.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00019" HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 5228] Perl CGI can't exec</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 5228] Perl CGI can't exec</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00020"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00020"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,244 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23136] Re: plpgsql でnullが返ってくる。 -->
+<!--X-From: keast<keast@mycom.ne.jp> -->
+<!--X-Date: Sat, 15 Sep 2001 15:16:20 +0900 -->
+<!--X-Message-Id: 15266.62004.275095.68040W@jeru.ladder.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 15264.57845.925882.78879Z@jeru.ladder.org -->
+<!--X-Reference-Id: 200109131832.f8DIWC629137@mailhost.e&#45;vision.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23136] Re: plpgsql でnullが返ってくる。 </TITLE>
+<LINK REV="made" HREF="mailto:keast@mycom.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00176.html">Date Prev</A>][<A HREF="msg00178.html">Date Next</A>][<A HREF="msg00158.html">Thread Prev</A>][<A HREF="msg00178.html">Thread Next</A>][<A HREF="index.html#00177">Date Index</A>][<A HREF="threads.html#00177">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23136] Re: plpgsql でnullが返ってくる。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: keast&lt;<A HREF="mailto:keast@mycom.ne.jp">keast@mycom.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 15 Sep 2001 15:16:20 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:pgsql-jp@sra.co.jp">pgsql-jp@sra.co.jp</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00154.html">15264.57845.925882.78879Z@jeru.ladder.org</A>&gt;&lt;<A HREF="msg00158.html">200109131832.f8DIWC629137@mailhost.e-vision.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) SEMI/1.12.1 ([JR] Nonoichi)FLIM/1.12.7 (Y&umacr;zaki) MULE XEmacs/21.1 (patch 10)(Capitol Reef) (i386-debian-linux)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+東です。
+
+ SASAMOTOさんのおっしゃる状況とはちょっと違うようです。
+
+  plpgsqlの関数を 全てのカラムに対して 'if xx is not null'を検
+査し、quote_literal(xx)又は NULLを指示すように変更したところ、期待通りの
+結果を得ることができます。(下)
+
+ でも、これめんどくさすぎです。
+ 下のテスト用の関数ではなく、実際に使おうとしている関数では、およそ 25個
+のカラムで構成されたテーブルを 6っつ処理しようとしているので、おなじやり
+方をするのは、ちょっとなぁ。
+
+ 何か、良い方法が無いものでしょうか？
+
+ 
+
+At Fri, 14 Sep 2001 03:32:12 +0900 (JST),
+Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt; wrote:
+
+&gt; SELECT 'a'||NULL||'b';
+&gt; 
+&gt; のようにNULLが入っていると，文字列演算の結果自体がNULLになってしまうと
+&gt; いうことではないかと思います．
+&gt; 
+&gt; SELECT 'a'||'NULL'||'b';
+&gt; 
+&gt; のようになるようにすればいいのではないかと思います．
+&gt; 
+&gt; 
+&gt; Tsuyoshi SASAMOTO
+
+
+
+
+
+--------------------------------------------
+create table umaster (
+       連番		int		unique not null 
+       ,ID		varchar(16)	primary key	
+       ,氏名		varchar(64)	
+       ,所属部門コード	char(4)		
+       ,備考		text
+       );
+
+
+create table ucopy (
+       連番		int		
+       ,ID		varchar(16)	
+       ,氏名		varchar(64)	
+       ,所属部門コード	char(4)		
+       ,備考		text
+       );
+
+
+
+insert into umaster values(1,'kazuhiro.higashi','東一博','ABCD','凡人');
+
+
+insert into umaster values(2,'itihaku.azuma',NULL,'ABCD','凡人(改)');
+
+insert into umaster values(3,'ippaku.ton','東一博',NULL,'凡人' );
+
+
+
+
+
+create function mstcpy(int) returns text as '
+      declare
+
+       uno	alias for $1;
+
+       masterRec umaster%ROWTYPE;
+       
+       sql	text;
+
+
+     begin
+
+      select * into masterRec from umaster where 連番=uno;
+
+--      sql := ''insert into ucopy values (''||masterRec.連番||'',''
+--		      ||quote_literal(masterRec.ID)||'',''
+--		      ||quote_literal(masterRec.氏名)||'',''
+--		      ||quote_literal(masterRec.所属部門コード)||'',''
+--		      ||quote_literal(masterRec.備考)||'')'';
+
+	sql := ''insert into ucopy values(''||masterRec.連番||'','';
+
+	if masterRec.ID is not null then
+	   sql =sql||quote_literal(masterRec.ID)||'','';
+	else 
+	   sql =sql||''NULL,'';
+	end if;
+
+	if masterRec.氏名 is not null then
+	   sql =sql||quote_literal(masterRec.氏名)||'','';
+	else 
+	   sql =sql||''NULL,'';
+	end if;
+
+	if masterRec.所属部門コード is not null then
+	   sql = sql||quote_literal(masterRec.所属部門コード)||'','';
+	else
+	   sql = sql||''NULL,'';
+	end if;
+
+	if masterRec.備考 is not null then
+	   sql = sql||quote_literal(masterRec.備考)||'')'';
+	else 
+	   sql = sql||''NULL)'';
+	end if;
+
+
+	
+
+      raise notice ''%'',sql;
+
+      execute sql;
+
+      return ''COMPLEATE'';
+
+     end;
+
+	
+' language 'plpgsql';
+
+
+
+
+
+----実効結果---------------------------------
+psql:test.sql:109: NOTICE:  insert into ucopy values(1,'kazuhiro.higashi','東一博','ABCD','凡人')
+  mstcpy   
+-----------
+ COMPLEATE
+(1 row)
+
+psql:test.sql:111: NOTICE:  insert into ucopy values(2,'itihaku.azuma',NULL,'ABCD','凡人(改)')
+  mstcpy   
+-----------
+ COMPLEATE
+(1 row)
+
+psql:test.sql:113: NOTICE:  insert into ucopy values(3,'ippaku.ton','東一博',NULL,'凡人')
+  mstcpy   
+-----------
+ COMPLEATE
+(1 row)
+
+
+-- 
++---Higashi Kazuhiro---東 一博-----------------+
+|Workaday <A HREF="mailto:kazuhiro.higashi@toyoink.co.jp">mailto:kazuhiro.higashi@toyoink.co.jp</A>|
+|holiday  <A HREF="mailto:shell@pop01.odn.ne.jp">mailto:shell@pop01.odn.ne.jp</A>         |
++----------------------------------------------+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00178" HREF="msg00178.html">[pgsql-jp 23137] Re: plpgsql でnullが返ってくる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00154" HREF="msg00154.html">[pgsql-jp 23112] plpgsql でnullが帰ってくる。</A></STRONG>
+<UL><LI><EM>From:</EM> 東 一博&lt;shell@pop01.odn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00158" HREF="msg00158.html">[pgsql-jp 23116] Re: plpgsql でnullが帰ってくる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 23135] Re: Solaris へのインストール方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00178.html">[pgsql-jp 23137] Re: plpgsql でnullが返ってくる。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00158.html">[pgsql-jp 23116] Re: plpgsql でnullが帰ってくる。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00178.html">[pgsql-jp 23137] Re: plpgsql でnullが返ってくる。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00177"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00177"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

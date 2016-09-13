@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19706] Re: is it bad to make DSO ? -->
+<!--X-From: Tatsuo Ito <tito@miraclelinux.com> -->
+<!--X-Date: Fri, 26 Jan 2001 22:26:59 +0900 -->
+<!--X-Message-Id: 20010126222659X.tito@miraclelinux.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010124170131B.tito@miraclelinux.com -->
+<!--X-Reference-Id: 20010126072344J.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19706] Re: is it bad to make DSO ? </TITLE>
+<LINK REV="made" HREF="mailto:tito@miraclelinux.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00397.html">Date Prev</A>][<A HREF="msg00399.html">Date Next</A>][<A HREF="msg00387.html">Thread Prev</A>][<A HREF="msg00355.html">Thread Next</A>][<A HREF="index.html#00398">Date Index</A>][<A HREF="threads.html#00398">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19706] Re: is it bad to make DSO ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ito &lt;<A HREF="mailto:tito@miraclelinux.com">tito@miraclelinux.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Jan 2001 22:26:59 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00356.html">20010124170131B.tito@miraclelinux.com</A>&gt;&lt;<A HREF="msg00386.html">20010126072344J.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+伊東です。
+
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Subject: [pgsql-jp 19694] Re: is it bad to make DSO ?
+Date: Fri, 26 Jan 2001 07:23:44 +0900
+
+&gt; 石井です．
+
+&gt; &gt; [原因]
+&gt; &gt;  通常 linux の DSO は以下のように作成する。
+&gt; &gt; 
+&gt; &gt;      (例)
+&gt; &gt;      libhoge.so                          ... (A)
+&gt; &gt;      libhoge.so.1                        ... (B)
+&gt; &gt;      libhoge.so.1.2 (or libhoge-1.2.so)  ... (C)
+&gt; &gt; 
+&gt; &gt;  (C) のみ実体として存在する。(B) は (C) へ symbolic link する。
+&gt; &gt;  また (A) は (B) へ symbolic link する。
+&gt; &gt;  (C) を ld で作成するときには、-soname オプションの引数として (B) の名前
+&gt; &gt;  を渡し(この例の場合、libhoge.so.1)、作成する。
+&gt; &gt; 
+&gt; &gt;  現状の postgresql 7.0.3 は次ののようになっている。
+&gt; &gt;  (C) のみ実体として存在し、(B) は (C) へ symbolic link するが、
+&gt; &gt;  (A) は (C) へ 直接 symbolic link する。
+&gt; &gt;  また (C) を ld で作成するときには、-soname オプションを使用していない。
+&gt; &gt;  この場合、libhoge.so を link する rpm package を作成した場合、
+&gt; &gt;  libhoge.so そのものが require として挙げられ、実際にその rpm を適用するときに、
+&gt; &gt;  依存関係が解決されない。
+&gt; 
+&gt; そうなんですか? 7.0.3でmakeすると，
+&gt; 
+&gt; ld -Bdynamic -shared -soname libpq.so.2.1 -o libpq.so.2.1 fe-auth.o fe-connect.o fe-exec.o fe-misc.o fe-print.o fe-lobj.o pqexpbuffer.o dllist.o pqsignal.o   common.o wchar.o conv.o big5.o -lcrypt -lc
+&gt; 
+&gt; ってなって，-sonameで(C)を指定しているように見えます．
+&gt; 
+&gt; 実際，objdumpで見ると，
+&gt; 
+&gt; $ objdump -p libpq.so.2.1 |grep SONAME
+&gt;   SONAME      libpq.so.2.1
+&gt; 
+&gt; ってなってますが... もしかして，7.0.3 のRPM固有の問題?
+
+どうやらそのようです。
+＃ お騒がせして申し訳ないです。(_()_)
+
+original の tar ボールで make すると 石井さんがおっしゃるとおり、
+soname を付加して DSO を作成しますね。
+＃ ただこの方法でもまだ問題が残っています。(^^;
+
+私は以下から RPM package を作成したのですが、
+
+<A HREF="ftp://ftp.postgresql.org/pub/binary/v7.0.3/RPMS/SRPMS/">ftp://ftp.postgresql.org/pub/binary/v7.0.3/RPMS/SRPMS/</A>
+
+上記に含まれる rpm-pgsql-7.0.3.patch の中で、
+ファイル postgresql-7.0.3/src/Makefile.shlib を変更している箇所があり、
+次のようになっています。
+
+-  LDFLAGS_SL           := -Bdynamic -shared -soname $(shlib)
++  LDFLAGS_SL           := -Bdynamic -shared 
+
+つまりこの patch によって、-soname を付加しないようにしています。
+これは明らかに patch のミスですね。
+以上より、上記の source rpm をもとにしている rpm だと、
+私や [pgsql-jp 19695] で渋谷さんが報告している rpm の依存関係が
+解決されないという問題が発生することになります。
+
+また original の tar ボールですが、soname を付加して DSO を作成していますが、
+通常の linux での DSO の作成方法とは異なっているので、
+修正した方が良いと思います。
+
+＃上記 [原因] 以降を参照。
+  original の tar ボールによる DSO の作成方法で rpm を作成すると、
+  下ひとけたの番号のマイナーチェンジにも、rpm の依存関係に影響が
+  出るので、好ましくないですかね。
+
+念のため original の tar ボールへの patch を最後に添付します。
+
+Best Regards,
+
+tito@miraclelinux.com
+
+
+=== patch begin ===
+
+--- postgresql-7.0.3.org/src/Makefile.shlib	Fri Jan 26 21:56:52 2001
++++ postgresql-7.0.3/src/Makefile.shlib	Fri Jan 26 22:06:55 2001
+@@ -144,8 +144,9 @@
+ 
+ ifeq ($(PORTNAME), linux)
+   install-shlib-dep	:= install-shlib
+-  shlib				:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+-  LDFLAGS_SL		:= -Bdynamic -shared -soname $(shlib)
++  shlib			:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
++  soname		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION)
++  LDFLAGS_SL		:= -Bdynamic -shared -soname $(soname)
+   LDFLAGS_ODBC		:= -Bsymbolic -lc -lm
+   SHLIB_LINK		+= -lc
+   CFLAGS			+= $(CFLAGS_SL)
+@@ -228,6 +229,7 @@
+ ifneq ($(shlib),)
+ ifneq ($(PORTNAME), win)
+ ifneq ($(PORTNAME), aix)
++ifneq ($(PORTNAME), linux)
+ 
+ # Normal case
+ $(shlib): $(OBJS)
+@@ -240,6 +242,22 @@
+ 		rm -f lib$(NAME)$(DLSUFFIX); \
+ 		$(LN_S) $(shlib) lib$(NAME)$(DLSUFFIX); \
+ 	fi
++
++else
++
++# Linux case
++$(shlib): $(OBJS)
++	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) $(SHLIB_LINK)
++	if [ "$(shlib)" != "$(soname)" ]; then \
++		rm -f $(soname); \
++		$(LN_S) $(shlib) $(soname); \
++	fi
++	if [ "$(soname)" != "lib$(NAME)$(DLSUFFIX)" ]; then \
++		rm -f lib$(NAME)$(DLSUFFIX); \
++		$(LN_S) $(soname) lib$(NAME)$(DLSUFFIX); \
++	fi
++
++endif
+ 
+ else
+
+=== patch end === 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00356" HREF="msg00356.html">[pgsql-jp 19663] is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ito &lt;tito@miraclelinux.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00386" HREF="msg00386.html">[pgsql-jp 19694] Re: is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00397.html">[pgsql-jp 19705] Re: 7.1 Beta3 	を導入してみました。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00399.html">[pgsql-jp 19707] Re: [DM]韓国産の食品と特産物</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00387.html">[pgsql-jp 19695] Re: is it bad to make DSO ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00355.html">[pgsql-jp 19662] trigger について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00398"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00398"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

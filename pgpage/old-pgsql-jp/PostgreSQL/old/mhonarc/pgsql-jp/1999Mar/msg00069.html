@@ -1,0 +1,133 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7316] Re: patch for NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Fri,  5 Mar 1999 13:18:03 +0900 -->
+<!--X-Message-Id: 199903050418.NAA08798@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902160308.MAA11757@srapc451.sra.co.jp -->
+<!--X-Reference-Id: 199902160422.NAA08972@jack.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7316] Re: patch for NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00084.html">Thread Prev</A>][<A HREF="msg00075.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7316] Re: patch for NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri,  5 Mar 1999 13:18:03 +0900</LI>
+<LI><em>References</em>: &lt;199902160308.MAA11757@srapc451.sra.co.jp&gt;&lt;199902160422.NAA08972@jack.kinotrope.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木@kinotropeです。
+
+&gt;&gt;&gt;&gt;&gt;&gt; Tue, 16 Feb 1999 13:22:16 +0900,
+	"TA" == Toshimi Aoki wrote:
+&gt;&gt;&gt;&gt;&gt;&gt; Tue, 16 Feb 1999 12:08:00 +0900,
+	"TI" == Tatsuo Ishii wrote:
+TI&gt;&gt; えーと、NetBSD/macppc の方は一段落でしょうか？
+TA&gt; 最適化する(-Oや-O2)とinitdbで
+TA&gt;
+TA&gt; Creating view pg_rules
+TA&gt;
+TA&gt; で終わってしまい(ここまで表示される)ちゃんと作成されません。
+
+ちょっと調べてみました。
+
+下記 int2eq() で arg1: -2, arg2: 65534 で呼び出された場合、本来であれ 
+ば 1 が返るはずですが、0を返してしまう。(int16 は signed short だから  
+65534 は -2 になるはず)
+
+bool
+int2eq(int16 arg1, int16 arg2)
+{
+    return arg1 == arg2;
+}
+
+
+gcc -O -S では下記のように出力されます、が、PPCのアセンブラを知らない 
+ので本当のところは分かりません。
+int2eq:
+        xor 3,3,4
+        subfic 0,3,0
+        adde 3,0,3
+        blr
+
+
+そもそも -2 ではなく 65534 を渡す方が悪いと思って、コードを追っかけて 
+みると、 get_atttype() の UInt16GetDatum() で変更されていました。
+
+Oid
+get_atttype(Oid relid, AttrNumber attnum)
+{
+    Form_pg_attribute att_tup =
+           (Form_pg_attribute)palloc(sizeof(*att_tup));
+
+    if (SearchSysCacheStruct(ATTNUM, (char *) att_tup,
+                             ObjectIdGetDatum(relid),
+                             UInt16GetDatum(attnum),
+                             0, 0))
+        return att_tup-&gt;atttypid;
+    else
+        return (Oid) NULL;
+}
+
+
+これってコンパイラの方で対処すべき問題なんでしょうか。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp 7322] Re: patch for NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 7315] Re: shared memory how-to</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 7317] No good Japanese patch for 3.0.7.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00084.html">[pgsql-jp 7331] Re: [PHP-jp 712] Re: No good Japanese patch for 3.0.7.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 7322] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

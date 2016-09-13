@@ -1,0 +1,268 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26889] 外部ホストからPostgreSQLアクセスする方法 -->
+<!--X-From: "worker@wildcat.ddo.jp" <worker@wildcat.ddo.jp> -->
+<!--X-Date: Fri, 02 Aug 2002 23:21:46 +0900 -->
+<!--X-Message-Id: 200208021421.XAA28210@wildcat.ddo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26889] 外部ホストからPostgreSQLアクセスする方法 </TITLE>
+<LINK REV="made" HREF="mailto:worker@wildcat.ddo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00020.html">Date Prev</A>][<A HREF="msg00022.html">Date Next</A>][<A HREF="msg00038.html">Thread Prev</A>][<A HREF="msg00022.html">Thread Next</A>][<A HREF="index.html#00021">Date Index</A>][<A HREF="threads.html#00021">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26889] 外部ホストからPostgreSQLアクセスする方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "<A HREF="mailto:worker@wildcat.ddo.jp">worker@wildcat.ddo.jp</A>" &lt;<A HREF="mailto:worker@wildcat.ddo.jp">worker@wildcat.ddo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 02 Aug 2002 23:21:46 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+初めて質問させていただきます。
+ApacheとPostgreSQLを同じサーバーで動かして使っています。今回，サーバーの負担分散を考えApacheとPostgreSQLサーバーを別々のサーバーで運用する計画を立てています。そこで，PostgreSQLサーバーはそのまま継続で外部からApacheとPHPを利用してアクセスさせたいのですが，以下のようなエラーがでます。結果としてアクセスできません(自ホストからはアクセスできます)。
+
+========================================================================
+Warning: Unable to connect to PostgresSQL server: connectDB() -- connect() failed: Connection refused Is the postmaster running (with -i) at 'xxx.xxx.xxx' and accepting connections on TCP/IP port '5432'?
+========================================================================
+
+おそらくPostgreSQLを起動させる際のスクリプトに -i オプションがないからだと思います(未熟者の勝手な推測ですいません)。起動オプションはインストール(rpm -ivh)してデフォルトのままです。どこを修正すべきか，どなたかご指導下さい。
+PostgreSQLのスクリプトとサーバー環境を以下に載せておきます。起動スクリプトに問題がなければPHPもしくはネットワーク(パッケットフィルタ)の問題が考えられますので，よそのMLで問題解決します。それでは，よろしくお願いします。
+
+OS: Linux (RedHat Linux7.3 intel)
+PostgreSQL: 7.2.1-5 (RedHatLinux7.3のrpmをそのまま使用)
+
+/etc/rc.d/init.d/postgresql　(コメントは消しています)
+==============================================================================
+PGVERSION=7.2
+INITD=/etc/rc.d/init.d
+. $INITD/functions
+TYPESET=`typeset -f|grep "declare"`
+. /etc/sysconfig/network
+[ "${NETWORKING}" = "no" ] &amp;&amp; exit 0
+
+[ -f /usr/bin/postmaster ] || exit 0
+
+
+start(){
+	PSQL_START=$"Starting postgresql service: "
+	
+	# Check for older PGDATA location.
+	if [ -f /var/lib/pgsql/PG_VERSION ] &amp;&amp; [ -d /var/lib/pgsql/base/template1 ]
+	then
+		export PGDATA=/var/lib/pgsql
+	else
+		export PGDATA=/var/lib/pgsql/data
+	fi
+	if [ -f $PGDATA/PG_VERSION ] &amp;&amp; [ -d $PGDATA/base ]
+	then
+		if [ `cat $PGDATA/PG_VERSION` != '7.2' ]
+		then
+			SYSDOCDIR="(Your System's documentation directory)"
+			if [ -d /usr/doc/postgresql-$PGVERSION ]
+			then
+				SYSDOCDIR=/usr/doc
+			fi
+			if [ -d /usr/share/doc/postgresql-$PGVERSION ]
+			then
+				SYSDOCDIR=/usr/share/doc
+			fi
+			if [ -d /usr/doc/packages/postgresql-$PGVERSION ]
+			then
+				SYSDOCDIR=/usr/doc/packages
+			fi
+			if [ -d /usr/share/doc/packages/postgresql-$PGVERSION ]
+			then
+				SYSDOCDIR=/usr/share/doc/packages
+			fi
+			echo
+			echo -e $"An old version of the database format was found.\nYou need to upgrade the data format before using PostgreSQL.\nSee $SYSDOCDIR/postgresql-$PGVERSION/README.rpm-dist for more information."
+			exit 1
+#                       This doesn't seem to do anything useful...
+#		else
+#			if echo "$TYPESET"|grep "declare -f success ()" &gt;/dev/null
+#			then
+#				success "$PSQL_CHECK"
+#			else
+#				echo "  [ OK ]"
+#			fi
+#			echo
+		fi
+
+	# No existing PGDATA! Initdb it.
+
+	else
+	        echo -n $"Initializing database: "
+                if [ ! -d $PGDATA ]
+		then
+			mkdir -p $PGDATA
+			chown postgres.postgres $PGDATA
+		fi
+		[ -f /etc/sysconfig/i18n ] &amp;&amp; cp /etc/sysconfig/i18n $PGDATA/../initdb.i18n
+		[ ! -f /etc/sysconfig/i18n ] &amp;&amp; echo "LANG=en_US" &gt; $PGDATA/../initdb.i18n 
+		echo "export LANG LC_ALL LC_CTYPE LC_COLLATE LC_NUMERIC LC_CTYPE LC_TIME" &gt;&gt; $PGDATA/../initdb.i18n
+		# Initialize the database
+		su -l postgres -s /bin/sh -c "/usr/bin/initdb --pgdata=/var/lib/pgsql/data &gt; /dev/null 2&gt;&amp;1" &lt; /dev/null
+		[ -f $PGDATA/PG_VERSION ] &amp;&amp; echo_success
+		[ ! -f $PGDATA/PG_VERSION ] &amp;&amp; echo_failure
+		echo
+ 	fi
+	pid=`pidof -s  postmaster`
+	if [ $pid ]
+	then
+		echo $"Postmaster already running."
+	else
+		rm -f /tmp/.s.PGSQL.* &gt; /dev/null
+		echo -n "$PSQL_START"
+		su -l postgres -s /bin/sh -c "/usr/bin/pg_ctl  -D $PGDATA -p /usr/bin/postmaster start  &gt; /dev/null 2&gt;&amp;1" &lt; /dev/null
+ 		sleep 1
+ 		pid=`pidof -s postmaster`
+ 		if [ $pid ]
+		then
+			if echo "$TYPESET"|grep "declare -f success ()" &gt;/dev/null
+			then
+				success "$PSQL_START"
+			else
+				echo "  [ OK ]"
+			fi
+			touch /var/lock/subsys/postgresql
+			echo $pid &gt; /var/run/postmaster.pid
+			echo
+		else
+			if echo "$TYPESET"|grep "declare -f failure ()" &gt;/dev/null
+			then
+				failure "$PSQL_START"
+			else
+				echo " [ FAILED ]"
+			fi
+			echo
+		fi
+	fi
+}
+
+stop(){
+	echo -n $"Stopping postgresql service: "
+	# Check for older PGDATA location.
+	if [ -f /var/lib/pgsql/PG_VERSION ] &amp;&amp; [ -d /var/lib/pgsql/base/template1 ]
+	then
+		export PGDATA=/var/lib/pgsql
+	else
+		export PGDATA=/var/lib/pgsql/data
+	fi
+	su -l postgres -s /bin/sh -c "/usr/bin/pg_ctl stop -D $PGDATA -s -m fast" &gt; /dev/null 2&gt;&amp;1
+        ret=$? 
+        if [ $ret -eq 0 ]; then
+	    echo_success
+        else
+            echo_failure
+        fi
+	echo
+	rm -f /var/run/postmaster.pid
+	rm -f /var/lock/subsys/postgresql
+}
+
+restart(){
+    stop
+    start
+}
+
+condrestart(){
+    [ -e /var/lock/subsys/postgresql ] &amp;&amp; restart || :
+}
+
+reload(){
+    su -l postgres -s /bin/sh -c "/usr/bin/pg_ctl reload -D $PGDATA -s" &gt; /dev/null 2&gt;&amp;1
+}
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  status)
+	status postmaster
+	;;
+  restart)
+	restart
+	;;
+  condrestart)
+	condrestart
+	;;
+  reload|force-reload)
+	reload
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|status|restart|condrestart|reload|force-reload}"
+	exit 1
+esac
+
+exit 0
+
+==============================================================================
+長くなってすみません。よろしくお願いします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00024" HREF="msg00024.html">[pgsql-jp: 26892] Re: 外部ホストからPostgreSQLアクセスする方法</A></STRONG>
+<UL><LI><EM>From:</EM> Masashi Ohba &lt;ohba@netforce.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00023" HREF="msg00023.html">[pgsql-jp: 26891] Re: 外部ホストからPostgreSQLアクセスする方法</A></STRONG>
+<UL><LI><EM>From:</EM> Masahiro Sato &lt;masa@esri.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00022" HREF="msg00022.html">[pgsql-jp: 26890] Re: 外部ホストからPostgreSQLアクセスする方法</A></STRONG>
+<UL><LI><EM>From:</EM> Shigeki Mimura &lt;mimu@telepass.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp: 26888] Re: UCS-2 文字を利用したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp: 26890] Re: 外部ホストからPostgreSQLアクセスする方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00038.html">[pgsql-jp: 26906] Re: SSHorTelnet</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00022.html">[pgsql-jp: 26890] Re: 外部ホストからPostgreSQLアクセスする方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00021"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00021"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

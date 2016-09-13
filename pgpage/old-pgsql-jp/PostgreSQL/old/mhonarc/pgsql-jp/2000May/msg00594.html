@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14883] 7.0でindexが使用されない。 -->
+<!--X-From: zako&#45;falcon <zako@fal.co.jp> -->
+<!--X-Date: Tue, 30 May 2000 08:12:17 +0900 -->
+<!--X-Message-Id: 3932F951.CA4EBCDC@fal.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14883] 7.0でindexが使用されない。 </TITLE>
+<LINK REV="made" HREF="mailto:zako@fal.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00593.html">Date Prev</A>][<A HREF="msg00595.html">Date Next</A>][<A HREF="msg00627.html">Thread Prev</A>][<A HREF="msg00597.html">Thread Next</A>][<A HREF="index.html#00594">Date Index</A>][<A HREF="threads.html#00594">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14883] 7.0でindexが使用されない。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: zako-falcon &lt;<A HREF="mailto:zako@fal.co.jp">zako@fal.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 30 May 2000 08:12:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+座光寺＠ファルコンです。
+ 
+6.5.3の際には、使用されていたindexが7.0にした所、使用されなくなってしまいました。
+対象はrtreeを用いて作成されたboxタイプのindexなんですが、
+全タプル数が２１万程ある所から数十件検索するのに、１０数秒かかるという状況です。
+一応vacuumをかけて、explainしてみた結果が以下なのですが
+
+================================
+testdb=# vacuum verbose analyze geopolygon;
+NOTICE:  --Relation geopolygon--
+NOTICE:  Pages 5868: Changed 0, reaped 0, Empty 0, New 0; Tup 214479: Vac 0, Ke\
+ep/VTL 0/0, Crash 0, UnUsed 0, MinLen 172, MaxLen 7964; Re-using: Free/Avail. S\
+pace 0/0; EndEmpty/Avail. Pages 0/0. CPU 6.01s/3.36u sec.
+NOTICE:  Index geopolygon_area: Pages 2162; Tuples 214479. CPU 2.27s/1.48u sec.
+NOTICE:  Index geopolygon_polygonid: Pages 424; Tuples 214479. CPU 0.41s/0.58u \
+sec.
+NOTICE:  Index geopolygon_gtype: Pages 424; Tuples 214479. CPU 0.39s/0.58u sec.
+NOTICE:  Index geopolygon_ftypeid: Pages 425; Tuples 214479. CPU 0.44s/0.55u se\
+c.
+NOTICE:  Index geopolygon_gid: Pages 424; Tuples 214479. CPU 0.37s/0.63u sec.
+NOTICE:  Index geopolygon_id: Pages 424; Tuples 214479. CPU 0.39s/0.59u sec.
+VACUUM
+testdb=#
+
+testdb=# explain verbose select area from geopolygon where area &amp;&amp; '(-1560000,-\
+4390000),(-1550000,-4380000)';
+NOTICE:  QUERY DUMP:
+
+{ SEQSCAN :startup_cost 0.00 :total_cost 8548.99 :rows 10724 :width 32 :state &lt;\
+&gt; :qptargetlist ({ TARGETENTRY :resdom { RESDOM :resno 1 :restype 603 :restypmo\
+d -1 :resname area :reskey 0 :reskeyop 0 :ressortgroupref 0 :resjunk false } :e\
+xpr { VAR :varno 1 :varattno 5 :vartype 603 :vartypmod -1  :varlevelsup 0 :varn\
+oold 1 :varoattno 5}}) :qpqual ({ EXPR :typeOid 16  :opType op :oper { OPER :op\
+no 500 :opid 125 :opresulttype 16 } :args ({ VAR :varno 1 :varattno 5 :vartype \
+603 :vartypmod -1  :varlevelsup 0 :varnoold 1 :varoattno 5} { CONST :consttype \
+603 :constlen 32 :constisnull false :constvalue  32 [ 0 0 0 0 -80 -90 55 -63 0 \
+0 0 0 88 -75 80 -63 0 0 0 0 -64 -51 55 -63 0 0 0 0 28 -65 80 -63 ]  :constbyval\
+ false })}) :lefttree &lt;&gt; :righttree &lt;&gt; :extprm () :locprm () :initplan &lt;&gt; :nprm\
+ 0  :scanrelid 1 }
+NOTICE:  QUERY PLAN:
+
+Seq Scan on geopolygon  (cost=0.00..8548.99 rows=10724 width=32)
+
+EXPLAIN
+================================
+
+同様に、以下6.5.3での処理結果、、
+
+vtestdb=&gt; vacuum verbose analyze geopolygon;
+NOTICE:  --Relation geopolygon--
+NOTICE:  Pages 5868: Changed 0, Reapped 0, Empty 0, New 0; Tup 214479: Vac 0, Ke
+ep/VTL 0/0, Crash 0, UnUsed 0, MinLen 172, MaxLen 7964; Re-using: Free/Avail. Sp
+ace 0/0; EndEmpty/Avail. Pages 0/0. Elapsed 6/4 sec.
+NOTICE:  Index geopolygon_area: Pages 2162; Tuples 214479. Elapsed 3/1 sec.
+NOTICE:  Index geopolygon_polygonid: Pages 424; Tuples 214479. Elapsed 0/1 sec.
+NOTICE:  Index geopolygon_gtype: Pages 424; Tuples 214479. Elapsed 0/1 sec.
+NOTICE:  Index geopolygon_ftypeid: Pages 425; Tuples 214479. Elapsed 1/0 sec.
+NOTICE:  Index geopolygon_gid: Pages 424; Tuples 214479. Elapsed 0/1 sec.
+NOTICE:  Index geopolygon_id: Pages 424; Tuples 214479. Elapsed 1/1 sec.
+VACUUM
+vtestdb=&gt;
+
+vtestdb=&gt; explain verbose select area from geopolygon where area &amp;&amp; '(-1560000,-
+4390000),(-1550000,-4380000)';
+NOTICE:  QUERY DUMP:
+
+{ INDEXSCAN :cost 9376.97 :size 107240 :width 32 :state &lt;&gt; :qptargetlist ({ TARG
+ETENTRY :resdom { RESDOM :resno 1 :restype 603 :restypmod -1 :resname "area" :re
+skey 0 :reskeyop 0 :resgroupref 0 :resjunk false } :expr { VAR :varno 1 :varattn
+o 5 :vartype 603 :vartypmod -1  :varlevelsup 0 :varnoold 1 :varoattno 5}}) :qpqu
+al &lt;&gt; :lefttree &lt;&gt; :righttree &lt;&gt; :extprm () :locprm () :initplan &lt;&gt; :nprm 0  :sc
+anrelid 1 :indxid ( 1461828 ) :indxqual (({ EXPR :typeOid 0  :opType op :oper {
+OPER :opno 500 :opid 125 :opresulttype 16 } :args ({ VAR :varno 1 :varattno 1 :v
+artype 603 :vartypmod -1  :varlevelsup 0 :varnoold 1 :varoattno 5} { CONST :cons
+ttype 603 :constlen 32 :constisnull false :constvalue  32 [  0  0  0  0  -80  -9
+0  55  -63  0  0  0  0  88  -75  80  -63  0  0  0  0  -64  -51  55  -63  0  0  0
+  0  28  -65  80  -63 ]  :constbyval false })})) :indxqualorig (({ EXPR :typeOid
+ 0  :opType op :oper { OPER :opno 500 :opid 125 :opresulttype 16 } :args ({ VAR
+:varno 1 :varattno 5 :vartype 603 :vartypmod -1  :varlevelsup 0 :varnoold 1 :var
+oattno 5} { CONST :consttype 603 :constlen 32 :constisnull false :constvalue  32
+ [  0  0  0  0  -80  -90  55  -63  0  0  0  0  88  -75  80  -63  0  0  0  0  -64
+  -51  55  -63  0  0  0  0  28  -65  80  -63 ]  :constbyval false })}))}
+NOTICE:  QUERY PLAN:
+
+Index Scan using geopolygon_area on geopolygon  (cost=9376.97 rows=107240 width=
+32)
+
+EXPLAIN
+===============================
+こちらは、ちゃんと(?)indexが適用されます。
+気になるのが、costの算出結果で
+　costはそれほど差は無いのに、rows（全タプル数の1/2?）は何故か1/10
+になっており、この辺りに何か問題あるのかなと思っていますが、同じ様な問題に遭遇
+されている方はお見えでしょうか？
+
+-- 
+=================================
+FALCON Corporation Zakoji Isamu
+TEL:052-221-7556 FAX:052-221-7595
+zako@fal.co.jp
+<A HREF="http://www.fal.co.jp">http://www.fal.co.jp</A>
+=================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00597" HREF="msg00597.html">[pgsql-jp 14886] RE: 7.0でindexが使用されない。</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00593.html">[pgsql-jp 14882] Re: WindowsNT  でのSetup</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 14884] 漢字SEQUENCE名の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00627.html">[pgsql-jp 14916] RE: SEQUENCE</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00597.html">[pgsql-jp 14886] RE: 7.0でindexが使用されない。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00594"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00594"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

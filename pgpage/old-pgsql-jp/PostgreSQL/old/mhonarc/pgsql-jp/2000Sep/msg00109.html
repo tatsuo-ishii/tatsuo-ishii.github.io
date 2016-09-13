@@ -1,0 +1,209 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17298] Re: Delphi & pqcompo & large object -->
+<!--X-From: 佐藤　充男 <satou@osk.3web.ne.jp> -->
+<!--X-Date: Thu, 07 Sep 2000 10:43:19 +0900 -->
+<!--X-Message-Id: 39B6F2B721C.F191SATOU@pop1.osk.3web.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39B658A8.917AAFAB@nifty.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17298] Re: Delphi &amp; pqcompo &amp; large object </TITLE>
+<LINK REV="made" HREF="mailto:satou@osk.3web.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00108.html">Date Prev</A>][<A HREF="msg00110.html">Date Next</A>][<A HREF="msg00100.html">Thread Prev</A>][<A HREF="msg00120.html">Thread Next</A>][<A HREF="index.html#00109">Date Index</A>][<A HREF="threads.html#00109">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17298] Re: Delphi &amp; pqcompo &amp; large object</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤　充男 &lt;<A HREF="mailto:satou@osk.3web.ne.jp">satou@osk.3web.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 07 Sep 2000 10:43:19 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00100.html">39B658A8.917AAFAB@nifty.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ども、佐藤です。
+島村さん、こんにちは。
+
+Koichi Shimamura&lt;MAF01541@nifty.ne.jp&gt; さんの
+　　「[pgsql-jp 17289] Delphi &amp; pqcompo &amp; large object」　への返信
+
+&gt; 今、pqcompo を使って、Delphi からデータを操作しようとあれこれ試している
+&gt; 所です。そこでこの pqcompo に付いている demo を試しているのですがこの中
+&gt; で large object を使った Demo3 がどうしてもうまく動きません。
+
+Demo3 は PostgreSQL 6.5.x 以降はそのままでは動作しないようです。
+理由は [pgsql-jp 8675] で石井さんが書いていますが、large object を
+操作する場合、トランザクションの内側でないといけない。ということです。
+
+私の環境は、PostgreSQL 7.0.2 ですが、イメージの登録もできなかったので
+Demo3 の PutImage と GetImage を以下のように修正しています。
+
+//----------------------------------------------------------------------
+function TFormDemo3.PutImage(FileName: string): integer;
+var
+  ret_ofd: integer;
+  ret: integer;
+  buf: PChar;
+  FFileStream: TFileStream;
+const
+  BUFF_SIZE = 4096;   // 書き込みバッファのサイズ。小さすぎると時間がかかるが
+                      // あまり大きくするとエラーになる。
+begin
+  {
+    FileNameで指定された画像をデータベースに格納する
+    // 2000/09/07 PostgreSQL 6.5以降のlarge object はトランザクションの内側
+    // で動作する。　参照[pgsql-jp 8675]
+  }
+  PQCompo1.ExecSQL('BEGIN');  // patch
+  // Large Objectを作成（resultにはOIDが入る）
+  result := lo_creat(PQCompo1.PGconn, INV_WRITE or INV_READ);
+  // Large Objectをオープン（ret_ofdにはセッション内でオブジェクトを
+  // 一意に識別する数字が入る
+  ret_ofd := lo_open(PQCompo1.PGconn, result, INV_WRITE);
+  FFileStream := TFileStream.Create(FileName, fmOpenRead);
+  try
+    // BUFF_SIZEのメモリを確保
+    GetMem(buf, BUFF_SIZE);
+    try
+      ret := BUFF_SIZE;
+      while ret = BUFF_SIZE do
+      begin
+        // ファイルからBUFF_SIZE分のデータを読み込む
+        // (読み込んだデータのサイズがretに格納される
+        ret := FFileStream.Read(Buf^, BUFF_SIZE);
+        // ret分のデータをデータベースに格納する
+        // 書き込まれたデータがretに保存される
+        ret := lo_write(PQCompo1.PGconn, ret_ofd, buf, ret);
+        // retが0以下のときはエラー
+        if ret &lt; 0 then
+          raise Exception.Create('lo_write = ' + IntToStr(ret));
+      end;
+    finally
+      FreeMem(buf);
+    end;
+  finally
+    FFileStream.Free;
+    lo_close(PQCompo1.PGconn, ret_ofd);
+    PQCompo1.ExecSQL('END');  // patch
+  end;
+end;
+
+//----------------------------------------------------------------------
+procedure TFormDemo3.GetImage(Img_OID: integer; FileName: string);
+const
+  BUF_LEN = 4096;
+var
+  ret: integer;
+  P: Pointer;
+  Stream: TStream;
+  ret_ofd: integer;
+begin
+  {
+    引数として与えられたOIDから、画像データを取得する
+    // 2000/09/07 PostgreSQL 6.5以降のlarge object はトランザクションの内側
+    // で動作する。　参照[pgsql-jp 8675]
+  }
+  Image1.Picture.Graphic := nil;
+  PQCompo1.ExecSQL('BEGIN');  // patch
+  // OIDを元に、Large Objectをオープンする
+  ret_ofd := lo_open(PQCompo1.PGconn, Img_OID, INV_READ);
+  lo_lseek(PQCompo1.PGconn, ret_ofd, 0, 0);   // patch
+  // データを格納するストリームを作成（ここではファイルに保存）
+  Stream := TFileStream.Create('~' + FileName, fmCreate);
+  try
+    // BUF_LENのサイズ分づつデータを読み込む
+    ret := BUF_LEN;
+    while ret = BUF_LEN do
+    begin
+      GetMem(P, Buf_Len);
+      try
+        ret := lo_read(PQCompo1.PGConn, ret_ofd, P, BUF_LEN);
+        if ret &lt; 0 then
+          raise Exception.Create('lo_read = ' + IntToStr(ret));  // patch
+        Stream.Write(P^, ret);
+      finally
+        FreeMem(P);
+      end;
+    end;
+  finally
+    Stream.Free;
+    lo_close(PQCompo1.PGconn, ret_ofd);
+    PQCompo1.ExecSQL('END');  // patch
+  end;
+  // 一旦一時ファイルに保存してからロードする
+  // 直接ロードしても良いが、ファイルの種類を考える手間を省くため
+  Image1.Picture.LoadFromFile('~' + FileName);
+  // 一時ファイルを削除
+  DeleteFile('~' + FileName);
+end;
+//----------------------------------------------------------------------
+
+問題を解決するために、ここのログとPostgreSQL のドキュメント（HTML形式）
+PostgreSQL Programmer's Guide
+ 16 libpq
+ 18 pgtcl
+を参考にしました。
+
+佐藤　充男
+satou@osk.3web.ne.jp
+LDM03756@nifty.ne.jp
+<A HREF="http://www.threeweb.ad.jp/~satou/">http://www.threeweb.ad.jp/~satou/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00120" HREF="msg00120.html">[pgsql-jp 17309] Re: Delphi &amp; pqcompo &amp; large object</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi Shimamura &lt;MAF01541@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00100" HREF="msg00100.html">[pgsql-jp 17289] Delphi &amp; pqcompo &amp; large object</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi Shimamura &lt;MAF01541@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00108.html">[pgsql-jp 17297] Re: BUG in psql (7.0.2)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 17299] Re: SQL のことで</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 17289] Delphi &amp; pqcompo &amp; large object</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 17309] Re: Delphi &amp; pqcompo &amp; large object</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00109"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00109"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

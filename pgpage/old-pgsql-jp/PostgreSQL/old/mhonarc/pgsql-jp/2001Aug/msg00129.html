@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22792] 外部キーで参照されているキーの値を入れ替えたい -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Mon, 20 Aug 2001 06:00:12 +0900 -->
+<!--X-Message-Id: 3B8028DCF0.9728KITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22792] 外部キーで参照されているキーの値を入れ替えたい </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00128.html">Date Prev</A>][<A HREF="msg00130.html">Date Next</A>][<A HREF="msg00180.html">Thread Prev</A>][<A HREF="msg00133.html">Thread Next</A>][<A HREF="index.html#00129">Date Index</A>][<A HREF="threads.html#00129">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22792] 外部キーで参照されているキーの値を入れ替えたい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 20 Aug 2001 06:00:12 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠アシェットです。
+
+環境
+OS:RedHat Linux 6.2
+PostgreSQL:7.0.3 (on i686-pc-linux-gnu, compiled by gcc egcs-2.91.66)
+
+やりたい事は「外部キーで参照されているキーの値をスワップしたい(入れ替えた
+い)」です。
+が、同一トランザクション内でこれを実行するとエラー(triggered data change
+violation on relation)になってしまいます。
+特に入れ替えだからというわけでなく、『外部参照されているキーの値を同一ト
+ランザクション内で 更新(UPDATE)し、更新した値をさらに更新(UPDATE)する』と
+この現象が現れます。
+どうも、外部キーで生成されるトリガの問題のようです。
+
+この場合、解決策として
+1.現状のまま、トランザクションを使わない(おいおい)
+2.外部キーをあきらめて丁寧にトランザクション(2テーブルを更新)を組んでいく
+という方法がありますが、どちらも採用したく無く、他の道を探しています。
+
+ON UPDATE CASCADE を ON UPDATE NO ACTION にして、DEFERRABLE INITIALLY
+DEFERRED オプションをつけて二つのテーブルを同一トランザクション内で更新す
+れば、 COMMIT 時に制約チェックされるはずなのでやりたいことが実現できるか
+と思いましたが、同じエラーでした。
+
+どなたか良い方法をご存知の方は、ご教示ください。
+
+実行したい内容は以下のとおりです。(commit する前にエラーになります)
+
+--テーブル1
+create table t1 ( a int2, primary key (a));
+--テーブル2(カラム a を外部参照)
+create table t2 (
+   a int2,
+      CONSTRAINT t2_a
+         FOREIGN KEY(a)
+      REFERENCES t1(a)
+      ON UPDATE CASCADE
+      ON DELETE CASCADE,
+   b int2,
+      primary key (a,b),
+   c text
+) ;
+-- 各テーブルへインサート
+insert into t1(a) values (1);
+insert into t1(a) values (2);
+insert into t2(a,b,c) values (1,1,'1-1');
+insert into t2(a,b,c) values (1,2,'1-2');
+insert into t2(a,b,c) values (2,1,'2-1');
+insert into t2(a,b,c) values (2,2,'2-2');
+-- t1 の a=1 と a=2 をスワップ(入れ替える)
+begin;
+update t1 set a = -1 where a = 1;
+update t1 set a = 1 where a = 2;
+update t1 set a = 2 where a = -1;
+-- commit;
+
+よろしくお願いします。
+
+
+# 私の使い方が悪い可能性もあるので、DEFERRED 版も載せておきます。
+# 同じ場所(t1 最後の UPDATE 直後)でエラーになります。
+--テーブル1
+create table t1 ( a int2, primary key (a));
+--テーブル2(カラム a を外部参照)
+create table t2 ( a int2,
+      CONSTRAINT t2_a
+         FOREIGN KEY(a)
+      REFERENCES t1(a)
+      ON UPDATE NO ACTION
+      ON DELETE CASCADE
+      DEFERRABLE INITIALLY DEFERRED,
+   b int2,
+      primary key (a,b),
+   c text
+) ;
+-- 各テーブルへインサート
+insert into t1(a) values (1);
+insert into t1(a) values (2);
+insert into t2(a,b,c) values (1,1,'1-1');
+insert into t2(a,b,c) values (1,2,'1-2');
+insert into t2(a,b,c) values (2,1,'2-1');
+insert into t2(a,b,c) values (2,2,'2-2');
+-- これは不要だと思うけど念のため
+SET CONSTRAINTS ALL DEFERRED;
+-- t1,t2 の a=1 と a=2 をスワップ(入れ替える)
+begin;
+update t2 set a = -1 where a = 1;
+update t1 set a = -1 where a = 1;
+update t2 set a = 1 where a = 2;
+update t1 set a = 1 where a = 2;
+update t2 set a = 2 where a = -1;
+update t1 set a = 2 where a = -1;
+-- commit;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00136" HREF="msg00136.html">[pgsql-jp 22799] Re: 外部キーで参照されているキーの値を入れ替えたい</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00133" HREF="msg00133.html">[pgsql-jp 22796] Re: 外部キーで参照されているキーの値を入れ替えたい</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 22791] Re: 全角スペース入りのデータ検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 22793] Re: 全角スペース入りのデータ検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00180.html">[pgsql-jp 22843] Re: bytea 	型の列をソートするには</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00133.html">[pgsql-jp 22796] Re: 外部キーで参照されているキーの値を入れ替えたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00129"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00129"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

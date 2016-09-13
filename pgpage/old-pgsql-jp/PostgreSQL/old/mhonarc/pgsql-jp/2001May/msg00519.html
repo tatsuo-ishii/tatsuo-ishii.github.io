@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21474] Re: Pg.pm でのcopyコマンド -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Thu, 24 May 2001 20:50:08 +0900 -->
+<!--X-Message-Id: 076701c0e447$b5029470$0a00a8c0@nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010524194315024.jinsa@cmail.tky.plala.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21474] Re: Pg.pm でのcopyコマンド </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00518.html">Date Prev</A>][<A HREF="msg00520.html">Date Next</A>][<A HREF="msg00516.html">Thread Prev</A>][<A HREF="msg00509.html">Thread Next</A>][<A HREF="index.html#00519">Date Index</A>][<A HREF="threads.html#00519">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21474] Re: Pg.pm でのcopyコマンド</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 24 May 2001 20:50:08 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00516.html">20010524194315024.jinsa@cmail.tky.plala.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: &lt;jinsa@cmail.plala.or.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Thursday, May 24, 2001 7:43 PM
+Subject: [pgsql-jp 21471] Pg.pm での copyコマンド
+
+
+&gt;
+&gt; はじめまして、松井です。宜しくお願いします。
+&gt;
+&gt; Pg.pmを使用し、\copyコマンドで、ファイルへの入出力を試みておりますが、
+&gt; エラーメッセージが、
+&gt;
+&gt;  ERROR: parser: parse error at or near "\"
+&gt;
+&gt; のため、失敗しております。
+&gt;
+&gt; 何か、間違ってますでしょうか？
+&gt; Pg.pmでは、\copyコマンドの使用は無理なのでしょうか？
+\copyってpsqlのコマンドでは？
+SQL文のなかではcopyコマンドでしょう。（\マークがついてない）
+
+PgやDBD::Pgのディストリビューションに同梱されるtest.plや
+example.plにcopyコマンドの例が入っています。
+
+DBI+DBD::PgとPgによる例です。私の環境で試してみました。
+以前、他のところで回答したままなのでDBD::Pgのバージョンが古い
+ですが、おそらくそのまま使えるでしょう。(^^;;;
+
+[環境]
+  TurboLinux 6.0 Workstation + PostgreSQL 7.02
+  Perl 5.00503 + DBI 1.14 DBD::Pg 0.95  Pg::1.9.0
+
+[DBIによる例]
+use strict;
+use DBI;
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;1, RaiseError=&gt;1}) || die $DBI::errstr;
+eval {
+    $hDb-&gt;do('copy emp to stdout');
+    my $sLine;
+    open OUT, '&gt;data';
+        $hDb-&gt;func($sLine, 1000, 'getline');
+        while($sLine ne '\\.') {
+                   print OUT $sLine, "\n";
+                $hDb-&gt;func($sLine, 1000, 'getline');
+        }
+        close OUT;
+        $hDb-&gt;func('endcopy');
+
+        $hDb-&gt;do('copy emp from stdin');
+        open IN, '&lt;data';
+        while($sLine = &lt;IN&gt;) {
+                $hDb-&gt;func($sLine, 'putline');
+        }
+        close IN;
+        $hDb-&gt;func("\\.\n", 'putline');
+        $hDb-&gt;func('endcopy');
+};
+die $@ if($@);
+$hDb-&gt;disconnect;
+
+[Pgによる例]
+use strict;
+use Pg;
+my $oConn = Pg::connectdb("dbname=gotdate user=postgres");
+die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+
+$oConn-&gt;exec('copy emp to stdout');
+die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+my $sLine;
+open OUT, '&gt;data';
+$oConn-&gt;getline($sLine, 1000);
+while($sLine ne '\\.') {
+   print OUT $sLine, "\n";
+   $oConn-&gt;getline($sLine, 1000);
+}
+close OUT;
+$oConn-&gt;endcopy;
+$oConn-&gt;exec('copy emp from stdin');
+die "IN:" . $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+open IN, '&lt;data';
+while($sLine = &lt;IN&gt;) {
+    $oConn-&gt;putline($sLine);
+}
+close IN;
+$oConn-&gt;putline("\\.\n");
+$oConn-&gt;endcopy;
+
+==============================================
+川合 孝典 (Hippo2000)
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+    DBI日本語メーリングリスト管理人、 Kansai.pm所属
+=============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00516" HREF="msg00516.html">[pgsql-jp 21471] Pg.pm でのcopyコマンド</A></STRONG>
+<UL><LI><EM>From:</EM> jinsa@cmail.plala.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00518.html">[pgsql-jp 21473] シーケンスの最大値</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00520.html">[pgsql-jp 21475] Re: シーケンスの最大値</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00516.html">[pgsql-jp 21471] Pg.pm でのcopyコマンド</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00509.html">[pgsql-jp 21464] Solaris8 でmakeできない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00519"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00519"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4441] Re: How to set sequnce&#45;numner automatically -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 12 Jun 1998 17:21:21 +0900 -->
+<!--X-Message-Id: 199806120821.RAA05396@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 014801bd95d5$729ff460$64020180@mcad100 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4441] Re: How to set sequnce-numner automatically </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00170.html">Date Prev</A>][<A HREF="msg00172.html">Date Next</A>][<A HREF="msg00169.html">Thread Prev</A>][<A HREF="msg00174.html">Thread Next</A>][<A HREF="index.html#00171">Date Index</A>][<A HREF="threads.html#00171">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4441] Re: How to set sequnce-numner automatically</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 12 Jun 1998 17:21:21 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;井上＠セーレンです。
+&gt;
+&gt;&gt;石井です
+&gt;[略］
+&gt;&gt;
+&gt;&gt;"Transaction Processing" (Jim Gray)に出て来たのですが、あるトランザク
+&gt;&gt;ション T1 がトランザクション T2 によって書き込まれたデータを読んだ後で、
+&gt;&gt;T2 がこのデータを更新した場合 Dirty read と言うのだそうです。
+&gt;&gt;
+&gt;この本に書いてあるのは、少しニュアンスが違うような気がしますね。
+&gt;T2が更新してまだコミットしていないデータ（論理的にはまだ存在していない
+&gt;データ）を読んでしまうことをいっているのではないのかな。
+&gt;だれか正確にわかる人いませんか？
+
+私が見ているのは 380 ページの
+
+"Dirty Read. T1 reads an object previously written by transaction T2,
+then T2 makes further changes to the object. The version read by T1
+may be inconsistent, because it is not the final (commited) value of o
+produced by T2...." 
+
+のあたりです。で、381 ページの 図7.2 では、Dirty Read の説明として、
+
+	T2	WRITE	&lt;o,2&gt;
+	T1	READ	&lt;o,2&gt;
+	T2	WRITE	&lt;o,3&gt;
+
+とあるのですが...
+
+[略]
+&gt;&gt;次に write トランザクションもある場合。今のように table 単位のロックで
+&gt;&gt;は確かに苦しいのですが、row-level ロックが実現すれば問題無いのではない
+&gt;&gt;かと思います。SELECT * のようにテーブル全体をなめるようなトランザクショ
+&gt;&gt;ンと 1 レコードだけ update するトランザクションがあったとして、競合状
+&gt;&gt;態が発生するのはその 1 レコードを同時に読もう／書こうとしたときだけで
+&gt;&gt;すよね。
+&gt;&gt;
+&gt;&gt;なんか勘違いしているかな？
+&gt;&gt;
+&gt;row-levelロックでテーブル全体をなめるトランザクションはすべての行を
+&gt;(長い時間をかけて）１行ずつロックしていくわけで、heavyな処理である同時に
+&gt;、この長い時間の間平均すると全体の半分の行がロックされていることに
+&gt;なります。このテーブルの行をupdateしようとするトランザクションは平均して
+&gt;long transactionの半分の時間を待たされることになりませんか？
+&gt;もしかして私の row-levelロックの解釈が間違っているのかな？
+
+いや、おっしゃる通りです。私の勘違いでした。row-level ロックではある行
+をロックして読み取り終ったら、次の行に移る前にその行のロックを外してい
+いような気がしたのが私の間違いでした。それじゃ 2 phase commit にならな
+い:-)
+
+ということで、
+
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+	or
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+は row-level locking の有無に関わらず必要、ということをやっと理解しま
+した。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp 4445] Re: How to set sequnce-numner automatically</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00174" HREF="msg00174.html">[pgsql-jp 4444] Re: How to set sequnce-numner automatically</A></STRONG>
+<UL><LI><EM>From:</EM> "梅崎浩司" &lt;Hiroshi_Umezaki@justsystem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00169" HREF="msg00169.html">[pgsql-jp 4439] Re: How to set sequnce-numner automatically</A></STRONG>
+<UL><LI><EM>From:</EM> inoue@seiren.co.jp (Hiroshi Inoue)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00170.html">[pgsql-jp 4440] Re: can't load library</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00172.html">[pgsql-jp 4442] Re: can't load library</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00169.html">[pgsql-jp 4439] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00174.html">[pgsql-jp 4444] Re: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00171"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00171"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

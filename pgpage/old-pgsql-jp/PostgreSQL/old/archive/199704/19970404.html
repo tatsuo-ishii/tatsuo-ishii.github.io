@@ -1,0 +1,196 @@
+<A NAME="2">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Fri, 04 Apr 1997 19:41:48 +0900
+Subject: [postgres95 1670] Re: BOOL 型へへのデータ登録方法を教えて下さい
+Message-Id: &lt;199704041041.TAA26102@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+On Fri, 04 Apr 1997 18:05:00 +0900
+仲井　美月 &lt;XLX01375@niftyserve.or.jp&gt; wrote:
+&gt; エラーは発生しませんでしたが，selectの結果を見るとbool型の値が
+&gt; 全て'f'になっていました．
+&gt; 実はbool型にはどのように値を入れればいいのかわかりません．
+&gt; エラーメッセージが出ればそれでわかるかと思ったのですが，
+&gt; 動いてしまいました．
+&gt; insert文のvalues内の最後の値を見ると，0,1,-1の３種類を設定
+&gt; してみたのですが，select文の結果が全て'f'になっていました．
+
+bool型のデータは、
+	・'t' または 'T' : 真
+	・それ以外       : 偽
+という判定をしているようです。
+# 't' または 'T' で始まりさえすれば 'Tada!' とかでも OK です ;P
+
+これがエラーにならないのは、パーサーが賢いのか(?)
+クオート「'」なしで入力しても数字ならちゃんと文字として
+認識してくれるからだと思います。
+
+例えばこの例で
+	insert into table1( title ) values ( 1 );
+とやっても、title フィールドには「1」が入ってくれます。
+
+
+&gt; １）bool型のデータにはどのような値を設定すればいいですか？
+
+insert into table1
+values (1, 1, 'title', 'm_nakai', 'aaaaaaaa', 't');
+                                              ^^^
+で大丈夫ですね :-)
+
+&gt; ２）私は，postgreSQLのレファレンスマニュアルを
+&gt;       http://www.tramp.co.jp/Postgres95/Man/?subject=All
+&gt;     のからとってきましたが，ここに書かれてあるＳＱＬステート
+&gt;     メントやコマンド類は postgresで使用するもの全てでしょうか？
+&gt;     上記のページは，抜粋形式になっていませんか？
+&gt;     また，レファレンスマニュアルを作成する上で何か参考にしている
+&gt;     資料があるはずですが，参考にされたサイトなり資料がありましたら
+&gt;     教えて頂けませんか？
+
+これは PostgreSQL 配布の man ページです ;-)
+
+只今 Postgre95 から PostgreSQL の配布物への移行を試みているところですが、
+なかなかまとまった時間がとれませんで... すみません
+でも基本的には、ほとんどのものがあるかと思います。
+
+# ちゃんとした SQL を知らない上に、ユーザーマニュアルにあるような
+# 構文しか使ってませんので詳しくはわからないです。
+
+== おみつ
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: 仲井　美月 &lt;XLX01375@niftyserve.or.jp&gt;
+Date: Fri, 04 Apr 1997 18:05:00 +0900
+Subject: [postgres95 1669] BOOL 型へへのデータ登録方法を教えて下さい
+Message-Id: &lt;199704040906.SAA14619@inetnif.niftyserve.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+BOOL型のデータの指定方みなさん今晩は．仲井です．
+
+おみつさん．ありがとうございました．
+私のミスだったことがわかり，おみつさんの回答の通りにやってみたら
+できました．
+そこで昨日，以下に示す処理を実行してみました．
+
+現在，kaigidbという名前のＤＢを作成して，
+   １．クラスの作成
+   ２．レコードの登録
+   ３．クラス内の全レコードを選択
+する処理を１つのファイル（test.sql）というファイルからＳＱＬ文を
+読み込んで実行しました．
+  ＞psql -d kaigidb -f test.sql
+
+これは，test.sqlの内容です．
+******************** test.sql start *********************
+--クラスの作成
+CREATE TABLE table1 (
+docidint,
+doclvsmallint,
+titlevarchar(200),
+ownervarchar(20),
+cntntstext,
+swbool
+);
+--サンプルデータの登録
+insert into table1
+values(1,1,'title new','m_nakai','aaaaaaaa',1);
+insert into table1
+values(2,2,'title new2','m_nakai','bbbbbbbb',0);
+insert into table1
+values(3,3,'title new3','m_nakai','cccccccc',-1);
+
+--クラスtable1 の全レコードを選択
+select * from table1;
+******************** test.sql end *********************
+
+以下のような結果になりました．
+docid|doclv|title     |owner  |cntnts  |sw
+-----+-----+----------+-------+--------+---
+    1|    1|title new1|m_nakai|aaaaaaaa|f
+    2|    2|title new2|m_nakai|bbbbbbbb|f
+    3|    3|title new3|m_nakai|cccccccc|f
+(3 rows)
+
+エラーは発生しませんでしたが，selectの結果を見るとbool型の値が
+全て'f'になっていました．
+実はbool型にはどのように値を入れればいいのかわかりません．
+エラーメッセージが出ればそれでわかるかと思ったのですが，
+動いてしまいました．
+insert文のvalues内の最後の値を見ると，0,1,-1の３種類を設定
+してみたのですが，select文の結果が全て'f'になっていました．
+
+そこで質問です．
+１）bool型のデータにはどのような値を設定すればいいですか？
+これは，おみつさんへの質問になってしまうかもしれませんが．．．．
+２）私は，postgreSQLのレファレンスマニュアルを
+      http://www.tramp.co.jp/Postgres95/Man/?subject=All
+    のからとってきましたが，ここに書かれてあるＳＱＬステート
+    メントやコマンド類は postgresで使用するもの全てでしょうか？
+    上記のページは，抜粋形式になっていませんか？
+    また，レファレンスマニュアルを作成する上で何か参考にしている
+    資料があるはずですが，参考にされたサイトなり資料がありましたら
+    教えて頂けませんか？
+    
+    以上，長くなってしまいましたが，宜しくお願いします．
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Fri, 04 Apr 1997 12:59:06 +0900
+Subject: [postgres95 1668] Stonebraker's article in CoomputerWorld magazine
+Message-Id: &lt;199704040359.MAA26057@srashd.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+添付の記事のように、Postgres の産みの親である Michael Stonebraker が 
+ComputerWorld の最新号に Informix Universal Server と Oracle 8.0 の比
+較記事[1]を書いています。面白いのは、Oracle の人間も同じ比較記事[2]を
+(反対の立場から)同時に書いていることです。両方とも 
+http://www.computerworld.com に掲載されているので、読んでみると面白い
+でしょう。
+
+[1]http://www.computerworld.com/search/AT-html/9703/970331SL0331ms.html
+[2]http://www.computerworld.com/search/AT-html/9703/970331SL0331jh.html
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+------------------------- cut here ----------------------------------
+From: Bruce Momjian &lt;maillist@candle.pha.pa.us&gt;
+Message-Id: &lt;199704040248.VAA00987@candle.pha.pa.us&gt;
+Subject: [QUESTIONS] Sonebraker in ComputerWorld magazine
+To: questions@postgreSQL.org (PostgreSQL)
+Date: Thu, 3 Apr 1997 21:48:53 -0500 (EST)
+X-Mailer: ELM [version 2.4 PL25]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=US-ASCII
+Content-Transfer-Encoding: 7bit
+Sender: owner-questions@hub.org
+
+In the March 31, 1997 issue, page 97, there is a two-page article by
+Michael Stonebraker comparing Informix Universal Server compared with
+Oracle 8.0.  Informix Unversal server is patterned after Illustra, which
+is patterned after Postgres/Postgres95/PostgreSQL.
+
+They mention he is the chief technical officer at Informix Software, and
+founded Ingres and Illustra, as well as being a professor at Berkeley.
+
+For those who don't know, Mr. Stonebraker was the architect of Postgres
+when it was at Berkeley.
+
+There may be a copy of the article at www.computerworld.com.  I haven't
+checked.
+<HR>
+</PRE>

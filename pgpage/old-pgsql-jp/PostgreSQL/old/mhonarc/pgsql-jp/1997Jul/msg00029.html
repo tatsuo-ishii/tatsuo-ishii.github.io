@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2106] Re: [Q]検索について -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Fri, 04 Jul 1997 18:00:42 +0900 -->
+<!--X-Message-Id: 199707040900.SAA26959@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19970613181150O.baba@kusastro.kyoto&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2106] Re: [Q]検索について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00028.html">Date Prev</A>][<A HREF="msg00030.html">Date Next</A>][<A HREF="msg00036.html">Thread Prev</A>][<A HREF="msg00031.html">Thread Next</A>][<A HREF="index.html#00029">Date Index</A>][<A HREF="threads.html#00029">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2106] Re: [Q]検索について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Fri, 04 Jul 1997 18:00:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。大部前の話題ですが、
+
+&gt;馬場＠京大宇宙物理 です。
+
+&gt;日本語の文書をインデックスするときに避けて通れない問題は形態素解析
+&gt;の手間です。現状ではこれが一番コストがかかります。たぶん、インデッ
+&gt;クスにかかる時間の半分は形態素解析に費やしているでしょう。
+
+前から形態素解析なるものに興味があったので馬場さんのページ
+
+	<A HREF="http://www.kusastro.kyoto-u.ac.jp/~baba/wais/other-system.html">http://www.kusastro.kyoto-u.ac.jp/~baba/wais/other-system.html</A>
+
+を参考に、KAKASI + 馬場さんのわかち書きパッチを手元の MkLinux にインス
+トールして見ました。結構凄いですね、これ。で、意地でも freeWAIS には行
+かず:-)、
+
+&gt; &gt; &gt; ところで1827 にて、キノトロープの坂本さんが以下のような問題提起をされ
+&gt; &gt; &gt; てましたが、kindex というテーブルは WAIS でいう inverted file に相当す
+&gt; &gt; &gt; るのはないかと密かに思っています。そうだとすると、PostgreSQL に WAIS 
+&gt; &gt; &gt; の機能を取り込んだと言えない事もないわけで(またまた強引)、これは快挙で
+&gt; &gt; &gt; はないでしょうか:-)
+&gt; &gt;  なるほど、そういう展開もできますね。:-)
+&gt; &gt;  もし、kindexへのinsertが自動でできてしまったいるのでしたら、まさしく
+&gt; &gt;  石井さんのおっしゃる通り快挙だと思います。(まじめに)
+&gt;
+&gt;この辺りは興味あるところですね。
+
+この方向で、KAKASI を使って PostgreSQL で全文検索用のDBを構築してみま
+した。とりあえず、2000件ほど溜っている本MLのデータを全文検索できること
+を目標にしました。スキーマ定義は
+
+	create table words (seq int4, word text);
+
+で、seq は[pgsql-jp 1942]の 1942 などです。word は KAKASI を使って取り
+出したメール本文中に出現する単語です(もちろん重複は取り除く)。全文検索
+を実現するには、
+
+	select seq from words where word = 'PostgreSQL';
+
+で 'PostgreSQL' が含まれるメールのシーケンス番号を探せば良い訳です。
+さて、このような想定で words テーブルを作り、word に対して btree index 
+を構築して検索実験を行いました。以下はその結果です(注)。
+
+o 元データは 2084件のメール(総容量は 約 7.7MB)
+o words テーブルのレコード数: 205,291
+o words テーブルの容量:14.3MB
+o インデックスの大きさ: 5.7MB
+
+検索速度ですが、手元のMkLinux(PowerMac 7100/66AV、ベンチマークの結果で
+は、Pentium 75MHz よりも遅い)を使って、
+
+select * from words where word = 'PostgreSQL';
+
+を10回繰り返してその平均を取った結果では、
+
+	real	0m5.270s
+	user	0m0.360s
+	sys	0m0.280s
+
+と出ました。したがって、平均検索速度は 0.5sec 程度となります。ちなみに、
+この検索では 212 件 hit したので、実行時間中にはその分のデータの転送時
+
+間も含まれているはずです。
+
+今後の課題：
+
+1. 単語の取り出しが不完全
+
+たとえば、
+
+&gt;の手間です。現状ではこれが一番コストがかかります。たぶん、インデッ
+&gt;クスにかかる時間の半分は形態素解析に費やしているでしょう。
+
+この文章では、うまく「インデックス」を取り出すことが出来ず、「インデッ」
+と「クス」に分かれてしまいます。
+
+2. Upper/Lower case を無視した検索ができない
+
+これはあらかじめ Upper もしくは Lower に統一した別のカラムとインデック
+スを用意するしかないでしょう。
+
+3. 正規表現検索や前方一致検索、あるいは or 検索ではインデックスを見て
+くれない
+
+これは PostgreSQL の制限ですが、なんとかしたいものです。
+
+4. WAIS のように、検索語の出現率で結果に重み付を行うことが出来ない
+
+うーん、うまい方法を思い付かない:-&lt;
+
+というわけで、良いアイデア下さい:-)
+---------------------------------------------------
+(注) KAKASI で取り出した結果、ひらがなからのみなる語は捨てています。
+このことにより、再現率が低下しますが、実用上は問題ないと思います。また、
+ひらがなを捨てることにより、words テーブルのレコード数が約 2/3 に減少
+しました。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00032" HREF="msg00032.html">[pgsql-jp 2109] Re: [Q]検索について</A></STRONG>
+<UL><LI><EM>From:</EM> uchida@yrd.suzuki.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00031" HREF="msg00031.html">[pgsql-jp 2108] Re: [Q]検索について</A></STRONG>
+<UL><LI><EM>From:</EM> Hajime BABA &lt;baba@kusastro.kyoto-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 2105] Re: endian</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 2107] Re: gcc -O2?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 2113] pgsqp_perl5</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 2108] Re: [Q]検索について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00029"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00029"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

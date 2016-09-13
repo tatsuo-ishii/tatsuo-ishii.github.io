@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3032] Re: Give me an advise about file construction -->
+<!--X-From: t&#45;ishii@sra.co.jp (Tatsuo Ishii) -->
+<!--X-Date: Fri, 28 Nov 1997 18:33:05 +1000 -->
+<!--X-Message-Id: 199711280931.SAA24764@meshsv26.tk.mesh.ad.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3032] Re: Give me an advise about file construction </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00160.html">Date Prev</A>][<A HREF="msg00159.html">Date Next</A>][<A HREF="msg00163.html">Thread Prev</A>][<A HREF="msg00160.html">Thread Next</A>][<A HREF="index.html#00161">Date Index</A>][<A HREF="threads.html#00161">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3032] Re: Give me an advise about file construction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A> (Tatsuo Ishii)</LI>
+<LI><em>Date</em>: Fri, 28 Nov 1997 18:33:05 +1000</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+At  5:44 PM 97.11.27 +0900, Yoshio Funaki wrote:
+&gt;船木＠秋田県立図書館です。しばらくＲＯＭしてましたが
+&gt;どうにも解決できない問題にぶち当たってしまいまして
+&gt;ぜひ先達の皆様にご教示いただきたいと考えまして・・・。
+
+書誌データに関しては全くの素人なので外している可能性大ですが...
+
+&gt;で、問題の内容なのですが図書の書誌データについてなのです。
+&gt;図書館で取り扱う図書のデータというのは、結構項目が多くて
+&gt;書名、著者名は言うに及ばす、出版地、件名、価格、大きさなど
+&gt;さまざまな形式のデータがありまして、しかもそれが混在しています。
+&gt;さらに１書誌内のデータ項目数が可変、データ長も固定と
+&gt;可変が入り交じっていたりと、ＲＤＢになじませようとすると
+&gt;結構大変で頭を悩ましています。
+
+（中略）
+
+&gt;全ての項目が常にあらわれるかどうかを考えずに（ファイルサイズの問題は別として）
+&gt;全ての項目を造っておいて、データを該当カラムに書き込み、検索対象のインデックス
+&gt;をそれぞれ造るという解決方法はありますが、膨大な無駄を含んだファイルを造るこ
+&gt;になり、検索スピードも遅くなるのは目に見えてます。
+
+これは確かに無駄ですね。それにカラム数が非常に多くなって多分実現
+できないと思います。
+
+&gt;現在考えているのは、とりあえずマスター（必須部分のみ）と各項目名に対応した
+&gt;ファイルをそれぞれ造り、キーとしてユニークインデックスを共通に持って、
+&gt;表示する必要がある項目のみ、ユニークインデックスをキーとして随時個々の
+&gt;ファイルから読み込んだらどうかと考えていますが、これも根本的な解決に
+&gt;ならないような気がしてます。（サブフィールドの問題があるので・・・）
+&gt;どうしても表集計ソフトの２次元表的感覚から抜け出せなくて、表を３段くらい
+&gt;重ねたイメージしか出てきません。
+&gt;何か良い考え方がありましたら、是非ご教示下さい。
+
+非常に単純な考えですが、こんなのは如何でしょう。
+
+create books (
+        id int4,        -- ユニークID（キー）
+        item char4,     -- 項目 No.
+        sub char,       -- Sub
+        subno int2,     -- Sub No.
+        data text       -- 対応するデータ
+);
+
+さらに、著者名や所蔵館など、複数の書籍で重複することが
+予想されるデータでは、
+
+create author (
+        authid text,    -- 著者のユニークID（キー）
+        name1 text,     -- 著者名（漢字表記）
+        name2 text      -- 著者名（カナ表記）
+        name3 text,     -- 著者名（漢字、辞書作成用）
+        name4 text      -- 著者名（カナ、辞書作成用）
+);
+
+と別テーブルにして、books テーブルの data カラムには authid を入れる
+ことにすれば少しは無駄がなくなるでしょう。
+
+books テーブルが巨大になるのが心配ですが。
+
+---
+Tatsuo Ishii
+t-ishii@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 3031] Re: PgAccess</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 3030] RE: About VB5.0J + PostgreSQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 3034] use system passwd for authentication</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 3031] Re: PgAccess</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00161"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00161"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

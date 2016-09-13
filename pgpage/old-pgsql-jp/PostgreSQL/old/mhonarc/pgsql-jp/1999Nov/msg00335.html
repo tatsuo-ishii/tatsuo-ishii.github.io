@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11763] Re: insertが完了しない -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Sun, 14 Nov 1999 10:35:23 +0900 -->
+<!--X-Message-Id: 382E11DBE6.09B4SAKAIDA@smtp.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 382BC6D0D2.3174SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 382D6A511C2.B069MANDAI@172.16.100.2 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11763] Re: insertが完了しない </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00334.html">Date Prev</A>][<A HREF="msg00336.html">Date Next</A>][<A HREF="msg00332.html">Thread Prev</A>][<A HREF="msg00312.html">Thread Next</A>][<A HREF="index.html#00335">Date Index</A>][<A HREF="threads.html#00335">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11763] Re: insertが完了しない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 14 Nov 1999 10:35:23 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00318.html">382BC6D0D2.3174SAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00332.html">382D6A511C2.B069MANDAI@172.16.100.2</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+萬代　將大 &lt;mandai@toshiba-tds.co.jp&gt; さん wrote:
+&gt; 
+&gt; &gt; 　postmasterは、確か、１つのデータベース領域(initdbで作成する
+&gt; &gt; 領域=PGDATAで指定する領域)に対して１個起動ですから、データベ
+&gt; &gt; ース毎にpostmasterを起動してはいけないと思いますよ。
+&gt; 
+&gt; ご指摘の通り、インスタンスに対してpostmasterを１つだけ起動すると
+&gt; insert/delete/updateが正常に終了しているのに、テーブルに反映され
+&gt; ない現象は発生しなくなりました。（現時点で）
+&gt; 
+&gt; そこで疑問なんですが、今回の失敗はどうして起こるのでしょうか？
+&gt; 原因（理由）をご存じの方は、ご教授下さい。
+
+　私もPostgreSQLの設計思想があまりわかっていませんが..次のよう
+な理由からだと想像してます。
+
+  まず、PostgreSQLの機能として次があります。
+
+(1) PostgreSQLは複数データベースにまたがったトランザクション
+    処理を行うことができる。
+(2) トランザクションを管理するために"pg_log"ファイルが使用さ
+  　れるが、このファイルはデータベース領域全体の管理を行って
+　　いる。
+(3) "pg_log"はpostmasterの共有メモリを利用した管理がされてい
+  　る。(つまり、"pg_log"はファイルとしての完全な排他制御を行
+　　っていない..これは処理スピードの観点から妥当ではあるが..）
+
+　このため、１つのデータベース領域に対して複数のpostmasterを
+起動すると、"pg_log"ファイルの整合性が崩れる可能性があるとい
+うことではないかと思います。
+
+
+# (1)については、例えば次のようなトランザクションを作成するこ
+  とができます。(pgbash流に記述します）
+
+pgbash&gt; exec_sql "connect to database1 as db1"
+pgbash&gt; exec_sql "connect to database2 as db2"
+
+pgbash&gt; exec_sql -d db1 "begin"
+pgbash&gt; exec_sql -d db1 "declare c1 sursor for select * from tb1"
+pgbash&gt; exec_sql -d db1 "fetch in c1 into :aa1, :bb1"
+pgbash&gt; exec_sql -d db1 "fetch in c1 into :aa2, :bb2"
+pgbash&gt; aaa = $(( $aa1+$aa2 ))
+
+pgbash&gt; exec_sql -d db2 "begin"
+pgbash&gt; exec_sql -d db2 "insert into tb2 values( $aaa, '$bb1')"
+pgbash&gt; exec_sql -d db2 "insert into tb2 values( $aaa, '$bb2')"
+pgbash&gt; exec_sql -d db2 "end"
+
+pgbash&gt; exec_sql -d db1 "end"
+
+--
+境田雅明
+Personal Software, Inc.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00318" HREF="msg00318.html">[pgsql-jp 11746] Re: insertが完了しない</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00332" HREF="msg00332.html">[pgsql-jp 11760] Re: insertが完了しない</A></STRONG>
+<UL><LI><EM>From:</EM> 萬代　將大 &lt;mandai@toshiba-tds.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00334.html">[pgsql-jp 11762] RE: [pgsql-jp 11761] turboLinux4.0でpostgresql6_5_2をインストール出来ない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00336.html">[pgsql-jp 11764] Re: [jpug-users 33]  オープンまつり、お疲れ様でしたっ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00332.html">[pgsql-jp 11760] Re: insertが完了しない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00312.html">[pgsql-jp 11740] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00335"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00335"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,220 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19308] lost data with vacuum -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 02 Jan 2001 10:34:09 +0900 -->
+<!--X-Message-Id: 20010102103409X.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19308] lost data with vacuum </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00012.html">Thread Prev</A>][<A HREF="msg00011.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19308] lost data with vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 02 Jan 2001 10:34:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．あけましておめでとうございます．21世紀もよろしくお願いします．
+
+さて，新年早々あまり嬉しくないニュースです．PostgreSQLの旧バージョン
+(6.5.3以前)のvacuumに，特定の条件によってデータが一部消えてしまうバグ
+が見つかりました．まだ6.5.3などの旧バージョンをお使いの方がいらっしゃ
+ると思いますが，早急に添付をパッチを当てるか，7.0以降のバージョンに
+upgradeすることをお勧めします．
+
+--------------------------------------------------------------------
+[現象]
+
+vacuumを掛けると，対象となったテーブルの一部のレコードが消えてしまう．
+特にエラーメッセージも出ないが，--enable-cassertを有効にすると，
+assertion failedが観測される．このバグは，レコード長が固定のテーブルで
+は発生しない(可変長のレコードを含むテーブルでのみ発生する)．
+
+[原因]
+
+vacuumは，deleteやupdateによって発生した空きレコードを埋めるためにレコー
+ドの移動を行うが，可変長のレコードを扱うロジックにバグがあり，ある条件
+の時に誤って必要なレコードを含むブロックを削除していた．
+
+(現象の発生は比較的稀であり，再現には特定の条件が必要ですが，参考のた
+めに再現スクリプトを添付しておきます)．
+
+[バグが発生するバージョン]
+
+以下のバージョンで現象の発生を確認した．
+
+6.3.2
+6.4.2
+6.5.1
+6.5.2
+6.5.3
+
+なお，7.0以降ではこのバグは修正されている．
+
+[対策]
+
+添付のパッチを当てるか，7.0以降のバージョンにupgradeする．
+--------------------------------------------------------------------
+--
+Tatsuo Ishii
+</PRE>
+<PRE>
+*** commands/vacuum.c.orig	Tue Dec 26 23:24:01 2000
+--- commands/vacuum.c	Wed Dec 27 00:36:46 2000
+***************
+*** 1025,1030 ****
+--- 1025,1031 ----
+  			   *idcur;
+  	int			last_fraged_block,
+  				last_vacuum_block,
++ 				last_moved_in_block,
+  				i = 0;
+  	Size		tuple_len;
+  	int			num_moved,
+***************
+*** 1060,1065 ****
+--- 1061,1067 ----
+  	vacuumed_pages = vacuum_pages-&gt;vpl_num_pages - vacuum_pages-&gt;vpl_empty_end_pages;
+  	last_vacuum_page = vacuum_pages-&gt;vpl_pagedesc[vacuumed_pages - 1];
+  	last_vacuum_block = last_vacuum_page-&gt;vpd_blkno;
++ 	last_moved_in_block = 0;
+  	Assert(last_vacuum_block &gt;= last_fraged_block);
+  	cur_buffer = InvalidBuffer;
+  	num_moved = 0;
+***************
+*** 1073,1078 ****
+--- 1075,1083 ----
+  		/* if it's reapped page and it was used by me - quit */
+  		if (blkno == last_fraged_block &amp;&amp; last_fraged_page-&gt;vpd_offsets_used &gt; 0)
+  			break;
++ 		/* couldn't shrink any more if this block has MOVED_IN tuplesit's - quit */
++ 		if (blkno == last_moved_in_block)
++ 			break;
+  
+  		buf = ReadBuffer(onerel, blkno);
+  		page = BufferGetPage(buf);
+***************
+*** 1447,1452 ****
+--- 1452,1459 ----
+  					pfree(newtup.t_data);
+  					newtup.t_data = (HeapTupleHeader) PageGetItem(ToPage, newitemid);
+  					ItemPointerSet(&amp;(newtup.t_self), vtmove[ti].vpd-&gt;vpd_blkno, newoff);
++ 					if (vtmove[i].vpd-&gt;vpd_blkno &gt; last_moved_in_block)
++ 						last_moved_in_block = vtmove[i].vpd-&gt;vpd_blkno;
+  
+  					/*
+  					 * Set t_ctid pointing to itself for last tuple in
+***************
+*** 1579,1584 ****
+--- 1586,1593 ----
+  			newtup.t_data = (HeapTupleHeader) PageGetItem(ToPage, newitemid);
+  			ItemPointerSet(&amp;(newtup.t_data-&gt;t_ctid), cur_page-&gt;vpd_blkno, newoff);
+  			newtup.t_self = newtup.t_data-&gt;t_ctid;
++ 			if (cur_page-&gt;vpd_blkno &gt; last_moved_in_block)
++ 				last_moved_in_block = cur_page-&gt;vpd_blkno;
+  
+  			/*
+  			 * Mark old tuple as moved_off by vacuum and store vacuum XID
+</PRE>
+<PRE>
+drop sequence t1_i_seq;
+drop table t1;
+create table t1 (i serial, t text);
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',2048,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+insert into t1(t) values(rpad('x',3970,'x'));
+select ctid,i,char_length(t) from t1;
+delete from t1 where i = 1;
+delete from t1 where i = 4;
+delete from t1 where i = 7;
+delete from t1 where i = 10;
+delete from t1 where i = 11;
+delete from t1 where i = 12;
+delete from t1 where i = 13;
+delete from t1 where i = 14;
+delete from t1 where i = 15;
+delete from t1 where i = 16;
+select ctid,i,char_length(t) from t1;
+vacuum t1;
+select ctid,i,char_length(t) from t1;
+select version();
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00041" HREF="msg00041.html">[pgsql-jp 19348] Re: lost data with vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> "Naokado OGISO" &lt;ogiso@lineo.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp 19314] Re: lost data with vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 19307] Re: PostgreSQL on cygwin(win9x) progress.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 19309] Seminar 2000/12/02</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 19315] Re: Seminar 2000/12/02</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 19314] Re: lost data with vacuum</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

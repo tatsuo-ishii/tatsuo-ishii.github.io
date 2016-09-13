@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5511] Re: ShmemCreate: cannot create region -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Wed, 30 Sep 1998 14:30:57 +0900 (JST) -->
+<!--X-Message-Id: 199809300530.OAA24639@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809290746.QAA14242@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5511] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00301.html">Date Prev</A>][<A HREF="msg00304.html">Date Next</A>][<A HREF="msg00297.html">Thread Prev</A>][<A HREF="msg00306.html">Thread Next</A>][<A HREF="index.html#00302">Date Index</A>][<A HREF="threads.html#00302">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5511] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 30 Sep 1998 14:30:57 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00297.html">199809290746.QAA14242@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Sep 29, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;
+&gt;&gt;# インデックスが壊れている旨を表示しようとして落ちている?
+&gt;
+&gt;そのようですね。
+
+ということですので、すっきりと出直そうとして、また問題にぶつかっています。
+まず、現状のをpg_dumpしようとすると、
+NOTICE:  buffer leak [1328] detected in BufferPoolCheckLeak()
+NOTICE:  buffer leak [1332] detected in BufferPoolCheckLeak()
+と言われる上に、やはり中身も壊れているので、古いのから戻そうとしました。
+
+ところが、なぜvacuumするとバックエンドが落ちてしまいます。
+そこで、いろいろと試して再現するスクリプトを作りました(最後に添えておき
+ます)。表定義の後で、selectやdeleteとvacuumとを同じpsqlの中で実行すると、
+6.4ではバックエンドが落ちてしまいます。6.3.2(+全パッチ)では落ちません。
+どちらもEUC_JPですが、6.4では「createdb -E SQL_ASCII」でも落ちます。また、
+各SQL文を別のpsqlに分けると、6.4でも落ちません。
+ちなみに、"vacuum; vacuum;"としようとすると、6.3.2でも6.4でも
+ERROR:  ProcessUtility: command #1259 unsupported
+という謎のエラーになります。
+この「同じpsqlで」というのは対話的に使っても同じです。前に教えていただい
+たpostgres直接実行だと以下のようになります。
+
+========================================================================
+%gdb postgres
+(gdb) run -D /usr/local/pgsql/data ptest
+Starting program: /usr/local/pgsql/bin/postgres -D /usr/local/pgsql/data ptest
+
+POSTGRES backend interactive interface
+$Revision: 1.89 $ $Date: 1998/09/01 04:32:13 $
+&gt; select * from getting;
+blank
+         1: host        (typeid = 25, len = -1, typmod = -1, byval = f)
+         2: port        (typeid = 23, len = 4, typmod = -1, byval = t)
+         3: ip  (typeid = 25, len = -1, typmod = -1, byval = f)
+         4: when        (typeid = 1184, len = 8, typmod = -1, byval = f)
+        ----
+&gt; vacuum;
+DEBUG:  --Relation pg_type--
+(中略)
+DEBUG:  --Relation getting--
+DEBUG:  Pages 0: Changed 0, Reapped 0, Empty 0, New 0; Tup 0: Vac 0, Crash 0, UnUsed 0, MinLen 0, MaxLen 0; Re-using: Free/Avail. Space 0/0; EndEmpty/Avail. Pages 0/0. Elapsed 0/0 sec.
+DEBUG:  Index getting_ip_idx: Pages 2; Tuples 0. Elapsed 0/0 sec.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x308cc in vc_updstats (relid=19638, num_pages=0, num_tuples=0, 
+    hasindex=1 '\001', vacrelstats=0x156690) at vacuum.c:1770
+1770            vc_setpagelock(rd, ItemPointerGetBlockNumber(&amp;rtup-&gt;t_ctid));
+(gdb) bt
+#0  0x308cc in vc_updstats (relid=19638, num_pages=0, num_tuples=0, 
+    hasindex=1 '\001', vacrelstats=0x156690) at vacuum.c:1770
+#1  0x2e69d in vc_vacone (relid=19638, analyze=0, va_cols=0x0) at vacuum.c:579
+#2  0x2dd51 in vc_vacuum (VacRelP=0x0, analyze=0 '\000', va_cols=0x0)
+    at vacuum.c:257
+#3  0x2db8e in vacuum (vacrel=0x0, verbose=0, analyze=0 '\000', va_spec=0x0)
+    at vacuum.c:160
+#4  0xaa147 in ProcessUtility (parsetree=0x153610, dest=Debug) at utility.c:644
+#5  0xa6e65 in pg_exec_query_dest (query_string=0xefbfb458 "vacuum;\n", 
+    dest=Debug, aclOverride=0) at postgres.c:756
+#6  0xa6d44 in pg_exec_query (query_string=0xefbfb458 "vacuum;\n")
+    at postgres.c:697
+#7  0xa86e8 in PostgresMain (argc=4, argv=0xefbfd4a4, real_argc=4, 
+    real_argv=0xefbfd4a4) at postgres.c:1611
+#8  0x4c8fc in main (argc=4, argv=0xefbfd4a4) at main.c:103
+========================================================================
+
+========================================================================
+#!/bin/sh
+
+DBNAME=ptest
+
+destroydb $DBNAME
+createdb $DBNAME
+psql -e $DBNAME &lt;&lt;EOF
+create table header
+(
+	host	text	not null,
+	port	int	not null,
+	path	text	not null,
+	file	text	not null,
+	extra	text	not null,
+	name	text	not null,
+	value	text	not null
+);
+create index header_url_idx on header (host, port, path, file, extra);
+create unique index header_uniq_idx on header (host, port, path, file, extra, name);
+
+create table reference
+(
+	f_url	text	not null,
+	t_url	text	not null
+);
+create index reference_from_idx on reference (f_url);
+create index reference_to_idx on reference (t_url);
+create unique index reference_uniq_idx on reference (f_url, t_url);
+
+create table extension
+(
+	ext	text	not null,
+	note	text
+);
+create unique index extension_ext_idx on extension (ext);
+
+create table getting
+(
+	host	text	not null,
+	port	int	not null,
+	ip	text	not null,
+	when	datetime	not null
+);
+create unique index getting_ip_idx on getting (ip);
+EOF
+#psql -c "delete from getting; vacuum;" $DBNAME
+psql -c "select * from getting; vacuum;" $DBNAME
+#psql -c "delete from getting;" $DBNAME
+#psql -c "select * from getting;" $DBNAME
+#psql -c "vacuum;" $DBNAME
+#psql -c "vacuum; vacuum;" $DBNAME
+========================================================================
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00306" HREF="msg00306.html">[pgsql-jp 5515] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00297" HREF="msg00297.html">[pgsql-jp 5506] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 5510] [ANNOUNCE:LOCAL] Linux Users Kyushu OFF-line meeting/Fall @ Kyushu Univ.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 5512] regression test fails in 6.4b1</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 5506] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00306.html">[pgsql-jp 5515] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00302"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00302"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

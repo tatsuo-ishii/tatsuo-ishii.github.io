@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9802] RE: [pgsql&#45;jp 9785] Re:RDOによるリモートアクセス -->
+<!--X-From: "J.Baba" <jbaba@amy.hi&#45;ho.ne.jp> -->
+<!--X-Date: Fri, 30 Jul 1999 13:55:56 +0900 -->
+<!--X-Message-Id: 001e01beda47$e1df6600$860110ac@baba.mori.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9802] RE: [pgsql-jp 9785] Re:RDOによるリモートアクセス </TITLE>
+<LINK REV="made" HREF="mailto:jbaba@amy.hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00600.html">Date Prev</A>][<A HREF="msg00603.html">Date Next</A>][<A HREF="msg00609.html">Thread Prev</A>][<A HREF="msg00606.html">Thread Next</A>][<A HREF="index.html#00602">Date Index</A>][<A HREF="threads.html#00602">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9802] RE: [pgsql-jp 9785] Re:RDOによるリモートアクセス</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "J.Baba" &lt;<A HREF="mailto:jbaba@amy.hi-ho.ne.jp">jbaba@amy.hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 30 Jul 1999 13:55:56 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+J.Baba です。
+
+MOTOさんこんにちは、片岡さんがお忙しいようなので、
+私でわかるところだけ。とりあえず。
+
+&gt;
+&gt;実行してみましたが、以下のエラーメッセージが表示されます。
+&gt;”[Microsofr][ODBC Cursor Library]カーソルライブラリは有効ではありません。"
+&gt;ODBCドライバのほうでカーソルを有効にする設定があるのでしょうか？
+&gt;以前なにかの書籍でBatchカーソルを使用する手法をみて使ってみたのですが
+&gt;同じエラーメッセージが出ました
+
+この場合は、PostgreSQL 直ですね？。
+「Batch カーソル」でもいいんですが、ちょっとまた事情が変わります。
+「ODBC カーソルライブラリ」は、OpenConnection の前に指定します。
+ただ、それでも、rdConcurLock は、たぶんダメでしょう。
+rdConcurLock は、SQLSetPos() のロックモードに対応しますが、
+PostgreSQL ではサポートされていないと思います。
+また、ODBC カーソル自体を使う事で、既にダメでしょう。
+（もっとも、SQLServer 以外でサポートしているものをまだ見た事がありません）
+「読み取りロック」の問題かとも思いますが、私はまだ、PostgreSQL の
+その辺には詳しくありません。
+
+実際には、いろいろ方法はあると思いますが、私の場合、
+オプティミスティックロックを使います。（読み取りロックを使わない）
+欠点は、先にトランザクションを開始した方が失敗する事がありますが、
+同時実行性があまり損なわれず、処理も簡単です。
+以下修正点です。
+
+&gt;Dim SQL As String
+&gt;Dim cl As rdoColumn
+&gt;Dim qd As New rdoQuery
+&gt;Dim cn As rdoConnection
+&gt;Dim en As rdoEnvironment
+&gt;Dim rdResult As rdoResultset
+
+追加    Dim ferr As Boolean
+追加    On Error GoTo Err_1
+
+&gt;strConnect = "ODBC;DATABASE;nrec;UID=guest1;PWD=guest1;DSN=PostgreSQL"
+&gt;
+&gt;Set en = rdoEngine.rdoEnvironments(0)
+
+追加   en.CursorDriver = rdUseOdbc
+
+&gt;Set cn = en.OpenConnection("", rdDriverNoPrompt, False, strConnect)
+&gt;
+&gt;cn.BeginTrans   '// 　トランザクション開始　//  *1
+&gt;
+&gt;Set qd.ActiveConnection = cn
+&gt;qd.SQL = "SELECT * From equip WHERE num = " &amp; mm(Row, 0) &amp; ";"
+&gt;
+&gt;'//   引数LockTypeをｒｄConcurLockに変更＝＞ 排他ロック //
+&gt;Set rdResult = qd.OpenResultset(rdOpenKeyset, rdConcurLock, rdAsyncEnable)
+&gt;'*2
+
+変更   Set rdResult = qd.OpenResultset(rdOpenKeyset, rdConcurRowVer)
+
+&gt;With rdResult
+&gt;
+&gt;   If Not .EOF Then
+&gt;        .Edit
+&gt;        !equip_name = ReturnString
+&gt;        .Update
+&gt;        If .RowCount = 1 Then   '*3
+
+変更     If Not ferr Then
+
+&gt;            cn.CommitTrans   '//　コミットする。//  *1
+&gt;        Else
+&gt;            cn.RollbackTrans  '// ロールバックする。//  *1
+&gt;        End If
+&gt;   End If
+&gt;   .Requery
+&gt;End With
+&gt;
+&gt;rdResult.Close
+&gt;Set rdResult = Nothing
+&gt;
+&gt;cn.Close
+&gt;Set cn = Nothing
+&gt;
+&gt;en.Close
+&gt;Set en = Nothing
+
+追加  Exit Sub
+追加  Err_1:
+追加  '実際には、いろいろなエラーがありますが、ここでは、
+追加  'Update 時に、更新された行が無かった（他で更新された）場合のトラップで
+す。
+追加  ferr = True
+追加  Resume Next
+
+                  馬場  二郎
+                  E-Mail : jbaba@amy.hi-ho.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00606" HREF="msg00606.html">[pgsql-jp 9806] RDOによるPostgreSQL　ODBCドライバへのアクセス</A></STRONG>
+<UL><LI><EM>From:</EM> "Ogawa" &lt;ogawa@n-create.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00600.html">[pgsql-jp 9800] RE: サーバーのスペックはどれくらい必要でしょうか?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00603.html">[pgsql-jp 9803] Re: サーバーのスペックはどれくらい必要でしょうか?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00609.html">[pgsql-jp 9809] Re: Oracle for Linuxと PostgreSQLについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00606.html">[pgsql-jp 9806] RDOによるPostgreSQL　ODBCドライバへのアクセス</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00602"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00602"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

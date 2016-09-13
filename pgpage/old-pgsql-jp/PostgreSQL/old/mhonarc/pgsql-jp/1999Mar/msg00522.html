@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7778] Re: vacuum -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Mon, 29 Mar 1999 17:25:08 +0900 -->
+<!--X-Message-Id: 36FF38E4D2.CF7FSAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36FB452628.4B45SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199903261057.TAA01266@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7778] Re: vacuum </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00520.html">Date Prev</A>][<A HREF="msg00523.html">Date Next</A>][<A HREF="msg00498.html">Thread Prev</A>][<A HREF="msg00531.html">Thread Next</A>][<A HREF="index.html#00522">Date Index</A>][<A HREF="threads.html#00522">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7778] Re: vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 29 Mar 1999 17:25:08 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00487.html">36FB452628.4B45SAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00489.html">199903261057.TAA01266@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Fri, 26 Mar 1999 19:57:23 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さん wrote:
+&gt; 石井です。
+&gt;
+&gt; とりあえず、src/interfaces/lib/ecpglib.c 添付の当ててみて下さい。まあ、
+&gt; 他にもメモリーリークがあるかもしれないので、このパッチだけでは直るとは
+&gt; 保証できませんが。
+
+　石井さんのパッチを参考にして、次のようにしましたら67605ま
+でしか実行できなかったinsert文が、177000代まで伸びて、そこ
+で前回と同様のエラーになりました。
+
+　エラーの原因の一つは"ecpglib.c"であることははっきりしまし
+た。下記の修正以外にも"ecpglib.c"の ECPGexecute() の"return
+flase;" の前に free() が抜けている箇所がありますが、これでは
+致命的なエラーにはなりませんので、まだ原因がわからず悩んでい
+ます。
+
+　とりあえず、中間報告です。
+
+
+
+*** ecpglib.c.orig	Sat Oct  3 11:33:15 1998
+--- ecpglib.c	Mon Mar 29 15:30:22 1999
+***************
+*** 251,256 ****
+--- 251,285 ----
+  	return (true);
+  }
+  
++ /* free statement and variable */
++ static void
++ free_variable(struct variable *var)
++ {
++ 	struct variable	*var_next;
++ 
++ 	if( var == (struct variable *)NULL ) 
++ 		return; 
++ 	var_next = var-&gt;next;
++ 	free(var);
++ 
++ 	while(var_next)
++ 	{
++ 		var = var_next;
++ 		var_next = var-&gt;next;
++ 		free(var);
++ 	}
++ }
++ 
++ static void
++ free_statement(struct statement *stmt)
++ {
++ 	if( stmt == (struct statement *)NULL ) 
++ 		return;
++ 	free_variable(stmt-&gt;inlist);
++ 	free_variable(stmt-&gt;outlist);
++ 	free(stmt);
++ }
++ 
+  static bool
+  ECPGexecute(struct statement * stmt)
+  {
+***************
+*** 862,867 ****
+--- 891,897 ----
+  {
+  	va_list		args;
+  	struct statement *stmt;
++ 	bool            status;
+  
+  	va_start(args, query);
+  	if (create_statement(lineno, &amp;stmt, query, args) == false)
+***************
+*** 876,882 ****
+  		return false;
+  	}
+  
+! 	return (ECPGexecute(stmt));
+  }
+  
+  
+--- 906,914 ----
+  		return false;
+  	}
+  
+! 	status  = ECPGexecute(stmt);
+! 	free_statement(stmt);
+! 	return(status);
+  }
+  
+
+--
+Personal Software, Inc.
+境田雅明( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00531" HREF="msg00531.html">[pgsql-jp 7787] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00487" HREF="msg00487.html">[pgsql-jp 7743] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00489" HREF="msg00489.html">[pgsql-jp 7745] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00520.html">[pgsql-jp 7776] Re: 過去メールのアーカイブの更新を！</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00523.html">[pgsql-jp 7779] Re: 曜日を判定するには？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 7754] Re: vacuum</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00531.html">[pgsql-jp 7787] Re: vacuum</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00522"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00522"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,219 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23342] Re: 「階層問い合せ（Co	nnect By 	句）」は？ -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Sun, 07 Oct 2001 00:10:32 +0900 -->
+<!--X-Message-Id: 3BBF1EE8.736FD22E@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23342] Re: 「階層問い合せ（Co	nnect By 	句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00085.html">Date Prev</A>][<A HREF="msg00087.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00009.html">Thread Next</A>][<A HREF="index.html#00086">Date Index</A>][<A HREF="threads.html#00086">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23342] Re: 「階層問い合せ（Co	nnect By 	句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 07 Oct 2001 00:10:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00012.html">F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田＠修行中です。実用度０なのでお暇な方だけどうぞ。
+始めに戻って
+
+yosidam@bell24.co.jp wrote:
+
+&gt; 構築中のアプリケーションは、FAQの管理／検索システムで
+&gt; FAQのカテゴリをファイルシステムのディレクトリのように
+&gt; 任意の階層に設定でき、あるサブカテゴリが選択されたら、
+&gt; 再起的にその下に属するFAQの事例を優先順位に従って表示
+&gt; する機能を実装したいと考えています。
+&gt; 
+&gt; Oracleでは
+&gt; 
+&gt; 　select 社員番号, 社員名, 上司の社員番号, 職種, 入社日
+&gt; 　 from 人事表
+&gt; 　 start with 社員番号='xxxx'
+&gt; 　 connect by prior 社員番号=上司の社員番号
+&gt; 　 order by 入社日
+&gt; 
+&gt; のSQLで社員番号xxxxの部下を再起的に検索することができま
+&gt; した。
+&gt; 
+&gt; 得られた結果をある列の値でソートしたいので、できれば１つ
+&gt; のSQL文で表したいのです。
+
+ドキュメントをつらつらながめると、「継承」というのがあります。
+<A HREF="http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/inherit.html">http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/inherit.html</A>
+これを使って「親の数だけテーブルを作る」と、「何もしなくても」
+再帰的な検索ができます！
+
+しかし、テーブルの数がどんどん増えるので、試しにやってみたら
+100件ではOKでしたが200件で
+wada=# select * from id0;
+ERROR:  out of free buffers: time to abort !
+なんてことになってしまいました（^^;
+まあ、こういう用途じゃないんでしょうけど、おもしろかった（^^）
+
+--ルートテーブルは手作り
+create table id0(id int, pid int, val text);
+--100件登録（関数定義は後述）
+select makedata(100);
+--ルートから全検索
+wada=# select * from id0 order by id;
+ id  | pid |        val
+-----+-----+--------------------
+   1 |   0 | 1
+   2 |   0 | 2
+   3 |   2 | 2,3
+   4 |   1 | 1,4
+   5 |   2 | 2,5
+＜略＞
+  99 |  69 | 2,17,69,99
+ 100 |   5 | 2,5,100
+(100 rows)
+--3の子孫を検索（テーブルがid3）
+wada=# select * from id3 order by id;
+ id | pid |        val
+----+-----+--------------------
+  6 |   3 | 2,3,6
+ 11 |   3 | 2,3,11
+ 12 |  11 | 2,3,11,12
+＜略＞
+ 96 |  12 | 2,3,11,12,96
+ 97 |  77 | 2,3,11,12,30,77,97
+(20 rows)
+--3の子だけを検索（only使用）
+wada=# select * from only id3 order by id;
+ id | pid |  val
+----+-----+--------
+  6 |   3 | 2,3,6
+ 11 |   3 | 2,3,11
+ 24 |   3 | 2,3,24
+(3 rows)
+--別法
+wada=# select * from id0 where pid=3 order by id;
+ id | pid |  val
+----+-----+--------
+  6 |   3 | 2,3,6
+ 11 |   3 | 2,3,11
+ 24 |   3 | 2,3,24
+(3 rows)
+
+DROP FUNCTION tablename(int4);
+CREATE FUNCTION tablename(int4) RETURNS text AS '
+  DECLARE
+    pref text := ''id'';
+  BEGIN
+    IF $1 ISNULL THEN
+      RETURN pref || ''0'';
+    ELSE
+      RETURN pref || $1;
+    END IF;
+  END;
+' LANGUAGE 'plpgsql';
+
+DROP FUNCTION makedata(int4);
+CREATE FUNCTION makedata(int4) RETURNS boolean AS '
+  DECLARE
+    num ALIAS FOR $1;
+    toprate float := 0.02;
+    pid int;
+    min int;
+    ppid int;
+    r record;
+    tree text;
+  BEGIN
+    FOR r IN EXECUTE ''SELECT max(id) FROM '' || tablename(0) || '';''
+LOOP
+      min := coalesce(r.max, 0) + 1;
+    END LOOP;
+    FOR i IN (min)..(min + num*toprate) LOOP
+      EXECUTE ''INSERT INTO '' || tablename(0) || '' VALUES('' ||
+              i || '', 0, '' || i || '');'';
+    END LOOP;
+    FOR i IN (min + num*toprate + 1)..(min + num - 1) LOOP
+      pid := floor((i - 1)*random()) + 1;
+      FOR r IN EXECUTE ''SELECT pid FROM '' || tablename(0) || '' WHERE
+id = ''
+|| pid || '';'' LOOP
+        ppid := r.pid;
+      END LOOP;
+      FOR r IN EXECUTE ''SELECT count(*) FROM pg_class WHERE
+relkind=''''r'''' A
+ND relname = '''''' || tablename(pid) || '''''';'' LOOP
+        IF r.count = 0 THEN
+          EXECUTE ''CREATE TABLE '' || tablename(pid) || '' () INHERITS
+(''
+                  || tablename(ppid) || '');'';
+        END IF;
+      END LOOP;
+      FOR r IN EXECUTE ''SELECT val FROM ONLY '' || tablename(ppid) ||
+                       '' WHERE id = '' || pid || '';'' LOOP
+        tree := r.val;
+      END LOOP;
+      EXECUTE ''INSERT INTO '' || tablename(pid) || '' VALUES('' ||
+              i || '','' || pid || '','''''' || tree || '','' || i ||
+'''''');''
+;
+    END LOOP;
+    return true;
+  END;
+' LANGUAGE 'plpgsql';
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 23267] 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00085.html">[pgsql-jp 23341] Re: 半角カナの入ったCSV データをEUCでinsertしたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00087.html">[pgsql-jp 23343] 複合キー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 23292] Re: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 23264] テキストファイルのコピー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00086"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00086"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

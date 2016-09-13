@@ -1,0 +1,191 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26874] Re: ランダムに並び替えて SELECTする -->
+<!--X-From: Yutaka tanida <yutaka@hi&#45;net.zaq.ne.jp> -->
+<!--X-Date: Thu, 01 Aug 2002 18:45:54 +0900 -->
+<!--X-Message-Id: 20020801182650.E72D.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 005801c2393c$7e370070$830117ac@NOSCL020 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26874] Re: ランダムに並び替えて SELECTする </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@hi-net.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00005.html">Date Prev</A>][<A HREF="msg00007.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00009.html">Thread Next</A>][<A HREF="index.html#00006">Date Index</A>][<A HREF="threads.html#00006">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26874] Re: ランダムに並び替えて SELECTする</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yutaka tanida &lt;<A HREF="mailto:yutaka@hi-net.zaq.ne.jp">yutaka@hi-net.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 01 Aug 2002 18:45:54 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00004.html">005801c2393c$7e370070$830117ac@NOSCL020</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+On Thu, 1 Aug 2002 18:19:09 +0900
+"中島　学" &lt;manabu_nakajima@fmltd.co.jp&gt; wrote:
+
+&gt; 連番を振った番号のカラムと、その内容のカラムがあったとします。
+&gt; 
+&gt; no   contents
+&gt; 1    A
+&gt; 2    B
+&gt; 3    C
+&gt; 4    D
+&gt; 
+&gt; これを
+&gt; 3    C
+&gt; 1    A
+&gt; 2    B
+&gt; 4    D
+&gt; などとして、ランダムにセレクトしたいのですが、何かいいアイデアありますでしょうか？
+&gt; order by no で並べ替える限り毎回同じになってしまいますよね。
+&gt; 
+&gt; JSPで結果をレコードセットでとるので、SQL側で並び替えできたらと思っています。
+
+Javaでいけるのなら内部でListに保存してCollections#shuffle()とかのほうが
+いいと思いますが・・・
+
+ちなみに、PostgreSQLならではの奇妙な方法ですが、こんなのもあります。
+
+select ... order by (oid * v1) % v2 ;
+
+ここで
+
+v1 : 適当な数(定数)
+v2 : 適当な数(2からv2-1程度のランダムな数)
+
+# ランダムでdescを付けるとなお良し。
+
+全体の数にもよりますが、それ相応にランダムになると思います。
+
+#なお、v1/v2はどんな値が適当なのかは今思いついたのでよく知りません。もし
+分かったらぜひ報告してください。
+
+
+Administrator=# create temp table t1 (i int,t text);
+CREATE
+Administrator=# insert into t1 values(1,'1');
+INSERT 159637 1
+Administrator=# insert into t1 values(2,'2');
+INSERT 159638 1
+Administrator=# insert into t1 values(3,'3');
+INSERT 159639 1
+Administrator=# insert into t1 values(4,'4');
+INSERT 159640 1
+
+Administrator=# select  * from t1 order by (oid*25)%3;
+ i | t 
+---+---
+ 3 | 3
+ 1 | 1
+ 4 | 4
+ 2 | 2
+(4 rows)
+
+Administrator=# select  * from t1 order by (oid*25)%5;
+ i | t 
+---+---
+ 1 | 1
+ 2 | 2
+ 3 | 3
+ 4 | 4
+(4 rows)
+
+Administrator=# select  * from t1 order by (oid*25)%7;
+ i | t 
+---+---
+ 1 | 1
+ 3 | 3
+ 2 | 2
+ 4 | 4
+(4 rows)
+
+Administrator=# select  * from t1 order by (oid*25)%9;
+ i | t 
+---+---
+ 1 | 1
+ 4 | 4
+ 3 | 3
+ 2 | 2
+(4 rows)
+
+Administrator=# select  * from t1 order by (oid*25)%10;
+ i | t 
+---+---
+ 2 | 2
+ 4 | 4
+ 1 | 1
+ 3 | 3
+(4 rows)
+
+-- 
+Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00009" HREF="msg00009.html">[pgsql-jp: 26877] Re: ランダムに並び替えて SELECTする</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[pgsql-jp: 26873] ランダムに並び替えてSELECTする</A></STRONG>
+<UL><LI><EM>From:</EM> "中島　学" &lt;manabu_nakajima@fmltd.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00005.html">ml.postgresql.jp mailing list memberships reminder</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00007.html">[pgsql-jp: 26875] EUC_JPへの属性変更について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp: 26873] ランダムに並び替えてSELECTする</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00009.html">[pgsql-jp: 26877] Re: ランダムに並び替えて SELECTする</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00006"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00006"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24351] Re: Re4: 	テーブルが存在しているかどうかのチェック -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 07 Jan 2002 15:38:48 +0900 -->
+<!--X-Message-Id: 3C394278.E41BDA3@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C3916A5.AF8CEC49@shonan.ne.jp -->
+<!--X-Reference-Id: 200201071259.CEB72521.PPO@fjct.fujitsu.com -->
+<!--X-Reference-Id: 20020107132401.4228.AGURI@ssl.fujitsu.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24351] Re: Re4: 	テーブルが存在しているかどうかのチェック </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00013.html">Date Prev</A>][<A HREF="msg00015.html">Date Next</A>][<A HREF="msg00013.html">Thread Prev</A>][<A HREF="msg00015.html">Thread Next</A>][<A HREF="index.html#00014">Date Index</A>][<A HREF="threads.html#00014">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24351] Re: Re4: 	テーブルが存在しているかどうかのチェック</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Jan 2002 15:38:48 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00010.html">3C3916A5.AF8CEC49@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00011.html">200201071259.CEB72521.PPO@fjct.fujitsu.com</A>&gt; &lt;<A HREF="msg00012.html">20020107132401.4228.AGURI@ssl.fujitsu.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Ken-ichi Nakayama wrote:
+&gt; 
+&gt; なかやまです。
+
+...snip....
+
+&gt; oracleでは、pg_classと同等のディクショナリとして、
+&gt; dba_tables
+&gt; all_tables
+&gt; user_tables
+&gt; 
+&gt; があり、通常ユーザ自身の定義済み表を調べるときには user_tablesを使います。
+
+....snip....
+
+&gt; 複雑ですね(^^;) コスト値もオプティマイザモードも
+&gt; 出てきませんね(^^;;)
+
+....snip....
+
+引用省略しちゃいましたが、それなりですね。
+
+Oracle や Informix など商用DBは、DB管理の為のしかけや
+ツールが豊富なので、ＤＢカタログまわりは複雑になるので
+しょうね。
+そのかわり、管理情報が豊富だし、わかりやすい VIEW が
+沢山あったりして、きめ細かい管理ができそうですね。
+
+# PostgreSQL では GRANT UPDATE と DELETE が同じ扱だと
+# か、色々違いがあって、最初はびっくりしました (^_^;;
+
+
+PostgreSQL も、pg_class は実表ですが、pg_tables は VIEW
+なので、explain で出した実行計画もちょっぴり違います。
+
+［ pg_class : 実表の場合］
+explain select count(*) from pg_class where relname = 'tjm';
+  NOTICE:  QUERY PLAN:
+  Aggregate  (cost=2.02..2.02 rows=1 width=4)
+  -&gt;  Index Scan using pg_class_relname_index on pg_class  
+      (cost=0.00..2.01 rows=1 width=4)
+
+［ pg_tables : VIEW の場合］
+explain select count(*) from pg_tables where tablename = 'tjm';
+  NOTICE:  QUERY PLAN:
+  Aggregate  (cost=6.41..6.41 rows=1 width=4)
+  -&gt;  Index Scan using pg_class_relname_index on pg_class c 
+                     (cost=0.00..6.41 rows=1 width=4)
+        SubPlan
+          -&gt;  Seq Scan on pg_rewrite 
+                     (cost=0.00..4.39 rows=1 width=32)
+
+［参考: pg_tables の VIEW 定義］
+select * from pg_views where viewname = 'pg_tables';
+viewname |viewowner|definition
+---------+---------+-----------------
+pg_tables|postgres |SELECT c.relname AS tablename,
+    pg_get_userbyid(c.relowner) AS tableowner,
+    c.relhasindex AS hasindexes,
+    c.relhasrules AS hasrules,
+    (c.reltriggers &gt; 0) AS hastriggers
+    FROM pg_class c
+    WHERE (((c.relkind = 'r'::"char") OR (c.relkind = 's'::"char"))
+    AND (NOT (EXISTS (SELECT pg_rewrite.rulename FROM pg_rewrite
+        WHERE ((pg_rewrite.ev_class = c.oid)
+        AND (pg_rewrite.ev_type = '1'::"char"))))));
+(1 row)
+
+PostgreSQL 7.0.2 使用。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00015" HREF="msg00015.html">[pgsql-jp 24352] Re: Re4:  テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Ken-ichi Nakayama &lt;aguri@ssl.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[pgsql-jp 24347] Re: Re2: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 24349] Re: Re4:  テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Ken-ichi Nakayama &lt;aguri@ssl.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 24350] Re6:	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 24352] Re: Re4:  テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 24350] Re6:	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 24352] Re: Re4:  テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00014"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00014"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

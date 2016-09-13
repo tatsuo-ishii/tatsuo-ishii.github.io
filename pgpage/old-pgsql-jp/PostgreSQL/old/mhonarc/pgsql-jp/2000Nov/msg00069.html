@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18549] シーケンス型が定義されたテーブルにレコードが2重にinsertされる。 -->
+<!--X-From: Noriyasu Ishikawa <ishi@sqa.yamaha.co.jp> -->
+<!--X-Date: Mon, 06 Nov 2000 13:52:17 +0900 -->
+<!--X-Message-Id: 200011060452.AA00906@pc36047.sqa.yamaha.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18549] シーケンス型が定義されたテーブルにレコードが2重にinsert </TITLE>
+<LINK REV="made" HREF="mailto:ishi@sqa.yamaha.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00082.html">Thread Prev</A>][<A HREF="msg00071.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18549] シーケンス型が定義されたテーブルにレコードが2重にinsertされる。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Noriyasu Ishikawa &lt;<A HREF="mailto:ishi@sqa.yamaha.co.jp">ishi@sqa.yamaha.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 06 Nov 2000 13:52:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石川＠豊田町と申します。先ほどはスレッドを乱してしました大変申し訳ありません。
+
+再度　先ほどのメールの内容と追加実験の結果を新規に報告させてください。
+
+環境をPostgreSQL7.0.2(サーバーlinux plamo2.1 on PC9821Xa10)に変えて評価すると、
+
+datatemp2
+
+rno  crno   koumokuno  joukenno 工程数 shikenno 工程 id10
+2546 1      1          206      2      1        TE   1
+
+のように一見うまく行ったかに見えるのですが、
+再度挿入すると
+
+rno  crno   koumokuno  joukenno 工程数 shikenno 工程 id10
+2546 1      1          206      2      1        TE   1
+2546 1      1          206      2      1        TE   3
+
+serial型であるはずのid10がひとつ飛んだ値になってしまいます。
+
+これは正しい動作なのでしょうか？ご教授くださいますようお願い申し上げます。
+
+____________________________________________________________________________________________________
+SELECT distinct rno,crno, koumokuno, joukenno,工程数,shikenno, 'TE'::TEXT FROM data where ((rno=2546) 
+and (crno=1) and (shikenno=1));        の結果が
+
+rno  crno   koumokuno  joukenno 工程数 shikenno ?column?
+2546 1      1          206      2      1        TE
+
+となる元テーブルがあり、別のテーブルに挿入したいのですが、テーブルの構造によって結果が異なるので困っています。
+
+insert into datatemp (rno,crno,koumokuno,joukenno,工程数,shikenno,工程) SELECT distinct rno,crno, 
+koumokuno, joukenno,工程数,shikenno, 'TE'::TEXT FROM data where ((rno=2546) and (crno=1) and (shikenno=1));
+
+上のようにprimary keyがない場合には。問題がないのですが、
+
+シーケンスやシリアルを定義したdatatemp1,datatemp2に挿入するとレコードが２重になってしまいます。
+
+rno  crno   koumokuno  joukenno 工程数 shikenno 工程 id10
+2546 1      1          206      2      1        TE   1
+2546 1      1          206      2      1        TE   2
+
+解決方法は何かないものでしょうか？　ご教授いただきますようお願い申し上げます。
+
+環境 PostgreSQL6.5.3(サーバーlinux plamo1.4 )
+
+テーブルの構造
+
+create sequence data_id2_seq 62362;
+create table data
+(rno int2,
+ crno int2,
+ koumokuno int2,
+ joukenno int2,
+ 工程数 int2,
+ 工程 varchar(30),
+ 試験数 int2,
+ 不良数 int2,
+ 不良内容 varchar(30),
+ shikenno int2,
+ id2 int4 default nextval('data_id2_seq') primary key
+);
+
+create table datatemp
+(rno int2,
+ crno int2,
+ shikenno int2,
+ koumokuno int2,
+ joukenno int2,
+ 工程数 int2,
+ 工程 varchar(30),
+ shikenno int2
+);
+
+create sequence datatemp_id2_seq start 1;
+create table datatemp1
+(rno int2,
+ crno int2,
+ shikenno int2,
+ koumokuno int2,
+ joukenno int2,
+ 工程数 int2,
+ 工程 varchar(30),
+ shikenno int2
+ id2 int4 default nextval('datatemp_id2_seq') primary key
+);
+
+create table datatemp2
+(rno int2,
+ crno int2,
+ shikenno int2,
+ koumokuno int2,
+ joukenno int2,
+ 工程数 int2,
+ 工程 varchar(30),
+ shikenno int2,
+ id10 serial primary key
+);
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00071" HREF="msg00071.html">[pgsql-jp 18551] Re: シーケンス型が定義されたテーブルにレコードが2重にinsert される。</A></STRONG>
+<UL><LI><EM>From:</EM> Noriyasu Ishikawa &lt;ishi@sqa.yamaha.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 18548] シーケンス型が定義されたテーブルにレコードが２重にinsert される。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 18550] pgaccess Japansese message file</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00082.html">[pgsql-jp 18562] RE: pgaccess Japansese message file</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00071.html">[pgsql-jp 18551] Re: シーケンス型が定義されたテーブルにレコードが2重にinsert される。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,231 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23273] Re: 「階層問い合せ（Connect By 句）」は？(長文注意) -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Tue, 02 Oct 2001 01:40:37 +0900 -->
+<!--X-Message-Id: 3BB89C851CC.7800KITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23273] Re: 「階層問い合せ（Connect By 句）」は？(長文注意) </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00017.html">Date Prev</A>][<A HREF="msg00019.html">Date Next</A>][<A HREF="msg00012.html">Thread Prev</A>][<A HREF="msg00023.html">Thread Next</A>][<A HREF="index.html#00018">Date Index</A>][<A HREF="threads.html#00018">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23273] Re: 「階層問い合せ（Connect By 句）」は？(長文注意)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 02 Oct 2001 01:40:37 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00012.html">F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠アシェットです。
+
+&gt; 　皆様にお伺いしたいのですが、Oracleで言うところの「階層
+&gt; 問い合せ」はPostgreSQLではどのように実現できるでしょうか？
+&gt; 
+&gt; 環境は以下のとおりです
+&gt; 　Linux2.4.7-2.14
+&gt; 　PostgreSQL 7.1.2
+&gt; 　php4.0.6
+&gt; 正攻法、邪道、問いませんので、よろしくお願いします。
+
+邪道な方法に入ると思われますが。
+実テーブルを用意して、下階層に含まれるキー値を格納しておけば、実現可能で
+す。
+1.ループ値=0、親となるキー値をワークテーブルに格納
+2.ワークテーブルから、ループ値=0 となるキー値を親とする(子の)キー値を、ルー
+プ値:1 としてワークテーブルに格納。
+3.ループ値を +1 して、(2.)を繰り返す。
+　ループ値:n(現在処理中のループ値) を持つレコードが 0 ならばループ終了。
+これを、一時テーブルを利用すれば割と簡単なのですが、PL/pgSQL 内での一時テー
+ブルは使用しない方が良さそう(7.0.3 以前では使えないので元も子もない)なの
+で、実テーブルで行なう必要があります。
+実テーブルの場合、複数の問合せに対しての仕分けが必要なので、問合せコード
+を付けて行なえば問題なしです。
+
+以下、作成例。
+環境は、7.0.3 です。(ご注意を)
+
+-- 階層テーブル
+create table tKaisou (id int2, primary key(id), pid int2, val text);
+-- 問合せコード発行テーブル(tCD = 問合せコード)
+create table tChildrenTCD(tCD serial, primary key(tCD), created timestamp);
+-- 子孫取得ワークテーブル(実テーブル lCnt = ループ値)
+create table tChildrenWork (
+ tCD int4, CONSTRAINT childrenwork_tcd
+  FOREIGN KEY(tCD)
+  REFERENCES tChildrenTCD(tCD)
+  ON UPDATE CASCADE
+  ON DELETE CASCADE,
+ id int2,
+ lCnt int4
+);
+
+-- 子孫を得る関数(関数の戻り値は、問合せコードになります)
+create function fGetChildren(int2) returns int4 as
+'
+ DECLARE
+  fid ALIAS FOR $1;
+  ctcd int4;
+  clcnt int4 := 0;
+  chkcnt int4;
+ BEGIN
+  -- 問合せコードの生成
+  insert into tChildrenTCD(created) values (now());
+  select currval(\'tchildrentcd_tcd_seq\') into ctcd;
+  -- 指定のID(fid)を子孫取得ワークテーブルにインサート
+  insert into tChildrenWork (tCD, id , lCnt) values (ctcd, fid, clcnt);
+  -- ループ開始
+  LOOP
+    select clcnt + 1 into clcnt;
+    insert into tChildrenWork (tCD, id, lCnt)
+     select ctcd, t1.id, clcnt from tKaisou t1
+      where pid in 
+       (select id from tChildrenWork where lCnt = clcnt - 1 and tCD = ctcd);
+    IF (select count(*) from tChildrenWork where lCnt = clcnt and tCD = ctcd) = 0 THEN
+     EXIT;
+    END IF;
+  END LOOP;
+  -- 問合せコードを返す
+  RETURN ctcd;
+ END;
+'
+language 'plpgsql';
+
+insert into tKaisou (id, pid, val) values (0,null,'0');
+insert into tKaisou (id, pid, val) values (1,null,'1');
+insert into tKaisou (id, pid, val) values (2,0,'0-2');
+insert into tKaisou (id, pid, val) values (3,1,'1-3');
+insert into tKaisou (id, pid, val) values (4,2,'0-2-4');
+insert into tKaisou (id, pid, val) values (5,1,'1-5');
+insert into tKaisou (id, pid, val) values (6,4,'0-2-4-6');
+insert into tKaisou (id, pid, val) values (7,3,'1-3-7');
+-----ここまで
+
+以下、実行結果です。
+
+id=3 を親とする、子孫を取得。
+
+test=# select fgetchildren(3);
+ fgetchildren
+--------------
+            1
+(1 row)
+
+この値が、問合せコード(tCD)になります。
+
+test=# select * from tKaisou where id in
+test-#  (select id from tChildrenWork where tCD = 1);
+ id | pid |  val
+----+-----+-------
+  3 |   1 | 1-3
+  7 |   3 | 1-3-7
+(2 rows)
+
+
+id = 2 を親とする子孫を取得。
+
+test=# select fgetchildren(2);
+ fgetchildren
+--------------
+            2
+(1 row)
+
+test=# select * from tKaisou where id in
+test-#  (select id from tChildrenWork where tCD = 2);
+ id | pid |   val
+----+-----+---------
+  2 |   0 | 0-2
+  4 |   2 | 0-2-4
+  6 |   4 | 0-2-4-6
+(3 rows)
+
+じつは、
+select * from tKaisou where id in
+ (select id from tChildrenWork where tCD = fGetChildren(0));
+のような書き方で、1SQL で出来ると思ったのですが、出来なかったです。
+
+PHP 等を利用する場合、
+select fGetChildren(n);
+の結果の値を変数($tCD)に入れてから、
+select .... (.. where tCD = $tCD);
+を実行する、つまりは 2SQL 必要です。
+
+後は、tChildrenTCD から、問い合わせコードを削除(delete from tChildrenTCD
+where tCD = $tCD)すれば、ワークテーブルも連鎖して削除してくれます。
+
+結局 3SQL じゃんか。
+
+速度的には、in 句を使うより、where exists (略) としたほうが良いと思います
+が、そのあたりは別件ということで。
+
+しかし、Oracle の
+&gt; 　 start with 社員番号='xxxx'
+&gt; 　 connect by prior 社員番号=上司の社員番号
+って、便利ですね・・・・。
+
+お掃除用
+drop function fGetChildren(int2);
+drop table tKaisou;
+drop table tChildrenWork;
+drop table tChildrenTCD;
+drop sequence tchildrentcd_tcd_seq;
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 23267] 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 23272] Re: function  内でのtemp使用について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 23274] Re: function  内でのtemp使用について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 23267] 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 23278] Re: 「階層問い合せ（Co	nnect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00018"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00018"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

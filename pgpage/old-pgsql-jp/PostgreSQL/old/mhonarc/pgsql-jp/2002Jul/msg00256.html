@@ -1,0 +1,126 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26805] Re: ERROR:  SET TRANSACTION ISOLATION LEVEL must be calledbefore any queryについて -->
+<!--X-From: Ryouichi Matsuda <r&#45;matuda@sra.co.jp> -->
+<!--X-Date: Wed, 24 Jul 2002 10:49:28 +0900 -->
+<!--X-Message-Id: 20020724104703.B80B.R&#45;MATUDA@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003c01c23132$e6f50ba0$1664a8c0@fs.isivo.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26805] Re: ERROR:  SET TRANSACTION ISOLATION LEVEL must be ca </TITLE>
+<LINK REV="made" HREF="mailto:r-matuda@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00255.html">Date Prev</A>][<A HREF="msg00257.html">Date Next</A>][<A HREF="msg00237.html">Thread Prev</A>][<A HREF="msg00235.html">Thread Next</A>][<A HREF="index.html#00256">Date Index</A>][<A HREF="threads.html#00256">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26805] Re: ERROR:  SET TRANSACTION ISOLATION LEVEL must be calledbefore any queryについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ryouichi Matsuda &lt;<A HREF="mailto:r-matuda@sra.co.jp">r-matuda@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 24 Jul 2002 10:49:28 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00237.html">003c01c23132$e6f50ba0$1664a8c0@fs.isivo.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松田亮一です。
+
+On Mon, 22 Jul 2002 12:50:21 +0900, iwacchi wrote:
+&gt; ConnectionPoolを使って、Connectionを使いまわしているのですが、commitに関する
+&gt; 命令（setautocommit,commit,rollback)をコールする箇所で
+&gt; &gt; java.sql.SQLException: ERROR:  SET TRANSACTION ISOLATION LEVEL must be
+&gt; called before any query
+
+このエラーは、psqlで次のように実行すると発生します。
+
+psql=&gt; begin; -- (1)
+psql=&gt; select * from pg_user; -- (2)
+psql=&gt; set transaction isolation level read committed; -- (3)
+
+トランザクション隔離レベルの設定は、トランザクション開始直後に行う必要
+があります。つまり、(1)→(3)→(2)という順番なら大丈夫です。
+
+PostgreSQL7.1.3のJDBCのソースを見ると、"set transaction isolation
+level ..."を実行するメソッドは、
+
+  (a) commit(), rollback(), setAutoCommit()
+  (b) setTransactionIsolationLevel()
+
+(a)は、"begin"してから"set transaction isolation level ..."を実行する
+ので、(1)→(3)という順番だから大丈夫。
+
+(b)は、"begin"しないで"set transaction isolation level ..."を実行する
+ので、その前までに実行したSQLによっては(1)→(2)という順番になるために、
+エラーが発生する可能性があります。
+
+
+&gt; 当MLには事例がないようですが、米国のサイトにはConnectionPoolのクラスに問題が
+&gt; あったという人が1人いただけでした。
+
+ConnectionPoolは、何を使っていますか？
+
+そのコネクションプールの実装、または使い方によっては、(1)→(2)→(3)と
+いう順番でエラーになっているのかもしれません。
+
+___________________________________________________________
+ Ryouichi Matsuda  (<A HREF="http://www.sra.co.jp/people/r-matuda/">http://www.sra.co.jp/people/r-matuda/</A>)
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00237" HREF="msg00237.html">[pgsql-jp: 26786] ERROR:  SET TRANSACTION ISOLATION LEVEL must be calledbefore any queryについて</A></STRONG>
+<UL><LI><EM>From:</EM> "iwacchi" &lt;iwacchi@is-ivo.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00255.html">[pgsql-jp: 26804] Re: リストアでデータの復元が出来ない！</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00257.html">[pgsql-jp: 26806] Null値と別名の扱い方について教えて下さい。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00237.html">[pgsql-jp: 26786] ERROR:  SET TRANSACTION ISOLATION LEVEL must be calledbefore any queryについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00235.html">[pgsql-jp: 26784] pgbash-2.4a.2　リリース</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00256"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00256"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,208 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27761] 外部キーの設定に関しまして -->
+<!--X-From: "msweb" <msweb@usen&#45;43x235x183x54.ap&#45;USEN.usen.ad.jp> -->
+<!--X-Date: Sat, 26 Oct 2002 22:29:56 +0900 -->
+<!--X-Message-Id: 050a01c27cf3$c65e4840$2400a8c0@mswebclient -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27761] 外部キーの設定に関しまして </TITLE>
+<LINK REV="made" HREF="mailto:msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00262.html">Date Prev</A>][<A HREF="msg00264.html">Date Next</A>][<A HREF="msg00271.html">Thread Prev</A>][<A HREF="msg00264.html">Thread Next</A>][<A HREF="index.html#00263">Date Index</A>][<A HREF="threads.html#00263">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27761] 外部キーの設定に関しまして</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "msweb" &lt;<A HREF="mailto:msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp">msweb@usen-43x235x183x54.ap-USEN.usen.ad.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 26 Oct 2002 22:29:56 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+初めて投稿します。いつも読んでばかりのmsahikoと申します。
+
+ある書籍からのデータを元にしてテーブルの外部キーを設定したのですが、どうして
+も希望する設定ができません。
+分かり難い説明で申し訳ないですが、
+
+uriage_jouhou（商品の売上のテーブル、販売員、商品明細、顧客情報、商品の販売
+集計などを参照している）の主キーでpsales_no（売上ナンバー）というカラムがあ
+ります。
+それと関連してuriage_meisai（商品の販売集計のテーブル、uriage_jouhouから参照
+されている）にはsales_no（商品明細ナンバー）、psales_no（売上ナンバー）があ
+り、この2つのカラムを組として主キーを構成しています。
+
+uriage_jouhouでキャンセルなどが入って削除すると、deleteでカスケードの設定と
+して、uriage_meisaiでは対応するpsales_noのレコードを連鎖的に削除されるように
+しました。この場合外部キーを設定するのはuriage_meisaiのpsales_noで主キーは
+uriage_jouhouのpsales_noとなります。
+
+実際のところでは、下記のsqlでカスケードの設定は問題ありませんでした。テスト
+でも連鎖して削除されます。
+
+create table uriage_meisai(sales_no int4,
+ psales_no int4 not null,
+ prod_id int4 not null,
+ quantity int4,
+ price int4,
+ allprice int4,
+ session varchar(20),
+ PRIMARY KEY(sales_no, psales_no),
+
+FOREIGN KEY (prod_id) REFERENCES shouhin(prod_id)　-- これは他のテーブルへの
+外部キーの設定です。
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 --参照
+しているデータの削除、変更は許しません。
+
+     on delete
+          no action
+
+    on update
+         no action,
+
+ FOREIGN KEY (psales_no) REFERENCES uriage_jouhou(psales_no) 　--これが
+uriage_jouhouに対する設定です。
+
+      on delete
+          cascade
+
+     on update
+          no action
+
+    );
+
+さらにuriage_jouhouからuriage_meisaiの販売リストを参照しているので、
+uriage_jouhouのpsales_noは外部キーとなり、uriage_meisaiのpsales_noは主キーと
+して設定すると思います。（変な言い方かもしれません、対応する主キーの設定と言
+うべきかもしれませんが）
+これはuriage_meisaiのレコードでuriage_jouhouから参照されているのを削除される
+のを防ぐためですが。
+
+上記でいくとuriage_jouhouのpsales_noカラムは主キーに設定されているので、外部
+キーとして二重に設定できるのは・・・非常に無理があるとおもいましたが、やはり
+設定できません。テーブルの作成で主キーを設定し、FOREIGN KEY (psales_no)で外
+部キーを設定して、uriage_meisaiから参照された時だけ外部キーに成り代わるとは
+とても思えないのですが。
+それに相手の主キーは2つのカラムが組みになっているので、一つだけを主キーとし
+て設定するのは・・・、無理のような。
+
+sqlを組みましたが見ているだけで不合理で、もちろんエラーが出ました。
+
+
+create table uriage_jouhou(
+  psales_no           INT4,
+  psales_date         DATE,
+  emp_id              INT4,
+  cust_id             INT4,
+  cust_address        text,
+  cust_tel            VARCHAR(20),
+  delivery_date       DATE,
+  delivery_time       TIME,
+  total               INT4,
+  carriage            INT4,
+  excise              INT4,
+  all_total           int4,
+  otodoke_meishou     varchar(20),
+
+  PRIMARY KEY ( psales_no ),
+
+FOREIGN KEY(emp_id)
+ REFERENCES hanbai_tantou(emp_id)
+
+     on delete
+          no action
+
+    on update
+          no action,
+
+
+FOREIGN KEY(cust_id)
+ REFERENCES kokyaku(cust_id)
+
+
+     on delete
+          no action
+
+    on update
+          no action,
+
+FOREIGN KEY(psales_no)    -- 自分の主キーを外部キーにできないはず
+ REFERENCES uriage_meisai(psales_no)    -- 相手の主キーは2つのカラムの組なの
+に一つして指定できない
+
+
+     on delete
+          no action
+
+    on update
+          no action
+
+);
+
+上記の2つの状態を設定することは可能でしょうか？
+
+
+とんでもない思い違いや、基本的なことを忘れているかもしれませんがよろしくお願
+いいたします。
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp: 27762] Re: 外部キーの設定に関しまして</A></STRONG>
+<UL><LI><EM>From:</EM> 羽生　章洋&lt;habu@air-beat.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00262.html">[pgsql-jp: 27760] Re: oid を失ったLargeObjectの復元</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00264.html">[pgsql-jp: 27762] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00271.html">[pgsql-jp: 27769] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp: 27762] Re: 外部キーの設定に関しまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00263"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00263"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

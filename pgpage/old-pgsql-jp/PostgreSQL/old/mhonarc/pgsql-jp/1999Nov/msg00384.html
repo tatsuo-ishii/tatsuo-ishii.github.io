@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11814] Re: レコードロックの方法について２ -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Wed, 17 Nov 1999 12:07:11 +0900 -->
+<!--X-Message-Id: 38321BDF3D4.9F17NKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3831F6F3.CD03AFF4@sdkt.co.jp -->
+<!--X-Reference-Id: 199911170216.LAA18310@ns01.iitv.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11814] Re: レコードロックの方法について２ </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00387.html">Date Prev</A>][<A HREF="msg00388.html">Date Next</A>][<A HREF="msg00380.html">Thread Prev</A>][<A HREF="msg00386.html">Thread Next</A>][<A HREF="index.html#00384">Date Index</A>][<A HREF="threads.html#00384">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11814] Re: レコードロックの方法について２</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 17 Nov 1999 12:07:11 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00374.html">3831F6F3.CD03AFF4@sdkt.co.jp</A>&gt; &lt;<A HREF="msg00380.html">199911170216.LAA18310@ns01.iitv.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。  
+
+On Wed, 17 Nov 1999 11:16:32 +0900 (JST)
+masaki &lt;yamamoto@smap.co.jp&gt; wrote:
+
+&gt; 山本＠ｓｍａｐと申します。
+&gt; 
+&gt; 自己レスです。
+&gt; 
+&gt; シーラカンス本は持っています。
+&gt; 残念ながら、これにはPostgres6.4が載っているため、6.5のＬＬＬ
+&gt; の説明については今後実装される予定ということで終わっております。
+
+6.5 については、今月(11月)発売のシーラカンス本２に
+説明が出るはずです。買い損なったのでまだみてないですが。
+
+&gt; テーブルロックについては確かに載っていますが、せっかくですので
+&gt; レコードロックにチャレンジしてみたいと思っていました。
+&gt; 
+&gt; psqlでbigin;のあとlock record select 〜とあてずっぽで打ってみると
+&gt; "select"が文法エラーというメッセージがでます。
+&gt; ひょっとしたら、lock record という命令があるのかな？と思ったので
+&gt; すが、どうやらselect 〜 for updateという文で排他をかけるというこ
+&gt; とらしいです。
+&gt; 排他テーブル等を設けてやらないと難しい気がしてます。
+
+
+まず man を見ましょう。
+
+ソースと一緒に配付されるので、最新版がついているはず
+です。英文ですが。
+
+私は、vi 派なので、次のようにして、man を vi で見や
+すいように下線なしの text に変換して１つのファイルに
+入れて使ってます。(なまずを使うのもいいし、各自好き
+な方法で)。
+
+#!/bin/bash
+for f in man/*.l
+do
+    man $f | col -b
+done
+
+
+本題に戻りますと、行ロックというのは、トランザクシ
+ョン制御を実現する内部的な手段のことで、6.5.1 の
+man で見る限り、lock 。。。というような明示的な行
+ロックの手段はないようです。   SQL では、明示的な
+行ロックを使うDBはないように思うけどどうでしょう？。
+# 十年前の UNIFY 4.0 には、明示的行ロックがあった
+# けどこれは、SQL規格のできる前なので。
+
+結論は、行ロックは気にせずに、TRANSACTION  制御に
+まかせればいいということでしょう。プログラマーが
+考慮しなければいけないのは、ISOLATION LEVEL と、
+SELECT の FOR UPDATE 節くらいなのでは。
+# 後は、意図的に TABLE LOCK を使う場合。
+
+参考：石井さんのオープンソース祭のスライドによると、
+PostgreSQL の行ロックは、MS SQLSever のように、表
+ロックに自動エスカレーションされることがないので、
+併行性が良いとのことです。
+ユーザー会のMLに流れてますが、スライドのURLを。
+<A HREF="http://www.jp.postgresql.org/misc/seminar/1999-11-13/part1/index.htm">http://www.jp.postgresql.org/misc/seminar/1999-11-13/part1/index.htm</A>
+
+
+−−−−−−− 6.5.1 man より抜粋 −−−−−−−−
+Default  transaction  isolation  level in Postgres is READ
+COMMITTED one, when queries inside  transaction  see  only
+changes  committed before query execution. So, you have to
+SET TRANSACTION ISOLATION LEVEL  SERIALIZABLE
+。。。以下略( man をみましょう)。。。。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00386" HREF="msg00386.html">[pgsql-jp 11816] Re: レコードロックの方法について２</A></STRONG>
+<UL><LI><EM>From:</EM> masaki &lt;yamamoto@smap.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00374" HREF="msg00374.html">[pgsql-jp 11803] Re: レコードロックの方法について２</A></STRONG>
+<UL><LI><EM>From:</EM> 家入拓二&lt;ieiri@sdkt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00380" HREF="msg00380.html">[pgsql-jp 11809] Re: レコードロックの方法について２</A></STRONG>
+<UL><LI><EM>From:</EM> masaki &lt;yamamoto@smap.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00387.html">[pgsql-jp 11817] Re: レコードロックの方法について２</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00388.html">[pgsql-jp 11818] Re: レコードロックの方法について２</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 11809] Re: レコードロックの方法について２</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 11816] Re: レコードロックの方法について２</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00384"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00384"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

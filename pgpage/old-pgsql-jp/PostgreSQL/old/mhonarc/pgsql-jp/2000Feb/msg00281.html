@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13241] Re: count(*) が返す値 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Thu, 24 Feb 2000 17:15:20 +0900 -->
+<!--X-Message-Id: 38B4E898.41091D27@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200002240623.PAA08919@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 38b4db8b.4624%harada@marssystem.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13241] Re: count(*) が返す値 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00280.html">Date Prev</A>][<A HREF="msg00282.html">Date Next</A>][<A HREF="msg00279.html">Thread Prev</A>][<A HREF="msg00283.html">Thread Next</A>][<A HREF="index.html#00281">Date Index</A>][<A HREF="threads.html#00281">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13241] Re: count(*) が返す値</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 24 Feb 2000 17:15:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00278.html">200002240623.PAA08919@sraigw.sra.co.jp</A>&gt; &lt;<A HREF="msg00279.html">38b4db8b.4624%harada@marssystem.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Kazuya HARADA wrote:
+
+。。。略。。。。
+&gt; 
+&gt; |sugawara=&gt; select * from t1,t2;
+&gt; |id|id
+&gt; |--+--
+&gt; | 0| 0
+&gt; | 1| 0
+&gt; | 2| 0
+&gt; | 0| 1
+&gt; | 1| 1
+&gt; | 2| 1
+&gt; | 0| 2
+&gt; | 1| 2
+&gt; | 2| 2
+&gt; |(9 rows)
+&gt; 
+&gt; 上記はどうやら暗示的に外部結合しているような気がします。
+&gt; 
+&gt; |sugawara=&gt; select count(*) from t1, t2;
+&gt; |count
+&gt; |-----
+&gt; |    3
+&gt; |(1 row)
+&gt; |-----------------------------------------------
+&gt; |この最後のselectが返す数値は、 3 ではなく 9 でなければならないのではな
+&gt; |いかと思うのですが、如何でしょう。
+&gt; 
+&gt; これが正しいともいえないと思います。
+&gt; テーブル t1, t2 には何ら関係がないのですから。
+&gt; 但し、動作は最初に記述したテーブルのカウントを取っているようですが。
+&gt; 
+&gt; select count(*) from t1, t2 where t1.id = t2.id;
+&gt; 
+&gt; でカウントが３であれば正しい情報です。
+&gt; 
+&gt; select count(*) from t1 left outer join t2 on t1.id = t2.id;
+&gt; 
+&gt; でカウントが９であれば正しい情報です。
+&gt; （さっき調べたんですが、(左)外部結合あったんですね…）
+
+OUTER JOIN は、PostgreSQL 6.5.3 では未実装でエラーになりますが、
+上記 SQL 文は、version 7 で試されたのでしょうか？。
+    select count(*) from t1 left outer join t2 on t1.id = t2.id;
+    NOTICE:  LEFT OUTER JOIN not yet implemented
+    ERROR:  JOIN expressions are not yet implemented
+
+ーーーー
+ANSI SQL92 の規定では何が正しいのか調べていませんが、
+なんとなく釈然としない結果ですね。
+PostgreSQL 6.5.3 でも、外積を一時表に入れてから、
+COUNT(*) してやると、当然のことながら、 9  になります。
+
+select * into temp t3 from t1, t2;
+
+select count(*) from t3;
+    9
+
+select count(*) from t1, t2;
+    3
+
+
+参考までに、 Informix Dynamic Server Version 7.30
+の既存の表を使って、同様な SQL を実行した場合、外積の件数
+を返します。つまり、この場合だと、 9 になります。
+
+-- 
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+        <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+PostgreSQL 汎用ＤＢ検索フリーソフト(2000-02-18 版)公開
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00285" HREF="msg00285.html">[pgsql-jp 13245] Re: count(*) が返す値</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00284" HREF="msg00284.html">[pgsql-jp 13244] Re: count(*)が返す値</A></STRONG>
+<UL><LI><EM>From:</EM> Kaori Inaba &lt;i-kaori@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00283" HREF="msg00283.html">[pgsql-jp 13243] Re: count(*) が返す値</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuya HARADA &lt;harada@marssystem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00278" HREF="msg00278.html">[pgsql-jp 13238] count(*) が返す値</A></STRONG>
+<UL><LI><EM>From:</EM> Atsushi SUGAWARA &lt;atsushi.sugawara@ncd.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 13239] Re: count(*) が返す値</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuya HARADA &lt;harada@marssystem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 13240] Re: count(*) が返す値</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00282.html">[pgsql-jp 13242] Re: count(*) が返す値</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 13239] Re: count(*) が返す値</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 13243] Re: count(*) が返す値</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00281"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00281"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 706] Re: [Q] GRANT and REVOKE. -->
+<!--X-From: "Takashi Mega" <mega@rodan.misc.hit&#45;u.ac.jp> -->
+<!--X-Date: Tue, 17 Sep 1996 20:46:40 +0900 -->
+<!--X-Message-Id: 199609171146.UAA00442@rodan.misc.hit&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199609161335.WAA10956@log.tramp.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 706] Re: [Q] GRANT and REVOKE. </TITLE>
+<LINK REV="made" HREF="mailto:mega@rodan.misc.hit-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00075.html">Date Prev</A>][<A HREF="msg00081.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00077.html">Thread Next</A>][<A HREF="index.html#00076">Date Index</A>][<A HREF="threads.html#00076">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 706] Re: [Q] GRANT and REVOKE.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Takashi Mega" &lt;<A HREF="mailto:mega@rodan.misc.hit-u.ac.jp">mega@rodan.misc.hit-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 17 Sep 1996 20:46:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+一橋大の妻鹿です。
+
+おみつさん、こんにちは。
+
+&gt; 「revoke ALL on sample from public;」
+&gt; とすると、createuser のときの2つの質問の組合せで、
+&gt; 
+&gt; どうも、pg_user の usesuper が 「t」になっていると制御が効かないようですね。
+
+なるほど、そうだったのですか？実は、ユーザmegaにユーザ登録及びデータベース
+作成の権限を与えていまして、それが原因かと一瞬思ったのですが、「さすがにそ
+んなことはありえないだろう。」とか思っていました。また、postgresを載せてい
+るマシンでは僕は管理者ではないため実験用にアカウントを作ることもできず、ま
+た、一度destroyuser megaをしてしまうとユーザmegaで作ったデータが消えてしま
+うかと思い、実験できずにいたのです。
+
+ユーザmegaで作ったデータはどうせ各種実験や遊び用のものでしたので、
+destroyuser megaして実験してみました。なるほど、確かにrevokeできました。
+
+# 今思うと、pg_user表を適当に変えればよかったのですね (^^;。
+# 素人の悲しさでつい先程destroyuserした後に気付きました。
+
+これはやはり、「createuserできる人間は一種の管理者であるから全権を与える。」
+という意図した仕様なのでしょうか？それとも一種のバグなのでしょうか？
+
+確かにcreateuserできるということは、そのデータベースシステムの管理者なので
+しょうけど、データベース管理者が複数いる時は不都合が生じませんかね？例えが
+不適切かもしれませんが、あたかも、複数のシステム管理者が、suしなくてもROOT
+権限で全てのファイルにアクセス可能であるようなものだと思うのですが…。
+
+こうなると、Aさん、Bさんという２人のデータベース管理者がいて、Aさんがrevoke 
+all on sample from B;してもBさんはsampleにアクセス可能なわけですが、ここでB
+さんのusesuperをfにしたらちゃんとBさんはsampleにアクセス不可能になるかどう
+か…。本来不可能になるべきでしょうが、後述のようにちょっとその辺の連動が適
+切に処理されるかどうかは怪しいように思われるのです。
+
+&gt; それから、一度「revoke ALL on sample from public;」とやってから、
+&gt; 「grant SELECT on sample to group etc;」
+&gt;        ( etc には、{501,507}が入っていて、USERID:507=kazuの場合。
+&gt;          kazu は、データベースをつくることはでき、
+&gt;          ユーザーをつくることはできない)
+&gt; とすると、当然 kazu は SELECT 可能なんですが、そのあとに
+&gt; 「revoke ALL on sample from kazu;」としても、
+&gt; なぜか SELECT できてしまいます。
+&gt; 「revoke ALL on sample from etc;」としてみると、
+&gt; きちんと SELECT できなくなります。
+
+私もユーザmegaはデータベースを作ることはでき、ユーザを作ることはできないよ
+うにcreateuser megaした後に、同様の実験を試みました。以前のメールにてグルー
+プadminにユーザpostgresを入れ、グループetcにユーザmegaを入れた旨書きました
+が、その設定が(一度destroyuser megaした後にも)残っていました。
+
+ちなみに、グループadmin,etc双方に２人のユーザを入れていたのですが、試しにそ
+のうちの１人、利用してはいないがユーザ登録されている人をdestroyuserしてみま
+したが、やはり指定したグループにその人のUIDが残っていました。つまり、「一度
+ユーザ抹消してもそのユーザがもう一度ユーザ登録されたらグループに復活させる。」
+のではなく、「destroyuserとグループが連動されていない」ようなのです。
+
+この時点では、おみつさんが仰るように、ユーザとグループは連動していなくて、
+それが原因でrevoke all on sample from kazu;が効かないのかと思ったのですが、
+revoke all on sample from group etc;もrevoke all on sample from mega;もどち
+らも有効でした。
+
+おみつさんのところのPostgres 95はどのバージョンでしょうか？僕は1.01です。お
+そらく僕の方のバージョンの方が古いでしょうから、新しいバージョンではこの辺
+の仕様を変えたのでしょうか？ただ、古いバージョンだとrevoke all on sample
+from user;できて、新しいバージョンだとできないといった"改悪"を意図してやる
+とも思えませんが…。
+
+以上、原因はよく分からないのですが、自分のところの動作実験の結果です。
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00077" HREF="msg00077.html">[postgres95 707] Re: [Q] GRANT and REVOKE.</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[postgres95 704] Re: [Q] GRANT and REVOKE.</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00075.html">[postgres95 705] Re: POSTODBC Ver 0.20</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00081.html">[postgres95 711] Easy WWW-DB(zyview)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[postgres95 704] Re: [Q] GRANT and REVOKE.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00077.html">[postgres95 707] Re: [Q] GRANT and REVOKE.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00076"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00076"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

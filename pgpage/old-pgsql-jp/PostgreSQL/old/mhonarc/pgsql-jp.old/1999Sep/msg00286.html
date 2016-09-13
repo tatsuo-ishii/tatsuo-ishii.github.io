@@ -1,0 +1,192 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10788] Re: NULLと文字列との結合が出来ない? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 19 Sep 1999 12:52:49 +0900 -->
+<!--X-Message-Id: 199909190352.MAA01141@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990918174032F.toshi@saluda.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10788] Re: NULLと文字列との結合が出来ない? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00285.html">Date Prev</A>][<A HREF="msg00287.html">Date Next</A>][<A HREF="msg00274.html">Thread Prev</A>][<A HREF="msg00287.html">Thread Next</A>][<A HREF="index.html#00286">Date Index</A>][<A HREF="threads.html#00286">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10788] Re: NULLと文字列との結合が出来ない?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 19 Sep 1999 12:52:49 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 青木@kinotrope です。
+&gt; 
+&gt; t-ishii&gt; &gt; SELECT文において、NULLと文字列との結合が出来ない(結合結果がNULL
+&gt; t-ishii&gt; &gt; になる?)ようなのですが、どうしてでしょう？
+&gt; t-ishii&gt; &gt; このようなものなのでしょうか？
+&gt; t-ishii&gt; 
+&gt; t-ishii&gt; うーむ、良く分かりませんが、null は値ではありませんから、|| も含め、+,
+&gt; t-ishii&gt; -, *, / などのどんな演算も null に対しては無意味と言うか、結果が null 
+&gt; t-ishii&gt; になるのはうなずけるような気がします。
+
+標準SQLガイド4版で調べてみました。237ページを見ると、
+
+「これらの定義は、ヌルを「不明(Unknown)な値」として解釈することによっ
+て成立する。つまりxがUnknownな場合は、x+1もUnknownとなる。同様の概念は、
+ほかのデータ型や(スカラー関数を含めた)スカラー操作にも適用される。」
+
+とあります。"||" もスカラー操作ですから、、x || y で、x または y が 
+null なら結果も null になると解釈すべきと思います。
+
+&gt; t-ishii&gt; 他のDBではどうなんでしょう？
+&gt; 
+&gt; Oracle8 R8.0.4 で試してみました。
+&gt; 
+&gt; SQL&gt; create table test(c1 varchar2(8), c2 varchar2(8));
+&gt; insert文は元記事と同じものを実行。
+&gt; SQL&gt; set null *
+&gt; SQL&gt; select c1,c2,c1||c2 from test;
+&gt; 
+&gt; C1       C2       C1||C2
+&gt; -------- -------- ----------------
+&gt; *        A        A
+&gt; *        B        B
+&gt; A        *        A
+&gt; B        *        B
+&gt; *        A        A
+&gt; B        *        B
+&gt; A        B        AB
+&gt; 
+&gt; 
+&gt; # 期待通りの結果になっていると思うのですが。
+
+上の解釈からすると、Oracle のこの結果はおかしいのではないでしょうか？
+
+&gt; 疑問なのは、insert のときの '' が NULL として入力されていること。(上記は
+&gt; 全て SQL*Plus で実行しています。)
+&gt; # 空文字列はどうやって入力するのかな。
+
+これ、前から私も疑問でした:-)
+
+ところで、x || y だけでなく、x + 1 のケースも PostgreSQL で確認してみ
+ました。結果は SQL の要求通りになっていると思います。なお、実行結果を
+見やすくするために、int 型(iカラム)では null を -1、text型のカラムでは 
+null を 'NULL' に置き換えて表示しています。実行環境は PostgreSQL
+6.5.2, LinuxPPC R4 です。
+
+--------------------------------------------------------------------
+drop function f1(int);
+DROP
+create function f1(int) returns int as '
+select case when $1 is null then -1 else $1 end;
+' language 'sql';
+CREATE
+drop function f2(text);
+DROP
+create function f2(text) returns text as '
+select case when $1 is null then ''NULL'' else $1 end;
+' language 'sql';
+CREATE
+drop table test;
+DROP
+ create table test (
+  i int,
+  c1 text,
+  c2 text
+ );
+CREATE
+
+ insert into test values(NULL,NULL,'A');
+INSERT 4170125 1
+ insert into test values(NULL,NULL,'B');
+INSERT 4170126 1
+ insert into test values(NULL,'A',NULL);
+INSERT 4170127 1
+ insert into test values(NULL,'B',NULL);
+INSERT 4170128 1
+ insert into test values(1,'','A');
+INSERT 4170129 1
+ insert into test values(1,'B','');
+INSERT 4170130 1
+ insert into test values(1,'A','B');
+INSERT 4170131 1
+
+ select f1(i) as i,f2(c1) as c1,f2(c2) as c2,f1(i+1) as "i+1",f2(c1 || c2) as "c1||c2" from test;
+ i|c1  |c2  |i+1|c1||c2
+--+----+----+---+------
+-1|NULL|A   | -1|NULL  
+-1|NULL|B   | -1|NULL  
+-1|A   |NULL| -1|NULL  
+-1|B   |NULL| -1|NULL  
+ 1|    |A   |  2|A     
+ 1|B   |    |  2|B     
+ 1|A   |B   |  2|AB    
+(7 rows)
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00310" HREF="msg00310.html">[pgsql-jp 10812] divide by null (Re:NULLと文字列との結合が出来ない?)</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00294" HREF="msg00294.html">[pgsql-jp 10796] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00287" HREF="msg00287.html">[pgsql-jp 10789] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+<UL><LI><EM>From:</EM> Nishijima Taisaku &lt;nishijim@fujioil.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00274" HREF="msg00274.html">[pgsql-jp 10776] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 10787] 自己紹介＋改行を含む文字列の処理について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00287.html">[pgsql-jp 10789] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00274.html">[pgsql-jp 10776] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00287.html">[pgsql-jp 10789] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00286"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00286"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

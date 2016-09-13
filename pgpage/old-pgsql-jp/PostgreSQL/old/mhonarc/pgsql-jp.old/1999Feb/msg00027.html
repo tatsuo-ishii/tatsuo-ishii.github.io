@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6900] Re: テーブルロックのリリース -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 01 Feb 1999 19:22:18 +0900 -->
+<!--X-Message-Id: 199902011022.TAA21471@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902010902.JAA13281@spider.yokohama.sei.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6900] Re: テーブルロックのリリース </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00025.html">Date Prev</A>][<A HREF="msg00028.html">Date Next</A>][<A HREF="msg00025.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00027">Date Index</A>][<A HREF="threads.html#00027">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6900] Re: テーブルロックのリリース</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 01 Feb 1999 19:22:18 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;  &gt;&gt;今一つおやりになりたいことの意図が分からないのですが、要は 
+&gt;  &gt;&gt;commit/abort する前にロックを解除したいということですか？だとすると、
+&gt;
+&gt;いえ、データベース内のテーブル単位でロック、リリースがしたい、と言う事
+&gt;です。
+&gt;
+&gt;異なるテーブルへのアクセスですので、
+&gt;
+&gt;  &gt;&gt;それはトランザクションの一貫性を損なう可能性があります。(「2相ロック」
+&gt;  &gt;&gt;などのキーワードで参考書を調べると理由が解説してあります)
+&gt;
+&gt;と言った問題は発生しないと思います。
+
+それでも駄目でしょう。
+
+例：
+テーブル A と B があり、A には初期値として 10 が入っています(簡単のた
+めに、A, B はそれぞれ 1 レコードしかないとします)。あるアプリケーショ
+ンは、次のように、2相ロックに従わない処理をします。
+
+1. テーブル A をロック。(LOCK A)
+2. A を読み出す。(READ A)
+3. Aの値を +1 した値を得る。
+4. その値を A に書き戻す。(WRITE A)
+5. A のロックを解除する。(UNLOCK A)
+6. テーブル B をロック。(LOCK B)
+7. A と同じ値を B に書き込む。(WRITE B)
+8. B のロックを解除する。(UNLOCK B)
+
+そして、この同じアプリケーションが、別々のユーザから起動され、トランザ
+クション T1, T2 として走ったとします。
+
+T1 が完全に終了した後に T2 が走った場合、B の値は 12 になっていること
+が期待されます。
+
+しかし、T1 が5 まで進んだときに T2 が走りだしてそのまま完了し、次に T1 
+が 6 から再開すると T1 が終了したときには B の値は 11 になっています。
+
+しかし、そのアプリケーションが、
+
+1. テーブル A をロック。(LOCK A)
+2. A を読み出す。(READ A)
+3. その値に +1 する。
+4. その値を A に書き戻す。(WRITE A)
+5. テーブル B をロック。(LOCK B)
+6. A と同じ値を B に書き込む。(WRITE B)
+7. A のロックを解除する。(UNLOCK A)
+8. B のロックを解除する。(UNLOCK B)
+
+というように2相ロックにしたがっていれば T1, T2 の実行順がどうであって
+も T1, T2 が終ったときに常にBの値は 12 になります。
+
+&gt;  &gt;&gt;なぜそのようなことが必要なのか、具体的に説明していただけると良いんです
+&gt;  &gt;&gt;が。
+&gt;
+&gt;特に理由は無いのですが、接続したテーブルをコミットせずに別のテーブルに
+&gt;アクセスする、と言うのが気持悪いのです。
+
+そういうことを気にしなくても済むのがトランザクションというものでは？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00023" HREF="msg00023.html">[pgsql-jp 6896] Re: テーブルロックのリリース</A></STRONG>
+<UL><LI><EM>From:</EM> yamasita@sei.co.jp (Yamashita Taiichirou)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 6898] Re: テーブルロックのリリース</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 6901]  Re: SQL操作</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 6898] Re: テーブルロックのリリース</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 6893] Fw: Fw: ｐｏｓｔｇｒｅｓｑｌデータデータ登録時の文字化けについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00027"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00027"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23762] Re: oid が2^32を超えた場合 -->
+<!--X-From: "Nobuhiro Shimura" <tsumiki@hi&#45;ho.ne.jp> -->
+<!--X-Date: Fri, 16 Nov 2001 15:14:56 +0900 -->
+<!--X-Message-Id: 007b01c16e67$58f4ce50$020aa8c0@win2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 004f01c16db3$0a1ab2e0$020aa8c0@win2000 -->
+<!--X-Reference-Id: 20011115231851I.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 003701c16de9$83586360$020aa8c0@win2000 -->
+<!--X-Reference-Id: 20011116101129F.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23762] Re: oid が2^32を超えた場合 </TITLE>
+<LINK REV="made" HREF="mailto:tsumiki@hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00177.html">Date Prev</A>][<A HREF="msg00179.html">Date Next</A>][<A HREF="msg00177.html">Thread Prev</A>][<A HREF="msg00186.html">Thread Next</A>][<A HREF="index.html#00178">Date Index</A>][<A HREF="threads.html#00178">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23762] Re: oid が2^32を超えた場合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Nobuhiro Shimura" &lt;<A HREF="mailto:tsumiki@hi-ho.ne.jp">tsumiki@hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 16 Nov 2001 15:14:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00166.html">004f01c16db3$0a1ab2e0$020aa8c0@win2000</A>&gt;&lt;<A HREF="msg00172.html">20011115231851I.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00175.html">003701c16de9$83586360$020aa8c0@win2000</A>&gt; &lt;<A HREF="msg00176.html">20011116101129F.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+志村＠つみきソフトウェアです。
+
+石井さんありがとう御座います。
+
+&gt; if (checkPoint.nextXid &lt; FirstTransactionId ||
+&gt; checkPoint.nextOid &lt; BootstrapObjectIdData)
+&gt; elog(STOP, "Invalid NextTransactionId/NextOid");
+&gt; 
+&gt; if (checkPoint.nextXid &lt; FirstTransactionId)
+&gt; elog(STOP, "Invalid NextTransactionId/NextOid");
+おっしゃる通りに
+src/backend/access/transam/xlog.c
+を書き換えてみました。
+
+コンパイル後、実行ファイルpostgresを挿げ替え。
+結果、無事起動。
+ちなみにoidでトレースをはると
+checkPoint.nextOid: 12; BootstrapObjectIdData: 16384
+のようになっていました。
+
+クライアントからの接続も確認。
+が、
+pg_dump tsumiki &gt; tsumiki.dmp
+を実行すると
+DumpComment: SELECT failed: 'ERROR:  dtoi4: integer out of range
+'.
+のようなエラーが発生しました。
+多分、
+2^32がらみではなく、2^31以上のoidの扱いの問題かと思います。
+
+データの方はクライアントからCSVなどで無事出力を確認。
+ラージオブジェクトも問題なく取り出すことが出来ました。
+
+&gt; ところでお願いですが，7.2ではこういうエラーは発生しないはずなので，で
+&gt; きれば7.2beta2あたりで「2^32 OIDテスト」をして頂けないでしょうか?
+はい。やってみます。
+結果が出次第、ご報告いたします。
+
+&gt; # 2^32のOIDを作り出す方法ですが，やはり地道にデータをたくさん登録し続
+&gt; # けたのですか?
+はいそうです。
+きっかけが、
+oidが2^31を超えた場合にアプリケーション側で発生する
+不具合を再現させる為だったので、
+できるだけ実環境に近い方がいいかと思いそうなりました。
+# どこでoidをいじればいいのか判らないというのもありましたが...。
+
+具体的には、きしださんが おっしゃられているように
+INSERT 〜 SELECTの方法です。
+ただ、ディスクがぱんぱんになるので
+1000万件ごとにCREATE 〜 SELECT と DROP
+を繰り返すようにしてます。
+
+使用しているテスト機だと
+スクリプトを実行して放置すること約2日間で出来上がりです。
+
+それでは。非常に的確なアドバイスありがとう御座いました。
+
+NAME:        Nobuhiro Shimura(Tsumiki Software)
+E-MAIL:      tsumiki@hi-ho.ne.jp
+HP:          <A HREF="http://www.hi-ho.ne.jp/tsumiki/">http://www.hi-ho.ne.jp/tsumiki/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp 23750] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp 23756] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp 23759] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00176" HREF="msg00176.html">[pgsql-jp 23760] Re: oid が2^32を超えた場合</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 23761] Re: oid  が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00179.html">[pgsql-jp 23763] Re: createdb -E SJIS について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 23761] Re: oid  が2^32を超えた場合</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 23771] WAL file name (was: oidが2^32	を超えた場合)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00178"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00178"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,242 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19686] PL/pgSQL on Solaris -->
+<!--X-From: Tsuyoshi SASAMOTO <nazonazo@super.win.ne.jp> -->
+<!--X-Date: Thu, 25 Jan 2001 17:30:08 +0900 (JST) -->
+<!--X-Message-Id: 200101250830.f0P8U8w25760@super.win.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19686] PL/pgSQL on Solaris </TITLE>
+<LINK REV="made" HREF="mailto:nazonazo@super.win.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00378.html">Date Prev</A>][<A HREF="msg00380.html">Date Next</A>][<A HREF="msg00383.html">Thread Prev</A>][<A HREF="msg00380.html">Thread Next</A>][<A HREF="index.html#00379">Date Index</A>][<A HREF="threads.html#00379">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19686] PL/pgSQL on Solaris</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:nazonazo@super.win.ne.jp">nazonazo@super.win.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 25 Jan 2001 17:30:08 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お初に投稿させて頂きます．
+
+さて，私は Solaris8(Intel)+PostgreSQL7.0.3 を使っているのですが，
+PL/pgSQLを使おうとして，下記のような不都合に出くわしました．
+Web上でいろいろ検索してみると，英語版のMLのアーカイブに
+同様の問題が発生する旨の記事があったのですが，解決策は
+出ていなかったので，自分で対策を探していました．
+
+で，どうにか解決する方法を見つけましたので，投稿させて頂く
+ことにしました．この方法は“場当たり的”な側面が強く，
+本質的に望ましい解決法といえるかは疑問ですが，もし，
+同様の問題に出くわしている方がおられましたら，参考に
+して頂ければ，と思います．
+
+
+Tsuyoshi SASAMOTO
+nazonazo@super.win.ne.jp
+
+----------------------------------------------------------------------
+
+CREATE FUNCTION plpgsql_call_handler ( ) RETURNS opaque
+    AS '/usr/local/pgsql/lib/plpgsql.so' LANGUAGE 'C';
+CREATE TRUSTED PROCEDURAL LANGUAGE 'plpgsql' HANDLER plpgsql_call_handler
+    LANCOMPILER 'PL/pgSQL';
+CREATE FUNCTION fff (text) RETURNS text AS '
+  BEGIN
+    RETURN $1;
+  END;
+' LANGUAGE 'plpgsql';
+
+このあたりまではいいのですが，
+
+SELECT fff('aaa');
+
+を実行しようとすると，
+
+ERROR:  Load of file /usr/local/pgsql/lib/plpgsql.so failed: ld.so.1: 
+/usr/local/pgsql/bin/postmaster: 重大なエラー: 再配置エラー: 
+ファイル /usr/local/pgsql/lib/plpgsql.so: シンボル CurrentMemoryContext: 
+参照シンボルが見つかりません。
+
+というエラーが出てきてしまってたんです．コンパイル時に LD_RUN_PATH を
+設定してあったので，ld.so.1（Solarisのランタイムリンカ）の
+検索ディレクトリの設定は問題なかったはずです．
+
+で，ソースを見ながら考えていたのですが，
+
+[backend/commands/trigger.c]
+DLLIMPORT TriggerData *CurrentTriggerData = NULL;
+
+[backend/executor/spi.c]
+DLLIMPORT uint32 SPI_processed = 0;
+DLLIMPORT SPITupleTable *SPI_tuptable;
+DLLIMPORT int SPI_result;
+
+[backend/tcop/postgres.c]
+DLLIMPORT sigjmp_buf Warn_restart;
+
+[backend/utils/mmgr/mcxt.c]
+DLLIMPORT MemoryContext CurrentMemoryContext = NULL;
+
+これらの変数を持っているオブジェクトファイル
+
+backend/commands/SUBSYS.o
+backend/executor/SUBSYS.o
+backend/tcop/SUBSYS.o
+backend/utils/SUBSYS.o
+
+はbackend/postgresにはリンクさせず，シェアードオブジェクトとして
+分離させてみることにしました．
+
+すると，今度は上記の"SELECT fff('aaa');"を実行してもエラーにはならず，
+ちゃんと使えるようになりました．
+
+とはいえ，なぜ上記の変数がpostgres中にあると再配置エラーを起こし，
+シェアードオブジェクトとして分離させるとエラーにならないのか，
+ということの理由はよくわかりません．
+
+ちなみに，コンパイラとしてはgcc-2.95.2を使い，リンカは
+GNU ldを使った場合とSolarisに付いているldを使った場合と
+両方検証してみましたが，どちらでも結果は同じでした．
+
+----------------------------------------------------------------------
+
+--- src/Makefile.global.in	Tue May 23 11:12:46 2000
++++ src/Makefile.global.in	Wed Jan 24 10:38:50 2001
+@@ -288,6 +288,10 @@
+   COPT= $(CUSTOM_COPT)
+ endif
+ 
++ifeq ($(FORCE_CFLAGS_SL), yes)
++CFLAGS+= $(CFLAGS_SL)
++endif
++
+ ifeq ($(CC), gcc)
+ CFLAGS+= -Wall -Wmissing-prototypes -Wmissing-declarations
+ endif
+--- src/backend/Makefile	Wed May 31 01:36:34 2000
++++ src/backend/Makefile	Wed Jan 24 10:34:50 2001
+@@ -41,15 +41,22 @@
+ SRCDIR = ..
+ include $(SRCDIR)/Makefile.global
+ 
+-DIRS = access bootstrap catalog commands executor lib libpq \
++#DIRS = access bootstrap catalog commands executor lib libpq \
++#	main parser nodes optimizer port postmaster regex rewrite \
++#	storage tcop utils
++
++# Split `postgres` into `postgres` and `libpgso.so`.
++DIRS = access bootstrap catalog lib libpq \
+ 	main parser nodes optimizer port postmaster regex rewrite \
+-	storage tcop utils
++	storage
++DIRSO = commands executor tcop utils
+ 
+ ifdef TIOGA
+ DIRS += tioga
+ endif
+ 
+ OBJS = $(DIRS:%=%/SUBSYS.o)
++OBJSO = $(DIRSO:%=%/SUBSYS.o)
+ ifeq ($(PORTNAME), qnx4)
+ # This file chrashes wlink and is therefore not in bootstrap/SUBSYS.o.
+ OBJS1 = bootstrap/bootstrap.o
+@@ -79,8 +86,10 @@
+ 				global1.description local1_template1.description
+ 
+ ifneq ($(PORTNAME), win)
+-postgres: fmgr.h $(OBJS) $(VERSIONOBJ)
+-	$(CC) $(CFLAGS) -o postgres $(OBJS) $(OBJS1) $(VERSIONOBJ) $(LDFLAGS)
++libpgso.so: $(OBJSO)
++	$(CC) $(CFLAGS) $(CFLAGS_SL) -shared -o $@ $(OBJSO) $(LDFLAGS)
++postgres: fmgr.h $(OBJS) $(VERSIONOBJ) libpgso.so
++	$(CC) $(CFLAGS) -o postgres $(OBJS) $(OBJS1) $(VERSIONOBJ) $(LDFLAGS) -L. -lpgso
+ else
+ postgres: $(DLLOBJS) $(SRCDIR)/utils/dllinit.o postgres.def libpostgres.a
+ 	dlltool --dllname $@$(X) --output-exp $@.exp --def postgres.def
+@@ -93,9 +102,12 @@
+ #.PHONY: postgres
+ 
+ $(OBJS): $(DIRS:%=%.dir)
++$(OBJSO): $(DIRSO:%=%.dir)
+ 
+ $(DIRS:%=%.dir):
+ 	$(MAKE) -C $(subst .dir,,$@) all 
++$(DIRSO:%=%.dir):
++	$(MAKE) -C $(subst .dir,,$@) all FORCE_CFLAGS_SL=yes
+ 
+ $(VERSIONOBJ): $(SRCDIR)/utils/version.c $(SRCDIR)/include/version.h
+ 	$(MAKE) -C $(SRCDIR)/utils version.o
+@@ -168,13 +180,14 @@
+ .PHONY: install install-bin install-templates install-headers
+ 
+ install: $(LIBDIR) $(BINDIR) $(HEADERDIR) $(TEMPLATEDIR) \
+-         postgres $(POSTGRES_IMP) \
++         postgres libpgso.so $(POSTGRES_IMP) \
+          install-bin install-templates install-headers
+ 
+-install-bin: $(BINDIR) postgres$(X) $(POSTGRES_IMP)
++install-bin: $(BINDIR) postgres$(X) libpgso.so $(POSTGRES_IMP)
+ 	$(INSTALL) $(INSTL_EXE_OPTS) postgres$(X) $(BINDIR)/postgres$(X)
+ 	@rm -f $(BINDIR)/postmaster
+ 	ln -s postgres$(X) $(BINDIR)/postmaster
++	$(INSTALL) $(INSTL_SHLIB_OPTS) libpgso.so $(LIBDIR)/libpgso.so
+ ifeq ($(MAKE_EXPORTS), true)
+ 	$(INSTALL) $(INSTLOPTS) $(POSTGRES_IMP) $(LIBDIR)/$(POSTGRES_IMP)
+ endif
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00380" HREF="msg00380.html">[pgsql-jp 19687] Re: PL/pgSQL on Solaris</A></STRONG>
+<UL><LI><EM>From:</EM> HIROSHI OOTA &lt;oota@LSi.nec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00378.html">[pgsql-jp 19685] Re: How to 'lo_import()' ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 19687] Re: PL/pgSQL on Solaris</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00383.html">[pgsql-jp 19690] Re: 何接続可能</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 19687] Re: PL/pgSQL on Solaris</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00379"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00379"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

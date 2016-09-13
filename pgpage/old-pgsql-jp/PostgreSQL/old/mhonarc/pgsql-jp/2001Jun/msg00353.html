@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21975] Re: [Q]Postmaster CPU time -->
+<!--X-From: takemoto@bd2.hnes.nec.co.jp -->
+<!--X-Date: Fri, 22 Jun 2001 19:24:50 +0900 -->
+<!--X-Message-Id: 20010622192450takemoto@mail.bd2.hnes.nec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200106220435.f5M4Z6Q16731@mailhost.e&#45;vision.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21975] Re: [Q]Postmaster CPU time </TITLE>
+<LINK REV="made" HREF="mailto:takemoto@bd2.hnes.nec.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00354.html">Date Prev</A>][<A HREF="msg00355.html">Date Next</A>][<A HREF="msg00341.html">Thread Prev</A>][<A HREF="msg00357.html">Thread Next</A>][<A HREF="index.html#00353">Date Index</A>][<A HREF="threads.html#00353">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21975] Re: [Q]Postmaster CPU time</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takemoto@bd2.hnes.nec.co.jp">takemoto@bd2.hnes.nec.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 22 Jun 2001 19:24:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00341.html">200106220435.f5M4Z6Q16731@mailhost.e-vision.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+竹元です
+
+&gt;負荷試験をすれば，負荷のかかるプロセスのCPU使用率が高くなるというのは
+&gt;むしろ普通のことではないでしょうか．
+
+そのようですね。だいたい同じような数字が出ていますね。
+＃他人のところはどうなのだろうという興味があって尋ねてみました。
+
+&gt;試しに，私のところで
+&gt;
+&gt;Solaris8(Intel)+PostgreSQL7.1.2 -- 起動時オプション -ilF -B 4096 --syslog=2
+&gt;
+&gt;で
+&gt;
+&gt;pgbench -c 5 -t 1000 pgbench
+&gt;
+&gt;を実行中のprstat（Solaris独自のコマンドですが，まぁ，topみたいなもんだと
+&gt;思って下さい^^;）の出力は
+&gt;----------------------------------------------------------------------
+&gt;   PID USERNAME  SIZE   RSS STATE  PRI NICE      TIME  CPU PROCESS/NLWP       
+&gt; 16633 postgres   39M   14M run     42    0   0:00.08  16% postgres/1
+&gt; 16634 postgres   39M   14M run     42    0   0:00.07  16% postgres/1
+&gt; 16637 postgres   39M   14M sleep   42    0   0:00.07  16% postgres/1
+&gt; 16636 postgres   39M   14M run     33    0   0:00.07  16% postgres/1
+&gt; 16635 postgres   39M   14M sleep   42    0   0:00.07  15% postgres/1
+&gt; 16631  3344K 1504K sleep   56    0   0:00.02 4.8% pgbench/1
+&gt; 16639  1000K  712K cpu0    58    0   0:00.00 0.1% prstat/1
+&gt;  5584  2548K 1764K run     48    0   0:00.01 0.0% tcsh/1
+&gt; 24505 postgres   38M 1632K sleep    8    0   0:00.01 0.0% postgres/1
+&gt; 25129 postgres   39M 2924K sleep   60    0   0:00.53 0.0% postgres/1
+&gt;Total: 10 processes, 10 lwps, load averages: 3.21, 4.41, 3.16
+&gt;----------------------------------------------------------------------
+
+&gt;&gt;○質問２　PostgreSQL接続方式
+&gt;&gt;現状の作りとして、DB接続は一度のみでそのあとは、その接続
+&gt;&gt;に対してＳＱＬを発行していますが、PosgreSQLにおいて
+&gt;&gt;推奨される接続方式というものは存在しますか？
+&gt;&gt;（例えば、接続→UPDATE→切断→接続…とやった方がベターとか、
+&gt;&gt;接続しっぱなしは良くないなど）
+&gt;&gt;
+&gt;&gt;＃接続しっぱなしの環境でパフォーマンス低下しているので
+&gt;&gt;＃このような質問をしてみました。
+&gt;
+&gt;接続／切断を繰り返すと，余計な処理を行うことになって，
+&gt;パフォーマンスには逆にマイナスに作用すると思います．
+&gt;
+&gt;で，更新を繰り返していると，現在のPostgreSQLではデータファイルに
+&gt;ゴミがどんどん溜まっていって，それがパフォーマンス低下の原因に
+&gt;なるので，適当な時間間隔で，定期的にVACUUMをかけるようにすると
+&gt;いいのではないでしょうか．
+
+試しにVACUUMをかけて実行したら、パフォーマンス向上したように見えました。
+アドバイスありがとうございます。＞有識者の方々
+
+またまた質問なのですが、VACUUM実行は定期的に行う必要ってあるのでしょうか？
+頻繁にＤＢを更新するようなところでは実行すると効果的だとシーラカンス本
+（ISBN4-7741-0890-1 改訂版p360)にも書いてありましたが、逆にあまり頻繁に
+更新しないようなＤＢならば、ゴミデータは自動的に削除されるのでしょうか？
+
+＃ある時間帯に頻繁にＤＢ更新がかかっても、時間がたてばVACUUM実行しなくても
+＃大丈夫なようにゴミデータは削除されていくのかな、と思い質問しています。
+--------------------
+H.Takemoto
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00357" HREF="msg00357.html">[pgsql-jp 21979] Re: [Q]Postmaster CPU time</A></STRONG>
+<UL><LI><EM>From:</EM> "M.Kakitani" &lt;kakip@mars.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 21963] Re: [Q]Postmaster CPU time</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00354.html">[pgsql-jp 21976] Re: RedHat 	がPostgreSQLをベースにしたDBを有料で提供</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00355.html">[pgsql-jp 21977] Re: RedHat がPostgreSQLをベースにしたDBを有料で提供</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00341.html">[pgsql-jp 21963] Re: [Q]Postmaster CPU time</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00357.html">[pgsql-jp 21979] Re: [Q]Postmaster CPU time</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00353"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00353"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

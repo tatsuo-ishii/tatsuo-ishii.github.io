@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21080] Re: テーブルの作成方法 -->
+<!--X-From: "Shohei Sato" <shohei@shohei.ota.tokyo.jp> -->
+<!--X-Date: Fri, 11 May 2001 05:56:07 +0900 -->
+<!--X-Message-Id: 030301c0d993$a2547dc0$6510a8c0@shohei.ota.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 012201c0d8c8$bd14a700$6510a8c0@shohei.ota.tokyo.jp -->
+<!--X-Reference-Id: 20010510213243.1d96dfb8.gacku@mt.mailmagic.org -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21080] Re: テーブルの作成方法 </TITLE>
+<LINK REV="made" HREF="mailto:shohei@shohei.ota.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00136.html">Date Prev</A>][<A HREF="msg00138.html">Date Next</A>][<A HREF="msg00293.html">Thread Prev</A>][<A HREF="msg00116.html">Thread Next</A>][<A HREF="index.html#00137">Date Index</A>][<A HREF="threads.html#00137">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21080] Re: テーブルの作成方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Shohei Sato" &lt;<A HREF="mailto:shohei@shohei.ota.tokyo.jp">shohei@shohei.ota.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 11 May 2001 05:56:07 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00118.html">012201c0d8c8$bd14a700$6510a8c0@shohei.ota.tokyo.jp</A>&gt; &lt;<A HREF="msg00128.html">20010510213243.1d96dfb8.gacku@mt.mailmagic.org</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠でぶちん です
+
+----- Original Message -----
+&gt; 中島＠京都工芸繊維大学です。
+&gt; 佐藤＠でぶちんさん Wrote---------
+&gt; &gt;   1-1,一つのpriority_codeに対して、複数のpriority_interval を割
+&gt; &gt;       り当てる場合
+&gt; &gt;       --頻度 priorityテーブル--
+&gt; &gt;       priority_code int (not null),   頻度のコード
+&gt; &gt;       priority_name text,             頻度の名前
+&gt; &gt;       priority_interval int2[]        頻度の値(何日後にメール送信日がく
+るか)
+&gt;
+&gt; &gt; 2,もう一つ別のテーブルを作る
+&gt; &gt;   2-1,一つのpriority_codeに対して、複数のpriority_interval を割
+&gt; &gt;       り当てる場合
+&gt; &gt;       --頻度 priorityテーブル--
+&gt; &gt;        priority_code int (not null),   頻度のコード
+&gt; &gt;        priority_name text,             頻度の名前
+&gt; &gt;        priority_interval_code int      頻度の値を管理するコード
+&gt; &gt;       --頻度 priority_sub テーブル--
+&gt; &gt;        priority_interval_code int,     頻度の値を管理するコード
+&gt; &gt;        priority_interval int2          頻度の値(何日後にメール送信日がく
+る か)
+&gt; &gt; 後はサブクエリーを使って取り出せば大丈夫でしょう。
+&gt;
+&gt; 上のふたつのやり方ではどっちのほうが、優位であるとかってありますか?
+&gt; 簡単なのは1ー1ですよね?しかし後で変更したいときに2-1の方が簡単であるとか?
+&gt; こんな感じでしょうか?
+&gt; また、ご教授お願いいたします。
+
+時と場合によると思うのですが、私でしたら、priority_tbl を他の用途に使用する
+必
+用が無い場合、また、このDBを他のDBに移植する可能性が無い場合、および
+PostgresSQ
+Lの配列には、いくつか制約があるのでその制約を無視できる場合で開発を急いでい
+る
+場合は、1-1を使います。そうでなければ 2-1の方法をつかいます。それから、前回
+書き
+忘れましたが、「priority_interval_code頻度の値を管理するコード」を使用せず
+に、
+頻度のコードで代用することも可能だと思います。その場合のSQLを以下に示しま
+す。
+CREATE TABLE priority_tbl(
+    priority_code int primary key,   頻度のコード
+    priority_name text               頻度の名前
+);
+CREATE TABLE priority_sub_tbl(
+    priority_code int,
+    priority_interval int2,           頻度の値(何日後にメール送信日がくるか)
+    foreign key priority_code references priority_tbl(priority_code)
+);
+対象になるtodo_idの抽出は、
+SELECT todo_id FROM todo_tbl,priority_sub_tbl
+  WHERE todo_tbl.priority_code=priority_sub_tbl.priority_code
+    AND now()-todo_tbl.changed = priority_sub_tbl.priority_interval;
+で抽出できるのではないでしょうか、試してはいません？（サブクエリーは使いませ
+ん
+でした。）
+
+以上
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00118" HREF="msg00118.html">[pgsql-jp 21061] RE:テーブルの作成方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Shohei Sato" &lt;shohei@shohei.ota.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00128" HREF="msg00128.html">[pgsql-jp 21071] Re: テーブルの作成方法</A></STRONG>
+<UL><LI><EM>From:</EM> gacku &lt;gacku@mt.mailmagic.org&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 21079] Message handling (libqp)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00138.html">[pgsql-jp 21081] Re: [mysql 03625] 上位ｘ件の平均値の求めた方</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00293.html">[pgsql-jp 21247] Re: テーブルの作成方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 21059] テーブルの作成方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00137"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00137"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

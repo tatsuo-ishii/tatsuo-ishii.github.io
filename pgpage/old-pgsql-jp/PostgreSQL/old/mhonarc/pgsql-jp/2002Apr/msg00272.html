@@ -1,0 +1,184 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25752] ネット越しの接続ができない -->
+<!--X-From: Linux@Lupin.net -->
+<!--X-Date: Mon, 29 Apr 2002 18:24:02 +0900 -->
+<!--X-Message-Id: 20020429182359.1150.LINUX@Lupin.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25752] ネット越しの接続ができない </TITLE>
+<LINK REV="made" HREF="mailto:Linux@Lupin.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00271.html">Date Prev</A>][<A HREF="msg00273.html">Date Next</A>][<A HREF="msg00285.html">Thread Prev</A>][<A HREF="msg00273.html">Thread Next</A>][<A HREF="index.html#00272">Date Index</A>][<A HREF="threads.html#00272">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25752] ネット越しの接続ができない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:Linux@Lupin.net">Linux@Lupin.net</A></LI>
+<LI><em>Date</em>: Mon, 29 Apr 2002 18:24:02 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+札幌のかずと申します。
+質問ばかりで心苦しいのですが、ご教示下さい。
+
+◆問題点
+　サーバＢから、直接ＣサーバのPostgresに接続できない
+
+◆サーバの環境
+ 　　                 ダイヤルアップ      210.xxx.xxx.xxx
+ 　 --------------- R --  internet    -- Ｃ --
+ 　|             |                            192.168.0.1
+ 　|             |                           |
+ 　Ａ            Ｂ                          Ｄ
+  　192.168.0.11  192.168.0.10                192.168.0.10
+   　　　自宅　　　　　　　　　　　　　プロバイダー
+
+　サーバＡ：自宅設置（ダイヤルアップで接続）(postgres7.2.0)
+　サーバＢ：自宅設置（ダイヤルアップで接続）
+　サーバＣ：プロバイダー設置（postgres7.1.3)　RedHat7.1
+　　./configure --enable-multibyte=EUC_JP --with-perl　　
+　　--with-openssl=/usr/local/ssl
+　　--enable-odbc --with-odbcinst=/usr/local
+　　postgres.conf の設定
+　　　tcpip_socket = true
+　サーバＤ：プロバイダー設置
+
+◆現在までの試行錯誤
+
+　１．次のテストスクリプトを作成
+
+#!/usr/bin/perl
+
+#◆データベース接続
+ use Pg;
+ $conn = Pg::connectdb("host=210.xxx.xxx.xx port=5432 dbname=testdb user=xxxxxx password=xxxxxx");
+ $result = $conn-&gt;exec("SELECT index FROM test_dat");
+ $rows     = $result-&gt;ntuples;
+ $fields   = $result-&gt;nfields;
+ for( $i=0; $i&lt;$rows; $i++ ) {
+  for( $j=0; $j&lt;$fields; $j++ ) {
+   $data{$result-&gt;fname($j)}{$i} = $result-&gt;getvalue($i, $j);
+  }
+}
+for( $i=0; $i&lt;$rows; $i++ ) {
+ $Damy = $data{index}{$i};
+ print("$Damy");
+}
+exit;
+
+
+　２．プロバイダー内のＤサーバから接続を試験
+　　Ｃサーバのpb_hba.confの設定が次の場合
+　　testdb 000.000.000.000 trust
+　　にて、接続を確認
+
+　３．同様に、Ｃサーバ自信にて実行
+　　接続を確認
+
+　　※ネット接続の確認は出来たこととする
+
+　４．続いて自宅のＢサーバからスクリプトを実行
+　　結果、応答なし
+
+　５．そこで、ＢサーバからＣサーバへのtelnet 210.xxx.xxx.xxx 5432 を実行
+　　結果、応答なし
+
+　６．サーバの応答を確認するために、
+　　　ＢサーバからＣサーバへのtelent 210.xxx.xxx.xxx 80 を実行
+　　　コネクトに成功
+    　　Connected to 210.xxx.xxx.xxx.
+    　　Escape character is '^]'.
+
+　７．Ｃサーバのポートを確認するために nmap localhost を実行
+     Port       State       Service
+     22/tcp     open        ssh
+     80/tcp     open        http
+     5432/tcp   open        postgres
+     5432 のポートが開いていることを確認
+
+　８．自宅Ｂサーバの問題かどうかを判断するために、次の試験を実施
+　　　別のレンタルサーバからtelent 210.xxx.xxx.xxx 5432 を実行
+　　　結果、応答なし
+
+　９．自宅のＢサーバから、Ａサーバに接続試験
+　　　telnet 接続を確認
+      スクリプトを変更して、接続を確認
+
+　と試験を行いました。
+　原因はＣサーバにあるようも思えますが
+　これ以上の追求が出来ず、手詰まりの状況です。
+
+
+　何か、追求の手段があればご教示頂きたくお願い申しあげます。
+
+-- 
+ &lt;Linux@Lupin.net&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00281" HREF="msg00281.html">[pgsql-jp: 25761] Re: ネット越しの接続ができない</A></STRONG>
+<UL><LI><EM>From:</EM> Mamoru Yoshimura &lt;mamoru@iea.att.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00275" HREF="msg00275.html">[pgsql-jp: 25755] Re: ネット越しの接続ができない</A></STRONG>
+<UL><LI><EM>From:</EM> Linux@Lupin.net</LI></UL></LI>
+<LI><STRONG><A NAME="00274" HREF="msg00274.html">[pgsql-jp: 25754] Re: ネット越しの接続ができない</A></STRONG>
+<UL><LI><EM>From:</EM> "Yozo Matsushita" &lt;matsu@c-point.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00273" HREF="msg00273.html">[pgsql-jp: 25753] Re: ネット越しの接続ができない</A></STRONG>
+<UL><LI><EM>From:</EM> Shigeki Mimura &lt;mimu@telepass.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp: 25751] Re: pg_dumpコマンドによるメモリ圧迫</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00273.html">[pgsql-jp: 25753] Re: ネット越しの接続ができない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00285.html">[pgsql-jp: 25765] トランザクション開始〜コミット間の状態取得</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00273.html">[pgsql-jp: 25753] Re: ネット越しの接続ができない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00272"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00272"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

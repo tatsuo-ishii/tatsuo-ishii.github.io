@@ -1,0 +1,192 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3727] Re: Primary Key in 6.3 -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Fri, 03 Apr 1998 14:06:16 +0900 -->
+<!--X-Message-Id: 199804030506.OAA18807@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804030056.JAA24012@srapc451.sra.co.jp -->
+<!--X-Reference-Id: Your message of Fri, 03 Apr 1998 07:46:00 JST. <19980403074600W.tak@hdt.co.jp -->
+<!--X-Reference-Id: 199804030256.LAA06828@platinum.tanaq.lo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3727] Re: Primary Key in 6.3 </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00025.html">Date Prev</A>][<A HREF="msg00027.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00026">Date Index</A>][<A HREF="threads.html#00026">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3727] Re: Primary Key in 6.3</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 03 Apr 1998 14:06:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00018.html">199804030056.JAA24012@srapc451.sra.co.jp</A>&gt; &lt;Your message of Fri, 03 Apr 1998 07:46:00 JST. &lt;<A HREF="msg00017.html">19980403074600W.tak@hdt.co.jp</A>&gt;  &lt;<A HREF="msg00023.html">199804030256.LAA06828@platinum.tanaq.lo.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+In message &lt;<A HREF="msg00023.html">199804030256.LAA06828@platinum.tanaq.lo.jp</A>&gt;, Tanaka-Qtaro-Yasuhiro 
+writes:
+&gt; すごく初歩的な質問で申し訳無いんですが、今回実装された
+&gt; Primary Key とはどういうものなのでしょう？
+&gt; 通常の  Index とはどのように違うのでしょうか？
+
+市川＠お茶大です．
+
+まずは簡単な例え話から．一方通行の道があったとします．
+一方通行表示がされているので，逆走する車はあまり無いで
+しょうが，あえて逆走しようとすれば出来てしまいますよね．
+それに対して，たとえ一方通行の表示がでていなくても
+警官がいつも立っていて，その逆走を禁止していれば，
+それは実質的に一方通行の道になります．
+
+つまり，制約を定義するいう話と，制約を強制する，というのは，
+それぞれ概念的な話と，実現の話という異なった世界の
+事柄なのです．法律や条例の制定機関と，それを強制する機構
+とは別なものだ，ということです．
+
+さて話を DB に戻しましょう．多少教科書的な説明になります．
+すべての関係にはその中のタプルを一意に識別する属性集合が
+必ず存在して，それらが超キー (super key) と呼ばれます．
+例として，ごく簡単な学生の話を考えましょう:
+
+	student(s#, name, dept, address, phone).
+
+この場合は，{s#, name, dept, address, phone} と全部取れば
+一意にタプルが決定されますので，これは自明な超キーです．
+(SQL と違って関係モデルではタプルの重複を認めませんので．)
+
+その中で極小なものは候補キー (candidate key) と呼ばれ，
+関係中のタプルを識別するために利用されます．上記の
+ものであれば，s# 等が一般にタプル識別に使われますし，
+もしも，各学科への同姓同名学生の在籍は認めない，という
+規則でも設ければ，{name, dept} でも一意にタプルを
+識別できます．
+
+このような候補キーのうち，システム管理者がタプル識別に
+利用するとして選択したものが主キー (primary key) と
+呼ばれます．
+
+ですからこれはデータベースが反映しようとする実世界での
+意味と，管理者の意思によって決定されるもので，候補キー
+であればどれでも構いません．もしも ANSI/SPARC の3階層
+アーキテクチャの言葉を使うのであればあれば概念レベルでの
+データの記述になります．
+
+一方 unique index はそのような属性の一意識別性を保証
+するための物理的な機構になります．従って，ある属性集合が
+候補キーである，ということと，一意性識別性を保証する
+ための物理的な仕掛けがある，というのは実は全く別なもの
+なのです．
+
+ですから，主キーが決められていても，その一意性を保証する
+機構が与えられない状態，つまり，
+
+	create table student(
+                   sno integer, name varchar(32),
+                   dept integer, address varchar,
+		   phone varchar(24))
+
+だけでも，(つまり利用するプログラムのレベルで一意性を
+保証しても) それはそれで良いわけです．
+
+でもそれでは DBMS で一括管理する意味合いが薄れてしまい
+ますので，そこを
+
+	create table student(
+                   sno integer, name varchar(32),
+                   dept integer, address varchar,
+		   phone varchar(24)
+		   primary key (sno) )
+
+と書けるようにして関係スキーマの表す意味をできるだけ
+正確に記述するようにします．ここで，primary key 指定
+に対して DBMS 内部でどのような機構が働くかは，
+スキーマ定義をした人には関係の無いことです．
+先の喩え話で言えばここは一方通行だよ，と表示をするのと
+同じです．
+
+これに対して，
+
+        create unique index spi on student(sno)
+
+としますと，これはむしろ超キーの一意性という性質を保証する
+ための物理的なメカニズムを与えるものですから，超キーの
+指定を間接的に行なっているということになります．
+先の喩え話で言えば警官が立っていて，逆走する車を逐一
+止めることで一方通行を強制するのと同じです．
+
+関係モデルでは，物理データ独立性という考え方を前面に
+出していて，これはスキーマとその意味はデータを格納する物理
+的な記憶の構造とは独立である，という原理ですので，主キー
+は主キーとして概念レベルで与えられるべきであって，
+索引といった物理レベルの補助的なアクセス構造で間接的に
+与えるのは好ましくない，ということになります．
+
+# 本当に教科書みたいですね．(^^;.
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp 3728] Re: Primary Key in 6.3</A></STRONG>
+<UL><LI><EM>From:</EM> Tanaka-Qtaro-Yasuhiro &lt;tanaq@ca2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00018" HREF="msg00018.html">[pgsql-jp 3719] Re: Primary Key in 6.3</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00023" HREF="msg00023.html">[pgsql-jp 3724] Re: Primary Key in 6.3</A></STRONG>
+<UL><LI><EM>From:</EM> Tanaka-Qtaro-Yasuhiro &lt;tanaq@ca2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 3726] Re: Primary Key in 6.3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 3728] Re: Primary Key in 6.3</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 3724] Re: Primary Key in 6.3</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 3728] Re: Primary Key in 6.3</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00026"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00026"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

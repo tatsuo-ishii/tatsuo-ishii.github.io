@@ -1,0 +1,500 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5383] trigger.sgml -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Thu, 17 Sep 1998 09:55:58 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.96LJ1.1b7.980917093848.952A&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5383] trigger.sgml </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00174.html">Date Prev</A>][<A HREF="msg00177.html">Date Next</A>][<A HREF="msg00180.html">Thread Prev</A>][<A HREF="msg00173.html">Thread Next</A>][<A HREF="index.html#00176">Date Index</A>][<A HREF="threads.html#00176">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5383] trigger.sgml</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Sep 1998 09:55:58 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  遅くなってしまって済みません。trigger.sgml の訳がやっとできました。
+
+# 6.4BETA1 のアナウンスを聞き久々に ftp サイトへいってみたら、patches の下
+# に admin.tar.gz,user.tar.gz,programmer.tar.gz,postgres.tar.gz がありまし
+# た。どういうものなのかわからないのですが、admin.tar.gz の admin.html
+# の一行めだけを比べてみると：
+# -&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"&gt;
+# +&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"&gt;
+# でした。
+
+--
+&lt;Chapter&gt;
+&lt;Title&gt;Triggers&lt;/Title&gt;
+
+&lt;Para&gt;
+   現バージョンの&lt;ProductName&gt;Postgres&lt;/ProductName&gt;は Perl, Tcl,
+Python それから C といったように様々なクライアント・インターフェースを
+持ちますが、実際の &lt;FirstTerm&gt;手続き言語&lt;/FirstTerm&gt;(PL) は欠けてます。
+我々はいつの日か妥当な PL を持ちたいと願ってます。それでも、トリガー・
+アクションとして C の関数を呼ぶことは可能です。現バージョンでは 
+STATEMENT-レベルのトリガー・イベントはサポートされていないのでご注意下
+さい。現状では、タップルの INSERT, DELETE または UPDATE の 前(BEFORE)
+または後(AFTER) をトリガーイベントとして指定できます。
+&lt;/Para&gt;
+
+&lt;Sect1&gt;
+&lt;Title&gt;Trigger Creation&lt;/Title&gt;
+
+&lt;Para&gt;
+   もし、トリガー・イベントが起きると トリガー管理(エグゼキュータ:
+Executor と呼ばれる)が大域構造体 TriggerData *CurrentTriggerData (以下
+に述べる)を初期化し、イベントを処理するためのトリガー関数を呼び出しま
+す。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   トリガー関数は、引数無しでトリガーがつくられて不明瞭なものを返さな
+いように、前もってつくられなければなりません。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   トリガーをつくる構文は以下の通りです：
+
+&lt;ProgramListing&gt;
+   CREATE TRIGGER &amp;lt;trigger name&amp;gt; &amp;lt;BEFORE|AFTER&amp;gt; &amp;lt;INSERT|DELETE|UPDATE&amp;gt;
+       ON &amp;lt;relation name&amp;gt; FOR EACH &amp;lt;ROW|STATEMENT&amp;gt;
+       EXECUTE PROCEDURE &amp;lt;procedure name&amp;gt; (&amp;lt;function args&amp;gt;);
+&lt;/ProgramListing&gt;
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   トリガー名(trigger name)はもしトリガーを削除しなければならなくなっ
+たときに使われます。それは、DROP TRIGGER コマンドの引数として使われま
+す。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   その次の単語は関数が呼び出されるのがイベントの前(BEFORE)か後(AFTER)
+かを決定します。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   その次の要素は、どのコマンドのイベント(複数可) で関数をトリガーする
+を決定します。複数イベントを OR で区切って指定できます。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   関係名(relation name)はどのテーブルにイベントを適用するかを決定しま
+す。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   FOR EACH 文はトリガーがかかるのが、各行(row)毎か、あるいは、すべて
+の文が終了する前か(または後か)を定義します。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   手続き名(procedure name)は呼び出される C の関数です。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   その関数の引数(function args)は CurrentTriggerData 構造体の中に入れ
+られて関数に渡されます。引数を関数に渡す目的は、同じ関数を呼ぶのに似た
+ようなものを要求する異なるトリガーを許すためです。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   また、関数は異なる関係のトリガー(これらの関数は "汎用トリガー関数"
+と名付けられます) として使われるかもしれません。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   上記の両方の機能を使う例題として、引数として一方に現在のユーザと他
+方に現在の時刻とを二つのフィールド名としてとり汎用関数となるようなもの
+があります。これは例として、トリガーに INSERT イベントでトランザクショ
+ン・テーブル内のレコードの作成を検知して自動的に書き込まれます。それは、
+UPDATE イベントの中で使われれば、"最終更新" ファンクションとして使うこ
+ともできるでしょう。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   トリガー関数は HeapTuple を、呼び出したエグゼキュータへ返します。こ
+れは、挿入(INSERT), 削除(DELETE) または、更新(UPDATE) 操作の後(AFTER)
+で実行されるトリガーでは無視されますが、前(BEFORE)トリガーでは以下を許
+します:
+
+   - NULL を返し、現在のタップルに操作をスキップさせます。(そのためタッ
+    プルの 挿入／更新／削除は行なわれないでしょう。)
+
+   - もとのタップルのかわりに挿入される他のタップルの(UPDATE の場合は
+    アップデートされたタップルの新しいバージョンとして)ポインタを返し
+    ます(INSERT と UPDATE のみ)。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   注意、CREATE TRIGGER ハンドラによっては初期化はなされません。これは、
+将来変更となるでしょう。また、同じイベント対し二つ以上のトリガーが定義
+されると、トリガーの起動のかかる順番は予期できません。これも将来変更と
+なるでしょう。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   もし、トリガー関数が(SPI を使って) SQL-問い合わせを実行するとしたら、
+これらの問い合わせは、トリガーをもう一度起動するでしょう。このことは、
+カスケーディング・トリガーとして知られています。カスケードのレベルに明
+確な制限はありません。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+  もし、トリガーが挿入(INSERT)により起動されて新しいタップルを同じ関係
+に挿入すると、このトリガーがもう一度起動されます。現状では、このような
+場合に同期を取ったり(その他)することは何も用意されていませんが、これは
+変更されるでしょう。それまでの間は、あるテクニックを使って自分自身への
+再帰(カスケーディング)を止める関数 funny_dup17() が regress テストの中
+にあります。
+&lt;/Para&gt;
+
+&lt;/Sect1&gt;
+
+&lt;Sect1&gt;
+&lt;Title&gt;Interaction with the Trigger Manager&lt;/Title&gt;
+
+&lt;Para&gt;
+   上記で述べたように、関数がトリガー管理によって呼ばれるとき、構造体 
+TriggerData *CurrentTriggerData は NOT NULL で初期化されます。ですので、
+情報を読み込んだ直後にトリガー管理以外からのトリガー関数により呼び出さ
+れるのを避けるために、CurrentTriggerData を開始時に NULL かどうかを確
+認をして NULL に設定した方が良いでしょう。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   構造体 TriggerData は src/include/commands/trigger.h で次のように定
+義されてます:
+
+&lt;ProgramListing&gt;
+typedef struct TriggerData
+{
+	TriggerEvent	tg_event;
+	Relation	tg_relation;
+	HeapTuple	tg_trigtuple;
+	HeapTuple	tg_newtuple;
+	Trigger		*tg_trigger;
+} TriggerData;
+&lt;/ProgramListing&gt;
+
+&lt;ProgramListing&gt;
+tg_event 
+   はどの関数のために呼ばれるかを記述します。tg_event を試すの
+   に次のマクロを使うことができます：
+
+   TRIGGER_FIRED_BEFORE(event) returns TRUE if trigger fired BEFORE;
+   TRIGGER_FIRED_AFTER(event) returns TRUE if trigger fired AFTER;
+   TRIGGER_FIRED_FOR_ROW(event) returns TRUE if trigger fired for
+                                ROW-level event;
+   TRIGGER_FIRED_FOR_STATEMENT(event) returns TRUE if trigger fired for
+                                STATEMENT-level event;
+   TRIGGER_FIRED_BY_INSERT(event) returns TRUE if trigger fired by INSERT;
+   TRIGGER_FIRED_BY_DELETE(event) returns TRUE if trigger fired by DELETE;
+   TRIGGER_FIRED_BY_UPDATE(event) returns TRUE if trigger fired by UPDATE.
+
+tg_relation
+   はトリガーされた関係を記述する構造体へのポインターです。この構造体の
+   詳細については src/include/utils/rel.h 見て下さい。最も興味ある事は
+   tg_relation-&gt;rd_att (タプル関係の記述子) と
+   tg_relation-&gt;rd_rel-&gt;relname (関係の名前) です。これは、char* ではなく
+   NameData です。もし、名前のコピーが必要であれば
+   SPI_getrelname(tg_relation) を使って char* を取得して下さい。
+
+tg_trigtuple
+   はトリガを起動したもとのタプルへのポインタです。これは、挿入(INSERT)
+   されたり、削除(DELETE)されたり、あるいは更新(UPDATE)されるタプルです。
+   もし、挿入(INSERT)/削除(DELETE) するときで、もし、タプルを他のもので
+   置き換えたくない(INSERT) か、あるいは、操作をスキップしたいときは、こ
+   れがエグゼキュータに返すものとなります。
+
+tg_newtuple
+   は、もし、更新(UPDATE)ならタプルの新しいバージョンへのポインタで、そ
+   して、もしこれが挿入(INSERT)あるいは削除(DELETE)に対してであれば NULL
+   です。もし挿入(UPDATE)で、かつ、このタプルを別のもので置き換えたくな
+   かったり、または、操作をスキップする時は、これはエグゼキュータへ返す
+   何かです。
+
+tg_trigger
+   は構造体 Trigger へのポインタで、src/include/utils/rel.h の中で定義
+   されてます：
+
+typedef struct Trigger
+{
+	char		*tgname;
+	Oid		tgfoid;
+	func_ptr	tgfunc;
+	int16		tgtype;
+	int16		tgnargs;
+	int16		tgattr[8];
+	char		**tgargs;
+} Trigger;
+
+   tgname  はトリガーの名前、tgnargs は tgargs の中の引数の数、tgargs は
+   CREATE TRIGGER 文の中で指定される引数へのポインターの配列です。他のメ
+   ンバは内部使用のためだけです。
+&lt;/ProgramListing&gt;
+&lt;/Para&gt;
+&lt;/Sect1&gt;
+
+&lt;Sect1&gt;
+&lt;Title&gt;Visibility of Data Changes&lt;/Title&gt;
+
+&lt;Para&gt;
+   &lt;ProductName&gt;Postgres&lt;/ProductName&gt; データは可視規則を変えます: 問
+い合わせ実行の間、データの変更は問い合わせ自身で(SQL-関数,SPI-関数, ト
+リガー等を通して)行なわれ、問い合わせ走査に対しては不可視です。たとえば、
+問い合わせの中で：
+
+&lt;ProgramListing&gt;
+   INSERT INTO a SELECT * FROM a
+&lt;/ProgramListing&gt;
+
+   挿入されたタップルは SELECT 走査には対しては不可視です。影響として、
+   それ自身のテーブルの中でデータベースを再帰することなく重複させます
+   (もちろん、一意の索引の規則に従って)。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   しかしながら、SPI 文書の中の可視性についてのこの注意書きは心に留め
+ておいて下さい:
+
+&lt;ProgramListing&gt;
+   問い合わせ Q によりなされる変更は、問い合わせの後に開始される問い合わせ
+   に対しては可視で、それらが Q の中で(Q の実行中に)開始されるかあるいは Q 
+   が実行された後かには無関係です。
+&lt;/ProgramListing&gt;
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   これはトリガーにとっては当たり前のことですが、挿入されるタップル
+   (tg_trigtuple) は前(BEFORE)トリガーの中の問い合わせに対しては可視で
+   は無く、この(丁度挿入される)タップル後(AFTER)トリガーの中の問い合わ
+   せ、BEFORE/AFTER トリガーの中でこの後に発行される問い合わせに対して
+   は可視です！
+&lt;/Para&gt;
+&lt;/Sect1&gt;
+
+&lt;Sect1&gt;
+&lt;Title&gt;Examples&lt;/Title&gt;
+
+&lt;Para&gt;
+   もっと複雑な例が src/test/regress/regress.c と contrib/spi とにあります。
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   ここにトリガーの使い方のとても簡単な例があります。関数 trigf
+はトリガーされる関係 ttest の中のタップルの数を報告し、もし問い合わせが x
+の中に NULL を挿入しようとすると(例 - それは NOT NULL 拘束として動きますが
+トランザクションを中断はしません。)
+
+
+&lt;ProgramListing&gt;
+#include "executor/spi.h"	/* SPI で作業するためにこれが必要です */
+#include "commands/trigger.h"	/* それとトリガーに -"- */
+
+HeapTuple		trigf(void);
+
+HeapTuple
+trigf()
+{
+	TupleDesc	tupdesc;
+	HeapTuple	rettuple;
+	char		*when;
+	bool		checknull = false;
+	bool		isnull;
+	int		ret, i;
+
+	if (!CurrentTriggerData)
+		elog(WARN, "trigf: triggers are not initialized");
+	
+	/* Executor へ返すためのタップル */
+	if (TRIGGER_FIRED_BY_UPDATE(CurrentTriggerData-&gt;tg_event))
+		rettuple = CurrentTriggerData-&gt;tg_newtuple;
+	else
+		rettuple = CurrentTriggerData-&gt;tg_trigtuple;
+	
+	/* NULL かどうか確認 ? */
+	if (!TRIGGER_FIRED_BY_DELETE(CurrentTriggerData-&gt;tg_event) &amp;&amp;
+		TRIGGER_FIRED_BEFORE(CurrentTriggerData-&gt;tg_event))
+		checknull = true;
+	
+	if (TRIGGER_FIRED_BEFORE(CurrentTriggerData-&gt;tg_event))
+		when = "before";
+	else
+		when = "after ";
+	
+	tupdesc = CurrentTriggerData-&gt;tg_relation-&gt;rd_att;
+	CurrentTriggerData = NULL;
+	
+	/* SPI 管理機構に接続 */
+	if ((ret = SPI_connect()) &lt; 0)
+		elog(WARN, "trigf (fired %s): SPI_connect returned %d", when, ret);
+	
+	/* 関係の中のタップルの数を取得 */
+	ret = SPI_exec("select count(*) from ttest", 0);
+	
+	if (ret &lt; 0)
+		elog(WARN, "trigf (fired %s): SPI_exec returned %d", when, ret);
+	
+	i = SPI_getbinval(SPI_tuptable-&gt;vals[0], SPI_tuptable-&gt;tupdesc, 1, &amp;amp;isnull);
+	
+	elog (NOTICE, "trigf (fired %s): there are %d tuples in ttest", when, i);
+	
+	SPI_finish();
+	
+	if (checknull)
+	{
+		i = SPI_getbinval(rettuple, tupdesc, 1, &amp;amp;isnull);
+		if (isnull)
+			rettuple = NULL;
+	}
+
+	return (rettuple);
+}
+&lt;/ProgramListing&gt;
+&lt;/Para&gt;
+
+&lt;Para&gt;
+   	さあ、コンパイルして、そして、
+create table ttest (x int4);
+create function trigf () returns opaque as 
+'...path_to_so' language 'c';
+
+&lt;ProgramListing&gt;
+vac=&gt; create trigger tbefore before insert or update or delete on ttest 
+for each row execute procedure trigf();
+CREATE
+vac=&gt; create trigger tafter after insert or update or delete on ttest 
+for each row execute procedure trigf();
+CREATE
+vac=&gt; insert into ttest values (null);
+NOTICE:trigf (fired before): there are 0 tuples in ttest
+INSERT 0 0
+
+-- 挿入が飛ばされて、そして、後(AFTER)トリガーは発されない
+
+vac=&gt; select * from ttest;
+x
+-
+(0 rows)
+
+vac=&gt; insert into ttest values (1);
+NOTICE:trigf (fired before): there are 0 tuples in ttest
+NOTICE:trigf (fired after ): there are 1 tuples in ttest
+                                       ^^^^^^^^
+                           可視性について述べたことを思い出して下さい。
+INSERT 167793 1
+vac=&gt; select * from ttest;
+x
+-
+1
+(1 row)
+
+vac=&gt; insert into ttest select x * 2 from ttest;
+NOTICE:trigf (fired before): there are 1 tuples in ttest
+NOTICE:trigf (fired after ): there are 2 tuples in ttest
+                                       ^^^^^^^^
+                           可視性について述べたことを思い出して下さい。
+INSERT 167794 1
+vac=&gt; select * from ttest;
+x
+-
+1
+2
+(2 rows)
+
+vac=&gt; update ttest set x = null where x = 2;
+NOTICE:trigf (fired before): there are 2 tuples in ttest
+UPDATE 0
+vac=&gt; update ttest set x = 4 where x = 2;
+NOTICE:trigf (fired before): there are 2 tuples in ttest
+NOTICE:trigf (fired after ): there are 2 tuples in ttest
+UPDATE 1
+vac=&gt; select * from ttest;
+x
+-
+1
+4
+(2 rows)
+
+vac=&gt; delete from ttest;
+NOTICE:trigf (fired before): there are 2 tuples in ttest
+NOTICE:trigf (fired after ): there are 1 tuples in ttest
+NOTICE:trigf (fired before): there are 1 tuples in ttest
+NOTICE:trigf (fired after ): there are 0 tuples in ttest
+                                       ^^^^^^^^
+                           可視性について述べたことを思い出して下さい。
+DELETE 2
+vac=&gt; select * from ttest;
+x
+-
+(0 rows)
+&lt;/ProgramListing&gt;
+
+&lt;/Para&gt;
+&lt;/Sect1&gt;
+&lt;/Chapter&gt;
+
+--
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: juk@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00174.html">[pgsql-jp 5381] Re: LIKEは遅いのでは</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 5384] Re: PostgreSQL 6.4 BETA available</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00180.html">[pgsql-jp 5387] Re: trigger.sgml</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 5380] オフ会は素人参加ＯＫ？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00176"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00176"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

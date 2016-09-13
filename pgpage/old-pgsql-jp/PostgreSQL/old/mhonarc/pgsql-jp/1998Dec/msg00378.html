@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6353] m68k patch -->
+<!--X-From: NAKAJIMA Mutsuki <muc@tg&#45;inet.co.jp> -->
+<!--X-Date: Sat, 26 Dec 1998 22:15:50 +0900 -->
+<!--X-Message-Id: 199812261315.WAA09588@g3.tg&#45;inet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812251448.XAA00462@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6353] m68k patch </TITLE>
+<LINK REV="made" HREF="mailto:muc@tg-inet.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00377.html">Date Prev</A>][<A HREF="msg00379.html">Date Next</A>][<A HREF="msg00385.html">Thread Prev</A>][<A HREF="msg00379.html">Thread Next</A>][<A HREF="index.html#00378">Date Index</A>][<A HREF="threads.html#00378">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6353] m68k patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: NAKAJIMA Mutsuki &lt;<A HREF="mailto:muc@tg-inet.co.jp">muc@tg-inet.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 26 Dec 1998 22:15:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00375.html">199812251448.XAA00462@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+中嶋です。
+
+m68k patchです。最終的にまとめるとほんのちょっとなんです。
+お世話様ですが、これを本家に投稿していただいてよろしいでしょうか。
+&gt;石井様
+
+diff -crP postgresql-v6.4.org/src/include/utils/memutils.h postgresql-v6.4/src/include/utils/memutils.h
+*** postgresql-v6.4.org/src/include/utils/memutils.h	Mon Sep  7 14:35:48 1998
+--- postgresql-v6.4/src/include/utils/memutils.h	Sat Dec 26 05:51:30 1998
+***************
+*** 58,70 ****
+  #define SHORTALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (short) - 1)) &amp; ~(sizeof (short) - 1))
+  
+  #define INTALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (int) - 1)) &amp; ~(sizeof (int) -1))
+  
+  /*
+   *		LONGALIGN(LEN)	- length (or address) aligned for longs
+   */
+! #if defined(sun) &amp;&amp; ! defined(sparc)
+  #define LONGALIGN(LEN)	SHORTALIGN(LEN)
+  #elif defined (__alpha)
+  
+--- 58,74 ----
+  #define SHORTALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (short) - 1)) &amp; ~(sizeof (short) - 1))
+  
++ #if defined(m68k)
++ #define INTALIGN(LEN)	 SHORTALIGN(LEN)
++ #else
+  #define INTALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (int) - 1)) &amp; ~(sizeof (int) -1))
++ #endif
+  
+  /*
+   *		LONGALIGN(LEN)	- length (or address) aligned for longs
+   */
+! #if (defined(sun) &amp;&amp; ! defined(sparc)) || defined(m68k)
+  #define LONGALIGN(LEN)	SHORTALIGN(LEN)
+  #elif defined (__alpha)
+  
+***************
+*** 81,87 ****
+  		(((long)(LEN) + (sizeof (long) - 1)) &amp; ~(sizeof (long) -1))
+  #endif
+  
+! #if ! defined(sco)
+  #define DOUBLEALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (double) - 1)) &amp; ~(sizeof (double) -1))
+  
+--- 85,94 ----
+  		(((long)(LEN) + (sizeof (long) - 1)) &amp; ~(sizeof (long) -1))
+  #endif
+  
+! #if defined(m68k)
+! #define DOUBLEALIGN(LEN) SHORTALIGN(LEN)
+! #define MAXALIGN(LEN)	 SHORTALIGN(LEN)
+! #elif ! defined(sco)
+  #define DOUBLEALIGN(LEN)\
+  		(((long)(LEN) + (sizeof (double) - 1)) &amp; ~(sizeof (double) -1))
+  
+diff -crP postgresql-v6.4.org/src/backend/storage/buffer/s_lock.c postgresql-v6.4/src/backend/storage/buffer/s_lock.c
+*** postgresql-v6.4.org/src/backend/storage/buffer/s_lock.c	Sat Sep 19 02:18:39 1998
+--- postgresql-v6.4/src/backend/storage/buffer/s_lock.c	Sat Dec 26 06:26:24 1998
+***************
+*** 117,122 ****
+--- 117,141 ----
+  
+  #endif	 /* PPC */
+  
++ #if defined(__m68k__)
++ static void
++ tas_dummy()	/* really means: extern int tas(slock_t **lock); */
++ {
++ 	__asm__("		\n\
++ .global		_tas		\n\
++ _tas:				\n\
++ 	movel   sp@(0x4),a0	\n\
++ 	tas a0@			\n\
++ 	beq _success		\n\
++ 	moveq   #-128,d0	\n\
++ 	rts			\n\
++ _success:			\n\
++ 	moveq   #0,d0		\n\
++ 	rts			\n\
++ 	");
++ }
++ 
++ #endif	 /* __m68k__ */
+  
+  
+  #else							/* defined(__GNUC__) */
+
+
+--
+NAKAJIMA Mutsuki(muc@tg-inet.co.jp, <A HREF="http://www.tg-inet.co.jp/~muc">http://www.tg-inet.co.jp/~muc</A>)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00379" HREF="msg00379.html">[pgsql-jp 6355] Re: m68k patch</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00375" HREF="msg00375.html">[pgsql-jp 6351] Re: m68kあれれ</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 6354] bench 6.4 on Macintosh SE/30</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00379.html">[pgsql-jp 6355] Re: m68k patch</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00385.html">[pgsql-jp 6361] Re: regression, test/mb</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00379.html">[pgsql-jp 6355] Re: m68k patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00378"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00378"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

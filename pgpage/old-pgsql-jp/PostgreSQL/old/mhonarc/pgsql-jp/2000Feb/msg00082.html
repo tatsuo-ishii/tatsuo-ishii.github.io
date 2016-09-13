@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13042] Re: ［Ｑ］長いview が作成できません -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Thu, 03 Feb 2000 19:28:22 +0900 -->
+<!--X-Message-Id: 200002031028.TAA26132@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 406AB491638ED311921600805FA9800804C597@LEO -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13042] Re: ［Ｑ］長いview が作成できません </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00081.html">Date Prev</A>][<A HREF="msg00083.html">Date Next</A>][<A HREF="msg00081.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00082">Date Index</A>][<A HREF="threads.html#00082">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13042] Re: ［Ｑ］長いview が作成できません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Feb 2000 19:28:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00074.html">406AB491638ED311921600805FA9800804C597@LEO</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+未だに"Viewって何だ?"状態の谷山です。
+
+&gt;&gt;&gt;&gt; On Thu, 3 Feb 2000 12:14:33 +0900 ,
+&gt;&gt;&gt;&gt; 	中西 真一&lt;shinichi@synox.co.jp&gt; wrote:
+
+shinichi&gt; create view の文字数に制限があるとのことですが、私の場合以下
+shinichi&gt; のDDL文で同じ現象が起こります。
+
+shinichi&gt; create view member_detail as 
+shinichi&gt;   select * from member;
+shinichi&gt; ERROR:  DefineQueryRewrite: rule plan string too big.
+
+shinichi&gt; 「*」を「table_name.field_name」の形に置き換えても、8KBなん
+shinichi&gt; て大きなサイズには成り得ないと思います。内部でエラーメッセー
+shinichi&gt; ジが述べている「rule plan」なるものが作られていて、それが8KB
+shinichi&gt; の制限を越えているのでしょうか？
+
+shinichi&gt; 疑問に思い、「table_name.field_name」の形に置き換え、フィー
+shinichi&gt; ルド数を一つずつ減らしていったところ、２８まで減らしたところ
+shinichi&gt; で create view に成功しました。
+
+shinichi&gt; PostgreSQL の view には DDL の文字制限の他に、フィールド数の
+shinichi&gt; 制限もあるのでしょうか？
+
+これ、気になったので突っ込んで調べてみました。私はRDBMSに疎いので、中
+西様から私信でサンプルを頂き、MLへの掲載の許諾を頂きました。ありがとう
+ございます。
+
+create table test_table_for_create_view 
+(
+   field_1     varchar(128),
+   field_2     varchar(10) not null,
+   field_3     varchar(40) not null,
+   field_4     date,
+   field_5     char(1),
+   field_6     varchar(10),
+(後略)
+
+のような感じで31個のフィールドがあるテーブルに対して
+
+create view test_view as
+   select * from test_table_for_create_view;
+
+を実行すると確かに
+
+ERROR:  DefineQueryRewrite: rule plan string too big.
+
+が発生します。このメッセージは以前[pgsql-jp 9955]で私が述べた通り、
+backend/rewrite/rewriteDefine.cのInsertRule()から出ているもので、
+
+if (sizeof(FormData_pg_rewrite) + strlen(actionbuf) +
+    strlen(qualbuf) &gt; MaxAttrSize)
+	elog(ERROR, "DefineQueryRewrite: rule plan string too big.");
+
+が出所です。
+
+今回は、では、このif文が真になった時の、各値は具体的にどうなっているの
+か？というのを調べてみました。
+
+調査の結果分かったことの結論から先に言ってしまえば、「フィールド名長は
+確かに制限に引っかかるかどうかに影響するが、それは微小な影響しか与えず、
+実際にはview内のフィールド数による影響の方が遥かに大きい」です。
+
+MaxAttrSizeはconfig.hで定義されるBLCKSZから導出される定数で、
+sizeof(FormData_pg_rewrite)はCPUのアーキテクチャやコンパイラによって決
+まる(data size/align依存)の定数です。
+
+たとえば、FreeBSD 2.2.8Rの上でコンパイルされたBLCKSZ 8192のPostgresql
+6.5.3では、
+
+MaxAttrSize = 8104
+sizeof(FormData_pg_rewite) = 60
+
+です。大問題なのはactionbufで、上記の例のcreate viewを実行した時には
+(読みにくくてごめんなさい…まあ、中身なんかどうでもいいと思います。長
+さだけ見ていただければ ^^;)
+
+({ QUERY :command 1 :utility &lt;&gt; :resultRelation 0 :into &lt;&gt; :isPortal
+false :isBinary false :isTemp false :unionall false :unique &lt;&gt; :
+sortClause &lt;&gt; :rtable ({ RTE :relname test_view :refname *CURRENT* :
+relid 150528 :inh false :inFromCl false :skipAcl false} { RTE :relname
+test_view :refname *NEW* :relid 150528 :inh false :inFromCl false :
+skipAcl false} { RTE :relname test_table_for_create_view :refname
+test_table_for_create_view :relid 150464 :inh false :inFromCl true :
+skipAcl false}) :targetlist (
+
+という枕詞の後に、
+
+{ TARGETENTRY :resdom { RESDOM :resno 1 :restype 1043 :restypmod 132 :
+resname \"field_1\" :reskey 0 :reskeyop 0 :resgroupref 0 :resjunk
+false } :expr { VAR :varno 3 :varattno 1 :vartype 1043 :vartypmod 132 :
+varlevelsup 0 :varnoold 3 :varoattno 1}}
+(これがfield_1の分)
+
+{ TARGETENTRY :resdom { RESDOM :resno 2 :restype 1043 :restypmod 14 :
+resname \"field_2\" :reskey 0 :reskeyop 0 :resgroupref 0 :resjunk
+false } :expr { VAR :varno 3 :varattno 2 :vartype 1043 :vartypmod 14 :
+varlevelsup 0 :varnoold 3 :varoattno 2}}
+(これがfield_2の分)
+
+てな具合で、莫大な量の文字列(実際には全部つながっていて、一つの文字列)
+が延々と続きます。この調子でやられちゃ、とてもじゃないですがちょっとフィー
+ルド数が増えてしまえば簡単に8Kちょいの制限なんて越えてしまいますね。
+
+たとえフィールド名を短くした所で、焼け石に水なのは上記の例を見れば火を
+見るより明らかです。
+
+ちなみに、この時のqualbufの中身は"&lt;&gt;"だけの2文字です。
+
+というわけで、私が先日書いた「フィールド名短くして済むなら…」ってのは
+ほとんど嘘です。
+
+この問題が生じた時にフィールド名長をいじって済むのは制限ギリギリの所で
+綱渡りをしている時だけの話で、ほとんどの場合はViewに含まれるフィールド
+数を減らすか、BLCKSZを増やしてサーバを再コンパイルしなければ問題は解決
+しないでしょう。
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[pgsql-jp 13034] Re: ［Ｑ］長い view が作成できません</A></STRONG>
+<UL><LI><EM>From:</EM> 中西 真一 &lt;shinichi@synox.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00081.html">[pgsql-jp 13041] 同じＳＱＬ文なのにwin32のpsqlでエラーがでる？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00083.html">[pgsql-jp 13043] Re: はじめまして。。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00081.html">[pgsql-jp 13041] 同じＳＱＬ文なのにwin32のpsqlでエラーがでる？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 13033] Qtを使ったクライアント</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00082"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00082"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

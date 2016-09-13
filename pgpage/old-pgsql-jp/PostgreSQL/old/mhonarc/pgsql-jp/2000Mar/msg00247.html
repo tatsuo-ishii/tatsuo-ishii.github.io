@@ -1,0 +1,191 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13553] Re: pg_connect()のエラー>>できました。 -->
+<!--X-From: Rie Enomoto <riezo@kt.rim.or.jp> -->
+<!--X-Date: Fri, 17 Mar 2000 16:40:55 +0900 -->
+<!--X-Message-Id: 38D1E187212.FDECRIEZO@mail.kt.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38D1BFB912C.FDEBRIEZO@mail.kt.rim.or.jp -->
+<!--X-Reference-Id: 10003170524.AA16767@okazaki.okazaki.fuji.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13553] Re: pg_connect()のエラー&gt;&gt;できました。 </TITLE>
+<LINK REV="made" HREF="mailto:riezo@kt.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00246.html">Date Prev</A>][<A HREF="msg00248.html">Date Next</A>][<A HREF="msg00245.html">Thread Prev</A>][<A HREF="msg00250.html">Thread Next</A>][<A HREF="index.html#00247">Date Index</A>][<A HREF="threads.html#00247">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13553] Re: pg_connect()のエラー&gt;&gt;できました。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Rie Enomoto &lt;<A HREF="mailto:riezo@kt.rim.or.jp">riezo@kt.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 17 Mar 2000 16:40:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00242.html">38D1BFB912C.FDEBRIEZO@mail.kt.rim.or.jp</A>&gt; &lt;<A HREF="msg00243.html">10003170524.AA16767@okazaki.okazaki.fuji.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+榎本理恵です。
+
+何度か皆様にご指摘いただいた部分を修正していうちに、
+apachectlが異なる場所に複数入っていることに気づき、
+古いバージョンのapacheが
+うまく削除されていないことが判明しました。
+
+そのため、念のため古いものも含め
+現状インストールしてあるApacheおよびPHPを削除して
+再インストールしましたら、動作するようになりました。
+
+皆様にはとても早いレスで対応していただき大変助かりました。
+ありがとうございます。(^-^)
+&gt;&gt;渋谷様、神谷＠岡崎市様、石井様、小菅様、石川＠池袋本町様
+
+まだまだUNIX初心者なのですが、
+いつか私もどなたかのお役にたてるように
+がんばって勉強したいと思います。
+
+&gt; &gt;httpd.confの
+&gt; &gt;
+&gt; &gt;LoadFile /usr/local/pgsql/lib/libpq.so
+&gt; &gt;を
+&gt; &gt;LoadModule php3_module /libexec/libphp3.so
+&gt; これかな？
+&gt; 最初に/を付けたらマズイと思います。
+&gt; LoadModule php3_module libexec/libphp3.so
+&gt; のようにするか、
+&gt; LoadModule php3_module /usr/local/apache/libexec/libphp3.so
+&gt; 
+&gt; 私は、フルパス指定しています。
+&gt;
+上記はおはずかしながらタイポです。
+LoadModule php3_module libexec/libphp3.so
+となっておりました。すみません。
+よくみていただいてありがとうございます。
+
+以下にうまくいった作業内容を記述します。
+（FreeBSD3.3R）
+-------------------------------
+1)apacheのdeamonが起動していないことを確認後、
+  find・grepなどでapache関連ファイル群を検索し削除。
+2)cd /usr/local/src/apache_1.3.9
+3)OPTIM="-O2" ./configure --enable-module=so
+  ※shでやっています
+
+4)make
+5)make install
+6)cd ../php-3.0.12jp-beta4
+7)./configure --with-pgsql
+  --with-apache=../apache_1.3.9
+  --enable-track-vars
+  --with-apxs=/usr/local/apache/bin/apxs
+  --enable-i18n --enable-mbregx
+8)make
+9)make install
+
+10)cp php3.ini-dist /usr/local/lib/php3.ini
+
+11)/usr/local/lib/php3.iniの
+  以下該当部分を修正
+
+  ; internationalization
+  i18n.http_output = PASS
+  i18n.internal_encoding = EUC
+  i18n.script_encoding = AUTO
+  i18n.http_input = AUTO
+  （「改定版PostgreSQL 完全攻略ガイド」の通りです）
+
+12)/usr/local/apache/conf/httpd.confの
+  以下該当部分を修正
+
+  DirectoryIndex index.html
+  にindex.php3を追加。
+
+  #AddType application/x-httpd-php3 .php3
+  #AddType application/x-httpd-php3-source .phps 
+  の「#」をはずす
+
+  LoadModule php3_module /usr/local/apache/libexec/libphp3.so 
+  の前の行に
+  LoadFile /usr/local/pgsql/lib/libpq.so
+  を追加
+
+13)printenvで
+  LD_LIBRARY_PATH=/usr/local/pgsql/lib
+  が設定されているか確認。
+  （されていない場合には、export LD_LIBRARY_PATH=/usr/local/pgsql/lib）
+
+14)/usr/local/apache/bin/apachectl startでapache起動。
+
+その後、/usr/local/etc/rc.dに
+apache.shで自動的に起動するようにしました。
+
+apache.sh(chmod 755)
+=============================================================
+#!/bin/sh
+[ -d /usr/local/pgsql/lib ] &amp;&amp; /sbin/ldconfig -m /usr/local/pgsql/lib
+[ -x /usr/local/apache/bin/apachectl ] &amp;&amp;
+/usr/local/apache/bin/apachectl start&gt; /dev/null &amp;&amp; echo -n ' apache'
+=============================================================
+
+-------------------------------
+Rie Enomoto
+Mailto: riezo@kt.rim.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00250" HREF="msg00250.html">[pgsql-jp 13556] Re: pg_connect()のエラー &gt;&gt;できました。</A></STRONG>
+<UL><LI><EM>From:</EM> Ishikawa Toshiyuki &lt;tosiyuki@gol.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00242" HREF="msg00242.html">[pgsql-jp 13548] Re: pg_connect()のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Rie Enomoto &lt;riezo@kt.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00243" HREF="msg00243.html">[pgsql-jp 13549] Re: pg_connect()のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Hidetaka Kamiya &lt;hi.kamiya@fuji.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 13552] RE: postmasterが落ちます</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 13554] Movieデータの送信</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 13551] Re: pg_connect()のエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 13556] Re: pg_connect()のエラー &gt;&gt;できました。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00247"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00247"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

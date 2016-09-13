@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24738] Re: 小数点を含む演算結果の値が不正 -->
+<!--X-From: kazunori SAWAYAMA <k.sawayama@yest2000.com> -->
+<!--X-Date: Fri, 08 Feb 2002 15:44:38 +0900 -->
+<!--X-Message-Id: 3C6373D6.4070200@yest2000.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C62CEC0.7010405@yest2000.com -->
+<!--X-Reference-Id: 20020208.110436.07643015.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24738] Re: 小数点を含む演算結果の値が不正 </TITLE>
+<LINK REV="made" HREF="mailto:k.sawayama@yest2000.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00142.html">Date Prev</A>][<A HREF="msg00144.html">Date Next</A>][<A HREF="msg00135.html">Thread Prev</A>][<A HREF="msg00145.html">Thread Next</A>][<A HREF="index.html#00143">Date Index</A>][<A HREF="threads.html#00143">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24738] Re: 小数点を含む演算結果の値が不正</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: kazunori SAWAYAMA &lt;<A HREF="mailto:k.sawayama@yest2000.com">k.sawayama@yest2000.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 08 Feb 2002 15:44:38 +0900</LI>
+<LI><em>Organization</em>: YEST2000</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00131.html">3C62CEC0.7010405@yest2000.com</A>&gt; &lt;<A HREF="msg00135.html">20020208.110436.07643015.sugita@sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (Windows; U; Win 9x 4.90; ja-JP; rv:0.9.4) Gecko/20011019 Netscape6/6.2</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+さわやまです。
+
+レスありがとうございます。
+
+&gt;   精度を考えると合っています。
+&gt; 
+&gt;   (1)(2) と (3) の結果を合わせるということならば、real(float4)、float(float8)
+&gt; を意識すればよいのでは？
+&gt; 
+&gt; sugita=# create temp table w (a float, b float, c int4);
+&gt; CREATE
+&gt; sugita=# insert into w values (98, 97.9, 11);
+&gt; INSERT 16562 1
+&gt; sugita=# select (a - b) * c from w;
+&gt;      ?column?     
+&gt; ------------------
+&gt;  1.09999999999994
+&gt; (1 row)
+&gt; 
+&gt; sugita=# select float4((a - b) * c) from w;
+&gt;  float4 
+&gt; --------
+&gt;     1.1
+&gt; (1 row)
+
+
+上記テーブル(w)の各カラムの型を変えて演算すると、その結果が異なります。
+
+(1)a float, b floatの場合:ご指摘のとおりの演算結果
+(2)a float4, b float4の場合:
+   select (a - b) * c from w ---&gt; 1.09998
+   select float4((a - b) * c) from w ---&gt; 1.09998
+(3)a real, b realの場合:
+   select (a - b) * c from w ---&gt; 1.09998
+   select float4((a - b) * c) from w ---&gt; 1.09998
+
+すなわち、小数点を含むカラムは、その型をfloatで指定し、その結果を
+float4でキャストしないと、*数学的に*正しい値にならないのでは。
+
+さらに、上記結果は、(a - b) * c にのみ発生し、
+(a + b) * c では発生していません。
+減算と乗算の組み合わせのみ発生するようですが。
+
+ここで、上記 a b c カラムを全て同一の型(floatまたはfloat4またはreal)
+
+で定義し、(a - b) * c を行うと、*正しい*値が返ってきます。
+つまり、オンラインマニュアル「Chapter3.データ型」の
+「 入出力関数には交換可能でないものがあります。
+つまり、 出力関数の結果を入力された最初の入力と比較した場合、
+精度が下がる可能性があります。」
+の意味するところは、
+
+「演算を行う場合は、各々同一の型を使用しなさい。
+
+さもなければ、その値は数学的に保証されません。」
+（ちょっと文面がきつい表現になってしまいました）
+ということなのでしょうね。
+
+他のRDBMS(ORACLE、SQL-SERVER等)でもこのような結果になりましたっけ。
+（実行環境がないので不明です。）
+
+-- 
+澤山 和倫 (Kazunori SAWAYAMA)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00145" HREF="msg00145.html">[pgsql-jp 24740] Re: 小数点を含む演算結果の値が不正</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00131" HREF="msg00131.html">[pgsql-jp 24726] 小数点を含む演算結果の値が不正</A></STRONG>
+<UL><LI><EM>From:</EM> kazunori SAWAYAMA &lt;k.sawayama@yest2000.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00135" HREF="msg00135.html">[pgsql-jp 24730] Re: 小数点を含む演算結果の値が不正</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 24737] Re: PostgreSQL 7.2 make checkでエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 24739] Re: 壊れたViewの探し方</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 24730] Re: 小数点を含む演算結果の値が不正</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00145.html">[pgsql-jp 24740] Re: 小数点を含む演算結果の値が不正</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00143"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00143"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

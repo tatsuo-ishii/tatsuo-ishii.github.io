@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9270] Re: can't exec one more postmaster with "semget failed"Error -->
+<!--X-From: takayasu@wendy.perfect&#45;liberty.or.jp -->
+<!--X-Date: Tue, 6 Jul 99 12:20:40 JST -->
+<!--X-Message-Id: 9907060320.AA25043@wendy.perfect&#45;liberty.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199907051026.TAA29184@ganymede.sunny.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"E </TITLE>
+<LINK REV="made" HREF="mailto:takayasu@wendy.perfect-liberty.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00070.html">Date Prev</A>][<A HREF="msg00073.html">Date Next</A>][<A HREF="msg00063.html">Thread Prev</A>][<A HREF="msg00076.html">Thread Next</A>][<A HREF="index.html#00074">Date Index</A>][<A HREF="threads.html#00074">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9270] Re: can't exec one more postmaster with "semget failed"Error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takayasu@wendy.perfect-liberty.or.jp">takayasu@wendy.perfect-liberty.or.jp</A></LI>
+<LI><em>Date</em>: Tue, 6 Jul 99 12:20:40 JST</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岩梨＠今日も朝からリコンフィグ;-)、です。
+ありがとうございました。２つ稼働しました。
+
+
+谷山さん:
+&gt;見るべき情報はipcs -Mではなく、ipcs -Sだと思います。
+
+はい、見てみました。
+ %ipcs -S
+  seminfo:
+        semmap:     30  (# of entries in semaphore map)
+        semmni:     10  (# of semaphore identifiers)
+        semmns:     60  (# of semaphores in system)
+        semmnu:     30  (# of undo structures in system)
+        semmsl:     60  (max # of semaphores per id)
+        semopm:    100  (max # of operations per semop call)
+        semume:     10  (max # of undo entries per process)
+        semusz:     92  (size in bytes of undo structure)
+        semvmx:  32767  (semaphore maximum value)
+        semaem:  16384  (adjust on exit max value)
+
+と、なっております。
+
+&gt;この落ち方をよく比べてみましょう。前者はsemget failedと言っていて、後
+&gt;者はshmget failedと言っています。たった1文字の違いですが、この差は重大
+&gt;です。
+&gt;
+&gt;つまり、前者はsemget(セマフォの確保)が失敗していると言っていて、後者は
+&gt;shmget(共有メモリの確保)が失敗していると言っているのです。この両者は同
+&gt;一ではありません。
+
+なるほどぉ、目からウロコが、ボロボロと落ちていくようです。
+まるっきり、気が付いておりませんでした。なるほどですねぇ。
+
+
+&gt;セマフォ周りの資源が足りないと言っているのですから、共有メモリ周りのパ
+&gt;ラメータをいじってkernel再構築を行なっても問題が解決しないのは当然です。
+
+はい、ようやく判りかけてきました。
+今、[pgsql-jp 7108] を拝見しました。
+さっそく、カーネル作り直しにとりかかります。
+---------------------------------------------------
+
+ここまでは、朝メールを読んですぐに書いたのですが、
+お昼になってしまいました。
+各値 +1 では動かなくて、おもいっきり(?)増やして、 
+
+ %&gt; ipcs -S
+ seminfo:
+	semmap:     50	(# of entries in semaphore map)
+	semmni:     30	(# of semaphore identifiers)
+	semmns:     80	(# of semaphores in system)
+	semmnu:     50	(# of undo structures in system)
+	semmsl:     80	(max # of semaphores per id)
+	semopm:    121	(max # of operations per semop call)
+	semume:     30	(max # of undo entries per process)
+	semusz:     92	(size in bytes of undo structure)
+	semvmx:  32767	(semaphore maximum value)
+	semaem:  16384	(adjust on exit max value)
+
+という状態で、postmaster を２つ実行できました。
+もう少し、まとめて Summary を提出したいと思います。
+ありがとうございました。
+
+#しかし、３つは失敗しました。;-)
+#３つにコダワル理由はまったくありません。6.4.2 では出来てたなぁ、と
+#いう程度で試しただけです。
+
+あと、本筋からはぜんぜん離れてしまいますが、
+[リコンフィグでの疑問]
+ kernel の作り直しにて、/usr/include/sys/s[eh]m.h への変更が有効にならない。
+ のは、私だけでしょうか。（そうに違いないとは思う）
+ で、/usr/src/sys/conf/param.c で、直に
+
+   struct  shminfo shminfo = {
+           SHMMAX,
+           ↓
+           SHMMAX*8,  とか
+
+   struct seminfo seminfo = {
+                SEMMAP+33,     などと書き込んでシノイデ（？）います。    
+
+「有効にならない」とは、sys/sem.h での該当（と思われる）#define 行での数値を変更、
+ config MYHOST,cd ../../compile/MYHOST,make depend,make, make install で reboot 
+ しても、ipcs で見る数値が変わらない、のです。なんか変、ですよね？
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp 9272] Re: can't exec one more postmaster with "semgetfailed"Error</A></STRONG>
+<UL><LI><EM>From:</EM> TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00063" HREF="msg00063.html">[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+<UL><LI><EM>From:</EM> TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 9266] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 9269] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 9259] Re: can't exec one more postmaster with "semget failed" Error</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 9272] Re: can't exec one more postmaster with "semgetfailed"Error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00074"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00074"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

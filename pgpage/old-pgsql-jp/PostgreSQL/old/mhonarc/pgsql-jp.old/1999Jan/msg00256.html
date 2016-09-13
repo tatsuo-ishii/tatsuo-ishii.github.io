@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6669] Re: v6.4.2 での配列の利用 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 17 Jan 1999 23:03:40 +0900 -->
+<!--X-Message-Id: 199901171403.XAA00483@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990117115730U.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6669] Re: v6.4.2 での配列の利用 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00254.html">Date Prev</A>][<A HREF="msg00257.html">Date Next</A>][<A HREF="msg00253.html">Thread Prev</A>][<A HREF="msg00280.html">Thread Next</A>][<A HREF="index.html#00256">Date Index</A>][<A HREF="threads.html#00256">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6669] Re: v6.4.2 での配列の利用</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 17 Jan 1999 23:03:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;   山田＠町田市です。
+&gt; 
+&gt;   １月７日を心待ちにして、仕事の途中でタクシー飛ばして書泉グランデで
+&gt; 石井さんのシーラカンス本を購入、読ませて頂いているうちに、どうもすっ
+&gt; きりしなかった仕事用のDBは配列を利用する事ですっきり解決出来ることに
+&gt; 気が付き、早速実験して見ました。うまくいっていますのでその御報告。
+
+シーラカンス本がお役に立てて嬉しいです:-)
+
+&gt; 目的：
+&gt;   営業支援用のデータとして、毎月の商品別県別流通別の売上DBを管理する。
+&gt;   (性質上、トランズアクションはない。また、毎月全県のデータが必ず、
+&gt;    入力されている。)
+&gt; 
+&gt; 色々な試みと問題点：
+&gt;  (説明の為、データ型入れていません、また実際は漢字は使っていません。念の為)
+&gt; 
+&gt;  1) create 営業情報 (製品コード、年月、県コード、流通コード、販売量)
+&gt; 
+&gt;     といった構造だと、全県の入力が行われたことを確認する手立てが必要なのと、
+&gt;     実際に実験して見るとデータ数がふくれ上がる為に実用的なスピードが出ない。
+&gt;     簡単に１０万件を越える事がわかり、やめました。
+&gt; 
+&gt;  2) create 営業情報 (製品コード、年月、流通コード、北海道、、、、、沖縄)
+&gt; 
+&gt;     これは、RDB の構造として邪道ですね。
+
+そうですね。これではいくらなんでもあんまり。
+
+&gt;     スマートでないけど、データアクセスの回数が減るのでスピードは問題ない。
+&gt; 
+&gt;  3) create 営業情報 (製品コード、年月、流通コード、販売量[48])
+&gt; 
+&gt;     これだと、RDB としての規則を守っているし、論理的にもすっきりしており、
+&gt;     スピードも出る。また、個々の県の入力忘れに気を使わなくて良い。
+
+なかなかうまい使い方だと思います。一つだけ気を付けないといけないのは、
+PostgreSQL のバグのために配列の途中から update するのがうまくいかない
+ことです。幸い山田さんの場合はすべての都道府県のデータが常に揃っている
+のがレコードを生成する条件になっているようなので、あまり問題にならない
+と思いますが。
+
+&gt;     但し、
+&gt;      select 販売量[1] + 販売量[2] + 販売量[3] from 営業情報;
+&gt;     は
+&gt;      select 営業情報.販売量[1] + 営業情報.販売量[2] 
+&gt;                           + 営業情報.販売量[3] from 営業情報;
+&gt;     とする必要がある。
+&gt;     また、
+&gt;      select sum(営業情報.販売量[1]) from 営業情報;
+&gt;             ^^^^
+&gt;     の様な関数の利用ができない。
+
+うーん、このへんは早くなんとかしたいですね。
+
+&gt;     実際やって見て、この関数が利用できないのは、致命的だったのですが、
+&gt;     いろいろ思考錯誤の上 function を利用すれば出来ることが分かりました。
+&gt; 
+&gt;     例：
+&gt;       create function get_北海道 (営業情報)
+&gt;       returns float8 as '
+&gt;       select $1.販売量[1]'
+&gt;       language 'sql';
+&gt; 
+&gt;       select sum(get_北海道(営業情報)) from 営業情報
+&gt;       where 製品コード = 'xxx' and 
+&gt;       年月 between 'yyyymm1' and 'yyyymm2';
+&gt; 
+&gt;       で出来ました。
+
+これだと get_北海道、get_青森県、... と 48個関数を作らないといけないで
+すね。
+
+       create function get(営業情報,int)
+       returns float8 as '
+       select $1.販売量[$2]'
+       language 'sql';
+ 
+       -- 北海道
+       select sum(get(営業情報,1)) from 営業情報
+       where 製品コード = 'xxx' and 
+       年月 between 'yyyymm1' and 'yyyymm2';
+
+       -- 青森県
+       select sum(get(営業情報,2)) from 営業情報
+       where 製品コード = 'xxx' and 
+       年月 between 'yyyymm1' and 'yyyymm2';
+		:
+		:
+
+では如何でしょう。
+
+&gt;     また、create function の中で
+&gt;       create function get_東北 (営業情報)
+&gt;       returns float8 as '
+&gt;       select $1.販売量[2]+$1.販売量[3]+$1.販売量[4]+$1.販売量[5]....'
+&gt;       language 'sql';
+&gt; 
+&gt;     とするとうまくゆかず、
+&gt;       create function get_東北 (営業情報)
+&gt;       returns float8 as '
+&gt;       select $1.販売量[2] + $1.販売量[3] + 
+&gt;       $1.販売量[4] + $1.販売量[5]....'
+&gt;       language 'sql';
+&gt;  
+&gt;     のように、+ の前後にスペースが必要でしたが、これは parser のバグ？
+
+あらら、御粗末ですね。バグレポートは本家に出ていたかな？
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00251" HREF="msg00251.html">[pgsql-jp 6664] v6.4.2での配列の利用</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Yamada &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00254.html">[pgsql-jp 6667] when abort postgreSQL</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00257.html">[pgsql-jp 6670] Re: when abort postgreSQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00253.html">[pgsql-jp 6666] Re: v6.4.2での配列の利用</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 6693] Re: Perl-I/Fでの起動オプションの設定方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00256"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00256"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

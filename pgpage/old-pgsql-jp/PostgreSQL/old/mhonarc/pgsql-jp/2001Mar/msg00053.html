@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20187] Re: perl からラージオブジェクト再び -->
+<!--X-From: website004 <website004@yo&#45;mail.co.jp> -->
+<!--X-Date: Sun, 4 Mar 2001 14:30:46 +0900 (JST) -->
+<!--X-Message-Id: &#45;111814029.983683846618.JavaMail.javamailuser@localhost -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20187] Re: perl からラージオブジェクト再び </TITLE>
+<LINK REV="made" HREF="mailto:website004@yo-mail.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00052.html">Date Prev</A>][<A HREF="msg00054.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00054.html">Thread Next</A>][<A HREF="index.html#00053">Date Index</A>][<A HREF="threads.html#00053">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20187] Re: perl からラージオブジェクト再び</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: website004 &lt;<A HREF="mailto:website004@yo-mail.co.jp">website004@yo-mail.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 4 Mar 2001 14:30:46 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ビーンズネットワークの吉田孝雄です
+
+
+&gt; &gt; 以下は”みかまま様のソースを私なりの環境でかきかえたものです
+&gt; とのことですが、なぜこれが
+&gt; &gt;     $len = 256;
+&gt; &gt;     while ($db-&gt;lo_read($fd, $buf, $len)&gt;0) {
+&gt; &gt;         print $buf;
+&gt; &gt;     }
+&gt; このように
+&gt; &gt;     $len = 256;
+&gt; &gt;     $db-&gt;lo_read($fd, $buf, $len);
+&gt; &gt;         print $buf;
+&gt; 変更したのでしょう？
+&gt; 256バイトにおさまるような画像なんてないと思いますが。
+&gt; またプラットホームがわからないのですが、Windows系では
+&gt; binmodeにしないダメです。
+
+確かに...なんとなく読み込むところの仕組みがわかってきました。
+プラットホームはRaQ３にはいっているRedHatです。（Versionは6.Xぐらいだと思います）
+
+
+&gt; 
+&gt; いきなりCGIにするのではなく、一旦普通のファイルに出力して確認してみては
+&gt; いかがですか？
+
+ちょっとやってみたいと思います。が
+なるべくなら直接読み込みが...なんかこの件は自分の中で先送りに（勉強が）
+なりそうでやはりFILEに落として読み込むしかないか....
+
+
+&gt; #!/usr/bin/perl
+&gt; use strict;
+&gt; use CGI;
+&gt; use Pg;
+&gt; use constant GetSize =&gt; 256;
+
+use constant GetSize =&gt; 256;
+こんなことできるんですね
+
+
+
+&gt; my $oConn = Pg::connectdb("dbname=gotdate user=postgres");
+
+user=postgres
+なるほど...
+
+&gt; die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+&gt; my $result = $oConn-&gt;exec("SELECT * FROM STIMG");
+&gt; die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+&gt; 
+&gt; my $oid = $result-&gt;getvalue(0, 1);
+&gt; $oConn-&gt;exec('begin');
+&gt; my $lFd = $oConn-&gt;lo_open($oid, PGRES_INV_READ);
+&gt; binmode STDOUT;
+&gt; my $oCgi = new CGI;
+&gt; print $oCgi-&gt;header(-type =&gt; 'image/jpeg');
+&gt; my $sBuff = '';
+&gt; while($oConn-&gt;lo_read($lFd, $sBuff, GetSize)) {
+&gt;     print $sBuff;
+&gt; }
+&gt; $oConn-&gt;lo_close($lFd);
+&gt; $oConn-&gt;exec('end');
+&gt; 
+
+こちらの参考のスクリプトにdbnameとtable名だけをかえまして
+（あとbinmodeのところも）
+自分のところのサーバーにで試したのですが.....
+やっぱりブラウザー上で”ばってん”印（イメージリンク切れのような状態）がでて
+そこでHTMLファイルをつくりIMGタグでCGIをよびだしてみても同じでした
+
+しかしラージオブジェクトに関する資料って少ないなと感じています（postgreSQL
+に関して）
+
+参考でいただいたDBIをつかったものもモジュールをインストールしためさせていただきました。
+
+余談ですがWin32::ODBCでMSSQLサーバーと接続するときは”日本語チョウ訳"のほうで
+いろいろお世話になりました。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00054" HREF="msg00054.html">[pgsql-jp 20188] Re: perl からラージオブジェクト再び</A></STRONG>
+<UL><LI><EM>From:</EM> "Kawai,Takanori" &lt;GCD00051@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00052.html">[pgsql-jp 20186] Re: PostgreSQL/PHP seminar</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 20188] Re: perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 20208] Re: lo_* の権限</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 20188] Re: perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00053"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00053"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

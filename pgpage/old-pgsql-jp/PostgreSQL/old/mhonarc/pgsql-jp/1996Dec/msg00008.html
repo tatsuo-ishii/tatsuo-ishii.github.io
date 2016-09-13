@@ -1,0 +1,207 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1099] create oprator -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Tue, 03 Dec 1996 18:50:36 +0900 -->
+<!--X-Message-Id: 199612030950.SAA07601@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199612020916.SAA19294@excalibur.ics.es.osaka&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1099] create oprator </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00007.html">Date Prev</A>][<A HREF="msg00009.html">Date Next</A>][<A HREF="msg00006.html">Thread Prev</A>][<A HREF="msg00010.html">Thread Next</A>][<A HREF="index.html#00008">Date Index</A>][<A HREF="threads.html#00008">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1099] create oprator</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 03 Dec 1996 18:50:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00000.html">199612020916.SAA19294@excalibur.ics.es.osaka-u.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+みなさまこんにちは。おみつ@Tramp です。
+表題にある通り、「create operator」について質問させて下さい。
+
+今回、「'text' =* 'Text' -&gt; TRUE」という形の演算子(大小文字の区別なし)
+を定義しようと思いまして、varlena.c を少しいじって texticeq 
+という関数を用意して登録してみました。
+
+ここでついでに 「text !=* text 」も登録しようと思い、
+マニュアルに「negator を書けばいいよ」とあったので、
+# 私の読み間違いでしょうか ... ;-)
+下の #1 のようにとりあえずやってみました。
+
+ところがどうも「!=*」の方の動きがおかしいので、
+pg_operator を覗いてみますと、「=*」「!=*」ともに oprcode
+( 多分実際の演算をするものだと思われますが... )が
+同じ関数になっているのです。
+
+結局 texticne という関数を用意し、登録し直したのですが、
+なんとなく pg_operator の中にある項目が他の演算子と違うし、
+# 他の演算子は「入れ子」状態にちゃんとなってます :-)
+create operator で negator の項目があるのも不可思議
+ということで、質問させて頂きました。
+
+どなたかうまく(ユーザー定義)演算子をうまく登録できた方は
+いらっしゃいますか? あと、違うバージョンではうまくいってる
+というご報告でもHappy です :-)
+
+
+私の動作環境は、
+postgres95-1.06 + pg95-1.06-jp.patch 
+  on linux-1.2.13 + JE 0.9.7
+となってます。
+# 1.09 に移行しようかと思ってるのですが、
+# とりあえず不自由なく動いてますし、
+# モチベーションが落ちてます...  ;-)
+
+P.S.
+  長文失礼
+
+== おみつ
+
+
+======================================================================
+#1 SQL
+----------------------------------------------------------------------
+test1=&gt; load '/fenet/src/functions/text_functions.so';
+LOAD
+test1=&gt; create function texticeq(text,text)
+test1=&gt; returns bool
+test1=&gt; as '/fenet/src/functions/text_functions.so'
+test1=&gt; language 'c';
+CREATE
+test1=&gt; create operator =* ( 
+test1=&gt; leftarg=text,
+test1=&gt; rightarg=text,
+test1=&gt; procedure=texticeq,
+test1=&gt; commutator= =*,
+test1=&gt; negator= !=*
+test1=&gt; );
+CREATE
+======================================================================
+
+======================================================================
+#2 select oid,pg_operator.* from pg_operator;
+----------------------------------------------------------------------
+    oid|oprname|oprowner|oprprec|oprkind|oprisleft|oprcanhash|oprleft
+|oprright|oprresult| oprcom|oprnegate|oprlsortop|oprrsortop|oprcode  
+      |oprrest |oprjoin     
+(中略)
+   1232|~*     |     601|      0|b      |t        |f         |   1043
+|      25|       16|      0|     1233|         0|         0|texticreg
+exeq  |eqsel   |eqjoinsel   
+   1233|!~*    |     601|      0|b      |t        |f         |   1043
+|      25|       16|      0|     1232|         0|         0|texticreg
+exne  |neqsel  |neqjoinsel  
+2426117|=*     |     501|      0|b      |t        |f         |     25
+|      25|       16|2426117|  2426116|         0|         0|texticeq 
+      |-       |-           
+#      ^^       ^^
+#     この辺はよくわからない
+2426116|!=*    |     501|      0|b      |t        |f         |     25
+|      25|       16|2426117|  2426117|         0|         0|texticeq 
+#                                                           ^^^^^^^^   
+#                                                             (?_?)
+      |-       |-           
+(中略)
+----------------------------------------------------------------------
+
+======================================================================
+
+======================================================================
+text_functions.c
+----------------------------------------------------------------------
+#include &lt;ctype.h&gt; /* for toupper */
+                   /* string.h:strcasecmp はいまいち動作不審 */
+#include "postgres.h"
+#include "utils/palloc.h"
+/* copied from varlena.c */
+int32
+texticeq(struct varlena *arg1, struct varlena *arg2)
+{
+  register int len;
+  register char *a1p, *a2p;
+
+  if(arg1 == NULL || arg2 == NULL)
+    return((int32)NULL);
+  if((len=arg1-&gt;vl_len) != arg2-&gt;vl_len)
+    return((int32) 0);
+  a1p=arg1-&gt;vl_dat;
+  a2p=arg2-&gt;vl_dat;
+
+  len -= sizeof(int32);
+  while(len-- != 0)
+    if( toupper((int) *a1p++) != toupper((int) *a2p++) )
+      return((int32) 0);
+  return((int32) 1);
+}
+
+/* これを !=* に登録 */
+int32
+texticne(struct varlena *arg1, struct varlena *arg2)
+{
+  return((int32) !texticeq(arg1,arg2));
+}
+======================================================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[postgres95 1101] Re: create oprator</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00000" HREF="msg00000.html">[postgres95 1091] self-introduction</A></STRONG>
+<UL><LI><EM>From:</EM> KASUKAWA Takeya &lt;kasukawa@ics.es.osaka-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00007.html">[postgres95 1098] [Q]:About rule system</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00009.html">[postgres95 1100] 自己紹介です</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00006.html">[postgres95 1097] Re: self-introduction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00010.html">[postgres95 1101] Re: create oprator</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00008"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00008"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

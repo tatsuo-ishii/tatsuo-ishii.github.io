@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11276] Re: 6.5.2 でのインデックス付き検索 -->
+<!--X-From: Hiroshi Hoshi <hiro@halfmoon.co.jp> -->
+<!--X-Date: Fri, 22 Oct 1999 11:57:25 +0900 -->
+<!--X-Message-Id: 19991022115725.B570@halfmoon.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991021224358.E404@halfmoon.co.jp -->
+<!--X-Reference-Id: 199910220115.KAA01064@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11276] Re: 6.5.2 でのインデックス付き検索 </TITLE>
+<LINK REV="made" HREF="mailto:hiro@halfmoon.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00300.html">Date Prev</A>][<A HREF="msg00303.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00302.html">Thread Next</A>][<A HREF="index.html#00301">Date Index</A>][<A HREF="threads.html#00301">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11276] Re: 6.5.2 でのインデックス付き検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Hoshi &lt;<A HREF="mailto:hiro@halfmoon.co.jp">hiro@halfmoon.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Oct 1999 11:57:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00290.html">19991021224358.E404@halfmoon.co.jp</A>&gt; &lt;<A HREF="msg00296.html">199910220115.KAA01064@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ 星です。
+ さっそくありがとうございます。
+
+Fri, Oct 22, 1999 at 10:15:29AM +0900 において
+Tatsuo Ishii さん曰く:
+
+&gt; 失礼しました。「町域名 like '東山'」は、「町域名 = '東山'」なので、イ
+&gt; ンデックスさえ張ってあれば必ず index scan になりますね。
+
+&gt; postal=&gt; explain select * from postal where town = '東山';
+&gt; NOTICE:  QUERY PLAN:
+&gt; 
+&gt; Index Scan using townindex on postal  (cost=51.89 rows=738 width=74)
+&gt; 
+&gt; EXPLAIN
+&gt; 
+&gt; 御覧のように、explain の結果(コスト)がかなり違います。多分元データは同
+&gt; じ郵政省の郵便番号データベースとだと思うので、この結果は一致しなければ
+&gt; ならないのですが、おそらく違いは私の場合、vacuum ではなくて、vacuum
+&gt; analyze をやっているせいでしょう。
+&gt; 
+&gt; 念のため、インデックスを作成した後 vacuum analyze を実行し、もう一度検
+&gt; 索してみて頂けませんか？
+
+ vacuum analyze;を行って、石井さんのメールにあったexplainを実行してみ
+ると大体似たような結果がでて来ました。(ちょっとちがいましたが、それは
+元データが若干違うのかも知れません)実際に検索を行ってみると以前と同じ
+ようなスピードがでるようです。
+
+ で、ここで喜んで色々試してみたのですが、自分でクエリーをつくるとまた
+遅くなってしました。
+
+ 色々試してみると、クエリーによって違いがでるようです。
+
+postalcode=&gt; explain select * from postalcode where 町域名 like '東山'; 
+NOTICE:  QUERY PLAN:
+
+Index Scan using 町域名_idx on postalcode  (cost=2924.33 rows=246 width=108)
+
+EXPLAIN
+postalcode=&gt; explain select * from postalcode where 町域名 = '東山'; 
+NOTICE:  QUERY PLAN:
+
+Index Scan using 町域名_idx on postalcode  (cost=54.84 rows=737 width=108)
+
+EXPLAIN
+postalcode=&gt; explain select * from postalcode where 町域名 like '東山%'; 
+NOTICE:  QUERY PLAN:
+
+Index Scan using 町域名_idx on postalcode  (cost=2924.33 rows=246 width=108)
+
+EXPLAIN
+
+ といった感じになりました。
+
+ ここまでで疑問点が２つあります。
+
+ ひとつは、以前のメールにかいたケースで、インデックスを付けた方がcost
+が小さいのに実際には時間がかかっていました。こういったケースは実際あり
+えるものなのでしょうか？
+
+ もうひとつは、私のSQLの知識が間違っているのかも知れませんが、colums = 
+'word'とcolums like 'word'は機能的なものは同じで、またcolums like
+'word%'はインデックスがb-treeならインデックスが使われると思っていまし
+た。この前提の知識に間違いはないのでしょうか？
+ なお、気になったのでusing btreeをつかって明示的にindexを指定しても
+costは同じです(というか上記はそのインデックスを使ってみました)。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00290" HREF="msg00290.html">[pgsql-jp 11265] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Hoshi &lt;hiro@halfmoon.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 11271] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00300.html">[pgsql-jp 11275] select count とMS-ACCESS2000</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 11278] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 11292] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00302.html">[pgsql-jp 11277] Re: 6.5.2 でのインデック ス付き検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00301"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00301"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

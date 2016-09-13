@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11265] Re: 6.5.2 でのインデックス付き検索 -->
+<!--X-From: Hiroshi Hoshi <hiro@halfmoon.co.jp> -->
+<!--X-Date: Thu, 21 Oct 1999 22:43:58 +0900 -->
+<!--X-Message-Id: 19991021224358.E404@halfmoon.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991021114228.B404@halfmoon.co.jp -->
+<!--X-Reference-Id: 199910210716.QAA01669@ext04.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11265] Re: 6.5.2 でのインデックス付き検索 </TITLE>
+<LINK REV="made" HREF="mailto:hiro@halfmoon.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00288.html">Date Prev</A>][<A HREF="msg00291.html">Date Next</A>][<A HREF="msg00280.html">Thread Prev</A>][<A HREF="msg00296.html">Thread Next</A>][<A HREF="index.html#00290">Date Index</A>][<A HREF="threads.html#00290">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11265] Re: 6.5.2 でのインデックス付き検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Hoshi &lt;<A HREF="mailto:hiro@halfmoon.co.jp">hiro@halfmoon.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 21 Oct 1999 22:43:58 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00276.html">19991021114228.B404@halfmoon.co.jp</A>&gt; &lt;<A HREF="msg00280.html">199910210716.QAA01669@ext04.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ 星です。
+ はじめまして、石井さん。よろしくおねがいします。
+
+Thu, Oct 21, 1999 at 04:16:37PM +0900 において
+Tatsuo Ishii さん曰く:
+
+&gt; 本当に
+&gt; 
+&gt; select * from postalcode where 町域名 like '東山';
+&gt; 
+&gt; で index scan になってますか？多分そうではないと思うので、実際に index
+&gt; scan なのに遅い例の explain の出力と、テーブルの定義を見せて下さい。
+
+ 何分詳しくないものでもしかすると読み間違えているのかも知れませんが、
+以下のような形になっています。長いかも知れませんが、直接コピーしてみま
+した。
+ 
+Table    = postalcode           
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| 公共団体コード                   | varchar()                        |     5 |
+| 現郵便番号                       | varchar()                        |     5 |
+| 新郵便番号                       | varchar()                        |     7 |
+| 都道府県名読み                   | text                             |   var |
+| 市町村名読み                     | text                             |   var |
+| 町域名読み                       | text                             |   var |
+| 都道府県名                       | text                             |   var |
+| 市町村名                         | text                             |   var |
+| 町域名                           | text                             |   var |
++----------------------------------+----------------------------------+-------+
+
+ tableは上のようになっています。
+
+ これに対して、(この状態で全てのインデックスをdropしてあります)
+
+postalcode=&gt; create index 町域名_idx on postalcode(町域名);
+CREATE                          
+postalcode=&gt; vacuum;            
+VACUUM                          
+postalcode=&gt; explain select * from postalcode where 町域名 like '東山';
+NOTICE:  QUERY PLAN:            
+                                
+Index Scan using 町域名_idx on postalcode  (cost=2924.33 rows=1 width=108)
+                                
+EXPLAIN                         
+postalcode=&gt; select * from postalcode where 町域名 like '東山';
+
+ として1回目の検索はストップウォッチ測りで1:03.15、2回目は1:00.38、3回
+目は59.32でした。
+
+postalcode=&gt; drop index 町域名_idx;
+DROP
+postalcode=&gt; vacuum;
+VACUUM
+postalcode=&gt; explain select * from postalcode where 町域名 like '東山';
+NOTICE:  QUERY PLAN:
+
+Seq Scan on postalcode  (cost=6374.70 rows=1 width=108)
+
+EXPLAIN
+postalcode=&gt; select * from postalcode where 町域名 like '東山';
+
+ として、インデックスを落すとそれぞれ18.03、18.42、18.49となります。
+
+
+ データ数は、 
+postalcode=&gt; select count(*) from postalcode;
+ count
+------
+119900
+(1 row)
+ となっていて、上記の検索の結果は50 rowsです。
+
+ ちなみに、
+postalcode=&gt; create index 町域名_idx on postalcode(町域名 text_ops);
+CREATE
+postalcode=&gt; vacuum;
+VACUUM
+postalcode=&gt; explain select * from postalcode where 町域名 like '東山';
+NOTICE:  QUERY PLAN:
+
+Index Scan using 町域名_idx on postalcode  (cost=2924.33 rows=1 width=108)
+
+EXPLAIN
+postalcode=&gt; select * from postalcode where 町域名 like '東山';
+
+ というのも試してみましたが、やっぱり検索には1分以上かかりindexをdrop
+すれば大体16秒とかいった感じで検索できます。
+
+ 上記のpsqlの表示からインデックスはある場合使われていると判断したので
+すがもっと他に確認するような箇所はそんざいするのでしょうか？
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp 11277] Re: 6.5.2 でのインデック ス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 11271] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00276" HREF="msg00276.html">[pgsql-jp 11251] 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Hoshi &lt;hiro@halfmoon.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00280" HREF="msg00280.html">[pgsql-jp 11255] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 11263] Re: COPYエラー時のエラー詳細可能?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00291.html">[pgsql-jp 11266] JDBCでSJISコードの取得</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00280.html">[pgsql-jp 11255] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 11271] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00290"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00290"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

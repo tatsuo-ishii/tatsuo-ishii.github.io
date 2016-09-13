@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9519] Re: "postgres is dead" の問題について -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 19 Jul 1999 10:16:55 +0900 -->
+<!--X-Message-Id: 199907190116.KAA01086@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3790B0881E7.3341TOKO@mail.da.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9519] Re: "postgres is dead" の問題について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00321.html">Date Prev</A>][<A HREF="msg00323.html">Date Next</A>][<A HREF="msg00309.html">Thread Prev</A>][<A HREF="msg00331.html">Thread Next</A>][<A HREF="index.html#00322">Date Index</A>][<A HREF="threads.html#00322">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9519] Re: "postgres is dead" の問題について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Jul 1999 10:16:55 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 6.4.2 + Perl + Apache で会員のデータ管理、会員からのアクセス管理を
+&gt; 行うサイトを構築しました。OSはFreeBSD2.2.8です。
+&gt; 入念なテストをしたのですが、最大でも26人までの同時アクセステストまでしか
+&gt; 行っておりませんでした。実際に運営に入ったとたん、
+&gt; Postmaster が落ちて、再起動してもまた落ちて、という現象になりました。
+&gt; 
+&gt; いくつか原因となることが考えられるのですが、
+&gt; どう対処し、再発しない確認を実運営前にどうテストすればよいか、
+&gt; ということでとても困っております。
+&gt; メールが長くなりますが、アドバイスを頂けませんでしょうか。
+&gt; 
+&gt; 以下に、現象の詳細を記述します。
+&gt; Apache のログには以下のような記録が多発しておりました。
+&gt; 
+&gt; NOTICE:  Deadlock detected -- See the lock(l) manual page for a possible cause.
+&gt; NOTICE:  EndTransactionBlock and not inprogress/abort state
+&gt; NOTICE:  Message from PostgreSQL backend:
+&gt;         The Postmaster has informed me that some other backend died abnormally and possibly corrupte
+&gt; d shared memory.
+&gt;         I have rolled back the current transaction and am going to terminate your database system co
+&gt; nnection and exit.
+&gt;         Please reconnect to the database system and repeat your query.
+&gt; NOTICE:  ShmemAlloc: out of memory
+&gt; 
+&gt; これらの NOTICE が入れ違いにまたは連即して大量にはかれていました。
+&gt; 
+&gt; また、system log には以下のように記述されていました。
+&gt; MMM DD HH:MM:SS Hostname /kernel: pid 242 (postgres), uid 1010: exited on signal 6 (core dumped)
+&gt; 
+&gt; この現象は運営していた約3時間の間に繰り返し続きました。
+&gt; その3時間の間に、会員アクセス管理のperl cgiにあったアクセスは、
+&gt; 15000を超えております。
+&gt; 
+&gt; Deadlock がそもそもの起因と思われたので、過去記事を検索すると
+&gt; 
+&gt; 「ところで、6.4 では、クライアント側から問い合わせをキャンセルする機能が
+&gt; 追加されるようです。これは、TCP/IP の OOB(out bound data)を使うもので、
+&gt; プロトコルも若干変わるようです。
+&gt; 
+&gt; 途中略
+&gt; 
+&gt; トランザクションの整合性は保たれるでしょうが、簡単に deadlock を引き起
+&gt; こしかねません。たとえば、
+&gt; 	接続No.1: select * from mytable;
+&gt; 			→キャンセル
+&gt; 	接続No.2: insert into mytable ....
+&gt; 			→ここで deadlock
+&gt; とか。」
+&gt; 
+&gt; という記事がありました。まさに、同じことを会員アクセス管理で行っています。
+&gt; これが起因と考えて間違いないでしょうか？
+
+分かりません。素の6.4.2は多数ユーザで使う場合にかなり問題が起きること
+が知られています。その場合、共有メモリを破壊するケースがあり、それが見
+掛け上デッドロックになっている可能性もあります。
+
+&gt; 6.5にアップグレードすれば解消されるようなことでしょうか？
+
+少なくとも同時ユーザ数の多さに起因する問題は、かなり解決しているはずで
+す。試してみる価値は多いにあると思います。また、ロックが行単位になって
+いるので、本当にデッドロックが起きているのなら、場合によってはそれが軽
+減されることも考えられます。
+
+ただ、6.5とそれ已然ではトランザクションの扱いが変わっていますから、ア
+プリケーションによってはコードの修正が発生するかもしれません。どのよう
+なロジックで動いているアプリケーションなのか分からないのでなんとも言え
+ませんが(特に、なんでキャンセルを頻発しているのか良く理解できない)。
+
+&gt; それとも、カーネルのoption の指定や、PostgreSQLのコンパイルの際に、
+&gt; 特別な指定が必要でしょうか？
+
+これもチェックポイントです。FreeBSDをお使いとのことですが、素のカーネ
+ルでは各種リソースが不足します。特にファイルテーブルは全然足りないはず
+です。どのようにカーネルを構築しましたか？
+
+&gt; 対処した後に、大量アクセスのチェックしたいのですが、
+&gt; 皆さんはどのようになさっているのでしょうか
+&gt; 協力者を得て、同時にアクセスするにも、人数の限界があり、
+&gt; 実際のアクセス数を再現するにはどうしたら良いのか、
+&gt; いい方法はないでしょうか。
+
+WWWでの大量アクセスをチェックする前に、PostgreSQL自体が大量アクセスを
+受け付けられるかチェックしましょう。26ユーザまでテストしたとありますが、
+これではテストが甘いと思います。私なら128ユーザくらいまではテストした
+いところです。私が良くテストに使っているのはJDBCBenchです。これは簡単
+に同時接続ユーザを大量発生することができます。
+
+これがOKなら、次にWWWでのチェックですが、これはいくらでもやりようがあ
+るでしょう。URLを指定してデータを取って来るコマンドがいくつかあります
+ので、これを大量に実行すれば良いかと思います。
+---
+Tatsuo Ishii
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 9528] Re: "postgres is dead" の問題 について</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoko Yoshida &lt;toko@da.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00309" HREF="msg00309.html">[pgsql-jp 9506] "postgres is dead" の問題について</A></STRONG>
+<UL><LI><EM>From:</EM> Tomoko Yoshida &lt;toko@da.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00321.html">[pgsql-jp 9518] Re: $B1?MQ;vNc!&amp;&lt;B@S65$($F(B</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00323.html">[pgsql-jp 9520] Re: 運用事例・実績教えて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00309.html">[pgsql-jp 9506] "postgres is dead" の問題について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 9528] Re: "postgres is dead" の問題 について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00322"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00322"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

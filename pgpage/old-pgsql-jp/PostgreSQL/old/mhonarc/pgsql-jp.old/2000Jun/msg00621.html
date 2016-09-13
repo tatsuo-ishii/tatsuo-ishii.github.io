@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15582] Re: テーブル設計で考慮すべきは -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Sun, 25 Jun 2000 16:42:03 +0900 -->
+<!--X-Message-Id: 3955B7CBC8.BFF8JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 877lbg1dlj.wl@mizu.nurs.or.jp -->
+<!--X-Reference-Id: 20000624092625O.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15582] Re: テーブル設計で考慮すべきは </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00622.html">Date Prev</A>][<A HREF="msg00623.html">Date Next</A>][<A HREF="msg00605.html">Thread Prev</A>][<A HREF="msg00629.html">Thread Next</A>][<A HREF="index.html#00621">Date Index</A>][<A HREF="threads.html#00621">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15582] Re: テーブル設計で考慮すべきは</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 25 Jun 2000 16:42:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00601.html">877lbg1dlj.wl@mizu.nurs.or.jp</A>&gt; &lt;<A HREF="msg00605.html">20000624092625O.kgotoh@cic-kk.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お久しぶりです。北村です。社会復帰しました。笑
+
+予備フィールドの必要性として、こんな話を聞いたことがあります。
+古いDB(ごめんなさい。DB名忘れてます。汎用機系DBです。RDBだったとは思いま
+す）。では、複数フィールドをキーとして設定するのに、連続したフィールド(カ
+ラム)で無いとダメ、という事らしいです。
+そのため、a,b,c・・・というフィールドを持つテーブルで、a,b及びa,cをキーに
+したい場合、a1,b,a2,c・・・とフィールドを持つ必要があるらしいです(a1とa2
+には同じ値が入ります)。
+この事から、後々キーにしたいフィールド(複数フィールドによるキー)の後に、
+予備カラムを入れておくそうです。
+これが１番目の理由です。２番目の理由としては、フィールド長を越えたデータ
+が入ってしまうことがある・・・・のだそうです(ほんまかいな)。
+当然これは、１レコードのレコード長を越える可能性がある、という意味で、予
+備カラムが無い場合は、次のレコードの先頭を破壊してしまう（らしいです）。
+予備カラムがあれば、予備カラム部分にデータのズレが入り込むだけで、次のレ
+コードに影響は与えません。多分・・ですが、後部の予備カラムには値(空白文字
+列など)を入れないようなプログラムになっているのだとは思います。あとは、そ
+の異常のあるレコードの目的のフィールドのデータを調べて、正常な長さに直せ
+ば良し・・と（目的のフィールド以降のフィールドは当然ズレが生じていますの
+で、値が不正になっています）。
+３番目の理由として、１レコードのレコード長をXXXバイトの倍数にしておいた方
+が、アクセスが速くなる、というものです。 XXXの部分は、覚えていませんが、
+OSがファイルにアクセスする際の最小値だと思います。仮に256バイトだとして、
+１レコードが250バイトだったら、最後に予備カラムという名前で6バイトの領域
+を確保する、という意味です。
+
+以上が、聞いた話・・です。
+なにぶん、古いDBの話なので、きっとディスクデバイス上のデータの配置をその
+まま変数に取り込むんだと思います（４バイト、５バイトって並びのフィールド
+のテーブルなら、先頭から９バイトのデータを読み込んで、振り分ける・・って
+意味です。だから、複数フィールドのキーもフィールドが連続していないとダメ
+なんだと・・・）。
+
+で、私自身も以前はよくint型の予備フィールドなどを用意してたのですが・・・。
+これは合っているのか解らずにやっていた事なので、間違ってたら指摘してくだ
+さい。
+まず、データベースの領域の問題です。
+渡邊さんの
+&gt;レコード数が増えると、そのカラムの分、使わない領域を確保する
+&gt;ことで容量を圧迫するんじゃないか、という素朴な疑問があったの
+に対しての、逆説的な意味ですが。
+ある日、どうしてもフィールドを増やさなければならない事態になった時、
+alterなどでフィールドを増やすと、レコード数×フィールド長のデータ領域が増
+加することになりますよね。領域が空いていれば良いのですが、空いてなかった
+り・・とか。MS-SQLサーバーでは、ディスクデバイス上に固定のDBデバイス領域
+を先に割当て、その中でアレコレするので、足りない場合は、DBデバイス領域の
+拡張からしなければならないです。
+と言ってもこの問題は、「レコード数が増えたので・・・」と同じ問題で、領域
+を増加してやれば良いのですが。
+次の問題は、フラグメンテーションです。PostgreSQLや商用RDBで内部的にどのよ
+うに扱っているのか知らないので、問題無いのかもしれませんが。
+１レコードが(OSのファイルシステムに依存するのでしょうが)ディスクデバイス
+上の連続した領域に書き込まれるとしたら、 alterされたフィールドは、当然既
+存の領域とは別の領域に書き込まれる事になりますよね。となると、やはり処理
+速度の低下が見られるのでは・・・と思うのですが。
+（どっちみち各フィールドの値は１レコード内であろうがなかろうが、OSのファ
+イルシステムに依存してるから、ディスクデバイス上の別々の領域に保存されま
+すよ・・ってなら、全然的ハズレな考えですけど）
+ただし予備フィールドは固定長の場合です(vcharやtextの予備カラムの必要性は
+わかりませんが)。
+
+ちなみに、今は予備フィールドは用意してません。上に書いた理屈がどーのとい
+うワケではなく、経験則から「あっても役にたたない」事が多く、テーブルの構
+造を変えざるを得ない事態の場合は、データを吐き出して新しいテーブルに合わ
+せる形にテキストベースで修正して、(新しい)テーブルにインサートするって手
+順を（面倒ですが）踏んでいます。
+
+以上、戯れ言でした。
+北村
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00629" HREF="msg00629.html">[pgsql-jp 15590] Re: テーブル設計で考慮すべきは</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00601" HREF="msg00601.html">[pgsql-jp 15562] Re: テーブル設計で考慮すべきは</A></STRONG>
+<UL><LI><EM>From:</EM> ogochan@linux.or.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00605" HREF="msg00605.html">[pgsql-jp 15566] Re: テーブル設計で考慮すべきは</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00622.html">[pgsql-jp 15583] Re: PostgreSQLの良いところを教えてください。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00623.html">[pgsql-jp 15584] Re: PostgreSQL の良いところを教えてください。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00605.html">[pgsql-jp 15566] Re: テーブル設計で考慮すべきは</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00629.html">[pgsql-jp 15590] Re: テーブル設計で考慮すべきは</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00621"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00621"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1859] Re: linux&#45;ELF shared libs? -->
+<!--X-From: Satoshi Ishikawa <power@sekine.densi.gifu&#45;u.ac.jp> -->
+<!--X-Date: Wed, 28 May 1997 15:07:09 +0900 -->
+<!--X-Message-Id: 199705280607.PAA18554@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199705280457.NAA10694@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1859] Re: linux-ELF shared libs? </TITLE>
+<LINK REV="made" HREF="mailto:power@sekine.densi.gifu-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00110.html">Date Prev</A>][<A HREF="msg00112.html">Date Next</A>][<A HREF="msg00109.html">Thread Prev</A>][<A HREF="msg00113.html">Thread Next</A>][<A HREF="index.html#00111">Date Index</A>][<A HREF="threads.html#00111">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1859] Re: linux-ELF shared libs?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Ishikawa &lt;<A HREF="mailto:power@sekine.densi.gifu-u.ac.jp">power@sekine.densi.gifu-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 May 1997 15:07:09 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00109.html">199705280457.NAA10694@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いしかわ＠岐阜大です。
+
+ちょっと混乱してます(^^;;
+
+Wed, 28 May 1997 13:57:32 +0900 頃、
+&lt;<A HREF="msg00109.html">199705280457.NAA10694@srashd.sra.co.jp</A>&gt; において
+ Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さんは書きました。
+
+&gt; 結局、以下の結論を得ました。
+&gt; 
+&gt; 1. -rdynamic は gcc のオプション。ld のオプションではない。このオプショ
+&gt; ンにより、ld に -export-dynamic を指定したのと同じ効果が得られる。
+&gt; MkLinux の gcc (2.7.2.1) ではサポートされていない。
+&gt; 
+&gt; 2. PostgreSQL の libpq のコンパイルは、
+&gt; 	(1) -fpic なしで .o を作る
+&gt; 	(2) (1) から libpq.a を作る
+&gt; 	(3) (1) から libpq.so を作る
+&gt; のように実行されます。当然、(3) で作られた libpq.so は使いものにならな
+&gt; い。
+&gt; 
+&gt; 3. 使いものにならないだけなら良いが、pg_id などの libpq をリンクしてい
+&gt; るロードモジュールのリンクで、-L で指定した場所に .so があると、.a よ
+&gt; り優先して .so をリンクする。その結果、ロードモジュールの実行時に 3 の
+&gt; 使いものにならない libpq.so が呼ばれてロードモジュールは異常終了する。
+
+使い物にならないっていうのは、
+
+% ldd /usr/local/pgsql/bin/pg_id
+        libpq.so =&gt; /usr/local/pgsql/lib/libpq.so
+        libdl.so.1 =&gt; /lib/libdl.so.1
+        libm.so.5 =&gt; /lib/libm.so.5
+        libreadline.so.2 =&gt; /usr/lib/libreadline.so.2
+% /usr/local/pgsql/bin/pg_id
+501
+
+っていうのが実行できないってことでしょうか？
+
+6.1で変更が加えられていく過程で、いつの間にか
+（意図的にかはわかりませんが）libpq.soが作られるようになり
+＃確か6.0は、libpq.soは作らずにlibpq.aでリンクしてましたよね。
+
+・initdb が実行できないよ（pg_id がこける）
+・libpq.soがないっていってる
+・どうしよ？
+っていう質問がされたことがありました、そこで
+
+libpq.aでなくlibpq.soでリンクされてるために、INSTALLファイルにLinux で
+の注意として、/etc/ld.so.conf に/usr/local/pgsql/lib を加えてldconfig
+するか、LD_LIBRARY_PATH に /usr/local/pgsql/lib に加えましょうっていう
+項目が加えられたと記憶しています。
+
+＃当時は、libpqでさえ共有ライブラリにされてしまうのね。と思ったのでし
+＃た。
+
+つまり、これは使えるってことでは？
+
+&gt; 
+&gt; 4. 2, 3 の問題点は、PostgreSQL の Linux-ELF Makefile におけるバグであ
+&gt; ると思います。
+&gt; 
+&gt; 皆さんは手作業でこの問題点を回避されてるのでしょうか？ &gt; MkLinux 以外
+&gt; の Linux-ELF な方々
+
+SPARCでもTOWNSでも別に手は加えてないんですけど。
+
+libpq.aでリンクしてやれば丸く収まるのでしょうか？
+
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+Satoshi Ishikawa 	power@densi.gifu-u.ac.jp
+			tigre@cc.gifu-u.ac.jp
+<A HREF="http://133.66.191.3/">http://133.66.191.3/</A>    
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00113" HREF="msg00113.html">[postgres95 1861] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00109" HREF="msg00109.html">[postgres95 1857] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00110.html">[postgres95 1858] Re: Other database files...</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00112.html">[postgres95 1860] Re: Other database files...</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00109.html">[postgres95 1857] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00113.html">[postgres95 1861] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00111"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00111"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

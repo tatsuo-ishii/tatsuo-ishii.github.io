@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1857] Re: linux&#45;ELF shared libs? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 28 May 1997 13:57:32 +0900 -->
+<!--X-Message-Id: 199705280457.NAA10694@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199705271209.VAA05007@itlb&#45;sp6.te.noda.sut.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1857] Re: linux-ELF shared libs? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00108.html">Date Prev</A>][<A HREF="msg00110.html">Date Next</A>][<A HREF="msg00106.html">Thread Prev</A>][<A HREF="msg00111.html">Thread Next</A>][<A HREF="index.html#00109">Date Index</A>][<A HREF="threads.html#00109">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1857] Re: linux-ELF shared libs?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 May 1997 13:57:32 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;こんにちは、馬目＠東京理科大学です。
+&gt;
+&gt;t-ishii&gt; ちなみに、手元の MkLinux では、
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; o -rdynamic は ld が理解しない
+&gt;t-ishii&gt; o -fpic を付けないオブジェクトで libpq.so を作ると、それを使うロードモ
+&gt;t-ishii&gt; ジュールは実行時に segmentaion fault になる (-fpic を手で付ければOK)
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; てな感じでした。
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; &gt;うーん。これはLinuxに詳しい人の登場を待った方がいいですね。
+&gt;
+&gt;Linuxに詳しい人じゃないんですが、まだフォローがないよう
+&gt;なので、ポインタ程度ですが。
+&gt;
+&gt;(多分、もう御覧になってるかと思います。その時はごめんなさい。)
+&gt;
+&gt;まず、ELF-HOWTO で、下記のように
+&gt;
+&gt;  <A HREF="http://jf.gee.kyoto-u.ac.jp/JF/JF-ftp/euc/ELF-HOWTO.euc">http://jf.gee.kyoto-u.ac.jp/JF/JF-ftp/euc/ELF-HOWTO.euc</A>
+
+これは読みましたが、以下はまだでした。
+
+&gt;&gt;  o  ELF 形式についての文書が tsx-11
+&gt;&gt;     &lt;<A HREF="ftp://tsx-11.mit.edu/pub/linux/packages/GCC/ELF.doc.tar.gz">ftp://tsx-11.mit.edu/pub/linux/packages/GCC/ELF.doc.tar.gz</A>&gt; にあり
+&gt;&gt;     ます。この文書は多分ファイル形式を理解したい人やデバッグしたい人、
+&gt;&gt;     バイナリのオブジェクトを直接操作するようなプログラムの作者にもっと
+&gt;&gt;     も役立つものでしょう。
+&gt;&gt;
+&gt;&gt;  o  H.J Lu が書いた ELF: From The Programmer's Perspective
+&gt;&gt;     &lt;<A HREF="ftp://tsx-11.mit.edu/pub/linux/packages/GCC/elf.latex.tar.gz">ftp://tsx-11.mit.edu/pub/linux/packages/GCC/elf.latex.tar.gz</A>&gt; は
+&gt;&gt;     ELF 形式でプログラムする際に有用な情報がずっと詳しく説明されていま
+&gt;&gt;     す。もし LaTeX を処理できなければ、同じバージョンの PostScript 版が
+&gt;&gt;     あります。
+&gt;
+&gt;紹介されているドキュメントのうち、
+&gt;
+&gt; "ELF: From The Programmer's Perspective"
+
+ありがとうございます。早速見てみました。
+
+&gt;のsection 5あたりにshared libraryの具体的な作り方の説明が
+&gt;ありますね。(このdocumentは全部で23ページ、日本では、
+&gt;KDDやSunSITE Japan等にあるミラーで入手できます。)
+&gt;
+&gt;position independentなコードにするため、たとえば、gccでは
+&gt;-fPICを使用するという説明があったのですが、そのもっと詳しい
+&gt;理由については、ELF-HOWTOで紹介されているまた別のドキュメン
+&gt;トを読む必要があるのかもしれません。
+
+結局、以下の結論を得ました。
+
+1. -rdynamic は gcc のオプション。ld のオプションではない。このオプショ
+ンにより、ld に -export-dynamic を指定したのと同じ効果が得られる。
+MkLinux の gcc (2.7.2.1) ではサポートされていない。
+
+2. PostgreSQL の libpq のコンパイルは、
+	(1) -fpic なしで .o を作る
+	(2) (1) から libpq.a を作る
+	(3) (1) から libpq.so を作る
+のように実行されます。当然、(3) で作られた libpq.so は使いものにならな
+い。
+
+3. 使いものにならないだけなら良いが、pg_id などの libpq をリンクしてい
+るロードモジュールのリンクで、-L で指定した場所に .so があると、.a よ
+り優先して .so をリンクする。その結果、ロードモジュールの実行時に 3 の
+使いものにならない libpq.so が呼ばれてロードモジュールは異常終了する。
+
+4. 2, 3 の問題点は、PostgreSQL の Linux-ELF Makefile におけるバグであ
+ると思います。
+
+皆さんは手作業でこの問題点を回避されてるのでしょうか？ &gt; MkLinux 以外
+の Linux-ELF な方々
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00117" HREF="msg00117.html">[postgres95 1865] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[postgres95 1859] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00106" HREF="msg00106.html">[postgres95 1854] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> MANOME Tomonori &lt;manome@itlb.te.noda.sut.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00108.html">[postgres95 1856] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00110.html">[postgres95 1858] Re: Other database files...</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00106.html">[postgres95 1854] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00111.html">[postgres95 1859] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00109"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00109"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

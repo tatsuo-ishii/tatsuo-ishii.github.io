@@ -1,0 +1,200 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8753] Re: ラージオブジェクトのUpdateに ついて -->
+<!--X-From: Kiyoharu Shimizu <shimizu@kcat.zaq.ne.jp> -->
+<!--X-Date: Wed, 09 Jun 1999 16:56:56 +0900 -->
+<!--X-Message-Id: 375E1E48.FE0A7B6@kcat.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199906081525.AAA01898@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8753] Re: ラージオブジェクトのUpdateに ついて </TITLE>
+<LINK REV="made" HREF="mailto:shimizu@kcat.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00186.html">Date Prev</A>][<A HREF="msg00188.html">Date Next</A>][<A HREF="msg00177.html">Thread Prev</A>][<A HREF="msg00168.html">Thread Next</A>][<A HREF="index.html#00187">Date Index</A>][<A HREF="threads.html#00187">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8753] Re: ラージオブジェクトのUpdateに ついて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kiyoharu Shimizu &lt;<A HREF="mailto:shimizu@kcat.zaq.ne.jp">shimizu@kcat.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 09 Jun 1999 16:56:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00177.html">199906081525.AAA01898@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+清水＠大阪です。お世話になります。
+
+石井さんアドバイス有難うございます。
+
+
+&gt; &gt; ラージオブジェクトのUpdateについて質問です。
+&gt; &gt;
+&gt; &gt; 以下の環境で開発しています。
+&gt; &gt; Vine Linux1.0
+&gt; &gt; Apache1.3.4
+&gt; &gt; postgreSQL6.4.2+patched
+&gt; &gt; PHP3.0.7+Kanji.4.patched
+&gt; &gt;
+&gt; &gt; 下のようなテーブルがあり、すでに列pictにラージオブジェクト
+&gt; &gt; の値(oid)が入っています。これを別のラージオブジェクトでupdate
+&gt; &gt; (上書き)する場合、SQL文はどのようにすればいいのでしょうか?
+&gt; &gt; DBへの操作はブラウザ+PHP3で行っています。
+&gt; &gt;
+&gt; &gt; Table
+&gt; &gt; ------------------------
+&gt; &gt; code|name|pict  |istemp|
+&gt; &gt; ------------------------
+&gt; &gt; 100 |one |151233|f
+&gt; &gt; 200 |two |150233|f
+&gt; &gt; ------------------------
+&gt; &gt;
+&gt; &gt;
+&gt; &gt; $userfileはブラウザのフォーム参照ボタンにて選択した画像ファイルの引数
+&gt; &gt;
+&gt; &gt; &lt;?
+&gt; &gt; $rtn = pg_exec($con, "update table set pict = '$userfile' where istemp =
+&gt; &gt; ture ");
+&gt; &gt; ?&gt;
+&gt; &gt; (修正画面に移る時に対象の行のistempをtureにします)
+&gt; &gt;
+&gt; &gt; というよな感じでしたのですが、パースエラーになり、内容の変更はされませ
+&gt; &gt; ん。
+&gt; 
+&gt; ちょっと内容が良く分かりませんが、これは多分ソフトウェアデザインの私の
+&gt; 記事を参考にされたんですよね(違っていたらごめんなさい)。そういう前提で
+&gt; お話すると、上のSQL文はエラーになって当然です。pict はOID型ですから、
+&gt; 数字が渡されないといけないのに、一時ファイルのファイル名渡してますから。
+
+pgimegeの記事を参考にさせて頂いています。
+私のような初心者でもわかりやすく、とても良い勉強になります。
+
+今回の質問を要約します。
+登録した画像データとそれに属するテキストデータ(code,name)を修正する機能
+を持たせたく
+思っています。
+一覧表示させた各行に[修正]ボタンをつけて、フォーム形式の修正画面に選択し
+た行の各データ
+を表示させ、それを修正出来るようにします。(テキストデータはtextboxで、ラ
+ージオブジェクトは
+pgimegeでローカルドライブからファイルを参照させるフォームをそのまま表示
+させています)
+
+以下の式でテキスト部分とラージオブジェクトのupdate(上書き)が出来きまし
+た。
+
+&lt;?
+$rtn = pg_exec($con, "update table set code = '$code', name = '$name',
+pict = lo_import('$userfile') where istemp = ture ");
+?&gt;
+
+しかし、この場合問題があります。テキスト部分を空白にしてもレコードの
+update出来ますが、
+ラージオブジェクトを指定しないと
+
+Warning:PostgresSQL query faild:ERROR:be_lo_import:can't open unix
+file"none"in /usr/・・・
+
+とエラーがでてしまい、そのレコードの値はまったく変更されません。
+そこで、pgimageのreg_or_cancel.php3のif(ok)}else{文を参考に、修正画面に[
+テキスト&amp;画像修正]
+(ok)と[テキストのみ修正](cancel)の２つのボタンをつくり、以下のような式に
+してみたところ、
+やりたい事は一応できるようになりました。
+
+&lt;?
+if(ok){
+$rtn = pg_exec($con, "update table set code = '$code', name = '$name',
+pict = '$userfile' where istemp = ture ");
+
+}else{
+$rtn = pg_exec($con, "update table set code = '$code', name = '$name'
+where istemp = ture ");
+}
+?&gt;
+
+でも、できれば修正画面の[修正] ボタンは1つにしたいのです。
+例えば、$userfileが値をもっていればif(ok) を実行して、値がなければ}else{
+を実行する
+という具合です。
+if文でこのような制御ができますでしょうか?
+
+&gt; 
+&gt; 解決策ですが、2つあります。
+&gt; 
+&gt; (1) 一度ラージオブジェクトを削除してからもう一度新しく登録し、そのOID
+&gt; をpictにセットする。ラージオブジェクトの削除方法はプログラムの他の所を
+&gt; 参照して下さい。
+&gt; 
+&gt; (2) ラージオブジェクトを上書きする。pg_loopen/pg_lowrite/pg_loclose を
+&gt; 組み合わせて使います。この場合はOIDが変わらないのでpictは変更の必要が
+&gt; ありません。
+&gt; 
+&gt; どちらかというと、お勧めは (1) かな。
+
+pgimageの記事やソース、またPHP3のマニュアルなどを参考に勉強させて
+頂いています。アドバイス有難う御座います。m(__)m
+
+
+
+良い方法がありましたら、何卒、ご教授ください。
+
+よろしくお願い致します。
+
+
+--------------------------
+Kiyoharu Shimizu
+shimizu@kcat.zaq.ne.jp
+--------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 8743] Re: ラージオブジェクトのUpdateについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 8752] Re: ecpgのバグ？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00188.html">[pgsql-jp 8754] pgsql6.5b3</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 8743] Re: ラージオブジェクトのUpdateについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00168.html">[pgsql-jp 8734] Re: 32ビットODBCが英語になってしまいました。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00187"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00187"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

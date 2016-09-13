@@ -1,0 +1,102 @@
+Subject: Re: [HACKERS] Optimizing DISTINCT with LIMIT
+From: Gregory Stark <stark@enterprisedb.com>
+To: tmp <skrald@amossen.dk>
+Cc: pgsql-hackers@postgresql.org
+Date: Thu, 04 Dec 2008 14:09:34 +0000
+User-Agent: Gnus/5.11 (Gnus v5.11) Emacs/22.1 (gnu/linux)
+Organization: EnterpriseDB
+
+tmp <skrald@amossen.dk> writes:
+
+>   If the input is "sufficiently" large and the LIMIT threshold "sufficiently"
+> small, maintain the DISTINCT output by hashning while traversing the input and
+> stop when the LIMIT threshold is reached. No sorting required and *at* *most*
+> one read of input.
+
+You mean like this?
+
+postgres=# explain select distinct x  from i limit 5;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Limit  (cost=54.50..54.51 rows=1 width=304)
+   ->  HashAggregate  (cost=54.50..54.51 rows=1 width=304)
+         ->  Seq Scan on i  (cost=0.00..52.00 rows=1000 width=304)
+(3 rows)
+
+
+This will be in the upcoming 8.4 release.
+
+
+Versions since about 7.4 or so have been capable of producing this plan but
+not for DISTINCT, only for the equivalent GROUP BY query:
+
+postgres=# explain select x  from i group by x limit 5;
+
+-- 
+  Gregory Stark
+  EnterpriseDB          http://www.enterprisedb.com
+  Ask me about EnterpriseDB's 24x7 Postgres support!
+
+8.4:
+test=# explain analyze select distinct abalance from accounts limit 5;
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2838.00..2838.01 rows=1 width=4) (actual time=535.796..535.802 rows=1 loops=1)
+   ->  HashAggregate  (cost=2838.00..2838.01 rows=1 width=4) (actual time=535.790..535.792 rows=1 loops=1)
+         ->  Seq Scan on accounts  (cost=0.00..2588.00 rows=100000 width=4) (actual time=0.082..270.521 rows=100000 loops=1)
+ Total runtime: 535.883 ms
+(4 rows)
+
+8.3:
+test=# explain analyze select distinct abalance from accounts limit 5;
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=4248.96..4748.96 rows=1 width=4) (actual time=561.603..993.245 rows=1 loops=1)
+   ->  Unique  (cost=4248.96..4748.96 rows=1 width=4) (actual time=561.597..993.234 rows=1 loops=1)
+         ->  Sort  (cost=4248.96..4498.96 rows=100000 width=4) (actual time=561.592..786.557 rows=100000 loops=1)
+               Sort Key: abalance
+               Sort Method:  external sort  Disk: 1568kB
+               ->  Seq Scan on accounts  (cost=0.00..2588.00 rows=100000 width=4) (actual time=0.024..262.734 rows=100000 loops=1)
+ Total runtime: 994.663 ms
+(7 rows)
+
+LIMITがなくても8.4は速い
+
+test=# explain analyze select distinct abalance from accounts;
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=12089.82..12589.82 rows=1 width=4) (actual time=564.344..1000.910 rows=1 loops=1)
+   ->  Sort  (cost=12089.82..12339.82 rows=100000 width=4) (actual time=564.337..792.661 rows=100000 loops=1)
+         Sort Key: abalance
+         Sort Method:  external sort  Disk: 1568kB
+         ->  Seq Scan on accounts  (cost=0.00..2588.00 rows=100000 width=4) (actual time=0.024..262.437 rows=100000 loops=1)
+ Total runtime: 1002.499 ms
+(6 rows)
+
+test=# \q
+[t-ishii@localhost pgpool-II]$ psql test
+Pager usage is off.
+psql (8.4devel)
+Type "help" for help.
+
+test=# explain analyze select distinct abalance from accounts;
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=2838.00..2838.01 rows=1 width=4) (actual time=528.613..528.615 rows=1 loops=1)
+   ->  Seq Scan on accounts  (cost=0.00..2588.00 rows=100000 width=4) (actual time=0.090..267.171 rows=100000 loops=1)
+ Total runtime: 528.798 ms
+(3 rows)
+
+8.3でもgroup byを付けてhash aggregateするようにすれば速くなる
+
+test=# explain analyze select distinct abalance from accounts group by abalance;
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=2838.02..2838.03 rows=1 width=4) (actual time=512.519..512.525 rows=1 loops=1)
+   ->  Sort  (cost=2838.02..2838.03 rows=1 width=4) (actual time=512.513..512.515 rows=1 loops=1)
+         Sort Key: abalance
+         Sort Method:  quicksort  Memory: 17kB
+         ->  HashAggregate  (cost=2838.00..2838.01 rows=1 width=4) (actual time=512.492..512.494 rows=1 loops=1)
+               ->  Seq Scan on accounts  (cost=0.00..2588.00 rows=100000 width=4) (actual time=0.019..231.203 rows=100000 loops=1)
+ Total runtime: 512.655 ms
+(7 rows)

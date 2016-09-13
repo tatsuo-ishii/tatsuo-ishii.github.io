@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20715] Unix domain socket on Solaris (was: &#45;&#45;with&#45;openssl ...... ;;;) -->
+<!--X-From: Tsuyoshi SASAMOTO <sasamoto@e&#45;vision.co.jp> -->
+<!--X-Date: Mon, 16 Apr 2001 08:57:59 +0900 (JST) -->
+<!--X-Message-Id: 200104152357.IAA09841@mailhost.e&#45;vision.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200104151212.VAA15063@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 20010415224806S.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20715] Unix domain socket on Solaris (was: --with-openssl .... </TITLE>
+<LINK REV="made" HREF="mailto:sasamoto@e-vision.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00139.html">Date Prev</A>][<A HREF="msg00141.html">Date Next</A>][<A HREF="msg00139.html">Thread Prev</A>][<A HREF="msg00137.html">Thread Next</A>][<A HREF="index.html#00140">Date Index</A>][<A HREF="threads.html#00140">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20715] Unix domain socket on Solaris (was: --with-openssl ...... ;;;)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:sasamoto@e-vision.co.jp">sasamoto@e-vision.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 16 Apr 2001 08:57:59 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00138.html">200104151212.VAA15063@mailhost.e-vision.co.jp</A>&gt; &lt;<A HREF="msg00139.html">20010415224806S.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井さん:
+&gt;&gt; あと，regressionテストですが，"make check"の方でやると，
+&gt;&gt;  :
+&gt;&gt; というエラーが少なからぬ頻度で発生します．failする個所はその時々によって
+&gt;&gt; 変わりますし，個数も３から15ぐらいの間で変動します．"make installcheck"
+&gt;
+&gt;Solarisではx86に限らずSparcでもUnix domain socketの調子が悪いようです
+&gt;(OSの問題という話)．SRAでは，RC?で，Solaris7/Sparcで同じ問題が起きまし
+&gt;た．7.1から導入されたmake checkでは，並列にコネクションを張ってテスト
+&gt;を行うのですが，Unix domain socketがそれに耐えられないようです．
+
+なるほど......そういうことだったんですか．で，
+
+&gt;とりあえず，src/test/regress/pg_regress.shの162行目付近を以下のように
+&gt;変更して，SolarisでもUNIX domain socketを使わないようにしてテストして
+&gt;みてください．
+&gt; :
+
+という手直しを施してやってみたところ，geometryの浮動小数点がらみと
+randomのignore以外は全てOKとなりました．ありがとうございました．
+
+&gt;おそらく実運用でも，SolarisではUnix domain socketを使わない方が良いで
+&gt;しょう．
+
+う〜ん......Unix domainソケットというのは，ヘビーユースには向かない，
+ということなんですかね．試しに，
+----------------------------------------------------------------------
+#!/bin/ksh
+
+i=0
+echo -n &gt;/tmp/hogehoge.log
+
+while [ $i -lt $1 ]; do
+  (echo -n "#$i "; \
+    psql -c "select hogeid,hogename,hogehoge from hogehoge where hogeid=$i;" \
+      hogehoge &gt;&gt;/tmp/hogehoge.log 2&gt;&amp;1; \
+    echo -n "_$i ") &amp;
+  i=$(($i+1))
+done
+----------------------------------------------------------------------
+みたいなシェルスクリプトも走らせてみましたが，Unix domainソケットの
+場合だと，エラーが出る時と出ない時がありますが，やはり，不安定な
+ようですね．
+
+しかし，そうなると......postmasterをSSL-enabledな状態で立ち上げた場合，
+localhostからの接続の場合だけSSLを使わせないようにする方法はあるので
+しょうか？ localhost同士のやり取りでSSLを使うのはほとんどナンセンスだと
+思いますし，むしろパフォーマンス上の問題が出てくるのでは，と思うんですけど．
+
+
+Tsuyoshi SASAMOTO
+sasamoto@e-vision.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00138" HREF="msg00138.html">[pgsql-jp 20713] --with-openssl ...... ;;;</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00139" HREF="msg00139.html">[pgsql-jp 20714] Re: --with-openssl ...... ;;;</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00139.html">[pgsql-jp 20714] Re: --with-openssl ...... ;;;</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 20716] Re: Don't 'kill -9' the postmaster</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00139.html">[pgsql-jp 20714] Re: --with-openssl ...... ;;;</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00137.html">[pgsql-jp 20712] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00140"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00140"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

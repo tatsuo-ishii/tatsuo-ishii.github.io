@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15910] re:文字列の曖昧検索　（感謝！） -->
+<!--X-From: "Akio Hayashi" <ahayashi@ki.rim.or.jp> -->
+<!--X-Date: Thu, 6 Jul 2000 23:21:44 +0900 -->
+<!--X-Message-Id: LOBBKNOGBBCJAIBOAJECEEEBCBAA.ahayashi@ki.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15910] re:文字列の曖昧検索　（感謝！） </TITLE>
+<LINK REV="made" HREF="mailto:ahayashi@ki.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00142.html">Date Prev</A>][<A HREF="msg00090.html">Date Next</A>][<A HREF="msg00178.html">Thread Prev</A>][<A HREF="msg00141.html">Thread Next</A>][<A HREF="index.html#00143">Date Index</A>][<A HREF="threads.html#00143">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15910] re:文字列の曖昧検索　（感謝！）</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Akio Hayashi" &lt;<A HREF="mailto:ahayashi@ki.rim.or.jp">ahayashi@ki.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 6 Jul 2000 23:21:44 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+林です。
+
+栗山さん、渋谷さん、東さん　早速のアドバイスありがとうございました。
+
+[like]の正規表現[~]を使用しているつもりなんですが・・・・。
+
+で、記述を
+---------------------------------------------------------
+// 名前入力無し、住所入力無し
+if (('$inamae' &lt; (null)) &amp;&amp; ('$iadrs' &lt; (null))) {
+  $rtn = pg_exec($con, "select * from tefl3 where ((brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '^$inamae')
+ and (adrs ~ '^$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday'))
+ order by brno, namae, manday");
+}
+// 名前入力あり、住所入力無し
+if (('$inamae' &gt; (null)) &amp;&amp; ('$iadrs' &lt; (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where ((brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '$inamae')
+ and (adrs ~ '^$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday'))
+ order by brno, namae, manday");
+}
+// 名前入力無し、住所入力あり
+if (('$inamae' &lt; (null)) &amp;&amp; ('$iadrs' &gt; (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where ((brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '$^inamae')
+ and (adrs ~ '$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday'))
+ order by brno, namae, manday");
+}
+// 名前入力あり、住所入力あり
+if (('$inamae' &gt; (null)) &amp;&amp; ('$iadrs' &gt; (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where ((brno &gt;= $isbrno)
+  and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '$inamae')
+ and (adrs ~ '$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday'))
+ order by brno, namae, manday");
+}
+-------------------------------------------------------------------
+から
+-------------------------------------------------------------------
+// 名前入力無し、住所入力無し
+if (("$inamae" &lt;= (null)) &amp;&amp; ("$iadrs" &lt;= (null))) {
+  $rtn = pg_exec($con, "select * from tefl3 where (brno &gt;= $isbrno)
+  and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '^$inamae')
+ and (adrs ~ '^$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday')
+ order by brno, namae, manday");
+}
+// 名前入力あり、住所入力無し
+if (("$inamae" &gt; (null)) &amp;&amp; ("$iadrs" &lt;= (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where (brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '$inamae')
+ and (adrs ~ '^$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday')
+ order by brno, namae, manday");
+}
+// 名前入力無し、住所入力あり
+if (("$inamae" &lt;= (null)) &amp;&amp; ("$iadrs" &gt; (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where (brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '^$inamae')
+ and (adrs ~ '$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday')
+ order by brno, namae, manday");
+}
+// 名前入力あり、住所入力あり
+if (("$inamae" &gt; (null)) &amp;&amp; ("$iadrs" &gt; (null))) {
+ $rtn = pg_exec($con, "select * from tefl3 where (brno &gt;= $isbrno)
+ and (brno &lt;= $iebrno) and (kamoku = $ikamoku) and (namae ~ '$inamae')
+ and (adrs ~ '$iadrs') and (manday &gt;= '$isday') and (manday &lt;= '$ieday')
+ order by brno, namae, manday");
+}
+────────────────────────────────────
+のように、
+ｉｆ（（’＄ｉｎａｍａｅ’・・・・・
+を
+ｉｆ（（”＄ｉｎａｍａｅ”・・・・・
+と書き替えましたら思惑とおり動作するようになりました。
+
+ただ、住所などの数字のみを入力した場合はヒットしませんね。
+
+#もっと勉強しなければ・・・(^^;　ありがとうございましたm(^^)m
+─
+林 昭夫＠日本ＮＣＲサービス(株)福光信金サイト
+<A HREF="mailto:ahayashi@ki.rim.or.jp">mailto:ahayashi@ki.rim.or.jp</A>  <A HREF="http://www.ki.rim.or.jp/~ahayashi">http://www.ki.rim.or.jp/~ahayashi</A>
+tel(090-1631-1974) fax職場(0763-52-6118)自宅(076-253-9600)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00142.html">[pgsql-jp 15909] unsubscribe</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 15857] ODBCドライバ経由でストアドへのアクセス</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00178.html">[pgsql-jp 15945] RE: ODBCドライバ経由でストアドへのアクセス</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 15908] Re: limitで時間を短縮したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00143"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00143"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

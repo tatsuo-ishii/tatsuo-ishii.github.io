@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2847] Re: converter: text &#45;> int -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 31 Oct 1997 11:21:58 +0900 -->
+<!--X-Message-Id: 199710310221.LAA16868@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710300410.NAA15101@mail.na.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2847] Re: converter: text -&gt; int </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00260.html">Date Prev</A>][<A HREF="msg00262.html">Date Next</A>][<A HREF="msg00246.html">Thread Prev</A>][<A HREF="msg00262.html">Thread Next</A>][<A HREF="index.html#00261">Date Index</A>][<A HREF="threads.html#00261">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2847] Re: converter: text -&gt; int</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 31 Oct 1997 11:21:58 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt;「int のコンストラクタ」という表現は良く分かりませんが、同じ関数名で、
+&gt;&gt;引数が異なるものを定義できるか、ということなら yes です。
+&gt;
+&gt;CREATE TYPE でなく、CREATE FUNCTION int(text) RETURN int ...
+&gt;をつくるのですか？
+&gt;    int int(text* org) {
+&gt;	return 3;
+&gt;    }
+&gt;のような C 関数は 再定義とか予約語で、つくれないと思ったのですが。
+&gt;#あ、FAQ かな。
+
+やっぱり全然的外れの答えでした:-)すみません。
+
+&gt;せっかくだから pg_proc に登録されている 関数のシグネチャの一覧を
+&gt;出すような sql を作ったのですが、oid8 を typname に置き換えるところで
+&gt;つまずいてしまいました。
+&gt;現状、こんなカンジです。
+&gt;    -- sql 関数のシグネチャを得る
+&gt;    -- 但し、 proargtypes が型の名前でなく、oid の羅列になっている。
+&gt;    -- なんとかしたい。
+&gt;    SELECT p.proname, t.typname, p.pronargs, p.proargtypes, p.prosrc
+&gt;	FROM pg_proc p, pg_language l, pg_type t
+&gt;	WHERE
+&gt;	    p.prolang = l.oid 
+&gt;	    and p.prorettype = t.oid
+&gt;	ORDER BY typname;
+
+そうなんですよね。無理矢理
+
+ SELECT p.proname, t.typname, p.pronargs, p.proargtypes,
+	t1.typname, t2.typname,t3.typname, t4.typname,
+	p.prosrc
+	FROM pg_proc p, pg_language l, 
+pg_type t, pg_type t1,pg_type t2,pg_type t3,pg_type t4
+	WHERE
+	    p.prolang = l.oid 
+	    and p.prorettype = t.oid
+	and p.proargtypes[0] = t1.oid
+	and p.proargtypes[1] = t2.oid
+	and p.proargtypes[2] = t3.oid
+	and p.proargtypes[3] = t4.oid
+	ORDER BY t.typname;
+
+みたいに書いても、引数が4個以上ある関数しか検索できないし(引数が4個未
+満の関数は p.proargtypes[1] = t1.oid etc. が成立しないので、検索されない)。
+OUTER JOIN が使えればなー。
+
+それ以前に、PostrgeSQL の場合、
+
+	and p.proargtypes[0] = t1.oid
+	and p.proargtypes[1] = t2.oid
+	and p.proargtypes[2] = t3.oid
+	and p.proargtypes[3] = t4.oid
+		.....
+	and p.proargtypes[7] = t8.oid
+
+なんて一杯 and を書くと、パースし切れなくておっこちちゃいますが:-&lt;
+
+というわけで、SQL 一発って言うのはあきらめ、少々汚いですが、引数が４個
+まではそれらしく typname を表示する SQL を書いてみました。6.2.1 では動
+きますが、6.1.1 では結果が少々おかしいです(多分 6.1.1 の array のバグ)。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+---------------------------- cut here -------------------------
+drop table my_pg_type;
+select * into table my_pg_type from pg_type;
+alter table my_pg_type add column my_oid oid;
+update my_pg_type set my_oid = pg_type.oid from pg_type
+where my_pg_type.typname = pg_type.typname;
+insert into my_pg_type (my_oid, typname) values (0,'NULL');
+select oid, my_oid, typname from my_pg_type;
+ SELECT p.proname, t.typname, p.pronargs, 
+	t1.typname, t2.typname,t3.typname, t4.typname,
+	p.prosrc
+	FROM pg_proc p, pg_language l, 
+	pg_type t, 
+	my_pg_type t1,my_pg_type t2,my_pg_type t3,my_pg_type t4
+	WHERE
+	    p.prolang = l.oid 
+	    and p.prorettype = t.oid
+	and p.proargtypes[0] = t1.my_oid
+	and p.proargtypes[1] = t2.my_oid
+	and p.proargtypes[2] = t3.my_oid
+	and p.proargtypes[3] = t4.my_oid
+	ORDER BY t.typname;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00262" HREF="msg00262.html">[pgsql-jp 2848] Re: converter: text -&gt; int</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00246" HREF="msg00246.html">[pgsql-jp 2832] Re: converter: text -&gt; int</A></STRONG>
+<UL><LI><EM>From:</EM> omata@na.rim.or.jp (Ken-ichi Omata)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 2846] Re: NATIONAL CHARACTER and COLLATION</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 2848] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 2832] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 2848] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00261"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00261"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

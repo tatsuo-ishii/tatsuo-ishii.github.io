@@ -1,0 +1,134 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6304] Re: emacs to postmaster -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 22 Dec 1998 23:00:21 +0900 -->
+<!--X-Message-Id: 199812221400.XAA00418@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19981222070709K.minakaji@osaka.email.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6304] Re: emacs to postmaster </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00328.html">Date Prev</A>][<A HREF="msg00330.html">Date Next</A>][<A HREF="msg00314.html">Thread Prev</A>][<A HREF="msg00237.html">Thread Next</A>][<A HREF="index.html#00329">Date Index</A>][<A HREF="threads.html#00329">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6304] Re: emacs to postmaster</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Dec 1998 23:00:21 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;   おはようございます、中島＠あさひねっとです。
+
+&gt; &gt; 私のところでは、emacs 側は nil が返って来るだけですが、
+&gt; 
+&gt;   あの Emacs Lisp プログラムの返り値は常に nil ですが、buf というバッファ
+&gt; ができて、そこに Socket Command Type unknow というエラー (postmaster が
+&gt; 吐いたもの) が出ているはずです。
+
+あ、確かに buf にメッセージがありました。それと言うのを忘れたのですが、
+
+(set-process-coding-system proc 'no-conversion 'no-conversion)
+
+は
+
+(set-process-coding-system proc '*noconv* '*noconv*)
+
+でないと駄目でした(emacs 19.34 base の mule)。多分 emacs 20 と 19 の違
+いなんでしょうね。
+
+&gt;   私のところで出るエラーと同じですね。安心しました f(^_^;。実は片山＠Ｐ
+&gt; ＦＵさんのところで出るエラーと違っていたので、そこから先へ進まなくなって
+&gt; しまっていたのでした。
+&gt; 
+&gt; あの Emacs Lisp のコードは StartupPacket を postmaster に送っているの
+&gt; ですが、ユーザー名やデータベース名、ポートナンバーなどの受け渡しは上手く
+&gt; いっているみたいですね。StartupPacket を送ると同時に何か他のものも渡さな
+&gt; きゃならないのかな？
+
+これがまずいのでは？
+
+(defun send-packet (proc packet)
+  (process-send-string proc (concat (int-to-u4-string (length packet)) packet)))
+
+StartupPacket は、何故か以下のような変な送り方をします。
+
+(1) パケットサイズ + 4 を int として送信
+(2) 実際のパケットを送る
+
+ですから、
+
+(defun send-packet (proc packet)
+  (process-send-string proc (concat (int-to-u4-string (+ 4 (length packet))) packet)))
+
+ではないかと思うのです。
+
+このようにしてみると、Rで始まる文字列が buf に入って来ます。これは次の
+ステップである authentication request だと思います。
+
+参考: connectDB(interfaces/libpq/fe-connect.c)
+
+PostgreSQL の emacs interface には非常に期待してます。何かお役に立てる
+ことがあったら言ってください(といっても、elisp はさっぱりなので、コー
+ディングは無理です:-)。
+---
+Tatsuo Ishii
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp 6289] Re: emacs to postmaster</A></STRONG>
+<UL><LI><EM>From:</EM> Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 6303] Re: Perlとの言語インターフェースについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00330.html">[pgsql-jp 6305] Re: 定数'now' について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00314.html">[pgsql-jp 6289] Re: emacs to postmaster</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00237.html">[pgsql-jp 6212] PostgreSQL 6.4 for Cobalt Qube</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00329"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00329"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

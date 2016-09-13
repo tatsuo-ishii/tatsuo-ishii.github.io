@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1470] Re: Self introduction. -->
+<!--X-From: 五反田　秋彦<NCA03530@niftyserve.or.jp> -->
+<!--X-Date: Fri, 28 Feb 1997 00:54:00 +0900 -->
+<!--X-Message-Id: 199702271559.AAA02305@inetnif.niftyserve.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1470] Re: Self introduction. </TITLE>
+<LINK REV="made" HREF="mailto:NCA03530@niftyserve.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00181.html">Date Prev</A>][<A HREF="msg00183.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00188.html">Thread Next</A>][<A HREF="index.html#00182">Date Index</A>][<A HREF="threads.html#00182">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1470] Re: Self introduction.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 五反田　秋彦&lt;<A HREF="mailto:NCA03530@niftyserve.or.jp">NCA03530@niftyserve.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Feb 1997 00:54:00 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Content-Type: Multipart/Mixed;
+ boundary="--Next_Part(Fri_Feb_28_00:55:49_1997)--"
+Content-Transfer-Encoding: 7bit
+
+----Next_Part(Fri_Feb_28_00:55:49_1997)--
+Content-Type: Text/Plain; charset=iso-2022-jp
+Content-Transfer-Encoding: 7bit
+
+五反田＠にふていです。
+
+Thu, 27 Feb 1997 17:46:30 +0900 頃、
+hanai@astec.co.jp さんが
+「[postgres95 1463] Re: Self introduction.」なるメールで仰ることに:
+
+&gt; &gt; 該当記事と言うのは、いわゆる [postgre95 1325] の事ですよね。このパッチ
+&gt; &gt; を当てた所、かなり先まで make 出来たのですが、*/pgsql/src/libpq/ 以下で、
+&gt; &gt; 
+&gt; &gt; gmake -C libpq all
+&gt; &gt; gmake[1]: Entering directory `/usr/local/pgsql/src/libpq'
+&gt; &gt; gcc  -shared -o libpq.so.1 fe-auth.o fe-connect.o fe-exec.o fe-misc.o fe-l
+obj.o ../backend/lib/dllist.o pqsignal.o 
+&gt; &gt; ld: No reference to __DYNAMIC
+&gt; &gt; gmake[1]: *** [libpq.so.1] Error 1
+&gt; &gt; gmake[1]: Leaving directory `/usr/local/pgsql/src/libpq'
+&gt; &gt; gmake: *** [all] Error 2
+&gt; &gt; 
+&gt; &gt; となって止まってしまいました。もともとパッチを当てた時には、
+&gt; 
+&gt;   gcc  -shared
+&gt; でいいんでしたっけ? &gt; 五反田さん
+&gt; ＃ 私は普段は ld 使ってます
+
+仰せの通り、これは ld でなければまずい筈です。
+
+で、patch が正しくあたっていれば
+
+*** pgsql/src/libpq/Makefile.back       Mon Jan 20 14:01:48 1997
+--- pgsql/src/libpq/Makefile    Fri Feb  7 07:47:51 1997
+***************
+*** 38,43 ****
+--- 38,48 ----
+      shlib := libpq.so.1
+    endif
+  endif
++ ifeq ($(PORTNAME), BSD44_derived)
++     install-shlib-dep := install-shlib
++     shlib := libpq.so.6.0
++     CFLAGS+=$(CFLAGS_SL)
++ endif
+  
+  all: libpq.a $(shlib) c.h
+  
+***************
+*** 60,67 ****
+--- 65,86 ----
+  ../backend/lib/dllist.o:
+    $(MAKE) -C ../backend/lib dllist.o
+  
++ ifeq ($(PORTNAME), BSD44_derived)
++ $(shlib): $(OBJS)
++   for file in $(OBJS:.o=); do \
++        $(LD) -x -r -o $$file.obj $$file.o; \
++      done
++       @echo building shared object $@
++       @rm -f $@.pic
++       @${AR} cq $@.pic `lorder $(OBJS:.o=.obj) | tsort`
++       ${RANLIB} $@.pic
++       @rm -f $@
++       $(LD) -x -Bshareable -Bforcearchive \
++         -o $@ $@.pic
++ else
+  libpq.so.1: $(OBJS)
+   gcc $(LDFLAGS) -shared -o $@ $(OBJS)
++ endif
+  
+  c.h: ../include/c.h
+       rm -f c.h
+
+から（$(LD) が再定義されていない限り）ld が使われる筈なんですが、コマ
+ンドラインの内容からも「.so.6.0 だと駄目なので .so.1 に直した」ことか
+ら見ても、後半の部分の patch があたっていないように思われます。
+
+
+…それでですねー、勝手に行が折り返されてしまうことといい、どうも荷不定
+の処理が当てにならないので、先日の patch を gzip して uuencode したも
+のを再録しておきます。パッチが当たらなかった方は、こちらでお試し下さい。
+重ね々々お手数をおかけして申し訳ありません。m(__)m
+
+                                   五反田 秋彦
+                                   nca03530@niftyserve.or.jp
+                                   gotanda@fs.cas.uec.ac.jp
+                                         (forwarded to the above)
+
+----Next_Part(Fri_Feb_28_00:55:49_1997)--
+Content-Type: Text/Plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+begin 644 postgreSQL-6.0.diff.gz
+M'XL(""EN^C(``W!O&lt;W1G&lt;F5344PM-BXP+F1I9F8`[59;;]HP%'ZFO^)(RP,!
+M&lt;@'"I&gt;Z8"K1LZZ"MREXF3:(A&lt;2"KEY!+IU5=__N.G0L)A8F7OBVJ5/OX.Q=_
+M/OY,K5:#S2H*F!:%EK8TK0?JV=K&amp;#V-M-+\PC(5-0_&lt;7M36;J9;*URLSWX,K
+MTP/H0M,@NDXZ+6B&gt;GO9.%$4Y/E9E$KHPH4N`'NA]8G1(LYV$J94_/H=VOV$8
+M(*8\"Y]V`4?*"&lt;`[U[/8HTWA??04:?'3AD;J^D-IP6-N%.\:F&gt;L]&lt;%L=;8YG
+M4P&lt;6BTE(*=:Z6)20-G,L+X7BEEP'M%H1##4-\&gt;528MOU=S.BD;E+;JV5:$?C
+M9A5;3)N9#]1Q&amp;4V(Y@QQHEL&amp;Z"VB-TF[O8_H5]XE:GO$Z)-._S"U1J&gt;!!YA3
+MRZ?]C%H`UXMBDS$E6F,:Q:8;((.R4&lt;"F%Y/I\.,&lt;ME]]`,H45%64%X#"-@$B
+M*8LHL@BN0P.H2M7;F[NOU\/9I=R`4HO(''1&lt;^@0HQGQ1I%,C7^VJ&gt;KHV%K75
+M!U(U&amp;2WF4Q%?%+-U+GX8Z.#VA2OO@I/M?_Q#&amp;('L+%03I*IPDO&gt;2WCEM=/M;
+MTKN=1C\G/8M9D:IWP^OIYY%&lt;",MSU8^B+\M/&lt;'0SNIIS6\7Q0^`M@AM+S43U
+M!_(9V#Y\YP!,.KV00?D-2@B*#Y(D^M%?_LB'9PG2]CU^E)5S:JU]6#ZZS':]
+M%7)IAM0&amp;=*!6#-*Y@(0_07%PHFY&lt;2QBDY^'="UA!:H-[YH=8&gt;Z$FGE*&amp;/Q!'
+MJ!_WW$EZ3NAX*0;*(@M`7OI(5&amp;$N&lt;:/*"/=L43.TULA,4CJ(G9UOXZ2=D-.,
+M[=/&lt;\B:.8CR6@2&lt;0'819TGVF&amp;!ZPY,V=DMH*9FYD'OJ6L25(O=A3ZNVGF^MO
+M!)84-T&amp;S9EQ3$[F*8&amp;=&gt;P*&lt;K.2)+L$=W@AW1R=2]I0MU;Z)\'!*=X*#B]$BG
+M^6\Q;Y?%O*`X^^YR4ZR4+]UQM^"M162?``2%VP^6NN;+^WCHZHUNKRP"^:.&amp;
+MPID]H!@&amp;7TSQ@ODD:&lt;;9\,LE]MQX!P89[+]*O+%*!*\E8F59^P0BC9&amp;36V@8
+8;`W"3S#]?:`EK9+*!I_\!?*?S/V="0``
+`
+end
+
+----Next_Part(Fri_Feb_28_00:55:49_1997)----
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00188" HREF="msg00188.html">[postgres95 1476] Re: Self introduction.</A></STRONG>
+<UL><LI><EM>From:</EM> yamasita@yklab.sei.co.jp (Yamashita Taiichirou)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00181.html">[postgres95 1469] Re: Self introduction.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00183.html">[postgres95 1471] Re: Self introduction.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[postgres95 1474] Re: Self introduction.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00188.html">[postgres95 1476] Re: Self introduction.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00182"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00182"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,192 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23590] Re: create rule についての質問です -->
+<!--X-From: Masaru Sugawara <rk73@echna.ne.jp> -->
+<!--X-Date: Mon, 05 Nov 2001 00:23:27 +0900 -->
+<!--X-Message-Id: 20011104235304.EB32.RK73@echna.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011023130532.CB61.SAKAI@ddcom.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23590] Re: create rule についての質問です </TITLE>
+<LINK REV="made" HREF="mailto:rk73@echna.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00006.html">Date Prev</A>][<A HREF="msg00008.html">Date Next</A>][<A HREF="msg00013.html">Thread Prev</A>][<A HREF="msg00016.html">Thread Next</A>][<A HREF="index.html#00007">Date Index</A>][<A HREF="threads.html#00007">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23590] Re: create rule についての質問です</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaru Sugawara &lt;<A HREF="mailto:rk73@echna.ne.jp">rk73@echna.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 05 Nov 2001 00:23:27 +0900</LI>
+<LI><em>References</em>: &lt;20011023130532.CB61.SAKAI@ddcom.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すがわら/ＲＫ７３です。
+
+Message-ID:&lt;20011023130532.CB61.SAKAI@ddcom.co.jp&gt;  
+Mail-Count:pgsql-jp 23528    Date&amp;Time:2001/10/23 13:23:37
+sakai atsuo &lt;sakai@ddcom.co.jp&gt;さんのφ(..@)について
+
+
+&gt; create rule master_loinc_num_code_ins as on insert to master_loinc_num_code do instead
+&gt; 	(insert into observation values(new.act_id, new.mood_cd_code, new.class_cd_code, new.value_any_st, new.value_any_pq_unit_code, new.activity_time_value);
+&gt; 	insert into observation_cd_cd values(new.loinc_num_id, new.loinc_num_src_id, new.loinc_num, new.codeSystem_butleaf);
+&gt; 	insert into observation_cd_cd_translation_set_cd values(new.snomed_cd_src_id, new.snomed_cd);
+&gt; 	insert into observation_target_site_cd_set_cd values(new.target_cd_id, new.target_cd_src_id, new.target_cd);
+&gt; 	insert into observation_txt_ed values(new.name_id, new.name_src_id, new.integrityCheck);
+&gt; 	insert into observation_method_cd_set_cv values(new.method_cd_src_id, new.method_cd););
+&gt; 
+&gt; 以上のようなrule文をつくりきちんとCREATEはできたのですが、
+&gt; 実際の値を挿入するときにmaster_loinc_num_codeに対してのinsert文の書き方
+&gt; がわからなくて困っています。
+
+
+今回の酒井さんの例題はcolumnがたくさんあるので、簡単な例を
+作ってみました。マニュアルには分かりやすい例題がないようで
+すね。以下の手順で一応正常に動いているようです。(1)と(2)を
+入れ替えたらエラーになるかなと思ったのですが、エラーが出な
+いようreferencesの関係をうまく処理しているようです(賢〜い)。
+viewをきちんと作れば複雑な場合でも多分うまくいくと思います。
+では。
+
+
+
+-- よくありそうなテーブルの作成
+drop table a;
+drop table b;
+create table a (i int4 not null constraint i_p_key primary key,
+                n int4 constraint n_key check(n &gt;= 0 and n =&lt; 100));
+create table b (i int4 constraint i_ref_key references a (i) 
+                       on update cascade on delete set null,
+                k varchar(10));
+
+-- サンプルデータ入力
+insert into a values(1, 10);
+insert into b values(1, '1st');
+insert into b values(2, '2nd');  -- error
+
+
+-- データ入力用のフォーマット作成(viewを使う)
+drop view master_ab;
+create view master_ab as 
+  select a.i, a.n, b.k from a inner join b on(a.i = b.i);
+
+-- 今回のようなinsteadのルールを設定する。
+drop rule instead_of_insert_ab;
+create rule instead_of_insert_ab as 
+       on insert 
+       to master_ab      -- viewと同じ名前にする
+       do instead
+          (insert into a values(new.i, new.n);  -- (1)
+           insert into b values(new.i, new.k);  -- (2)
+          );
+
+-- テストデータ入力(viewのcolumn通りに入力)
+insert into master_ab values(2, 20, '2nd');
+insert into master_ab values(3, 30, '3rd');
+insert into master_ab values(4, 40, '4th');
+insert into master_ab values(5, 200, '5th');  -- error  
+
+-- 確認
+select * from a;
+select * from b;
+select * from master_ab;
+
+
+------------------------------------
+--結果
+------------------------------------
+Administrator=# select * from a;
+ i | n
+---+----
+ 1 | 10
+ 2 | 20
+ 3 | 30
+ 4 | 40
+(4 rows)
+
+
+Administrator=# select * from b;
+ i |  k
+---+-----
+ 1 | 1st
+ 2 | 2nd
+ 3 | 3rd
+ 4 | 4th
+(4 rows)
+
+
+Administrator=# select * from master_ab;
+ i | n  |  k
+---+----+-----
+ 1 | 10 | 1st
+ 2 | 20 | 2nd
+ 3 | 30 | 3rd
+ 4 | 40 | 4th
+(4 rows)
+
+
+
+
+
+
+
+
+--------------------------------
+  Masaru Sugawara
+  e-mail:rk73@echna.ne.jp
+ -------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00016" HREF="msg00016.html">[pgsql-jp 23599] Re: create rule についての質問です</A></STRONG>
+<UL><LI><EM>From:</EM> sakai atsuo &lt;sakai@ddcom.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 23589] postmaster が起動出来ないのですが？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 23591] install</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 23596] Re: About</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 23599] Re: create rule についての質問です</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00007"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00007"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

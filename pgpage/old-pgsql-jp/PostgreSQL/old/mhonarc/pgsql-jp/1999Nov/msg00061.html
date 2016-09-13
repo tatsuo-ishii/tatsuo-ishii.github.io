@@ -1,0 +1,214 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11486] FreeBSD 3.3 でpostmaster が消失 -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Wed, 03 Nov 1999 13:08:00 +0900 -->
+<!--X-Message-Id: 199911030408.NAA16263@sraigw.sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11486] FreeBSD 3.3 でpostmaster が消失 </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00060.html">Date Prev</A>][<A HREF="msg00062.html">Date Next</A>][<A HREF="msg00066.html">Thread Prev</A>][<A HREF="msg00150.html">Thread Next</A>][<A HREF="index.html#00061">Date Index</A>][<A HREF="threads.html#00061">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11486] FreeBSD 3.3 でpostmaster が消失</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 03 Nov 1999 13:08:00 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) SEMI/1.13.3 (Komaiko) FLIM/1.12.5 (Hirahata) MULE/2.3 (SUETSUMUHANA) (based on Emacs 19.34)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です。
+新規参加です、自己紹介は文末に… m(__)m
+
+で、早速本題なのですが、現在、FreeBSD 3.3-RELEASE +
+PostgreSQL 6.5.2 で運用しているサーバで、postmaster が不定期
+に消失する現象に悩まされています。
+
+環境は
+  H/W :      CPU PentiumMMX 200MHz
+             実メモリ 128MB、スワップ 512MB
+  OS :       FreeBSD 3.3-RELEASE
+             一応カーネルは以下の設定で作成しなおしています
+               maxusers      256
+               options               SEMMAP=41
+               options               SEMMNI=39
+               options               SEMMNS=150
+               options               SHMALL=1280
+               options               "SHMMAX=(SHMMAXPGS*PAGE_SIZE+1)"
+               options               SHMMAXPGS=1280
+  Postgres : PostgreSQL 6.5.2 
+             3.3-RELEASE の ports は 6.5.1 なので、更新され
+             た 6.5.2 用の ports を使い、make patch した後、
+             6.5.2 用の case.patch をあててインストールしました  
+といった感じで、このサーバ上で 
+  Apache-1.3.9 
+  perl5 (OSに入っているもの 5.005_03)
+  DBI-1.13
+  DBD-Pg-0.93
+を使って、cgi から DBD::Pg 経由で DB にアクセスしています。
+
+
+起動時に
+   /usr/local/pgsql/bin/postmaster -B 128 -N 32 -i -o -F -d 3
+と指定して、postmaster が落ちる際の log を取得してみたところ、
+通常は
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+debug info:
+        User         = pgsql
+        RemoteHost   = localhost
+        RemotePort   = 0
+        DatabaseName = basic
+        Verbose      = 3
+        Noversion    = f
+        timings      = f
+        dates        = Normal
+        bufsize      = 128
+        sortmem      = 512
+        query echo   = f
+InitPostgres
+        reset_client_encoding()..
+        reset_client_encoding() done.
+StartTransactionCommand
+query: select getdatabaseencoding()
+ProcessQuery
+CommitTransactionCommand
+StartTransactionCommand
+query: SET client_encoding = 'EUC_JP'
+ProcessUtility: SET client_encoding = 'EUC_JP'
+CommitTransactionCommand
+StartTransactionCommand
+query: SELECT pay FROM basic WHERE uid = '00eQQpXfyHrk' 
+ProcessQuery
+CommitTransactionCommand
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+という形で一度のアクセスが処理されているのですが、postmaster 
+が落ちる際はこのあとにおまけがついて出て、
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ ....(snip)....
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+proc_exit(1) [#0]
+shmem_exit(1) [#0]
+exit(1)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+という形で、proc_exit(1)、shmem_exit(1)、exit(1) の3つが出て
+お亡くなりになっています。この際、標準エラー出力には
+  /usr/local/pgsql/bin/postmaster: ServerLoop: select failed: No child processes
+というエラーが出ています。
+
+
+Wed, 27 Oct 1999 14:06:59 +0900 頃、
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さんは言いました :
+&gt; 
+&gt; FreeBSD のシステムでいつのまにか postmaster がいなくな
+&gt; る現象は他でも報告されていて、その原因に思い当たる節がないわけではない
+&gt; のですが、ログを確認しないと何とも言えません。
+
+と過去に石井さんが書かれていたので、気になっているのですが…
+＃元記事の方は FreeBSD 2.2.7 でした
+
+現状では、cron で 1 分毎に DB に connect してみて、接続でき
+なかった場合に postmaster を再度起動させる、というスクリプト
+を書いて逃げています。
+
+
+以上のような状況なのですが、なにか改善のための情報などありま
+したら、ご教授ねがいます m(__)m
+
+＃ログなどの情報が不足でしたらご指摘下さい
+
+
+-------------------------------------------------------------
+
+で、自己紹介です：
+
+NTTラーニングシステムズという会社の Internet 関係の部署で、
+「あれもやり、これもやり」して暮らしています。
+
+UN*X というものに触れたのが BSD 系の SonyNEWS-OS4.x だったこ
+ともあり、数年前から普段は FreeBSD の上で生活をしていました
+が、昨年あたりから仕事的に web + DB みたいな話ばかりになって
+きて、ここしばらくは Solaris2.6 や Linux の上で Oracle +
+PL/SQL などをかじったりしていました。
+
+前々から PostgreSQL に手を出そうと思いつつ、いそがしくてなか
+なか手が出せなかったのですが、急に DB サーバをひとつたてるこ
+とになり、6.4.x から 6.5.x になって安定した、という話もあち
+こちで聞きましたので、ここぞとばかりに PostgreSQL に手をつけ
+てみました。
+
+必要に迫られて、いるところだけつまみ喰いしている関係で、きち
+んと体系だってデータベースのことを学んでいるわけではない、と
+いうところは良くないなぁ、と思いつつ、いろいろ欠けている部分
+を補っていくための道具立てとしても PostgreSQL と付き合ってい
+きたいなぁ、などと思っている次第です。
+
+というわけで、皆様、よろしくおねがいします。
+</PRE>
+<PRE>
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00060.html">[pgsql-jp 11485] RE: [pgsql-jp 11474] Re: 自己紹介＆日付が化けるんです</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 11487] Re: make installのエラーについて。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00066.html">[pgsql-jp 11491] Re:  自己紹介とregression test</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00061"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00061"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

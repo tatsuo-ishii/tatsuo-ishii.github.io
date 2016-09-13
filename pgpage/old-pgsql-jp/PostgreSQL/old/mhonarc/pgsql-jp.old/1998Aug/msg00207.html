@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5140] Re: PostgreSQLと PostODBCについて質問 -->
+<!--X-From: kataoka@interwiz.koganei.tokyo.jp (片岡 裕生) -->
+<!--X-Date: Sun, 23 Aug 1998 22:52:46 +0900 -->
+<!--X-Message-Id: 19980823225246G.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000601bdccae$165cd3c0$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5140] Re: PostgreSQLと PostODBCについて質問 </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00206.html">Date Prev</A>][<A HREF="msg00208.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00217.html">Thread Next</A>][<A HREF="index.html#00207">Date Index</A>][<A HREF="threads.html#00207">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5140] Re: PostgreSQLと PostODBCについて質問</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A> (片岡 裕生)</LI>
+<LI><em>Date</em>: Sun, 23 Aug 1998 22:52:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00186.html">000601bdccae$165cd3c0$2801007e@cadzone.tpf.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;
+Subject: [pgsql-jp 5118] Re: PostgreSQLと PostODBCについて質問
+Date: Fri, 21 Aug 1998 11:47:50 +0900
+Message-ID: &lt;<A HREF="msg00186.html">000601bdccae$165cd3c0$2801007e@cadzone.tpf.co.jp</A>&gt;
+
+&gt; 井上＠セーレンです。
+&gt; かなり古い話題で申し訳ない。
+
+（引用省略）
+
+&gt; Accessで次のような簡単なテストを行ってみました。
+&gt; 
+&gt;   データ件数  ２５０００件（容量 ８ＭＢ弱）のテーブルに対し、Accessより
+&gt;   テーブル表示とパススルークエリーを実行。
+&gt;   ［パススルークエリー］   SELECT * FROM テーブル order by 主キー（複合）;
+&gt; 
+&gt; 結果
+&gt;     1)テーブル表示
+&gt; 	PostODBC			５５秒
+&gt; 	PostgesSQL ODBC Driver	５７秒
+&gt;     2)パススルークエリー
+&gt; 	PostODBC			１３０秒
+&gt; 	PostgreSQL ODBC Driver	３５秒
+&gt; 
+&gt; 1)テーブル表示はほとんど同じなのに対して
+&gt; 2)パススルークエリーについては沼畑さんとは反対の結果になってしまいました。
+&gt; ただパススルークエリーの方がDAO-Jetを通すテーブル表示よりも遅いというのも
+&gt; かなり異常で、当方の環境設定がおかしくなっているのかもしれません。
+&gt; このような情報をお持ちの方はいらっしゃらないでしょうか？
+
+  実験したわけでは無いので憶測ですが．．．
+
+  MS-Accessがリンクテーブルを表示する場合、まず主キーをすべてダウンロー
+ド（select 主キー from テーブル）し、その後『画面に表示が必要な分だけ』
+レコード内容をダウンロード（select カラム１, カラム２, ... from テーブ
+ル where 主キー = ？ or 主キー = ？ or ...）します。ですから、
+PostgreSQL ODBC DriverのFETCH/CURSOR拡張は全然有効に働きませんので、1)
+テーブル表示の場合はあまり変化が無いのもうなずけます。
+
+  2)パススルークエリーの場合は、上記のような「表示に必要のない（無駄な
+部分の）レコード内容のダウンロードは、主キーだけに押さえる」という最適
+化はMS-Accessレベルでは行わないと思いますので、ODBCドライバにはパスス
+ルークエリーに指定したそのままのSQL文が渡されます。
+  そこで各ODBCドライバの特徴が出るのだと思うのですが、PostODBCがSELECT
+文を処理する場合、PostgreSQLサーバから全レコード内容を受け取り終わらな
+いと（今回の例だと25,000レコード）、次の処理に移れない（ODBC APIから戻
+らない）のに対し、PostgreSQL ODBC DriverはFETCH/CURSOR拡張により最初の
+100レコードを取得した時点で次の処理に移れます（ODBC APIから戻ります）。
+ですから、MS-Accessのパススルークエリーにてレコードセットの先頭部分を
+画面に表示する場合には、PostgreSQL ODBC Driverの方がずっと速くなるのだ
+と思います。
+
+  先のベンチマークの実行時にPostgreSQL ODBC DriverのFETCH/CURSOR拡張を
+オフにしていたのならごめんなさい（わかりません）。
+
+  いずれにしても、沼畑さんのPostODBCの方が6倍速いという結果は、理由が
+解りませんです。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00217" HREF="msg00217.html">[pgsql-jp 5150] Re: PostgreSQLと PostODBCについて質問</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 5118] Re: PostgreSQLと PostODBCについて質問</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 5139] Introduce</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 5141] jdbc driver information</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 5118] Re: PostgreSQLと PostODBCについて質問</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 5150] Re: PostgreSQLと PostODBCについて質問</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00207"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00207"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

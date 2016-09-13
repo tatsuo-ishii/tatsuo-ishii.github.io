@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26449] Re: 大量データの更新 -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Wed, 19 Jun 2002 12:13:33 +0900 (JST) -->
+<!--X-Message-Id: 20020619.121333.112618887.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020614165236.3239.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-Reference-Id: 3D0D4982.D5C817E8@shonan.ne.jp -->
+<!--X-Reference-Id: 20020618143648.06E4.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26449] Re: 大量データの更新 </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00227.html">Date Prev</A>][<A HREF="msg00229.html">Date Next</A>][<A HREF="msg00202.html">Thread Prev</A>][<A HREF="msg00150.html">Thread Next</A>][<A HREF="index.html#00228">Date Index</A>][<A HREF="threads.html#00228">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26449] Re: 大量データの更新</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 19 Jun 2002 12:13:33 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00151.html">20020614165236.3239.HASHIMOTO-M@comtecc.net</A>&gt;&lt;<A HREF="msg00170.html">3D0D4982.D5C817E8@shonan.ne.jp</A>&gt;&lt;<A HREF="msg00202.html">20020618143648.06E4.HASHIMOTO-M@comtecc.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;
+Subject: [pgsql-jp: 26423] Re: 大量データの更新
+Date: Tue, 18 Jun 2002 14:54:23 +0900
+
+;;; それで、いろいろ調査をしてみた結果、
+;;; UPDATEの場合もINSERTの場合もINDEXが使用されていないようです。
+;;; user_idの方はTB作成時にidをPRIMARY KEYにしていしてます。
+;;; また、work_user_tbの方はidでINDEXを作成しています。
+;;; 
+;;; これをIndex Scanにすることができれば、
+;;; 少しは早くなるような気がするのですが・・・
+;;; ちなみに、それぞれをSQL文をSELECTに置き換えても同じ結果でした。
+;;; 
+;;; ＝UPDATEの場合のEXPLAIN＝
+;;; Nested Loop  (cost=0.00..472022230.82 rows=2634084249 width=1784)
+;;;   -&gt;  Seq Scan on user_tb  (cost=0.00..359796.33 rows=3629 width=957)
+;;;   -&gt;  Seq Scan on work_user_tb  (cost=0.00..122708.21 rows=725821 width=827)
+
+  このクエリーの explain でよいでしょうか？
+
+    UPDATE user_tb SET user_tb.name = work_user_tb.name
+    FROM work_user_tb
+    WHERE user_tb.id = work_user_tb.id;
+
+  PostgreSQL 7.2.1 で、以下のように、user_tb に 3629 レコードをキー 0〜3628、
+work_user_tb に 725821 レコードをキー0〜725820 入れてみました。
+
+    =# create table class1 (i integer primary key, n text);
+    NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index 'class1_pkey' for ta
+    CREATE
+    =# create table class2 (i integer primary key, n text);
+    NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index 'class2_pkey' for ta
+    CREATE
+    =# insert into class1 select gennum(3629);	    -- 0〜3628 を返すユーザ定義関数です
+    INSERT 0 3629
+    =# insert into class2 select gennum(725821);    -- 同上。
+    INSERT 0 725821
+    =# analyze;
+    ANALYZE
+    =# \!cat a.sql
+    explain update class1 set n = class2.n
+	from class2
+	where class1.i = class2.i
+	;
+    =# \i a.sql
+    psql:a.sql:4: NOTICE:  QUERY PLAN:
+
+    Nested Loop  (cost=0.00..7553.20 rows=3700 width=46)
+      -&gt;  Seq Scan on class1  (cost=0.00..57.00 rows=3700 width=10)
+      -&gt;  Index Scan using class2_pkey on class2  (cost=0.00..2.01 rows=1 width=36)
+
+    EXPLAIN
+    =# 
+
+  class2 の方にはインデックスが使われました。データの分布を以下のように分散さ
+せた場合にもインデックスが使われています。
+
+    =# insert into class1 select gennum(3628, 0, 200);
+    INSERT 0 3628
+    =# insert into class2 select gennum(3628, 0, 200);
+    ...
+    =# insert into class2 select gennum(3628, 67, 200);
+    =# insert into class2 select gennum(3849, 725600);
+    INSERT 0 3849
+    =# select count(*) from class2;
+     count  
+    --------
+     725821
+    (1 row)
+
+    =# analyze;
+    =# \i a.sql
+    psql:a.sql:4: NOTICE:  QUERY PLAN:
+
+    Nested Loop  (cost=0.00..18645.41 rows=3700 width=46)
+      -&gt;  Seq Scan on class1  (cost=0.00..57.00 rows=3700 width=10)
+      -&gt;  Index Scan using class2_pkey on class2  (cost=0.00..5.01 rows=1 width=36)
+
+    EXPLAIN
+    =# 
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00151" HREF="msg00151.html">[pgsql-jp: 26372] Re: 大量データの更新</A></STRONG>
+<UL><LI><EM>From:</EM> "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp: 26391] Re: 大量データの更新</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00202" HREF="msg00202.html">[pgsql-jp: 26423] Re: 大量データの更新</A></STRONG>
+<UL><LI><EM>From:</EM> "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00227.html">[pgsql-jp: 26448] Re: JavaScript 併用 C/S 風 WEB アプリ見本</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00229.html">[pgsql-jp: 26450] Re: JavaScript 併用C/S 風 WEB アプリ見本</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00202.html">[pgsql-jp: 26423] Re: 大量データの更新</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp: 26371] Re: 大量データの更新</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00228"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00228"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

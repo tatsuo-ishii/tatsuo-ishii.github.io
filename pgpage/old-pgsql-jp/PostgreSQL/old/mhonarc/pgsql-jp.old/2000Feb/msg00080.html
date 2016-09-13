@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13040] Re: [pgsql&#45;jp 13034] Re: ［Ｑ］長い view が作成できません -->
+<!--X-From: 小西賢一<zkoni@is.osk.enicom.co.jp> -->
+<!--X-Date: Thu, 3 Feb 2000 16:27:55 +0900 -->
+<!--X-Message-Id: 00a101bf6e18$30735b00$ee5017ac@is.osk.enicom.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 406AB491638ED311921600805FA9800804C597@LEO -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13040] Re: [pgsql-jp 13034] Re: ［Ｑ］長い view が作成できませ </TITLE>
+<LINK REV="made" HREF="mailto:zkoni@is.osk.enicom.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00079.html">Date Prev</A>][<A HREF="msg00081.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00081.html">Thread Next</A>][<A HREF="index.html#00080">Date Index</A>][<A HREF="threads.html#00080">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13040] Re: [pgsql-jp 13034] Re: ［Ｑ］長い view が作成できません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 小西賢一&lt;<A HREF="mailto:zkoni@is.osk.enicom.co.jp">zkoni@is.osk.enicom.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 3 Feb 2000 16:27:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00074.html">406AB491638ED311921600805FA9800804C597@LEO</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Conyです。
+下記の件に関して、私の方で試してみましたのでご報告します。
+（皆さんの役に立つかどうかわかりませんが）
+----------------------------------------------------
+環境
+   ディストリビューション：TurboLinux4.2
+   PostgreSQL 6.4.2
+   メモリ：６４Ｍ（内ビデオメモリ２ｋ）
+
+実行ＳＱＬ
+   create table tesv (
+        a0 int4,
+          ....
+        a31 int4 );
+         ^^
+         (この数字が項目数）
+   create view view_tesv as select * from tesv;
+
+結果
+   ７０項目以上だとcreate view文で
+      pqReadData() -- backend closed the channel unexpectedly.
+          This probably meas the backend terminated abnormally before or
+while processing the request.
+      We have lost the connection to the backend, so further processing is
+impossible. Terminating.
+   とのエラーがでて今後、同じ名前のviewが作成できなくなりました。
+   ３１項目だと正常終了し、それ以上だと中西さんと同じ現象が発生しました。
+----------------------------------------------------
+
+やはり下記の対応でパッチを当てるかＤＢ設計を見直すしかなさそうですね。
+
+--------- src/include/config.h -----------
+/*
+ * Size of a disk block --- currently, this limits the size of a tuple.
+ * You can set it bigger if you need bigger tuples.
+ */
+/* currently must be &lt;= 32k bjm */
+#define BLCKSZ  32768
+--------- end -------------------------
+
+
+
+&gt; 中西と申します。
+&gt;
+&gt; viewに関して、便乗して質問させていただきます。
+&gt;
+&gt; &gt; t_ishiguro&gt; 約１年前から、ここのメーリングリストを参考にしながらＰｓｏ
+&gt; &gt; t_ishiguro&gt; ｔｇｒｅｓ(V6.4)＆Apache　で社内で運用していますが、長いＶ
+&gt; &gt; t_ishiguro&gt; ＩＥＷ分を書いたら、以下のようなメッセージがでて怒られてし
+&gt; &gt; t_ishiguro&gt; まいます。エラーを回避する方法があるでしょうか？
+&gt; &gt;
+&gt; &gt; t_ishiguro&gt; ERROR: DefineQueryRewrite: rule plan string too big.
+&gt; &gt;
+&gt; &gt; "rule plan string too big"で全文検索をかければ一発で見つかります。
+&gt; &gt; [pgsql-jp 9948]で始まるスレッドです。
+&gt; &gt;
+&gt; &gt; ただ、その中で呈示されている解法は本質的ではあるものの弊害もあるので、
+&gt; &gt; 小西さんがおっしゃっているよりシンプルな方法で解決できるのなら、そちら
+&gt; &gt; の方がベターかもしれません。
+&gt;
+&gt; create view の文字数に制限があるとのことですが、私の場合以下のDDL文で
+&gt; 同じ現象が起こります。
+&gt;
+&gt; --
+&gt; create view member_detail as
+&gt;   select * from member;
+&gt; ERROR:  DefineQueryRewrite: rule plan string too big.
+&gt; --
+&gt;
+&gt; 「*」を「table_name.field_name」の形に置き換えても、
+&gt; 8KBなんて大きなサイズには成り得ないと思います。
+&gt; 内部でエラーメッセージが述べている「rule plan」なるものが
+&gt; 作られていて、それが8KBの制限を越えているのでしょうか？
+&gt;
+&gt; 疑問に思い、「table_name.field_name」の形に置き換え、
+&gt; フィールド数を一つずつ減らしていったところ、２８まで
+&gt; 減らしたところで create view に成功しました。
+&gt;
+&gt; PostgreSQL の view には DDL の文字制限の他に、
+&gt; フィールド数の制限もあるのでしょうか？
+&gt;
+&gt; 的はずれなことでありましたらご容赦ください。
+&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[pgsql-jp 13041] 同じＳＱＬ文なのにwin32のpsqlでエラーがでる？</A></STRONG>
+<UL><LI><EM>From:</EM> terumi &lt;terumi@rnac.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[pgsql-jp 13034] Re: ［Ｑ］長い view が作成できません</A></STRONG>
+<UL><LI><EM>From:</EM> 中西 真一 &lt;shinichi@synox.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 13039] Re: はじめまして。。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00081.html">[pgsql-jp 13041] 同じＳＱＬ文なのにwin32のpsqlでエラーがでる？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 13034] Re: ［Ｑ］長い view が作成できません</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00081.html">[pgsql-jp 13041] 同じＳＱＬ文なのにwin32のpsqlでエラーがでる？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00080"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00080"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

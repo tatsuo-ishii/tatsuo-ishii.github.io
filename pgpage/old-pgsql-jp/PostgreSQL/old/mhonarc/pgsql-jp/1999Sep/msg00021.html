@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10523] RE: geometric での  nrtree の使用 -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Thu, 2 Sep 1999 00:21:05 +0900 -->
+<!--X-Message-Id: NDBBKLBKJJMLDCBMIODFCEAMCBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199908272319.XAA27584@sran362.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10523] RE: geometric での  nrtree の使用 </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00024.html">Date Prev</A>][<A HREF="msg00022.html">Date Next</A>][<A HREF="msg00026.html">Thread Prev</A>][<A HREF="msg00023.html">Thread Next</A>][<A HREF="index.html#00021">Date Index</A>][<A HREF="threads.html#00021">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10523] RE: geometric での  nrtree の使用</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 2 Sep 1999 00:21:05 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: Kenji Sugita
+&gt;
+&gt;   おはようございます。
+&gt;
+&gt;   geometric での nrtree の使用について教えてください。
+&gt;
+&gt;   動作環境は以下の通りです。
+&gt;
+&gt;     FreeBSD3.2
+&gt;     PostgreSQL 6.5.1 (--with-mb=EUC_JP)
+&gt;     <A HREF="ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz">ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz</A>
+&gt;     pgaccess.patch
+&gt;
+&gt;   geometric で、rtree を付けると添付のメッセージが表示されました。rtree な
+&gt; しで
+&gt; は表示されていません。具体的には以下の `=&gt;' の有無です。
+&gt;
+&gt;     ====  geometric-0.1 の README.euc_jp より  ====
+&gt;     create table testtbl (a geometric);
+&gt; =&gt;  create index testtblind on testtbl using rtree (a);
+&gt;
+&gt;   データは値域が [0, 1000) x [0, 1000) x [0, 1000) の一様に分布した 3 次元
+&gt; デー
+&gt; タ 1 万件で、以下のようになものです。
+&gt;
+&gt;     (777,886,383)
+&gt;     (335,793,915)
+&gt;     (649,492,386)
+&gt;     (27,362,421)
+&gt;     ...
+&gt;
+&gt; ================================================================
+&gt; sugita=&gt; \d
+&gt; Couldn't find any tables, sequences or indices!
+&gt; sugita=&gt; create table testtbl (a geometric);
+&gt; CREATE
+&gt; sugita=&gt; create index testtblind on testtbl using rtree (a);
+&gt; CREATE
+&gt; sugita=&gt; copy testtbl from '/usr/home/sugita/betep/sugita/geodata';
+&gt; NOTICE:  Buffer Leak: [000] (freeNext=-3, freePrev=-3, relname=testtblind,
+&gt; blockNum=43, flags=0x85, refcount=1 7)
+&gt; NOTICE:  Buffer Leak: [006] (freeNext=-3, freePrev=-3, relname=testtblind,
+&gt; blockNum=46, flags=0x85, refcount=1 12)
+（引用省略）
+
+  いろいろやったんですが、再現できませんでした。ただテスト環境がPostgreSQL
+6.5なので、そのせいもあるかもしれません。
+
+  一応、怪しい個所を見つけましたので、修正して試してもらえませんでしょうか。
+
+−−−−ここから−−−−
+*** geometric-0.1/nrtree/nrtree.c	Sat Jun 19 05:45:57 1999
+--- geometric-0.1.1/nrtree/nrtree.c	Wed Sep  1 23:37:25 1999
+***************
+*** 606,613 ****
+
+  	if ((bufblock = BufferGetBlockNumber(buffer)) != P_ROOT)
+  		PageRestoreTempPage(left, p);
+! 	else
+! 		WriteBuffer(leftbuf);
+  	WriteBuffer(rightbuf);
+
+  	/*
+--- 606,612 ----
+
+  	if ((bufblock = BufferGetBlockNumber(buffer)) != P_ROOT)
+  		PageRestoreTempPage(left, p);
+! 	WriteBuffer(leftbuf);
+  	WriteBuffer(rightbuf);
+
+  	/*
+−−−−ここまで−−−−
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00023" HREF="msg00023.html">[pgsql-jp 10525] Re: geometric でのnrtree の使用</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00024.html">[pgsql-jp 10526] Re: SJIS文字列で入力+自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 10524] RE: geometric の  geometric_size について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 10528] Re: geometric の  geometric_size について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 10525] Re: geometric でのnrtree の使用</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00021"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00021"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

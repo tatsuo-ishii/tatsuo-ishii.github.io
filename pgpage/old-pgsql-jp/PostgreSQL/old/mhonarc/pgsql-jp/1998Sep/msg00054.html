@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5261] please teach me about PHP/FI -->
+<!--X-From: Masaya Seki <jf2m&#45;sk@asahi&#45;net.or.jp> -->
+<!--X-Date: Sat, 5 Sep 1998 11:47:04 +0900 (JST) -->
+<!--X-Message-Id: 199809050247.LAA14216@leo.asahi&#45;net.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5261] please teach me about PHP/FI </TITLE>
+<LINK REV="made" HREF="mailto:jf2m-sk@asahi-net.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00053.html">Date Prev</A>][<A HREF="msg00055.html">Date Next</A>][<A HREF="msg00055.html">Thread Prev</A>][<A HREF="msg00053.html">Thread Next</A>][<A HREF="index.html#00054">Date Index</A>][<A HREF="threads.html#00054">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5261] please teach me about PHP/FI</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaya Seki &lt;<A HREF="mailto:jf2m-sk@asahi-net.or.jp">jf2m-sk@asahi-net.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 5 Sep 1998 11:47:04 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お世話になっています。関です。
+
+今、postgresql(PHP/FI)で名簿ファイルを作っています。
+データ登録と照会は動くのですが、データ削除のハンドリング
+がうまくいきません。
+ご指導お願いいたします。
+
+1.問題点
+  直接 DELETEコマンド を実行できるが、PHP/FIでの実行
+  ができません。
+
+
+2.ドキュメント
+（1）テーブル
+[postgres@server1 sql]$ cat meibo.create
+create table  meibo
+(  shoz1      varchar(7),
+   shoz2      varchar(7),
+   kojin        varchar(8), 
+   age          int2,
+   sex          char,
+   name       varchar(50), 
+   post         varchar(7),
+   adrcd       varchar(10),
+   adrmei     varchar(100),
+   tel           varchar(12)
+   kaisha      varchar(20)
+);
+ 
+(2)問題のHTML、PHTM
+
++++++++++++++++++++
++meibosakujyo.html+
++++++++++++++++++++
+&lt;HTML&gt;
+&lt;HEAD&gt;
+        &lt;META HTTP-EQUIV=Content-Type CONTENT=text/html; charset=EUC_jp&gt;
+        &lt;TITLE&gt;meibo-sakujyo&lt;/TITLE&gt;
+&lt;/HEAD&gt;
+
+&lt;BODY BGCOLOR=WHITE&gt;
+
+        &lt;CENTER&gt;&lt;H1&gt;&lt;B&gt;労働者名簿削除画面&lt;/B&gt;&lt;/H1&gt;&lt;/CENTER&gt;
+
+        &lt;FORM ACTION = "meibowkdel.phtml" METHOD = POST&gt;
+
+        &lt;center&gt;
+        &lt;FONT SIZE = 4 COLOR = "RED"&gt;&lt;B&gt;個人番号必須&lt;/B&gt;&lt;BR&gt;&lt;/FONT&gt;
+        &lt;/center&gt;
+       
+        &lt;center&gt;
+        &lt;INPUT TYPE = "text" NAME = kojintr MAXLENGTH = 8  SIZE = 8&gt; &lt;BR&gt;
+        &lt;/center&gt;
+
+        &lt;CENTER&gt;&lt;H3&gt;&lt;INPUT TYPE = "submit"  VALUE = データを削除&gt;              &lt;INPUT TYPE = "reset"  VALUE = リセットボタン&gt;&lt;/H3&gt;&lt;/CENTER&gt;
+        &lt;/FORM&gt;
+        &lt;BR&gt;&lt;BR&gt;
+        &lt;/BODY&gt;&lt;/HTML&gt;
+
++++++++++++++++++++
++ meibowkdel.phtml+
++++++++++++++++++++
+&lt;HTML&gt;
+&lt;HEAD&gt;&lt;TITLE&gt;削除できました。&lt;/TITLE&gt;&lt;/HEAD&gt;
+&lt;BODY BGCOLOR=WHITE&gt;
+
+&lt;?
+
+        SetShowInfo(0);
+        if(!$kojintr){
+                echo"個人番号が入力されてません。&lt;BR&gt;ブラウザの「戻る」ボタンを押して下さい\n";
+                exit;
+        }
+  
+        $conn = pg_Connect("www.eijin.co.jp", "5432", "", "", "meibo");
+        if (!$conn) {
+      echo "エラーが発生しました：データベースに接続できません！\n";
+      mail("masaya@eijin.co.jp","Error!","名簿登録で異常発生！対応してください。");
+      exit;
+        }
+
+        $ret = pg_Exec($conn,"BEGIN");
+        $ret = pg_Exec($conn,"Lock meibo");
+
+  $result = pg_Exec($conn,"DELETE FROM meibo WHERE kojin = $kojintr;");
+        echo $result;
+        if (!$result) {
+        pg_Exec($conn,"ROLLBACK");
+        echo "エラーが発生しました：データベースに異常があります！\n";
+             mail("masaya@eijin.co.jp","Error!","ROLLBACKします。");
+                exit;
+        }
+        
+        pg_Exec($conn,"COMMIT");       
+
+        pg_Exec($conn,"END");        
+ 
+        pg_FreeResult($result);
+       
+        pg_Close($conn);
+
+&gt;
+
+&lt;CENTER&gt;訂正できました。&lt;BR&gt;&lt;A HREF=meiboin.html&gt;戻る&lt;/A&gt;&lt;/CENTER&gt;
+&lt;/BODY&gt;
+&lt;/HTML&gt;
+
+(3)エラーメッセージ
+meibowkdel.phtml: Bad response to postgres95 query (ERROR: There is no operator '=' for types 'varchar' and 'int4' You will either have to retype this query using an explicit cast, or you will have to define the operator using CREATE OPERATOR ) on line 23
+$result = pg_Exec($conn,"DELETE FROM meibo WHERE kojin = $kojintr"); 
+0G[Ff[^x[XI [postgres@server1 samples]$ 
+
+
+(4）直接 DELETE のメッセージ
+meibo=&gt; SELECT * FROM meibo;
+  shoz1|  shoz2|   kojin|age|sex|name    |   post| adrcd|adrmei
+               |         tel|kaisha
+-------+-------+--------+---+---+--------+-------+------+-----------------------
+---------------+------------+------
+0600700|0600700|00029606| 46|  1|関  正弥|2580113|110110|神奈川県足柄上郡山北町[核味械横坑検檻0465-75-0346|toroku
+0600100|0600100|00011111| 40|  1|第一生命|2580113|100101|神奈川県足柄上郡山北町[核味械横坑検檻0465-75-0346|dai
+(2 rows)
+
+meibo=&gt; DELETE FROM meibo WHERE kojin = '00011111';
+DELETE 1
+Masaya Seki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 5260] Please teach me about PHP/FI</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 5262] I am sorry</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 5262] I am sorry</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 5260] Please teach me about PHP/FI</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00054"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00054"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

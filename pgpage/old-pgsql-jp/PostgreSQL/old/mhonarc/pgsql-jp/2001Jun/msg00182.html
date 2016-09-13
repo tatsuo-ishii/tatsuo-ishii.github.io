@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21803] Re: PostgreSQL&#45;7.1.2 でWALを使わない方法 -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Wed, 13 Jun 2001 16:52:35 +0900 -->
+<!--X-Message-Id: 3B271BC3.B2F60951@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010612121951.8AFFF6AFBC@mail.suyama.net -->
+<!--X-Reference-Id: 20010613130807U.tmori@tech.isac.co.jp -->
+<!--X-Reference-Id: 3B26EBCE.8880DC20@tpf.co.jp -->
+<!--X-Reference-Id: 20010612162614K.tmori@tech.isac.co.jp -->
+<!--X-Reference-Id: 20010613155544T.tmori@tech.isac.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21803] Re: PostgreSQL-7.1.2 でWALを使わない方法 </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00181.html">Date Prev</A>][<A HREF="msg00183.html">Date Next</A>][<A HREF="msg00177.html">Thread Prev</A>][<A HREF="msg00187.html">Thread Next</A>][<A HREF="index.html#00182">Date Index</A>][<A HREF="threads.html#00182">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21803] Re: PostgreSQL-7.1.2 でWALを使わない方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 13 Jun 2001 16:52:35 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00163.html">20010612121951.8AFFF6AFBC@mail.suyama.net</A>&gt;	&lt;<A HREF="msg00171.html">20010613130807U.tmori@tech.isac.co.jp</A>&gt;	&lt;<A HREF="msg00173.html">3B26EBCE.8880DC20@tpf.co.jp</A>&gt;	&lt;<A HREF="msg00160.html">20010612162614K.tmori@tech.isac.co.jp</A>&gt; &lt;<A HREF="msg00177.html">20010613155544T.tmori@tech.isac.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+tmori@tech.isac.co.jp wrote:
+&gt; 
+&gt; 森＠アイザックです。
+&gt; 
+&gt; &gt;&gt;&gt; Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt; wrote :
+&gt;     at Wed, 13 Jun 2001 13:27:58 +0900 ...
+&gt; 
+&gt; &gt; &gt; &gt; tmori&gt; 問題は、ディスク領域が不足することではなくて、それだけ
+&gt; &gt; &gt; &gt; tmori&gt; 大量のI/Oが発生してしまう、ということであり、checkpointで
+&gt; &gt; &gt; &gt; tmori&gt; ログをtruncateしてくれるだけでは解決にならないのです。
+&gt; &gt; &gt; &gt;
+&gt; &gt; &gt; &gt; 　大量のログが正常なＷＡＬログであれば、それは問題ではないと思います。
+&gt; &gt; &gt; &gt; 　（バグで大量のログを吐き出すのでしたら、それは問題ですが）
+&gt; &gt; &gt; &gt; 　CHECKPOINT 間隔を短くするのが正道だと思います。
+&gt; &gt; &gt;
+&gt; &gt; &gt; checkpointでログファイルを消すかどうかはともかく、
+&gt; &gt; &gt; 本来checkpointとは、ログバッファをHDDにフラッシュすることですよね。
+&gt; &gt; &gt; checkpoint間隔を短くすると、返ってディスクI/Oが増加すると思いますが。
+&gt; &gt; &gt;
+&gt; &gt;
+&gt; &gt; 詳細に追っていないので何が問題になっているのか今ひとつ
+&gt; &gt; わかりません。ディスクI/Oが多いと何が致命的にまずい
+&gt; &gt; のでしょうか？
+&gt; 
+&gt; 私が遭遇しているのは以下のような状況です。
+&gt; 正確な数値を記録していなかったので、
+&gt; 多少定性的な説明になってしまいますが、
+&gt; ご容赦ください。
+&gt; 
+&gt; [前提]
+&gt; ・DBサイズで最大数百GBクラスの情報系DB構築案件
+&gt; ・データローディングは週次か日次で処理
+&gt; ・この案件にPostgreSQLが使えるか否かを調査中
+&gt; ・実環境として当初は PC, Linux, 2GB memory, 100GB(RAID1)を想定
+&gt; ・私も顧客側もPostgreSQLでいけるという確証を得たい
+&gt;   (これは重要。他の候補はある意味致命的な問題があるので)
+&gt; 
+&gt; [状況]
+&gt; ・下記引用のテスト環境で、$PGDATA用に8GBのディスク領域を用意
+&gt; ・createdb, create table, create index の後、
+&gt;   400MB程度(600万行)のテキストファイルからcopy fromでロード
+&gt; ・毎分5〜10ほどのペースで16MBのログセグメントファイルが生成
+&gt;   $PGDATA/baseと$PGDATA/pg_xlogの比は１：９程度
+&gt; ・数時間実行の後、disk fullエラーでロードに失敗
+&gt; ・つまり、400MB分のデータロードで8GBを超えるディスクI/Oが発生した
+&gt; ・次にinitdbからやり直して、create index をせずに同データをロード
+&gt; ・数分のオーダでロード終了。$PGDATA/baseと$PGDATA/pg_xlogはほぼ同サイズ
+&gt; ・その後、create indexを実行。数十分のオーダで完了
+&gt; ・最終的なDBサイズは2.4GB程度
+&gt; 
+&gt; 実環境ではこのテーブルは、標準で4GB(生テキストデータサイズ)、
+&gt; 最大で20GB程度になります。
+&gt; 
+&gt; 通常運用では、全件ロードというのはまずやらないのですが、
+&gt; 最大規模で１日200MB分程度のロードを想定しています。
+&gt; 全体の運用を考えると、これが２時間以内で終わって欲しいところです。
+&gt; 
+
+バルクデータロードの際にデータ作成後にインデクスを作成する
+のは普通のやり方だと思います。Tom LaneのパッチをあてればWAL
+ログは適宜削除されることになりますのでWALログもそれほど大き
+くはならないと予想されます。もしそれでも大きくなるようなら
+chekcpointの間隔を短くするしかありませんね。
+
+Hiroshi Inoue
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00187" HREF="msg00187.html">[pgsql-jp 21808] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> tmori@tech.isac.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00163" HREF="msg00163.html">[pgsql-jp 21784] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> 陶山　泰&lt;yasushi@suyama.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00171" HREF="msg00171.html">[pgsql-jp 21792] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> tmori@tech.isac.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 21794] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp 21781] PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> tmori@tech.isac.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 21798] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> tmori@tech.isac.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00181.html">[pgsql-jp 21802] Re: SSL サポート状態でpostmaster が起動しません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 21804] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 21798] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 21808] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00182"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00182"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

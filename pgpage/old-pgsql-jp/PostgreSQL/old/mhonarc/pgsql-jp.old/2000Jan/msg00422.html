@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12879] Re: design of related tables(was Re: insert/delete/update for related tables) -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Fri, 28 Jan 2000 11:33:46 +0900 -->
+<!--X-Message-Id: 3891000A.75D1290@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 49256874.0006EA56.00@NCSNMX00009.mitaka.yokogawa.co.jp -->
+<!--X-Reference-Id: 200001280158.KAA20574@ljk.atsugi.asahi&#45;kasei.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12879] Re: design of related tables(was Re: insert/delete/upda </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00421.html">Date Prev</A>][<A HREF="msg00423.html">Date Next</A>][<A HREF="msg00420.html">Thread Prev</A>][<A HREF="msg00425.html">Thread Next</A>][<A HREF="index.html#00422">Date Index</A>][<A HREF="threads.html#00422">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12879] Re: design of related tables(was Re: insert/delete/update for related tables)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jan 2000 11:33:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00418.html">49256874.0006EA56.00@NCSNMX00009.mitaka.yokogawa.co.jp</A>&gt; &lt;<A HREF="msg00420.html">200001280158.KAA20574@ljk.atsugi.asahi-kasei.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Masahiko Takahashi wrote:
+&gt; 
+&gt; 旭化成工業（株）の高橋です。
+
+。。。略。。。
+&gt; さて、サブジェクトを変えてしまいましたが、片岡＠インターウィズさん
+&gt; のアドバイスをいただいて急に心配になりました。
+&gt; 現在やろうとしていることは(簡単なことなのですが...Relational DBの
+&gt; 概念がきちんとわかっていないだけなのでしょうけど...)、
+&gt; 
+&gt; 1. 会社情報の登録
+&gt; 2. 会社に所属している個人情報の登録
+&gt; 3. その個人がもつ「ある情報」の登録(数種類ある)
+&gt; だけなのですが、最初はこれらを１つのテーブルにして、検索時にviewを
+&gt; 指定するようにしていました(本来こうすべきだったのかな...).
+&gt; 
+
+一般論ですが、この種の情報は、１：Ｎ の関係にあるはずですので、
+オーソドックスに正規化して、３つの表にして、プログラムで、表
+毎に INSERT/UPDATE すべきだと思います。勿論、BEGIN, END で、
+囲んで１つのトランザクションにします。
+
+rule でどこまでできるかわかりませんが、仮に特定の条件下で、
+可能であったとしても、将来仕様変更するときにネックになる
+はずです。
+
+
+&gt; (3の情報は数種類あるのですが、そのうちの２つの情報を使用して
+&gt; PRIMARY KEYとしています)
+
+PRIMARY KEY は、こんな感じでしょうか？。
+
+1. ...primary key(会社コード)
+2.....primary key(会社コード, 社員番号)
+3.....primary key(会社コード, 社員番号, 個人情報種別コード)
+
+さらに、個人情報に、趣味や家族氏名の様な複数属性値がある場合
+は、これも正規化して別表にした方がいいですね。
+
+通常、1 と 2 が UPDATE で、3 が INSERT とか、1,2,3 共 INSERT 
+とか各種の組合せが考えられるので、プログラムロジックにすべき
+だろうと思います。
+
+ーーーーーーーーーーーーーーー
+&gt; そこで、「1〜3の情報をそれぞれ個別のテーブルにして、登録・削除・更
+&gt; 新を1〜3を組み合わせて作ったviewに行ったほうがよいのでは?(正規化し
+&gt; たほうがいいのかな)」と思い、個別にテーブルを再定義して、前に質問
+&gt; したようにviewを定義してやってそれにinsert, deleteなどをruleで定義
+&gt; してやろうと思いました。
+&gt; 
+&gt; しかし、ruleでこれらのことをしながら、さらに複数テーブルのロックの
+&gt; 面倒もみてやるのが、片岡さんのような識者が「難しい」とおっしゃるの
+&gt; では、最初の方法のようにテーブルは１つにしてしまって、そこですべて
+&gt; 管理させたほうがよいのでしょうか。
+&gt; 
+&gt; ruleはpostgreSQL特有のものらしいし、関数を組むというのも素人で短期
+&gt; 間でやらなければならないという制約上、後者のような方法はあきらめた
+&gt; ほうがよろしいでしょうか。
+&gt; 
+&gt; 識者の方々のアドバイスをいただけたら幸いです。基本的な質問ですみま
+&gt; せん。
+&gt; 
+&gt; ちなみにデータ数(タプル数)は現在10000前後を想定していますが、今後
+&gt; 当然増えていく予定です...
+&gt; 
+&gt; -----------------------------------------
+&gt; 高橋正彦  旭化成工業（株） 中央技術研究所
+&gt; 〒243-0021 厚木市岡田3050 厚木AXT 22F
+&gt; TEL : 046-230-4876    FAX : 046-230-4809
+
+-- 
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+        <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+2/22(火) PHP+PostgreSQL 有料実習セミナー開催(8人限定)
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00425" HREF="msg00425.html">[pgsql-jp 12882] Re: design of related tables(was Re: insert/delete/update for related tables)</A></STRONG>
+<UL><LI><EM>From:</EM> Masahiko Takahashi &lt;taka@ljk.atsugi.asahi-kasei.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00418" HREF="msg00418.html">[pgsql-jp 12875] Re: insert/delete/update for related tables</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuharu_Nakagawa@yokogawa.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00420" HREF="msg00420.html">[pgsql-jp 12877] design of related tables(was Re: insert/delete/update for related tables)</A></STRONG>
+<UL><LI><EM>From:</EM> Masahiko Takahashi &lt;taka@ljk.atsugi.asahi-kasei.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00421.html">[pgsql-jp 12878] PostgreSQL docs, manuals and psql help</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00423.html">[pgsql-jp 12880] Re: [pgsql-jp 12842] Re: オフコンのデータ取り込み</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00420.html">[pgsql-jp 12877] design of related tables(was Re: insert/delete/update for related tables)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00425.html">[pgsql-jp 12882] Re: design of related tables(was Re: insert/delete/update for related tables)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00422"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00422"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27675] Re: テーブルの同時更新を防ぐには？ -->
+<!--X-From: matsuda <yumatuda@msoft.co.jp> -->
+<!--X-Date: Fri, 18 Oct 2002 10:16:09 +0900 -->
+<!--X-Message-Id: 20021018011513.C5E091EF81B@ml.postgresql.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200210171219.g9HCJJP16271@keto.host4u.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27675] Re: テーブルの同時更新を防ぐには？ </TITLE>
+<LINK REV="made" HREF="mailto:yumatuda@msoft.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00176.html">Date Prev</A>][<A HREF="msg00178.html">Date Next</A>][<A HREF="msg00172.html">Thread Prev</A>][<A HREF="msg00157.html">Thread Next</A>][<A HREF="index.html#00177">Date Index</A>][<A HREF="threads.html#00177">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27675] Re: テーブルの同時更新を防ぐには？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: matsuda &lt;<A HREF="mailto:yumatuda@msoft.co.jp">yumatuda@msoft.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 18 Oct 2002 10:16:09 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00169.html">200210171219.g9HCJJP16271@keto.host4u.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おはようございます、エムソフト松田です。
+
+沢山のご回答ありがとうございます。＞ＡＬＬ
+今回は以下の石田さんの方法で対応いたしました。
+具体的な流れとしましては、
+
+------------------------------------------------------------
+BEGIN;
+LOCK TABLE Ａテーブル;
+↓
+Ａテーブルから今日の連番取得（日が変わると１に戻る）
+↓
+ＰＨＰ側で日付+連番の登録コード作成
+（例）200201010001
+↓
+Ａテーブルに連番を+1して再登録
+↓
+COMMIT;
+↓
+作成した登録コード（プライマリキー）でＢテーブルに新規登録
+------------------------------------------------------------
+
+と言う感じです。
+この方法で、またテストを行った結果エラーは出ず、
+全員が正しく登録できていることを確認いたしました。
+体感速度的にも、LOCKするから少し待ち時間ができるかな？
+と言う懸念があったのですが、特に問題はありませんでした。
+最初のメールでBEGIN;とCOMMIT;は試した、と申しましたが、
+どうやらロックモードが良くなかったようです。
+
+あと、BIGIN→BEGINですね・・・お恥ずかしい(^^;
+また、宜しくお願いいたします。
+
+ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt; wrote:
+
+&gt; こんにちは。石田@苫小牧市と申します。
+&gt; 
+&gt; On Thu, Oct 17, 2002 at 06:20:58PM +0900, matsuda wrote:
+&gt; &gt; エムソフトの松田と申します。
+&gt; &gt; 
+&gt; &gt; 開発環境
+&gt; &gt; rethatLinux7.2
+&gt; &gt; postgres7.2.2
+&gt; &gt; 
+&gt; &gt; ＰＨＰを用い、ＷｅｂからＤＢを更新／登録しています。
+&gt; &gt; 登録の流れは以下のようになっております。
+&gt; &gt; 
+&gt; &gt; ------------------------------------------------------------
+&gt; &gt; Ａテーブルから今日の連番取得（日が変わると１に戻る）
+&gt; &gt; ↓
+&gt; &gt; ＰＨＰ側で日付+連番の登録コード作成
+&gt; &gt; （例）200201010001
+&gt; &gt; ↓
+&gt; &gt; Ａテーブルに連番を+1して再登録
+&gt; &gt; ↓
+&gt; &gt; 作成した登録コード（プライマリキー）でＢテーブルに新規登録
+&gt; &gt; ------------------------------------------------------------
+&gt; &gt; 
+&gt; &gt; という流れなのですが、同時アクセステスト時に、
+&gt; &gt; 数人一斉に「登録」ボタンを押すと、
+&gt; &gt; ERROR: Cannot insert a duplicate key into a unique index.
+&gt; &gt; と言うメッセージが表示されます。
+&gt; &gt; これは既に登録しているプライマリキーで再度登録しようとしているため
+&gt; &gt; だと思うのですが、複数人同時アクセス時にこのエラーを起こさせない
+&gt; &gt; 良い方法は無いでしょうか？(なるべく上記の処理の流れを変えずに・・・)
+&gt; &gt; biginやcommitなど試みたのですが、やはり結果は変わりません。
+&gt; 
+&gt; このようなケースでは、単に begin や select for update ではなく、
+&gt; 明示的にテーブルロックする必要があります。
+&gt; 
+&gt; begin;
+&gt; lock table &lt;&lt;tablename&gt;&gt;;
+&gt; select ...
+&gt; insert ...
+&gt; commit;
+&gt; 
+&gt; AccessExclusiveMode がベストなロックモードかどうかは
+&gt; ちょっと自身がありません。
+&gt; 
+&gt; -- 
+&gt; ISHIDA Akio
+&gt; 
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00169" HREF="msg00169.html">[pgsql-jp: 27667] Re: テーブルの同時更新を防ぐには？</A></STRONG>
+<UL><LI><EM>From:</EM> ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp: 27674] Re: 一時テーブルのmetadata取得</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00178.html">[pgsql-jp: 27676] Re: シングルクォートのエスケープについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00172.html">[pgsql-jp: 27670] Re: テーブルの同時更新を防ぐには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00157.html">[pgsql-jp: 27655] 別サーバからpostgreSQLへの優先接続</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00177"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00177"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

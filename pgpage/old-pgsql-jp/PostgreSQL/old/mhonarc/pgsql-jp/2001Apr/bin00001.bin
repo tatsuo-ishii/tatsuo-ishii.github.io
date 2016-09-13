@@ -1,0 +1,174 @@
+Index: db_details.php
+===================================================================
+RCS file: /usr/local/cvsrep/phpPgAdmin/db_details.php,v
+retrieving revision 1.1.1.1
+diff -c -r1.1.1.1 db_details.php
+*** db_details.php	2001/04/06 04:49:30	1.1.1.1
+--- db_details.php	2001/04/06 07:49:06
+***************
+*** 102,107 ****
+--- 102,108 ----
+  					pc.proowner = pu.usesysid
+  					AND pc.prorettype = pt.oid
+  					AND pc.oid > '$max'::oid
++ 					and proowner <> (select usesysid from pg_shadow where usename = 'postgres')
+  				UNION
+  				SELECT 
+  					pc.oid,
+***************
+*** 109,121 ****
+  					'OPAQUE' AS result, 
+  					oidvectortypes(pc.proargtypes) AS arguments
+  				FROM 
+! 					pg_proc pc, pg_user pu, pg_type pt
+  				WHERE
+  					pc.proowner = pu.usesysid
+  					AND pc.prorettype = 0
+  					AND pc.oid > '$max'::oid
+  				ORDER BY
+! 					pc.proname, result
+  			";
+  			$funcs = @pg_exec($link, pre_query($sql_get_func)) or pg_die(pg_errormessage(), $sql_get_func);
+  			$num_funcs = @pg_numrows($funcs);
+--- 110,123 ----
+  					'OPAQUE' AS result, 
+  					oidvectortypes(pc.proargtypes) AS arguments
+  				FROM 
+! 					pg_proc pc, pg_user pu
+  				WHERE
+  					pc.proowner = pu.usesysid
+  					AND pc.prorettype = 0
+  					AND pc.oid > '$max'::oid
++ 					and proowner <> (select usesysid from pg_shadow where usename = 'postgres')
+  				ORDER BY
+! 					proname, result
+  			";
+  			$funcs = @pg_exec($link, pre_query($sql_get_func)) or pg_die(pg_errormessage(), $sql_get_func);
+  			$num_funcs = @pg_numrows($funcs);
+***************
+*** 160,170 ****
+  		case "trigger":	// Triggers
+  			$sql_get_trig = "
+  				SELECT ptr.*, pt.typname as result, pc.relname as relname
+! 				FROM pg_trigger ptr, pg_type pt, pg_class pc
+! 				WHERE ptr.tgtype = pt.oid 
+! 				AND ptr.tgrelid = pc.oid
+! 				AND tgname !~ 'pg_.*' 
+! 				ORDER BY tgname
+  			";
+  			$triggers = @pg_exec($link, pre_query($sql_get_trig)) or pg_die(pg_errormessage(), $sql_get_trig);
+  			$num_triggers = @pg_numrows($triggers);
+--- 162,172 ----
+  		case "trigger":	// Triggers
+  			$sql_get_trig = "
+  				SELECT ptr.*, pt.typname as result, pc.relname as relname
+! 				FROM pg_trigger ptr
+! 				left join pg_type as pt on (ptr.tgtype = pt.oid)
+! 				left join pg_class as pc on (ptr.tgrelid = pc.oid)
+! 				WHERE tgname !~ 'pg_.*' 
+! 				ORDER BY relname, tgname
+  			";
+  			$triggers = @pg_exec($link, pre_query($sql_get_trig)) or pg_die(pg_errormessage(), $sql_get_trig);
+  			$num_triggers = @pg_numrows($triggers);
+Index: func_properties.php
+===================================================================
+RCS file: /usr/local/cvsrep/phpPgAdmin/func_properties.php,v
+retrieving revision 1.1.1.1
+diff -c -r1.1.1.1 func_properties.php
+*** func_properties.php	2001/04/06 04:49:30	1.1.1.1
+--- func_properties.php	2001/04/06 07:49:06
+***************
+*** 70,76 ****
+  	?>
+  	<tr><th colspan=4><?php echo $strSrc;?></th></tr>
+  	<tr>
+! 		<td colspan=4 bgcolor="<?php echo $cfgBgcolorTwo; ?>"><?php echo nl2br($row[source]); ?></td>
+  	</tr>
+  	</table>
+  	<br><br>
+--- 70,76 ----
+  	?>
+  	<tr><th colspan=4><?php echo $strSrc;?></th></tr>
+  	<tr>
+! 		<td colspan=4 bgcolor="<?php echo $cfgBgcolorTwo; ?>"><pre><?php echo $row[source]; ?></pre></td>
+  	</tr>
+  	</table>
+  	<br><br>
+Index: header.inc.php
+===================================================================
+RCS file: /usr/local/cvsrep/phpPgAdmin/header.inc.php,v
+retrieving revision 1.1.1.1
+diff -c -r1.1.1.1 header.inc.php
+*** header.inc.php	2001/04/06 04:49:30	1.1.1.1
+--- header.inc.php	2001/04/06 07:49:06
+***************
+*** 7,12 ****
+--- 7,13 ----
+  	?>
+  <html>
+  	<head>
++ 	<META http-equiv="Content-Type" content="text/html; charset=euc-jp">
+  	<title><?php echo $cfgProgName, ": ", $cfgServer[host]; ?></title>
+  	<style type="text/css">
+  	//<!--
+Index: tbl_properties.php
+===================================================================
+RCS file: /usr/local/cvsrep/phpPgAdmin/tbl_properties.php,v
+retrieving revision 1.1.1.1
+diff -c -r1.1.1.1 tbl_properties.php
+*** tbl_properties.php	2001/04/06 04:49:30	1.1.1.1
+--- tbl_properties.php	2001/04/06 07:49:06
+***************
+*** 17,31 ****
+  		t.typname AS type, 
+  		a.attlen AS length,
+  		a.atttypmod AS lengthvar,
+! 		a.attnotnull AS notnull
+  	FROM 
+  		pg_class c, 
+! 		pg_attribute a, 
+  		pg_type t
+  	WHERE 
+  		c.relname = '$table'
+  		and a.attnum > 0
+! 		and a.attrelid = c.oid
+  		and a.atttypid = t.oid
+  	ORDER BY a.attnum
+  ";
+--- 17,32 ----
+  		t.typname AS type, 
+  		a.attlen AS length,
+  		a.atttypmod AS lengthvar,
+! 		a.attnotnull AS notnull,
+! 		d.description AS description
+  	FROM 
+  		pg_class c, 
+! 		pg_attribute a left join pg_description as d on (d.objoid = a.oid),
+  		pg_type t
+  	WHERE 
+  		c.relname = '$table'
+  		and a.attnum > 0
+! 		and a.attrelid = c.oiD
+  		and a.atttypid = t.oid
+  	ORDER BY a.attnum
+  ";
+***************
+*** 54,59 ****
+--- 55,61 ----
+  	<TH><?php echo $strLength; ?></TH>
+  	<TH><?php echo $strNotNull; ?></TH>
+  	<TH><?php echo $strDefault; ?></TH>
++ 	<TH><?php echo description ?></TH>
+  	<?php if (!$printview) { ?>
+  	<TH COLSPAN=4><?php echo $strAction; ?></TH>
+  	<?php } ?>
+***************
+*** 112,117 ****
+--- 114,120 ----
+  		}
+  		?>
+  		<td valign="top"><?php echo htmlentities($row[rowdefault]); ?>&nbsp;</td>
++ 		<td valign="top"><?php echo $row[description]; ?>&nbsp;</td>
+  		<?php if (!$printview) { ?>
+  		<td valign="top"><a href="tbl_alter.php?<?php echo $query;?>&field=<?php echo $row[field];?>"><?php echo $strChange; ?></a></td>
+  		<td valign="top"><a href="tbl_alter_drop.php?<?php echo $query;?>&field=<?php echo $row[field];?>"><?php echo $strDrop; ?></a></td>

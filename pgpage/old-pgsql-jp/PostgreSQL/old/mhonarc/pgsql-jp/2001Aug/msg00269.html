@@ -1,0 +1,172 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22932] pgstattuple -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 30 Aug 2001 15:33:46 +0900 -->
+<!--X-Message-Id: 20010830153346N.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22932] pgstattuple </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00268.html">Date Prev</A>][<A HREF="msg00270.html">Date Next</A>][<A HREF="msg00281.html">Thread Prev</A>][<A HREF="msg00270.html">Thread Next</A>][<A HREF="index.html#00269">Date Index</A>][<A HREF="threads.html#00269">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22932] pgstattuple</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 30 Aug 2001 15:33:46 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+最近テーブルにどの位ゴミが溜っているのか知りたい，というスレッドがあり
+ましたが，試しに指定テーブルの中でゴミになっているタプルが何%位あるか
+を調べるC関数を作ってみました(比率はタプル数ではなく，タプルの大きさで
+計算しています)．良かったらお試し下さい．入手先は，
+
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/pgstattuple/pgstattuple-0.1.tar.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/pgstattuple/pgstattuple-0.1.tar.gz</A>
+
+です．
+
+付属READMEを引用しておきます．
+--
+Tatsuo Ishii
+------------------------------------------------------------------------
+pgstattuple README		2001/08/30 石井達夫
+
+1. pgstattupleとは
+
+   pgstattupleは，UPDATEやDELETEで作られたテーブルのゴミ領域の大きさを，
+   テーブル自体の物理的な大きさに対するパーセンテージで返却します．つ
+   まり，返却値が大きければ，それだけゴミも多いので，vacuumをかける必
+   要があるという判断の助けになるわけです．
+
+   これだけでは情報量が少ないので，NOTICEメッセージでいろんな情報をつ
+   いでに出力します．
+
+test=# select pgstattuple('tellers');
+NOTICE:  physical length: 0.02MB live tuples: 200 (0.01MB, 58.59%) dead tuples: 100 (0.00MB, 29.30%) overhead: 12.11%
+ pgstattuple 
+-------------
+   29.296875
+(1 row)
+
+   この実行例では，29%ほどがゴミになっていることが伺えます．NOTICEメッ
+   セージの見方も書いておきます．
+
+   physical length	テーブルの物理的なサイズをMB単位で表示
+   live tuples		ゴミではないタプルに関する情報．タプル数，各
+			タプルが占める領域の合計，テーブル全体に対する
+			比率を表示します．
+   dead tuples		ゴミになったタプルに関する情報．
+   overhead		管理のための領域や未使用領域がテーブル全体に占
+			める比率
+
+2. pgstattupleのインストール
+
+   インストールのためには，以下のものが必要です．
+
+   ・PostgreSQL 7.1以降のソース
+
+     pgstattupleはnew function manager interfaceを使っているので，
+     PostgreSQL 7.1以降でないと使えません．PostgreSQL 7.1のソースは，
+     単に展開しただけでは駄目で，少なくともconfigureが終了していなけれ
+     ばなりません．
+
+   では具体的なインストール手順を示します．まずソースを展開します．
+
+   $ tar xfz pgstattuple-0.1.tar.gz
+
+     必要に応じてMakefileを編集します．
+
+   ・PostgreSQLのソースディレクトリをtop_builddirに設定します．
+
+    Makefileの修正が終わったらmakeします．
+
+    $ make
+
+    ユーザ定義関数を登録します．
+
+    $ psql -e -f create.sql test
+
+
+3. pgstattupleの使い方
+
+   pgstattupleの呼び出し形式は以下です．
+
+   pgstattuple(NAME) RETURNS FLOAT8
+
+   第一引数: テーブル名
+
+   関数の戻りはUPDATEやDELETEで作られたテーブルのゴミ領域の大きさで，
+   テーブルの物理的な大きさに対する割合(パーセント)で返却します．
+
+   なお，pgstattupleはテーブルに一切ロックをかけないので，pgstattuple
+   を実行中に該当テーブルに更新や削除が発生すると，正しくない結果を返
+   す可能性があります．
+
+4. pgstattupleのライセンス条件について
+
+   pgstattuple.cの冒頭に書いてある通りです．また，pgstattuple は完全に無保
+   証です．pgstattuple を使用したことによって生じるいかなる結果に関して
+   も責任を負いません．
+
+5. 改訂履歴
+
+   2001/08/30 pgstattuple バージョン 0.1リリース
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00270" HREF="msg00270.html">[pgsql-jp 22933] Re: pgstattuple</A></STRONG>
+<UL><LI><EM>From:</EM> Nobuaki Tanaka &lt;nobuakit@rose.ocn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00268.html">[pgsql-jp 22931] よろしくおねがいします</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 22933] Re: pgstattuple</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00281.html">[pgsql-jp 22944] Re: ひらがなの検索語で漢字を返す？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 22933] Re: pgstattuple</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00269"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00269"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

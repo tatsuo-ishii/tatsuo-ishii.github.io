@@ -1,0 +1,610 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html;charset=iso-2022-jp" />
+<link rev=made href="mailto:ishii@sraoss.co.jp" />
+<link href="icon.ico" rel="shorcut icon" />
+<title>PostgreSQL information page</title>
+<style type="text/css">
+<!--
+td {
+  background-image:url(midashi.png);
+  width: 1024;
+  font-weight: bold
+}
+
+-->
+</style>
+</head>
+<body bgcolor="#ffffff">
+<!-- hhmts start -->
+Last modified: Sun Aug  2 19:23:46 JST 2009
+<!-- hhmts end -->
+
+<h1>PostgreSQLとネットワークプログラミング(2/2)</h1>
+<p>
+今回はネットワークプログラミング、サーバプログラ
+ミングの事例としてpgpool-IIを取り上げます。具体的には、ソケットの使い方やpre-forkテクニックの解説を行います。
+</p>
+<p>
+pgpool-IIはPostgreSQLのproxyサーバであるとも言えます。
+つまりPostgreSQLの通信プロトコルを実装しているわけで、そういった面からもpgpool-IIを解説したいと思います。
+</p>
+
+<p>
+<a href="../vol21/index.html">前回</a>はpgpoolのソースを使って、以下のようなネットワークプログラミングの基礎を解説しました。
+
+<ol>
+<li>クライアント/サーバモデルとは
+<li>ソケットインターフェイスとは
+<li>サーバ側でのソケットの使い方
+<li>pre-fork方式とは
+<li>非ブロックソケットとは
+</ol>
+</p>
+
+<p>
+ここまでで、一応サーバがネットワーク経由でクライアントからの接続を受け入れるところまで解説が終わっています。
+</p>
+<p>
+今回はその続きということで、クライアントがサーバに接続するところから始めます。
+
+<h2>connect()でサーバに接続</h2>
+<p>
+クライアントがサーバに接続するには、connect()というシステムコールを使います。
+pgpool-IIでは、pool_connection_pool.cにある
+connect_unix_domain_socket_by_port()とconnect_inet_domain_socket_by_port()
+という関数がconnect()を呼び出しています(リスト1)。
+</p>
+
+<pre>
+リスト1: connect_unix_domain_socket_by_port()とconnect_inet_domain_socket_by_port()
+---------------------------------------------------------------------
+int connect_unix_domain_socket_by_port(int port, char *socket_dir)
+{
+	struct sockaddr_un addr;
+	int fd;
+	int len;
+
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1)
+	{
+		pool_error("connect_unix_domain_socket_by_port: setsockopt() failed: %s", strerror(errno));
+		return -1;
+	}
+
+	memset((char *) &addr, 0, sizeof(addr));
+	((struct sockaddr *)&addr)->sa_family = AF_UNIX;
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/.s.PGSQL.%d", socket_dir, port);
+	len = sizeof(struct sockaddr_un);
+
+	for (;;)
+	{
+		if (connect(fd, (struct sockaddr *)&addr, len) < 0)
+		{
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+
+			pool_error("connect_unix_domain_socket_by_port: connect() failed: %s", strerror(errno));
+			close(fd);
+			return -1;
+		}
+		break;
+	}
+
+	return fd;
+}
+
+int connect_inet_domain_socket_by_port(char *host, int port)
+{
+	int fd;
+	int len;
+	int on = 1;
+	struct sockaddr_in addr;
+	struct hostent *hp;
+
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0)
+	{
+		pool_error("connect_inet_domain_socket_by_port: socket() failed: %s", strerror(errno));
+		return -1;
+	}
+
+	/* set nodelay */
+	if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+				   (char *) &on,
+				   sizeof(on)) < 0)
+	{
+		pool_error("connect_inet_domain_socket_by_port: setsockopt() failed: %s", strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	memset((char *) &addr, 0, sizeof(addr));
+	((struct sockaddr *)&addr)->sa_family = AF_INET;
+
+	addr.sin_port = htons(port);
+	len = sizeof(struct sockaddr_in);
+
+	hp = gethostbyname(host);
+	if ((hp == NULL) || (hp->h_addrtype != AF_INET))
+	{
+		pool_error("connect_inet_domain_socket: gethostbyname() failed: %s host: %s", strerror(errno), host);
+		close(fd);
+		return -1;
+	}
+	memmove((char *) &(addr.sin_addr),
+			(char *) hp->h_addr,
+			hp->h_length);
+
+	for (;;)
+	{
+		if (connect(fd, (struct sockaddr *)&addr, len) < 0)
+		{
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+
+			pool_error("connect_inet_domain_socket: connect() failed: %s",strerror(errno));
+			close(fd);
+			return -1;
+		}
+		break;
+	}
+
+	return fd;
+}
+---------------------------------------------------------------------
+</pre>
+
+<p>
+クライアントからサーバに接続する際もまずsocket()システムコールを使ってソケットを作ります。
+socket()については前回説明しました。
+</p>
+<p>
+作成したソケットにはsetsockopt()でオプションを与えることができます。ここでは、TCP_NODELAYというオプションを指定しています。これを指定しないと、カーネルは小さなTCPのパケットをできるだけまとめて送信しようとするため、PostgreSQLの通信プロトコルに支障を来たすことがあります。
+</p>
+<p>
+次にconnect()を使って目的のサーバに接続します。connect()の第1引数は
+socket()の返すファイルディスクリプタです。第2引数は接続するサーバを指
+定するための構造体sockaddrです。前回のべたように、TCP/IP接続の場合は実
+際にはsockaddr_inという構造体に値をセットし、connect()への引数としては
+sockaddr *にキャストするということを行います。sockaddr_inには前回説明
+した通り、アドレスファミリとアドレスを指定します。アドレスは
+前回はINADDR_ANYを指定していましたが、クライアントがサーバに接続する際
+には相手のサーバをポート番号とホスト名(またはIPアドレス)ではっきり指定
+しなければなりません。
+</p>
+
+<p>
+ポート番号はpostmasterの待ち受けポート番号をhtons()を使ってネットワークバイトオーダーに変換して設定します。
+</p>
+
+<p>
+文字列のホスト名はそのままconnect()に渡すことはできないので、
+gethostbyname()を使ってIPアドレスに変換します。
+</p>
+
+<p>
+こうして作成した引数をconnect()に渡します。成功すればファイルディスクリプタが返却されます。このファイルにディスクリプタにread()やwrite()を使ってデータの読み書きを行えばそのままサーバとデータの送受信ができます。
+</p>
+
+<h2>read()/write()のネットワーク通信における注意事項</h2>
+<p>
+こうしてread()やwrite()を使ってサーバと通信ができるようになったとは言え、普通のファイルの読み書きとはまた違った考慮がネットワーク通信では必要です。
+</p>
+
+<ol>
+<li>必ずエラーチェックをする
+<p>
+ネットワーク上の通信では、回線が物理的に切断したり、あるいはサーバがダ
+ウンするなど、いつ何時通信路が閉鎖されるかわかりません。きちんとエラー
+チェックを行うことが必要です。なお、切断したソケットに書き込みを行うと、
+SIGPIPEというシグナルが発生し、プロセスが強制終了させられますが、後始
+末をなどを考えるとあまり都合の良い動作ではありません。SIGPIPEを無視す
+る設定をし、read()やwrite()でエラーを検知した際にきめ細かなエラー処理
+をするようにした方が良いでしょう。
+</p>
+
+<li>read()で指定バイト数読み出せなくてもエラーではない
+<p>
+ソケットをread()すると、指定したバイト数が読み出せないことがありますが、
+これはエラーではありません。このような場合は、取得できなかったバイト数
+を再度読み出さなければなりません。
+</p>
+
+<li>read()やwrite()はできるだけ節約
+<p>
+通常のファイルへの書き込みと違って、ソケットへのread()やwrite()は非常
+に遅くなります。これはどちらかというと、データ量よりもシステムコールの
+発行回数が問題になります。また、read()に関してはカーネルのバッファリン
+グがあるので、せいぜいシステムコールを呼び出すオーバヘッドが問題になる
+くらいですが、write()のオーバヘッドは深刻です。バッファリング機能を持
+つ標準入出力ライブラリを使う手もありますが、read()の際に前もってデータ
+が届いているかどうかをチェックできないのがこまり者です。そこでpgpool-IIでは自前のread()やwrite()のラッパー関数を書いています。
+</p>
+</ol>
+
+
+<h2>pgpoolにおけるラッパー関数の実装</h2>
+<p>
+<img src="stream.png" align="right">
+ソケットインターフェイスのaccept(サーバの場合)やconnect(クライアントの
+場合)が返すファイルディスクリプタは全二重通信、すなわち1本のストリーム
+で読み出しも書き込みもできます。前述の理由で読み出しに関しては独自のバッ
+ファリングを実装しますが、書き込みに関しては標準入出力関数を使わない理
+由は特にないので、ソケットのファイルディスクリプタからfdopen()を使って
+標準入出力関数が利用できる形式のファイルディスクリプタを作成します。図にpgpool-IIにおける入出力関数の構造を示します。
+<br clear="all">
+</p>
+
+<p>
+pgpool-IIのラッパー関数はすべてpool_stream.cにまとめてあります。提供しているインターフェイスは以下のものです。
+</p>
+
+<h3>POOL_CONNECTION *pool_open(int fd)</h3>
+<p>
+ソケットインターフェイスの返したファイルディスクリプタから書き込み用の標準入出力インターフェイスのファイルディスクリプタを生成し、POOL_CONNECTION構造体にセットして返却します。
+</p>
+<p>
+POOL_CONNECTION構造体はpool.hに以下のように定義されており、pgpoolのストリーム入出力関数はすべてこの構造体をインターフェイスとして使用します。
+
+<pre>
+typedef struct {
+	int fd;		/* fd for connection */
+	FILE *write_fd;	/* stream write connection */
+
+	char *hp;	/* pending data buffer head address */
+	int po;		/* pending data offset */
+	int bufsz;	/* pending data buffer size */
+	int len;	/* pending data length */
+
+	char *sbuf;	/* buffer for pool_read_string */
+	int sbufsz;	/* its size in bytes */
+
+	char *buf2;	/* buffer for pool_read2 */
+	int bufsz2;	/* its size in bytes */
+
+	int isbackend;		/* this connection is for backend if non 0 */
+	int issecondary_backend;		/* this connection is for secondary backend if non 0 */
+
+	char tstate;		/* transaction state (V3 only) */
+
+	/*
+	 * following are used to remember when re-use the authenticated connection
+	 */
+	int auth_kind;		/* 3: clear text password, 4: crypt password, 5: md5 password */
+	int pwd_size;		/* password (sent back from frontend) size in host order */
+	char password[MAX_PASSWORD_SIZE];		/* password (sent back from frontend) */
+	char salt[4];		/* password salt */
+
+	/*
+	 * following are used to remember current session paramter status.
+	 * re-used connection will need them (V3 only)
+	 */
+	ParamStatus params;
+
+	int no_forward;		/* if non 0, do not write to frontend */
+
+} POOL_CONNECTION;
+</pre>
+</p>
+
+<h3>void pool_close(POOL_CONNECTION *cp)</h3>
+<p>
+pool_open()で開いたストリームを閉じます。
+</p>
+
+<h3>int pool_read(POOL_CONNECTION *cp, void *buf, int len)</h3>
+<p>
+指定したバイト数分ストリームから読み込み、bufに返します。
+POOL_CONNECTION構造体の、hp, po, bufsz, lenを使って内部的にバッファリ
+ングをしており、なるべく読み込み回数を減らすようにしています。このとき
+読み込みすぎたデータは「ペンディングデータ」として内部的に扱い、次回の
+pool_read()の呼び出しで利用されます。
+</p>
+
+<h3>char *pool_read2(POOL_CONNECTION *cp, int len)</h3>
+<p>
+指定したバイト数分ストリームから読み込み、内部的な読み込みバッファのア
+ドレスを返します。pool_read()との違いは、lenで指定したバイト数分だけし
+か読み込みを行わないことです。したがって、バイト数が少なく、しかも固定
+長の読み込みにはpool_read()、そうでない場合にはpool_read2()を使うよう
+にします。
+</p>
+
+<h3>int pool_write(POOL_CONNECTION *cp, void *buf, int len)</h3>
+<p>
+fwrite()を使ってストリームに書き込みます。
+</p>
+
+<h3>int pool_flush(POOL_CONNECTION *cp)</h3>
+<p>
+pool_write()は標準入出力ライブラリのバッファに書き込むだけです、
+pool_flush()はfflush() を呼び出し、実際にネットワークにデータが送出されることを保証します。
+</p>
+
+<h3>int pool_write_and_flush(POOL_CONNECTION *cp, void *buf, int len)</h3>
+<p>
+pool_write()とpool_flush()のコンビネーションです。
+</p>
+
+<h3>char *pool_read_string(POOL_CONNECTION *cp, int *len, int line)</h3>
+<p>
+改行またはNULLが来るまでストリームから文字列を読み込みます。V3プロトコルでは使用されません。
+</p>
+
+<h2>PostgreSQLのフロントエンド／バックエンドプロトコルによる通信処理とは</h3>
+<p>
+<img src="protocol.png" align="right">
+では実際にPostgreSQLがどのようにしてフロントエンドとバックエンドの間で通信を行っているかを簡単に見てみましょう。接続の開始から終了までの大まかな流れは図のようになります。
+</p>
+<p>
+もっと詳しいことを知りたい方は、PostgreSQL付属マニュアルの
+"Frontend/Backend Protocol"、あるいは日本PostgreSQLユーザ会が配布する日本語版の「フロントエンド/バックエンドプロトコル」をご覧下さい。
+</p>
+
+<p>
+このあたりの詳細な処理は、pgpoolではpool_process_query.cに書いてあるので、興味がある方はソースコードをご覧下さい。
+<br clear="all">
+</p>
+
+<h3>スタートアップ</h3>
+<p>
+<img src="startup.png" align="right">
+まず最初にフロントエンドは図のような構造を持つ「スタートアップメッセージ」を送ります。
+</p>
+<p>
+最初の4バイトは、自身を含むメッセージ全体のバイト数です。次の4バ
+イトはこの通信プロトコルのバージョンで、頭16ビットが「メジャーバージョ
+ン」で、V3なら3です。後の16ビットは「マイナーバージョン」で、今のとこ
+ろ0です。この後項目名文字列とその値文字列のペアが続きます。図ではuser
+の次にdatabaseが来ていますが、この順番は保証されていません。databaseや
+optionsは省略可能です。databaseが省略された場合はユーザ名と同じ名前の
+データベースを使うものと見なされます。
+</p>
+<p>
+pgpoolではスタートアップメッセージの処理はchild.cに定義されたread_startup_packet()という関数に記述されています。</p>
+<p>
+バックエンド側では、データベース名やpg_hba.confを参照してフロントエンドからの接続要求を受け入れるかどうかを決定します。もし問題なければ次のステップに移ります。
+</p>
+
+<h2>認証処理</h2>
+<p>
+<img src="AuthOk.png" align="right">
+もしTRUST認証、すなわちパスワード設定がされていない場合は、図の「AuthenticationOk」メッセージがフロントエンドに送信されてきます。
+</p>
+<p>
+頭1バイトは'R'という文字で、認証要求を表します。次の4バイトは自身を含
+むメッセージのバイト数です。このように、頭1バイトがメッセージの種類で、
+次の4バイトがメッセージの長さになっているのはほかのメッセージも共通で
+す(ただし、スタートアップメッセージを除く)。そして最後が4バイトの0です。
+</p>
+
+<h3>パスワードのやり取りがある場合</h3>
+<p>
+<img src="md5.png" align="right">
+パスワードが必要なければ次のステップに進むことができますが、md5認証な
+どではパスワードをやり取りしなければなりません。この場合図の「AuthenticationMD5Password」メッセージがフロントエンドに送られてきます。
+<br clear="all">
+</p>
+
+<p>
+<img src="password.png" align="right">
+AuthenticationMD5Password」メッセージが送られてきたら、返答として図の「PasswordMessage」をバックエンドに返却します。
+</p>
+<p>
+MD5認証ではパスワードを生のままで送るのではなく、「AuthenticationMD5Password」メッセージに含まれるソルトを使ってMD5メッセージ化したものを送るようにします。こうすれば、ネットワーク上の盗聴にも対処できます。
+</p>
+
+<h3>パラメータステータス</h3>
+<p>
+<img src="param.png" align="right">
+もしパスワードがOKならば、AuthenticationOkメッセージがバックエンドから送られてきます。
+次は「パラメータステータス」(ParameterStatus: 図)をバックエンドは送信してきます。
+<br clear="all">
+</p>
+<p>
+パラメータステータスとは、そのセッションの設定値を示す値です。
+SETコマンドで設定するとこのメッセージが送られてきますが、セッションの開始にもセッションのデフォルト値がまとめて送られてきます。
+今のところ、以下のようなパラメータステータスが送信されてきます。
+</p>
+
+<table border>
+<tr><th>名前</th><th>典型的な値</th><th>説明</th></tr>
+<tr>
+ <td>client_encoding</td><td>EUC_JP</td><td>クライアントのエンコーディング</td>
+</tr>
+<tr>
+ <td>DateStyle</td><td>ISO, MDY</td><td>日付データ形式</td>
+</tr>
+<tr>
+ <td>is_superuser</td><td>off</td><td>スーパユーザかどうか</td>
+</tr>
+<tr>
+ <td>server_version</td><td>8.4.0</td><td>PostgreSQLバックエンドのバージョン</td>
+</tr>
+<tr>
+ <td>session_authorization</td><td>t-ishii</td><td>セッションユーザ名</td>
+</tr>
+</table>
+
+</p>
+
+<h2>秘密鍵</h2>
+<p>
+<img src="key.png" align="right">
+次はBackendKeyDataメッセージです(図)。
+</p>
+<p>
+バックエンドから送られてくるこのメッセージには、バックエンドのプロセスIDと「秘密鍵」が含まれます。
+フロントエンドは、後で実行中の問い合わせを中断したくなったらこのプロセスIDと秘密鍵を送信しなければなりません。
+このようにして、勝手に問い合わせがキャンセルされることを防いでいます。
+<br clear="all">
+</p>
+
+<h3>ReadyForQueryメッセージ</h3>
+<p>
+<img src="ready.png" align="right">
+すべてがOKならば、最後の締めくくりにバックエンドからReadyForQueryメッセージが送られてきます(図)。
+このメッセージを受け取るまでは、フロントエンドは問い合わせを送信してはいけません。
+ReadyForQueryはスタートアップ時だけでなく、一つの問い合わせ処理が終わる度にバックエンドから送信されてきます。
+</p>
+<p>
+ReadyForQueryメッセージの重要な役割は、現在のトランザクションの状態を報告することです。
+状態は1バイトの文字で報告されます。
+</p>
+
+<table border>
+<tr><th>状態文字</th><th>説明</th></tr>
+<tr>
+ <td>I</td><td>アイドル状態</td>
+</tr>
+<tr>
+ <td>T</td><td>トランザクションブロック内</td>
+</tr>
+<tr>
+ <td>E</td><td>エラー中のトランザクション</td>
+</tr>
+</table>
+
+<h3>問い合わせの種類</h3>
+<p>
+PostgreSQLが受け付ける問い合わせにいろいろな種類があります。
+</p>
+<p>
+<table border>
+<tr><th>形式</th><th>説明</th></tr>
+<tr>
+ <td>簡易問い合わせ</td><td>問い合わせに対して直ちに結果が返る</td>
+</tr>
+<tr>
+ <td>拡張問い合わせ</td><td>Parse/Bind/Executeによって問い合わせを実行</td>
+</tr>
+<tr>
+ <td>COPY</td><td>COPYコマンドで使用</td>
+</tr>
+<tr>
+ <td>関数呼び出し</td><td>指定関数の実行</td>
+</tr>
+</table>
+</p>
+
+<p>
+ここでは「簡易問い合わせ」と呼ばれる問い合わせに対して直ちに結果が返るタイプのものを説明します。
+例題として使う問い合わせは"SELECT 1"という極めて単純なものです。
+</p>
+
+<h3>SELECT文の発行</h3>
+<p>
+<img src="query.png" align="right">
+問い合わせは、Queryメッセージをフロントエンドが発行するところから始まります(図)。
+<br clear="all">
+</p>
+
+<h3>RowDescription</h3>
+<p>
+<img src="rowdesc.png" align="right">
+首尾よく問い合わせが実行されると、まず結果のデータの構造を表すRowDescriptionメッセージ(図)がバックエンドから送られてきます。
+このメッセージは少々複雑で、検索結果のデータに関する詳細な情報を含んでいます。
+</p>
+<p>
+メッセージタイプT、メッセージのバイト長の後にまず結果の列数があります。
+後のフィールドはその数分だけの情報があります。
+<ol>
+<li>列名。列の名前です。この例ではテーブルからのデータの取得ではないため、"?column"となっています。
+<li>テーブルOID。テーブルからのデータ取得の場合にはそのテーブルのOID、そうでなければ0です。
+<li>このデータの型に対応するOID。この例では整数(int4)で、PostgreSQL 7.4では23となります。
+<li>このデータのバイト数によるサイズ。この例では4です。可変長のデータでは-1となります。
+<li>型修飾子。データ型によって異なりますが通常0です。
+<li>書式コード。テキスト形式で結果が帰る場合は0、バイナリで返る場合は1で、この例では0です。
+</ol>
+</p>
+
+<h3>DataRowメッセージ</h3>
+<p>
+<img src="datarow.png" align="right">
+RowDescriptionの次は結果の行数分だけDataRowメッセージ(図)が返ります。
+</p>
+<p>
+なお、データがNULLの場合は、データ長は-1、その後に続くはずの「データ」はありません。
+<br clear="all">
+</p>
+
+<h3>CommandCompleteメッセージ</h3>
+<p>
+<img src="complete.png" align="right">
+問い合わせ結果が無事に返ると、次にCommandCompleteメッセージ(図)がバックエンドから送られてきます。
+</p>
+<p>
+「コマンドタグ」はどのSQLコマンドが完了したかを表す文字列です。
+たとえばSELECTなら"SELECT"、VACUUMなら"VACUUM"となります。
+INSERTコマンドなどでは挿入された行数、行にアサインされたOIDなどの付加情報が付与されます。
+<br clear="all">
+</p>
+
+<h3>ErrorResponseメッセージ</h3>
+<p>
+<img src="error.png" align="right">
+今回は間違いが起きようもないSELECT文ですが、万が一エラーが起きたらどうなるのでしょう?
+そういう場合はErrorResponseメッセージ(図)が返ります。
+<br clear="all">
+</p>
+
+<p>
+フィールド識別コードには以下のものがあります。
+</p>
+
+<table border>
+<tr><th>フィールド識別コード</th><th>意味</th><th>フィールド値の例</th></tr>
+<tr>
+ <td>S</td><td>エラーの深刻度</td><td>ERROR</td>
+</tr>
+<tr>
+ <td>C</td><td>エラーコード</td><td>22021</td>
+</tr>
+<tr>
+ <td>M</td><td>エラーメッセージ</td><td>could not create unique index</td>
+</tr>
+<tr>
+ <td>D</td><td>詳細メッセージ</td><td>Table contains duplicated values.</td>
+</tr>
+<tr>
+ <td>H</td><td>ヒント</td><td>Please REINDEX it.</td>
+</tr>
+<tr>
+ <td>P</td><td>エラーの位置</td><td>92</td>
+</tr>
+<tr>
+ <td>F</td><td>ソースファイル名</td><td>scan.c</td>
+</tr>
+<tr>
+ <td>L</td><td>行番号</td><td>110</td>
+</tr>
+<tr>
+ <td>R</td><td>関数名</td><td>foo</td>
+</tr>
+</table>
+
+<h3>再びReadyForQueryメッセージ</h3>
+<p>
+こうして一つの問い合わせが処理されると再びReadyForQueryメッセージをバッ
+クエンドは送信し、問い合わせを受け付けることができるようになります。
+</p>
+<h3>接続の終了</h3>
+<p>
+<img src="terminate.png" align="right">
+接続を終了したい場合は、Terminateメッセージ(図)をフロントエンドからバックエンドに送信します。
+</p>
+
+<h2>最後に</h2>
+<p>
+2回にわたってネットワークプログラミングについて解説しました。
+ネットワークプログラミングは慣れないとなかなか分かりにくい面もありますが、プログラミングのテクニックを磨く上では最高の題材だと思います。
+また、今の世の中ネットワークは避けて通れない存在です。
+最初から難しく考える必要はありません。
+実はpgpoolも最初は300行ほどの小さなプログラムから出発し、今ではそれなりの機能を持つサーバソフトへと成長しました。
+皆さんもこれを機会に簡単なネットワークプログラムを作ってみてはどうでしょう。
+
+</body>
+</html>
+

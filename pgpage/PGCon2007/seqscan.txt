@@ -1,0 +1,108 @@
+Jeff Davisの元々のidea
+
+Subject: [HACKERS] idea for concurrent seqscans
+From: Jeff Davis <jdavis-pgsql@empires.org>
+To: pgsql-hackers@postgresql.org
+Date: Fri, 25 Feb 2005 00:34:17 -0800
+X-Mailer: Evolution 2.0.3 
+
+I had an idea that might improve parallel seqscans on the same relation.
+
+If you have lots of concurrent seqscans going on a large relation, the
+cache hit ratio is very low. But, if the seqscans are concurrent on the
+same relation, there may be something to gain by starting a seqscan near
+the page being accessed by an already-in-progress seqscan, and wrapping
+back around to that start location. That would make some use of the
+shared buffers, which would otherwise just be cache pollution.
+
+I made a proof-of-concept implementation, which is entirely in heapam.c,
+except for one addition to the HeapScanDesc struct in relscan.h. It is
+not at all up to production quality; there are things I know that need
+to be addressed. Basically, I just modified heapam.c to be able to start
+at any page in the relation. Then, every time it reads a new page, I
+have it mark the relation's oid and the page number in a shared mem
+segment. Everytime a new scan is started, it reads the shared mem
+segment, and if the relation's oid matches, it starts the scan at the
+page number it found in the shared memory. Otherwise, it starts the scan
+at 0.
+
+There are a couple obvious issues, one is that my whole implementation
+doesn't account for reverse scans at all (since initscan doesn't know
+what direction the scan will move in), but that shouldn't be a major
+problem since at worst it will be the current behavior (aside: can
+someone tell me how to force reverse scans so I can test that better?).
+Another is that there's a race condition with the shared mem, and that's
+out of pure laziness on my part.
+
+This method is really only effective at all if there is a significant
+amount of disk i/o. If it's pulling the data from O/S buffers the
+various scans will diverge too much and not be using eachother's shared
+buffers.
+
+I tested with shared_buffers=500 and all stats on. I used 60 threads
+performing 30 seqscans each in my script ssf.rb (I refer to my
+modification as "sequential scan follower" or ssf). 
+
+Here are some results with my modifications:
+$ time ./ssf.rb # my script
+
+real    4m22.476s
+user    0m0.389s
+sys     0m0.186s
+
+test=# select relpages from pg_class where relname='test_ssf';
+ relpages
+----------
+     1667
+(1 row)
+
+test=# select count(*) from test_ssf;
+ count
+--------
+ 200000
+(1 row)
+
+test=# select pg_stat_get_blocks_hit(17232) as hit,
+pg_stat_get_blocks_fetched(17232) as total;
+  hit   |  total
+--------+---------
+ 971503 | 3353963
+(1 row)
+
+Or, approx. 29% cache hit.
+
+Here are the results without my modifications:
+
+test=# select relpages from pg_class where relname='test_ssf';
+ relpages
+----------
+     1667
+(1 row)
+
+test=# select count(*) from test_ssf;
+ count
+--------
+ 200000
+(1 row)
+
+test=# select pg_stat_get_blocks_hit(17231) as hit,
+pg_stat_get_blocks_fetched(17231) as total;
+  hit   |  total
+--------+---------
+ 199999 | 3353963
+(1 row)
+
+Or, approx. 6% cache hit. Note: the oid is different, because I have two
+seperately initdb'd data directories, one for the modified version, one
+for the unmodified 8.0.0.
+
+This is the first time I've really modified the PG source code to do
+anything that looked promising, so this is more of a question than
+anything else. Is it promising? Is this a potentially good approach? I'm
+happy to post more test data and more documentation, and I'd also be
+happy to bring the code to production quality. However, before I spend
+too much more time on that, I'd like to get a general response from a
+3rd party to let me know if I'm off base.
+
+Regards,
+	Jeff Davis

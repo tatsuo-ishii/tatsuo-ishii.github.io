@@ -1,0 +1,336 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17810] 継承(INHERITS)の有効利用？（長文注意：次へ続く） -->
+<!--X-From: "Jun Kitamura" <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Wed, 20 Sep 2000 16:26:20 +0900 -->
+<!--X-Message-Id: 000701c022d4$28d2f920$025011ac@nms -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17810] 継承(INHERITS)の有効利用？（長文注意：次へ続く） </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00478.html">Date Prev</A>][<A HREF="msg00480.html">Date Next</A>][<A HREF="msg00493.html">Thread Prev</A>][<A HREF="msg00480.html">Thread Next</A>][<A HREF="index.html#00479">Date Index</A>][<A HREF="threads.html#00479">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17810] 継承(INHERITS)の有効利用？（長文注意：次へ続く）</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Jun Kitamura" &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 20 Sep 2000 16:26:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。北村です。
+
+PostgreSQL の継承機能ですが、雛型として使うくらいしか使い道が無いような気が
+していましたが、今回、階層を表現するのに使ってみました。
+例として会社組織をモデルとしてみました。
+会社
+　|-総務部
+　|　|-総務課
+　|　^-人事課
+　|-営業部
+　(以下略)
+のような組織階層は、1つのテーブル内でコードと親コードを持つことにより表現が
+可能です。7.0以降であれば、参照整合性制約(外部キー)が使えて尚便利です。
+参照:[pgsql-jp 16119] Re: PostgreSQL のリレーションについて ( 長文注意 )
+
+部署マスタ(グループマスタ)
+create table groupm( groupcd int2, pgroupcd int2 name text);
+これに、社員情報を格納したテーブル(社員マスタ)を絡めます。
+create table shainm( shaincd int2, name text);
+どの部署に誰がいるのかを格納します(部員ファイル)。
+create table buinf( groupcd int2, shaincd int2);
+となります。
+これらを使って、1 SELECT で上記の表に社員まで載せる・・・というのが目的です。
+select 名前 from 元テーブル* order by 並び順;
+だけで、表を作成するとういことです。
+完成理想図
+会社
+　|-総務部
+　|　|　|-(氏名)
+　|　|　^-(氏名)
+　|　|-総務課
+　|　|　　^-(氏名)
+　|　^-人事課
+　|　 　　|-(氏名)
+　|　 　　^-(氏名)
+　|-営業部
+　(以下略)
+という感じです。
+
+部署マスタ(グループマスタ)の「名前、並び順、レベル(階層の深さ)」と、部員フ
+ァイルから連結される社員情報の「名前、並び順、レベル」を元テーブルとします。
+部員ファイルには社員コードが入りますが社員名は入りません。が、ここであえて
+入れてしまいます。
+元テーブル:names
+create table names ( name text, objid int2, treenum text, level int2,
+ dspnum int2, dspflg bool DEFAULT TRUE);
+部署マスタ(グループマスタ)内で同一の親を持つグループは並び順に連番をとりま
+す。また、部員ファイルで同一のグループ内の社員は同様に並び順を連番にとりま
+す(dspnum)。
+また、名前がグループのものなのか部員(社員)のものなのか判断するための項目も
+用意します(objid)。
+最終的に階層表示(全体)の並び順を格納するのが treenum です。
+dspnum (並び順)は重要で、この順番が後々に全体の順番に影響します。また、ユー
+ザーが任意に変更できなければなりません。かといって、INSERT や DELETE や
+UPDATE の度に現在の順番を取得して・・・とやっていては手間なので、トリガで自
+動化しました。ややこしくしている原因でもあります。
+このテーブルを継承する、「部署マスタ(グループマスタ)」「部員ファイル」を用
+意して・・・
+とりあえず、下記が実行のためのSQLです。次のメールへ続きます。
+(かなり長くなるので)
+PostgreSQL 7.0.2 です。
+
+
+
+-- PL/pgSQL
+create function plpgsql_call_handler() returns opaque
+  as '/usr/local/pgsql/lib/plpgsql.so'
+  language 'C';
+create trusted procedural language 'plpgsql'
+  handler plpgsql_call_handler
+  lancompiler 'PL/pgSQL';
+
+
+--名前など(継承元)
+CREATE TABLE names (
+ name text,
+ objid int2,
+ treenum text,
+ level int2,
+ dspnum int2,
+ dspflg bool DEFAULT TRUE
+);
+
+--社員マスタ(これは names を継承しません)
+CREATE TABLE shainm (
+ shaincd int2,
+  PRIMARY KEY(ShainCD),
+ name text,
+ address text,
+ shainkubuncd int2,
+ sex int2
+);
+
+
+--部署マスタ(names 継承)
+CREATE TABLE groupm (
+ groupcd int2,
+  PRIMARY KEY(groupcd),
+ pgroupcd int2,
+ buildingcd int2,
+ floorcd int2
+) INHERITS (names);
+
+--部署マスタ 親子関係参照整合性
+--親部署削除による子部署/孫部署・・の削除(DELETE CASCADE)
+--親部署変更による「子部署の孫部署コード変更」(UPDATE CASCADE)
+ALTER TABLE groupm
+ ADD CONSTRAINT groupm_pc
+  FOREIGN KEY(pgroupcd)
+   REFERENCES groupm
+   ON UPDATE CASCADE
+   ON DELETE CASCADE;
+
+--部署マスタの「name」を識別するため、objid のデフォルトを 1 に。
+--デフォルト objid = 1
+ALTER TABLE groupm
+ ALTER COLUMN objid
+  SET DEFAULT 1;
+
+--親子チェック関数(部署マスタ用)
+-- UPDATE groupm SET pgroupcd = n WHERE groupcd = m; を実行した時に
+-- 親が子以下のグループを親としない為のチェック関数
+CREATE FUNCTION groupm_chkpc(int2,int2) RETURNS bool AS '
+ DECLARE
+  newpgcd int2;
+  pgcd int2;
+  tmpbool bool := TRUE;
+ BEGIN
+  newpgcd := $2;
+  pgcd := (SELECT pgroupcd FROM groupm WHERE groupcd = newpgcd);
+  WHILE (pgcd IS NOT NULL) LOOP
+    IF (pgcd = $1) THEN
+     tmpbool := FALSE;
+     EXIT;
+    END IF;
+    newpgcd := pgcd;
+    pgcd := (SELECT pgroupcd FROM groupm WHERE groupcd = newpgcd);
+  END LOOP;
+  RETURN tmpbool;
+END;
+' LANGUAGE 'plpgsql';
+
+--自動順序付け(部署マスタ INSERT,UPDATE トリガ用)
+CREATE FUNCTION fnc_groupm_iu() RETURNS opaque AS '
+ BEGIN
+  -- INSERT時の処理
+  IF TG_OP = ''INSERT'' THEN
+   IF ( new.pgroupcd IS NOT NULL ) THEN
+    -- 親グループ番号が NULLでない → 誰かの子
+    new.dspnum := (SELECT COUNT(*) + 1 FROM groupm
+        WHERE pgroupcd = new.pgroupcd);
+   ELSE
+    -- 親グループ番号が NULL → 0
+    new.dspnum := 0;
+   END IF;
+  END IF;
+  -- UPDATE時の処理
+  IF TG_OP = ''UPDATE'' THEN
+   IF ( new.pgroupcd IS NOT NULL ) THEN
+    IF ( groupm_chkpc(new.groupcd,new.pgroupcd) ) THEN
+     IF ( new.pgroupcd &lt;&gt; old.pgroupcd ) THEN
+      -- 親グループ番号が変わった → 順番ずらす
+      new.dspnum := (SELECT COUNT(*) + 1 FROM groupm
+          WHERE pgroupcd = new.pgroupcd);
+      -- 古い親元の子の順番(自分以後)をずらす
+      UPDATE groupm SET dspnum = dspnum - 1
+          WHERE pgroupcd = old.pgroupcd
+          and dspnum &gt; old.dspnum;
+     END IF;
+    ELSE
+     RAISE EXCEPTION ''自分に連なる階層の子にはなれません'';
+    END IF;
+   ELSE
+    IF ( old.pgroupcd IS NOT NULL ) THEN
+     -- トップグループに変わった
+     new.dspnum = (SELECT COUNT(*) + 1 FROM groupm
+         WHERE pgroupcd IS NULL);
+     -- 古い親元の子の順番(自分以後)をずらす
+     UPDATE groupm SET dspnum = dspnum - 1
+         WHERE pgroupcd = old.pgroupcd
+         and dspnum &gt; old.dspnum;
+    END IF;
+   END IF;
+  END IF;
+  RETURN new;
+ END;
+' LANGUAGE 'plpgsql';
+
+--トリガ(INSERT,UPDATE)
+CREATE TRIGGER trg_groupm_iu
+ BEFORE INSERT OR UPDATE ON groupm
+ FOR EACH ROW EXECUTE PROCEDURE fnc_groupm_iu();
+
+--自動順序付け(DELETE トリガ用)
+CREATE FUNCTION fnc_groupm_d() RETURNS opaque AS '
+ BEGIN
+   UPDATE groupm SET dspnum = dspnum - 1
+       WHERE pgroupcd = old.pgroupcd
+       and dspnum &gt; old.dspnum;
+  RETURN new;
+ END;
+' LANGUAGE 'plpgsql';
+
+--トリガ(DELETE)
+CREATE TRIGGER trg_groupm_d
+ AFTER DELETE ON groupm
+ FOR EACH ROW EXECUTE PROCEDURE fnc_groupm_d();
+
+
+--部員ファイル(names 継承)
+CREATE TABLE buinf (
+ groupcd int2,
+  CONSTRAINT buinf_group
+   FOREIGN KEY(groupcd)
+    REFERENCES groupm
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+ buincd int2,
+  CONSTRAINT buinf_shain
+   FOREIGN KEY(buincd)
+    REFERENCES shainm
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  PRIMARY KEY(groupcd,buincd),
+ resp bool default false
+) INHERITS (names);
+--デフォルト objid = 2
+ALTER TABLE buinf
+ ALTER COLUMN objid
+  SET DEFAULT 2;
+
+--自動順序付け&amp;名前付け(INSERT トリガ用)
+CREATE FUNCTION fnc_buinf_i() RETURNS opaque AS '
+ BEGIN
+  new.dspnum := (SELECT COUNT(*) + 1 FROM buinf
+        WHERE groupcd = new.groupcd);
+  new.name := (SELECT name FROM shainm
+        WHERE shaincd = new.buincd);
+  RETURN new;
+END;
+' LANGUAGE 'plpgsql';
+
+--トリガ(INSERT)
+CREATE TRIGGER trg_buinf_i
+ BEFORE INSERT ON buinf
+ FOR EACH ROW EXECUTE PROCEDURE fnc_buinf_i();
+
+--自動順序付け(DELETE トリガ用)
+CREATE FUNCTION fnc_buinf_d() returns opaque AS '
+ BEGIN
+   UPDATE buinf SET dspnum = dspnum - 1
+       WHERE groupcd = old.groupcd
+       and dspnum &gt; old.dspnum;
+  RETURN new;
+ END;
+' LANGUAGE 'plpgsql';
+
+--トリガ(DELETE)
+CREATE TRIGGER trg_buinf_d
+ AFTER DELETE ON buinf
+ FOR EACH ROW EXECUTE PROCEDURE fnc_buinf_d();
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00480" HREF="msg00480.html">[pgsql-jp 17811] Re: 継承(INHERITS)の有効利用？（長文注意：また次へ続く）</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00478.html">[pgsql-jp 17809] Re: libpq を使っての排他制御</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00480.html">[pgsql-jp 17811] Re: 継承(INHERITS)の有効利用？（長文注意：また次へ続く）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00493.html">[pgsql-jp 17824] Re: make 時のエラーメッセージについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00480.html">[pgsql-jp 17811] Re: 継承(INHERITS)の有効利用？（長文注意：また次へ続く）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00479"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00479"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

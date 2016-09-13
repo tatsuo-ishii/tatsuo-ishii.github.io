@@ -1,0 +1,127 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24607] Re: cidr or inet 型への変換 -->
+<!--X-From: Yuuitiro Matsumotoまつもと ゆういちろう<yuuitiro@vcnet.toyama.toyama.jp> -->
+<!--X-Date: Sun, 03 Feb 2002 00:35:50 +0900 (JST) -->
+<!--X-Message-Id: 20020203.003550.35842860.yuuitiro@vcnet.toyama.toyama.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020131.165115.39154741.yuuitiro@vcnet.toyama.toyama.jp -->
+<!--X-Reference-Id: 20020202143530U.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24607] Re: cidr or inet 型への変換 </TITLE>
+<LINK REV="made" HREF="mailto:yuuitiro@vcnet.toyama.toyama.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00011.html">Date Prev</A>][<A HREF="msg00015.html">Date Next</A>][<A HREF="msg00006.html">Thread Prev</A>][<A HREF="msg00002.html">Thread Next</A>][<A HREF="index.html#00012">Date Index</A>][<A HREF="threads.html#00012">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24607] Re: cidr or inet 型への変換</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yuuitiro Matsumotoまつもと ゆういちろう&lt;<A HREF="mailto:yuuitiro@vcnet.toyama.toyama.jp">yuuitiro@vcnet.toyama.toyama.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 03 Feb 2002 00:35:50 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;20020131.165115.39154741.yuuitiro@vcnet.toyama.toyama.jp&gt;&lt;<A HREF="msg00004.html">20020202143530U.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+まつもと＠システムコボです。
+
+In article &lt;<A HREF="msg00004.html">20020202143530U.t-ishii@sra.co.jp</A>&gt;
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; is wrote:
+&gt; textoutとcidr_inを使えば出来ますよ．たとえばこんな感じ．
+&gt; 
+&gt; test=# SELECT cidr_in(textout('192.168.1.1'::TEXT));
+&gt;     cidr_in     
+&gt; ----------------
+&gt;  192.168.1.1/32
+&gt; (1 row)
+
+ありがとうございます。
+
+cidr_in(), textout() を使って実現することができました。あまり綺麗には
+書けないのですが、[pgsql-jp 24592] の addrtohostname() を以下(*1)のよ
+うに書いてみました。
+
+# 気持ち的には select を一度ですませたいなと思ったのですが、力不足で二
+# 度行なってます。
+
+7.1.3 のマニュアル(*2) を見ていまが、cidr_in()、textout() は見当たりま
+せんでした（念の為全文検索でもしらべてみたのですが)。これらの関数のド
+キュメントはマニュアルに記載されていない関数なのでしょうか？。
+
+*1 -- 
+create function addrtohostname(text)
+  returns text as '
+    select case
+      when $1 ~ ''^(.[0-9]*)\.(.[0-9]*)\.(.[0-9]*)\.(.[0-9]*)$'' then
+        case (select count(name) from hostaddr where hostaddr.ipaddr &gt;&gt;=
+             cidr_in(textout($1::text)))
+          when 0 then
+            $1
+          else
+            (select name from hostaddr where hostaddr.ipaddr &gt;&gt;=
+               cidr_in(textout($1::text)))
+        end
+      else
+        $1
+    end
+  '
+  language 'sql';
+
+*2 -- <A HREF="http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/">http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/</A>
+
+-- 
+System COBO Co, Ltd. / Yuuitiro Matsumoto
+yuuitiro@vcnet.toyama.toyama.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[pgsql-jp 24599] Re: cidr or inet 型への変換</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24606] Re: postgreSQL のメンテナンス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00015.html">[pgsql-jp 24610] Re: 7.2rc2 JDBC のビルド方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 24601] Re: cidr or inet 型への変換</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 24597] PHP からの接続エラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00012"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00012"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

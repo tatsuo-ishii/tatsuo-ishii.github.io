@@ -1,0 +1,264 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2594] Re: variable array in C function -->
+<!--X-From: nakano@apm.seikei.ac.jp (NAKANO Takeo) -->
+<!--X-Date: Wed, 1 Oct 1997 14:25:19 +0900 -->
+<!--X-Message-Id: 199710010525.OAA10957@surf.ap.seikei.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710010331.MAA07798@surf.ap.seikei.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2594] Re: variable array in C function </TITLE>
+<LINK REV="made" HREF="mailto:nakano@apm.seikei.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00008.html">Date Prev</A>][<A HREF="msg00010.html">Date Next</A>][<A HREF="msg00006.html">Thread Prev</A>][Thread Next][<A HREF="index.html#00009">Date Index</A>][<A HREF="threads.html#00009">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2594] Re: variable array in C function</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:nakano@apm.seikei.ac.jp">nakano@apm.seikei.ac.jp</A> (NAKANO Takeo)</LI>
+<LI><em>Date</em>: Wed, 1 Oct 1997 14:25:19 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:nakano@apm.seikei.ac.jp">nakano@apm.seikei.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&lt;<A HREF="msg00006.html">199710010331.MAA07798@surf.ap.seikei.ac.jp</A>&gt;の記事において
+私は書きました。
+
+&gt; 　石井さん、ありがとうございました。　おっしゃる通りで、これを追加する
+&gt; と *= **= のオペレータは動作しました。　ただし、正規表現のマッチに関し
+&gt; ては井伊さんと同じように、
+&gt; 
+&gt; &gt; WARN:fmgr_info: function 81: cache lookup failed
+&gt; 
+&gt; のエラーが出て、実行されませんでした。
+&gt; 
+&gt; 　正規表現マッチのルーチンの日本語化と関係あるのでしょうか？　
+&gt; array_iterator.c の中で呼んでいる Oid 81 の textregexeq が見つからない
+&gt; 旨のエラーのように見えますが、、
+
+　自己フォローです。
+
+	select proname, oid from pg_proc where proname = 'textregexeq';
+
+で調べた結果、手元では textregexeq の Oid は 1254 でしたので、
+array_iterator.c の Oid を書き換えて再コンパイルした結果、正規表現の配
+列マッチも見事に(^_^)動作しました。　日本語も通りました。
+
+　一応パッチをまた最後に付けます（前のはリバースパッチでしたですね、
+すみませんでした）。
+
+# あとはデータベースを作るだけ...って、こっちの方がよほど大変かも(^_^;
+
+-- 
+中野＠成蹊大
+
+diff -u array.orig/array_iterator.c array/array_iterator.c
+--- array.orig/array_iterator.c	Tue Sep 30 19:15:51 1997
++++ array/array_iterator.c	Wed Oct  1 14:16:45 1997
+@@ -33,12 +33,15 @@
+ #include &lt;string.h&gt;
+ 
+ #include "postgres.h"
+-#include "pg_type.h"
++#include "catalog/pg_type.h"
+ #include "miscadmin.h"
+-#include "syscache.h"
++#include "utils/syscache.h"
+ #include "access/xact.h"
+ #include "utils/builtins.h"
+ #include "utils/elog.h"
++#include "utils/array.h"
++#include "utils/memutils.h"
++
+ 
+ static int32
+ array_iterator(Oid elemtype, Oid proc, int and, ArrayType *array, Datum value)
+@@ -155,7 +158,7 @@
+ array_textregexeq(ArrayType *array, char* value)
+ {
+     return array_iterator((Oid) 25,	/* text */
+-			  (Oid) 81,	/* textregexeq */
++			  (Oid) 1254,	/* textregexeq */
+ 			  0,		/* logical or */
+ 			  array, (Datum)value);
+ }
+@@ -164,7 +167,7 @@
+ array_all_textregexeq(ArrayType *array, char* value)
+ {
+     return array_iterator((Oid) 25,	/* text */
+-			  (Oid) 81,	/* textregexeq */
++			  (Oid) 1254,	/* textregexeq */
+ 			  1,		/* logical and */
+ 			  array, (Datum)value);
+ }
+diff -u array.orig/array_iterator.sql array/array_iterator.sql
+--- array.orig/array_iterator.sql	Tue Sep 30 19:15:51 1997
++++ array/array_iterator.sql	Tue Sep 30 18:01:26 1997
+@@ -1,30 +1,30 @@
+-/*
+- * SQL code
++--/*
++-- * SQL code
+ 
+-- - -- load the new functions
+-- - --
+-load '/home/dz/lib/postgres/array_iterator.so';
++-- -- load the new functions
++-- --
++load '/usr/local/pgsql/lib/array_iterator.so';
+ 
+-- - -- define the array operators *=, **=, *~ and **~ for type _text
+-- - --
++-- -- define the array operators *=, **=, *~ and **~ for type _text
++-- --
+ create function array_texteq(_text, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_texteq(_text, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_textregexeq(_text, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_textregexeq(_text, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -47,26 +47,26 @@
+   rightarg=text,
+   procedure=array_all_textregexeq);
+ 
+-- - -- define the array operators *=, **=, *~ and **~ for type _char16
+-- - --
++-- -- define the array operators *=, **=, *~ and **~ for type _char16
++-- --
+ create function array_char16eq(_char16, char16)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_char16eq(_char16, char16)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_char16regexeq(_char16, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_char16regexeq(_char16, text)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -89,26 +89,26 @@
+   rightarg=text,
+   procedure=array_all_char16regexeq);
+ 
+-- - -- define the array operators *=, **=, *&gt; and **&gt; for type _int4
+-- - --
++-- -- define the array operators *=, **=, *&gt; and **&gt; for type _int4
++-- --
+ create function array_int4eq(_int4, int4)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_int4eq(_int4, int4)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_int4gt(_int4, int4)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create function array_all_int4gt(_int4, int4)
+   returns bool
+-  as '/home/dz/lib/postgres/array_iterator.so' 
++  as '/usr/local/pgsql/lib/array_iterator.so' 
+   language 'c';
+ 
+ create operator *= (
+@@ -131,7 +131,7 @@
+   rightarg=int4,
+   procedure=array_all_int4gt);
+ 
+-*/
++--*/
+ 
+-/* end of file */
++--/* end of file */
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00006" HREF="msg00006.html">[pgsql-jp 2591] Re: variable array in C function</A></STRONG>
+<UL><LI><EM>From:</EM> nakano@apm.seikei.ac.jp (NAKANO Takeo)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 2593] Re: Perl programming</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 2595] Re: Perl programming</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 2591] Re: variable array in C function</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00009"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00009"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

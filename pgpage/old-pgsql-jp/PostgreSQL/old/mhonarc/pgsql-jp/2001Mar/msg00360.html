@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20494] libpq でのPQsetdbLogin()について(パート２) -->
+<!--X-From: Fumikatu_Saitoh@hq.digi.co.jp -->
+<!--X-Date: Mon, 26 Mar 2001 21:25:11 +0900 -->
+<!--X-Message-Id: 49256A1B.00444C12.00@notesmailgw -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20494] libpq でのPQsetdbLogin()について(パート２) </TITLE>
+<LINK REV="made" HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00359.html">Date Prev</A>][<A HREF="msg00361.html">Date Next</A>][<A HREF="msg00363.html">Thread Prev</A>][<A HREF="msg00349.html">Thread Next</A>][<A HREF="index.html#00360">Date Index</A>][<A HREF="threads.html#00360">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20494] libpq でのPQsetdbLogin()について(パート２)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:Fumikatu_Saitoh@hq.digi.co.jp">Fumikatu_Saitoh@hq.digi.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 21:25:11 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+齋藤＠寺岡精工です。
+ いつもお世話になっております。
+ 補足を追加します。
+
+ RHL 6.2J
+ PostgreSQL 7.0.2
+
+ の環境下で、libpqを用いてプログラム作成を行っているのですが、
+ PQsetdbLogin()の取り扱いについて分からないことがあります。
+ それは、
+  <A HREF="http://www.pjam.jpweb.net/pgsql-doc/ej/programmer/libpq-chapter.htm">http://www.pjam.jpweb.net/pgsql-doc/ej/programmer/libpq-chapter.htm</A>
+ に記載されている
+  「たとえPQstatusがバックエンドとの接続の失敗を示したとしても、アプリケーション
+は
+    PQfinishを呼び出しPGconnオブジェクトが占めるメモリを開放すべきです。」
+ とあるので、以下のようなアプリケーションを作成しました。この場合、サーバと接続
+ しているときはいいのですが、接続が失敗した場合にPQfinish()をコールしていますが
+、
+ このPQfinish()で答えが返ってこなくなる事があります。
+ 答えが返ってこなくなると、１日ほっといても返ってきません。（何分かすると返って
+くるのかとも思ったのですが・・・）
+ アプリケーションが間違っているのでしょうか？それとも、PQsetdbLogin()で接続が失
+敗した場合 ただ単にPQfinish()を呼び出してはいけないのでしょうか？
+ここで、PQfinish()の中を追ってみたのですが、fe-connect.cのPQfinish()から
+fe-misc.cの
+pqFlush()の中の
+   sent = send(conn-&gt;sock, ptr, len, 0);
+がCallされ、errnoが書き換わりますが、おかしくなる場合は、errno=11となります。
+通常、抜けてくる場合はerrno=113となります。errno=113だと、このpqFlush()から抜け
+るのですが、
+errno=11だと、fe-misc.cのpqWait()の
+  if(select(conn-&gt;sock+1, &amp;input_mask, &amp;output_mask, (fd_set *)NULL, (struct
+timeval *)NULL) &lt; 0)
+から抜けてくる場合と抜けてこない場合があることは分かりました。
+ソケット通信に長けていないので全く分からないのですが、なぜ、抜けてこなくなってし
+まうのか？また、
+回避する方法はないのだろうか？
+ どなたか是非とも教えてください。宜しくお願いいたします。
+
+ −−以下、ソース−−
+#include &lt;stdio.h&gt;
+#include &lt;time.h&gt;
+#include "postgres.h"
+#include "libpq-fe.h"
+
+PGconn *test_con;
+
+static void DisconnectDB(void);
+static int  ConnectDB(void);
+
+static void DisconnectDB(void)
+{
+   PQfinish(test_con);
+}
+
+static int ConnectDB(void)
+{
+   test_con = PQsetdbLogin("172.24.1.1", NULL, NULL, NULL, "test_db",
+"postgres", "postgres");
+   if(PQstatus(test_con) == CONNECTION_BAD) {
+      printf("PQsetdbLogin main failed %s", PQerrorMessage(test_con));
+      DisconnectDB();
+      return -1;
+   }
+   return 0;
+}
+
+int main(int argc, char *argv[])
+{
+   int i;
+
+   for(i = 0; i &lt; 100; i++) {
+      if(ConnectDB() == -1) {
+         sleep(1);
+         continue;
+      }
+      else {
+         printf("connection OK!\n");
+         DisconnectDB();
+         break;
+      }
+   }
+}
+
+−−上記ソースをコンパイル後、実行すると（172.24.1.1とは接続されていない状態
+）−−
+PQsetdbLogin main failed PQconnectPoll() -- connect() failed: No route to host
+        Is the postmaster running (with -i) at '172.24.1.1'
+        and accepting connections on TCP/IP port '5432'?
+というメッセージが何回か（３回の時もあれば、１回の時もある）表示され
+、PQfinish(test_con)がCallされた所で、ロック状態となる。
+
+以上、宜しくお願いいたします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 20493] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00361.html">[pgsql-jp 20495] 7.1 performance (was: How about to use a silicon disk on $PGDATA)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00363.html">[pgsql-jp 20497] Re: postmaster のコネクト数（バックエンド数）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 20483] postmaster のコネクト数（バックエンド数）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00360"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00360"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

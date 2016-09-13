@@ -1,0 +1,130 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27374] Re: &#45;&#45;enable&#45;localeと検索速度の関連 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 10 Sep 2002 23:38:04 +0900 (JST) -->
+<!--X-Message-Id: 20020910.233804.35503530.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020910090816.6C7951EF81B@ml.postgresql.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27374] Re: --enable-localeと検索速度の関連 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00146.html">Date Prev</A>][<A HREF="msg00148.html">Date Next</A>][<A HREF="msg00145.html">Thread Prev</A>][<A HREF="msg00148.html">Thread Next</A>][<A HREF="index.html#00147">Date Index</A>][<A HREF="threads.html#00147">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27374] Re: --enable-localeと検索速度の関連</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 10 Sep 2002 23:38:04 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00145.html">20020910090816.6C7951EF81B@ml.postgresql.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; 過去のＭＬで、--enable-localeを付けていると検索速度が遅くなる。
+&gt; と言うのを拝見したのですが、これはどういうことなのでしょうか？
+&gt; 現在、複数のテーブルをＪＯＩＮし、帳票の出力などを行っているのですが、
+&gt; 条件によっては数分かかってしまうこともあります。
+&gt; 単純に--enable-localeをとるだけで検索速度の向上が望めるのでしょうか？
+&gt; また、よろしければなぜそうなるのか？などをご教授いただけると幸いです。
+
+--enable-localeを取ると*劇的に*速くなるのは，関連する列が以下のケース
+に限られます．
+
+o 文字列型のデータ型である
+o Btreeインデックスが定義してある
+o 前方一致検索を行う
+
+このような場合，PostgreSQLは
+
+	foo LIKE 'a%'
+
+のような問い合わせを
+
+	foo &gt;= 'a' AND foo &lt; 'b'
+
+のように書き換えてインデックスが使えるようにします(この説明は正確では
+ありません．あくまでイメージです)．この結果，劇的に高速化するわけです．
+
+ところが，locale を使うようなケースでは，一般に「'a'よりも大きい文字」
+を探すのが困難であるため，このような書き換えを行うことができず，インデッ
+クスが使われないので遅くなってしまうわけです．
+
+もっとも，PostgreSQLでは，日本語を扱う限りにおいては，どのみち locale 
+は意味無いですから，オーバヘッドを減らすためにも常に locale を無効にし
+ておくのがよいでしょう．過去一部の Red Hat系のLInuxディストリビューショ
+ンでは，ロケール処理がバグっていて，--enable-locale が有効な 
+PostgreSQL を使うと，遅いどころか*誤った*検索結果が返るという，とんで
+もない問題を抱えているものもありました．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00158" HREF="msg00158.html">[pgsql-jp: 27385] Re: --enable-localeと検索速度の関連</A></STRONG>
+<UL><LI><EM>From:</EM> matsuda &lt;yumatuda@msoft.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00148" HREF="msg00148.html">[pgsql-jp: 27375] Re: --enable-locale と検索速度の関連</A></STRONG>
+<UL><LI><EM>From:</EM> Hideyuki Nihei &lt;nihei@jcross.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00145" HREF="msg00145.html">[pgsql-jp: 27372] --enable-localeと検索速度の関連</A></STRONG>
+<UL><LI><EM>From:</EM> matsuda &lt;yumatuda@msoft.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00146.html">[pgsql-jp: 27373] Re: pg_restoreの制限事項</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp: 27375] Re: --enable-locale と検索速度の関連</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00145.html">[pgsql-jp: 27372] --enable-localeと検索速度の関連</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00148.html">[pgsql-jp: 27375] Re: --enable-locale と検索速度の関連</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00147"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00147"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

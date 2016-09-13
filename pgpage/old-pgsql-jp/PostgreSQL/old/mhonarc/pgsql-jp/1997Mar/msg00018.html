@@ -1,0 +1,216 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1515] sparc_linux.patch [new!] -->
+<!--X-From: Satoshi Ishikawa <power@sekine.densi.gifu&#45;u.ac.jp> -->
+<!--X-Date: Tue, 04 Mar 1997 14:47:15 +0900 -->
+<!--X-Message-Id: 199703040547.OAA00588@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1515] sparc_linux.patch [new!] </TITLE>
+<LINK REV="made" HREF="mailto:power@sekine.densi.gifu-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00013.html">Date Prev</A>][<A HREF="msg00019.html">Date Next</A>][<A HREF="msg00019.html">Thread Prev</A>][<A HREF="msg00026.html">Thread Next</A>][<A HREF="index.html#00018">Date Index</A>][<A HREF="threads.html#00018">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1515] sparc_linux.patch [new!]</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Ishikawa &lt;<A HREF="mailto:power@sekine.densi.gifu-u.ac.jp">power@sekine.densi.gifu-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 04 Mar 1997 14:47:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いしかわ＠ぎふだいです。
+
+以前に、こちらに投げたSPARC/Linuxでコンパイルするためのパッチですが、
+SPARC/LinuxのMLで、solaris用のコードを流用していたので、Linuxで問題ある
+か聞いてみたところ、tas関数をすらすらっと書いていただけました。
+
+そこで、小さくなって再登場！です。
+＃誰も使ってないでしょうけど
+
+---cut here---
+diff -Nru pgsql.orig/src/backend/storage/ipc/s_lock.c pgsql/src/backend/storage/ipc/s_lock.c
+--- pgsql.orig/src/backend/storage/ipc/s_lock.c	Mon Jan 27 08:01:01 1997
++++ pgsql/src/backend/storage/ipc/s_lock.c	Tue Mar  4 09:45:52 1997
+@@ -164,8 +164,21 @@
+  */
+ 
+ #if defined(i386_solaris) || \
+-    defined(sparc_solaris)
++    defined(sparc_solaris) || \
++    defined(sparc_linux)
+ /* for xxxxx_solaris, this is defined in port/.../tas.s */
++
++#if defined(sparc_linux)
++int 
++tas(slock_t *m)
++{
++    slock_t res;
++    __asm__("ldstub [%1], %0"
++    : "=&amp;r" (res)
++    : "r" (m));
++    return (res != 0);
++}
++#endif
+ 
+ void
+ S_LOCK(slock_t *lock)
+diff -Nru pgsql.orig/src/include/config.h pgsql/src/include/config.h
+--- pgsql.orig/src/include/config.h	Fri Jan 31 02:01:16 1997
++++ pgsql/src/include/config.h	Tue Mar  4 09:38:09 1997
+@@ -154,7 +154,9 @@
+ #  define HAVE_INT_TIMEZONE
+ #  undef HAVE_CBRT
+ #  undef HAVE_CBRT
++#  if !defined (sparc_linux)
+ #  define NEED_I386_TAS_ASM
++#  endif
+ #  define HAS_TEST_AND_SET
+    typedef unsigned char slock_t;
+ #endif
+---cut here---
+
+customizeスクリプトのあとで、
+Makefile.customに
+sparc_linux=1
+CFLAGS += -Dsparc_linux
+加えてmakeしてください。
+
+再びベンチマークを測ってみました。
+トータルでちょっと速くなったかな。といったところです。
+#データを　replace してくれるとうれしいです。
+
+Linux/SparcClassic(MicroSPARC 50MHz) 32MB RAM + アサーション
+あり（デフォルト）+ JP patch です
+
+query  0:   0.031 real   0.000 user   0.000 sys
+query  1:   0.968 real   0.920 user   0.040 sys
+query  2:   4.307 real   2.450 user   0.940 sys
+query  3:   0.836 real   0.820 user   0.020 sys
+query  4:   4.116 real   2.610 user   0.680 sys
+query  5:   0.862 real   0.810 user   0.070 sys
+query  6:   2.523 real   2.380 user   0.130 sys
+query  7:   0.125 real   0.140 user   0.000 sys
+query  8:   1.747 real   1.700 user   0.050 sys
+query  9:  26.925 real  23.610 user   0.800 sys
+query 10:  22.836 real  21.040 user   0.420 sys
+query 11:  13.269 real  12.580 user   0.200 sys
+query 12:  26.697 real  23.660 user   0.870 sys
+query 13:  22.736 real  21.000 user   0.410 sys
+query 14:  13.662 real  12.510 user   0.280 sys
+query 15:  29.117 real  23.960 user   1.490 sys
+query 16:  22.821 real  20.950 user   0.450 sys
+query 17:  17.403 real  12.910 user   2.060 sys
+query 18:  12.490 real  10.670 user   0.700 sys
+query 19:   2.119 real   1.970 user   0.140 sys
+query 20:   0.003 real   0.000 user   0.000 sys
+query 21:   0.003 real   0.010 user   0.000 sys
+query 22:   0.003 real   0.000 user   0.000 sys
+query 23:   0.003 real   0.000 user   0.000 sys
+query 24:   0.003 real   0.010 user   0.000 sys
+query 25:   0.003 real   0.000 user   0.000 sys
+query 26:   0.003 real   0.000 user   0.000 sys
+query 27:   0.094 real   0.060 user   0.000 sys
+query 28:   0.344 real   0.200 user   0.020 sys
+query 29:   0.003 real   0.000 user   0.000 sys
+query 30:   0.045 real   0.050 user   0.000 sys
+query 31:  -1.744 real   0.180 user   0.000 sys
+query 32: 205.755 real   4.170 user   0.010 sys
+
+Linux/SparcClassic(MicroSPARC 50MHz) 32MB RAM + アサーション
+なし + JP patch です
+
+query  0:   0.003 real   0.000 user   0.000 sys
+query  1:   0.880 real   0.840 user   0.020 sys
+query  2:   4.023 real   2.410 user   0.680 sys
+query  3:   0.759 real   0.740 user   0.030 sys
+query  4:   3.853 real   2.420 user   0.660 sys
+query  5:   0.850 real   0.760 user   0.040 sys
+query  6:   2.248 real   2.170 user   0.080 sys
+query  7:   0.112 real   0.110 user   0.020 sys
+query  8:   1.644 real   1.600 user   0.040 sys
+query  9:  23.468 real  20.350 user   0.690 sys
+query 10:  19.792 real  18.140 user   0.420 sys
+query 11:  11.852 real  10.950 user   0.240 sys
+query 12:  23.142 real  20.080 user   0.860 sys
+query 13:  19.751 real  18.170 user   0.400 sys
+query 14:  11.855 real  10.930 user   0.280 sys
+query 15:  25.484 real  20.880 user   1.360 sys
+query 16:  20.114 real  18.560 user   0.500 sys
+query 17:  15.712 real  11.500 user   1.760 sys
+query 18:  11.568 real   9.790 user   0.720 sys
+query 19:   1.910 real   1.800 user   0.120 sys
+query 20:   0.003 real   0.000 user   0.000 sys
+query 21:   0.003 real   0.000 user   0.000 sys
+query 22:   0.003 real   0.000 user   0.000 sys
+query 23:   0.003 real   0.000 user   0.000 sys
+query 24:   0.003 real   0.000 user   0.000 sys
+query 25:   0.003 real   0.000 user   0.000 sys
+query 26:   0.003 real   0.000 user   0.000 sys
+query 27:   0.047 real   0.040 user   0.000 sys
+query 28:   0.222 real   0.200 user   0.010 sys
+query 29:   0.003 real   0.000 user   0.000 sys
+query 30:   0.040 real   0.040 user   0.000 sys
+query 31:   0.154 real   0.150 user   0.020 sys
+query 32: 180.522 real   3.160 user   0.000 sys
+
+End Of Message.  
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+石川 諭 （いしかわ さとし）power@densi.gifu-u.ac.jp
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00032" HREF="msg00032.html">[postgres95 1529] Re: sparc_linux.patch [new!]</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00026" HREF="msg00026.html">[postgres95 1523] Re: sparc_linux.patch [new!]</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00013.html">[postgres95 1510] Re:  [PHP/HELP] can't compile PHP/FI + kanji2.0b10.mb.patch on SunOS</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00019.html">[postgres95 1516] 自己紹介</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00019.html">[postgres95 1516] 自己紹介</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00026.html">[postgres95 1523] Re: sparc_linux.patch [new!]</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00018"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00018"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

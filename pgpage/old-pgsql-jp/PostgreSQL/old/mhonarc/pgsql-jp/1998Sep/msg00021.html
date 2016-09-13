@@ -1,0 +1,223 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5228] Perl CGI can't exec -->
+<!--X-From: "Hopemoon Internet Y.Mochizuki" <support@hopemoon.com> -->
+<!--X-Date: Wed, 02 Sep 1998 12:37:53 +0900 -->
+<!--X-Message-Id: 199809021227.MAA11258@mail.hopemoon.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980902034229K.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Reference-Id: 19980902054435L.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5228] Perl CGI can't exec </TITLE>
+<LINK REV="made" HREF="mailto:support@hopemoon.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00020.html">Date Prev</A>][<A HREF="msg00022.html">Date Next</A>][<A HREF="msg00020.html">Thread Prev</A>][<A HREF="msg00022.html">Thread Next</A>][<A HREF="index.html#00021">Date Index</A>][<A HREF="threads.html#00021">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5228] Perl CGI can't exec</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hopemoon Internet Y.Mochizuki" &lt;<A HREF="mailto:support@hopemoon.com">support@hopemoon.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Sep 1998 12:37:53 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00019.html">19980902034229K.kataoka@interwiz.koganei.tokyo.jp</A>&gt; &lt;<A HREF="msg00020.html">19980902054435L.kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+始めまして、（有）ホプムンインターネットの望月と申します
+初めて投稿します。
+今後ともよろしくお願いいたします。
+
+PerlのCGIでPOSTGREにアクセスしたいのですが、
+基本的な部分で頓挫してしまいました。
+（作業の効率上、できるだけ言語は統一しておきたいので、
+PHP/FI は使っておりません）
+対処方法の糸口を知りたく、投稿致しました。
+よろしくお願いいたします。
+
+環境：
+OS:  FreeBSD 2.2.1
+Perl:  ver5.003
+Web: apache 1.2.6
+
+（１）Perlで以下のようなＣＧＩを作りました。
+
+#!/usr/local/bin/perl
+use Pg;
+$conn = Pg::setdb('localhost', "", "", "", 'test');
+print "Content-type: text/html\n\n";
+print "&lt;HTML&gt;&lt;TITLE&gt;TEST&lt;/TITLE&gt;&lt;BODY&gt;\n";
+$result = $conn-&gt;exec("SELECT * FROM homepage");
+for ($tate = 0 ;$tate &lt; $result-&gt;ntuples ; $tate++){
+    for ($yoko = 0; $yoko &lt; $result-&gt;nfields; $yoko++) {
+        $fname = $result-&gt;fname($yoko);
+        $value = $result-&gt;getvalue($tate, $yoko);
+        print "$fname $value &lt;br&gt;\n";
+    }
+}
+print "&lt;/BODY&gt;&lt;/HTML&gt;\n";
+exit;
+
+（２）これを、ユーザーnobodyからシェルで実行できることは
+    確認致しました。
+    （本来nobodyはログインできませんが、テストのため設定）
+
+bash$ su nobody
+Password:
+bash$ id
+uid=65534(nobody) gid=65534(nobody) groups=65534(nobody)
+bash$ ./pgsql_test2.cgi     &lt;----実行
+Content-type: text/html
+
+&lt;HTML&gt;&lt;TITLE&gt;TEST&lt;/TITLE&gt;&lt;BODY&gt;
+url <A HREF="http://www.cup.com/">http://www.cup.com/</A> &lt;br&gt;
+pagename cup.com &lt;br&gt;
+url <A HREF="http://www.hopemoon.com/">http://www.hopemoon.com/</A> &lt;br&gt;
+pagename hopemoon.com &lt;br&gt;
+url <A HREF="http://www.hogehoge.com/">http://www.hogehoge.com/</A> &lt;br&gt;
+pagename hogehoege &lt;br&gt;
+&lt;/BODY&gt;&lt;/HTML&gt;
+
+（３）その時の環境変数は下記の通りでした。
+
+bash$ env
+LOGNAME=hopemoon
+LD_LIBRARY_PATH=/usr/local/pgsql/lib
+PAGER=more
+TERM=vt100
+HOSTTYPE=i386
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/local/pgsql/bin:/home/hopemoon/bin
+HOME=/nonexistent
+SHELL=/usr/local/bin/bash
+USER=nobody
+BLOCKSIZE=K
+OSTYPE=FreeBSD
+SHLVL=2
+EDITOR=vi
+_=/usr/bin/env
+
+（４）これのＣＧＩをブラウザーから実行するとサーバーエラーになりました。
+
+その時のエラーログは下記の通りです。
+Can't load '/usr/local/lib/perl5/site_perl/i386-freebsd/auto/Pg/Pg.so' for module Pg: Can't find shared library "libpq.so.1.
+1" at /usr/local/lib/perl5/DynaLoader.pm line 140.
+
+ at /usr/local/lib/perl5/site_perl/Pg.pm line 110
+BEGIN failed--compilation aborted at /home/hopemoon/httpd/htdocs/pgsql_test2.cgi line 3.
+
+
+（５）Webの環境変数を printenv.cgi という %ENV を表示するＣＧＩで
+     確認したところ、下記の通りでした。
+
+SERVER_SOFTWARE = Apache/1.2.6
+GATEWAY_INTERFACE = CGI/1.1
+DOCUMENT_ROOT = /home/hopemoon/httpd/htdocs
+REMOTE_ADDR = 210.159.30.182
+SERVER_PROTOCOL = HTTP/1.0
+REQUEST_METHOD = GET
+REMOTE_HOST = 210.159.30.182
+QUERY_STRING = 
+HTTP_USER_AGENT = Mozilla/4.04 [ja] (Win95; I ;Nav)
+PATH = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/local/pgsql/bin:/home/hopemoon/bin
+HTTP_CONNECTION = Keep-Alive
+HTTP_ACCEPT = image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+REMOTE_PORT = 1094
+HTTP_ACCEPT_LANGUAGE = ja, en
+SCRIPT_NAME = /printenv.cgi
+SCRIPT_FILENAME = /home/hopemoon/httpd/htdocs/printenv.cgi
+HTTP_PRAGMA = no-cache
+SERVER_NAME = trouble.hopemoon.com
+REQUEST_URI = /printenv.cgi
+HTTP_ACCEPT_CHARSET = Shift_JIS,*,utf-8
+SERVER_PORT = 80
+HTTP_HOST = ns2.dnsjp.com
+SERVER_ADMIN = webmaster@hopemoon.com
+
+（６）LD_LIBRARY_PATH=/usr/local/pgsql/lib  が無いため
+これが原因と考えて、
+apache の立上げスクリプトを下記のようにしましたが、
+テストＣＧＩは相変わらずサーバーエラーになり、
+printenv.cgi の表示も変りませんでした。
+
+bash# cat /usr/local/etc/rc.d/apache.sh
+#!/bin/sh
+export LD_LIBRARY_PATH=/usr/local/pgsql/lib
+/usr/local/bin/httpd -f /home/hopemoon/httpd/conf/httpd.conf &amp;&amp; echo -n '
+httpd'
+
+また、 このテストＣＧＩの最初に
+$ENV{"LD_LIBRARY_PATH"} = "/usr/local/pgsql/lib";
+を入れてみたりしましたが、同じでした。
+
+printenv.cgi で LD_LIBRARY_PATH=/usr/local/pgsql/lib が表示されれば
+解決すると思っているのですが、これは間違いでしょうか？
+また、表示できるようにするにはどう設定すれば良いでしょうか？
+
+非常に基本的な質問な気がしますが、ご教示ください。
+よろしくお願いいたします。
+
+------------------------------------------------------------
+（有）ホプムンインターネット  望月   support@hopemoon.com 
+サービス総合案内                      <A HREF="http://www.hopemoon.com/">http://www.hopemoon.com/</A>   
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00026" HREF="msg00026.html">[pgsql-jp 5233] Re: Perl CGI can't exec</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00022" HREF="msg00022.html">[pgsql-jp 5229] Re: Perl CGI can't exec</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00019" HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 5227] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 5227] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 5229] Re: Perl CGI can't exec</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 5227] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00022.html">[pgsql-jp 5229] Re: Perl CGI can't exec</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00021"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00021"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

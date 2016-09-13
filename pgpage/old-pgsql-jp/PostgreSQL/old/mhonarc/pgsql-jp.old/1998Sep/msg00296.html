@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5505] Re: ShmemCreate: cannot create region -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Tue, 29 Sep 1998 15:51:44 +0900 (JST) -->
+<!--X-Message-Id: 199809290651.PAA07116@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809290619.PAA13133@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5505] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00295.html">Date Prev</A>][<A HREF="msg00297.html">Date Next</A>][<A HREF="msg00295.html">Thread Prev</A>][<A HREF="msg00297.html">Thread Next</A>][<A HREF="index.html#00296">Date Index</A>][<A HREF="threads.html#00296">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5505] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 29 Sep 1998 15:51:44 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00295.html">199809290619.PAA13133@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Sep 29, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;
+&gt;それと、プロセス間の競合については、LOCK を使えば良いのではないでしょ
+&gt;うか。
+
+なるほど。これなら確実そうですけど、ちょっと遅くなりそうですね。
+まあ、動かない今の状態よりはいいんですが、どれくらい違うんでしょうね。
+# ちなみに、lockのマニュアルの見出しは「FETCH」になってますね。
+
+&gt;% gdb ./postgres
+&gt;% run -D /usr/local/pgsql/data dbnae
+&gt;insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');
+
+これを試してみました。
+# インデックスが壊れている旨を表示しようとして落ちている?
+
+========================================================================
+blank
+         1: f_url       (typeid = 25, len = -1, typmod = -1, byval = f)
+         2: t_url       (typeid = 25, len = -1, typmod = -1, byval = f)
+        ----
+
+Program received signal SIGSEGV, Segmentation fault.
+0x81c9196 in vfprintf ()
+(gdb) bt   
+#0  0x81c9196 in vfprintf ()
+#1  0x81895a5 in vsprintf ()
+#2  0xd2868 in elog (lev=1, 
+    fmt=0x155fe "btree: BTP_CHAIN flag was expected in %s (access = %s)")
+    at elog.c:136
+#3  0x15782 in _bt_moveright (rel=0x2b7e10, buf=44, keysz=1, scankey=0x2b6bd0, 
+    access=0) at nbtsearch.c:219
+#4  0x155c2 in _bt_searchr (rel=0x2b7e10, keysz=1, scankey=0x2b6bd0, 
+    bufP=0xefbfb1ac, stack_in=0x2b8350) at nbtsearch.c:124
+#5  0x15497 in _bt_search (rel=0x2b7e10, keysz=1, scankey=0x2b6bd0, 
+    bufP=0xefbfb1ac) at nbtsearch.c:52
+#6  0x1168e in _bt_doinsert (rel=0x2b7e10, btitem=0x2b9890, index_is_unique=0, 
+    heapRel=0x288810) at nbtinsert.c:64
+#7  0x14984 in btinsert (rel=0x2b7e10, datum=0x2b8310, nulls=0x2b8330 " \036", 
+    ht_ctid=0x2ba028, heapRel=0x288810) at nbtree.c:369
+#8  0xd3735 in fmgr_c (finfo=0xefbfb23c, values=0xefbfb24c, 
+    isNull=0xefbfb23b "") at fmgr.c:115
+#9  0xd3b24 in fmgr (procedureId=331) at fmgr.c:286
+#10 0xd855 in index_insert (relation=0x2b7e10, datum=0x2b8310, 
+    nulls=0x2b8330 " \036", heap_t_ctid=0x2ba028, heapRel=0x288810)
+    at indexam.c:190
+#11 0x3cb16 in ExecInsertIndexTuples (slot=0x24aa10, tupleid=0x2ba028, 
+    estate=0x2b7490, is_update=0) at execUtils.c:1138
+---Type &lt;return&gt; to continue, or q &lt;return&gt; to quit--- 
+#12 0x399b9 in ExecAppend (slot=0x24aa10, tupleid=0x0, estate=0x2b7490)
+    at execMain.c:1016
+#13 0x3980e in ExecutePlan (estate=0x2b7490, plan=0x2b7410, 
+    parseTree=0x288690, operation=CMD_INSERT, numberTuples=0, 
+    direction=ForwardScanDirection, printfunc=0x3680 &lt;debugtup&gt;)
+    at execMain.c:821
+#14 0x39111 in ExecutorRun (queryDesc=0x153e50, estate=0x2b7490, feature=3, 
+    count=0) at execMain.c:232
+#15 0xa8ecb in ProcessQueryDesc (queryDesc=0x153e50) at pquery.c:333
+#16 0xa8f36 in ProcessQuery (parsetree=0x288690, plan=0x2b7410, dest=Debug)
+    at pquery.c:376
+#17 0xa6eae in pg_exec_query_dest (
+    query_string=0xefbfb45c "insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');\n", dest=Debug, aclOverride=0)
+    at postgres.c:798
+#18 0xa6d44 in pg_exec_query (
+    query_string=0xefbfb45c "insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');\n") at postgres.c:697
+#19 0xa86e8 in PostgresMain (argc=4, argv=0xefbfd4a8, real_argc=4, 
+    real_argv=0xefbfd4a8) at postgres.c:1611
+#20 0x4c8fc in main (argc=4, argv=0xefbfd4a8) at main.c:103
+========================================================================
+
+&gt;# ちなみに、データは何件くらいあるのですか？
+
+主な表は3つで、59616件・122790件・589933件です。インデックスもあるので、
+該当データベースのディレクトリは288237K使っています。
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00297" HREF="msg00297.html">[pgsql-jp 5506] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00295" HREF="msg00295.html">[pgsql-jp 5504] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 5504] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 5506] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 5504] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 5506] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00296"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00296"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

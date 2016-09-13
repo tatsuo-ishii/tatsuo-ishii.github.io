@@ -1,0 +1,211 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14955] Re: RDB Memo公開しました。 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 31 May 2000 23:14:56 +0900 -->
+<!--X-Message-Id: 20000531231456N.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200005311523.EGD45927.PJUT@orangesoft.co.jp -->
+<!--X-Reference-Id: 200005311920.AEB34805.LFBJNH@mikage.to -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14955] Re: RDB Memo公開しました。 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00665.html">Date Prev</A>][<A HREF="msg00667.html">Date Next</A>][<A HREF="msg00663.html">Thread Prev</A>][<A HREF="msg00642.html">Thread Next</A>][<A HREF="index.html#00666">Date Index</A>][<A HREF="threads.html#00666">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14955] Re: RDB Memo公開しました。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 31 May 2000 23:14:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00650.html">200005311523.EGD45927.PJUT@orangesoft.co.jp</A>&gt;&lt;<A HREF="msg00662.html">200005311920.AEB34805.LFBJNH@mikage.to</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; &gt; PostgreSQLや他のDBとの違いをまとめてみました。
+&gt; &gt; 嘘を書いていないことを祈りつつ・・・(^^;
+&gt; &gt; まだまだメモ書き程度ですが、ご意見をいただけたら幸いです。
+&gt; &gt; <A HREF="http://www.orangesoft.co.jp/RDB/rdb_memo.html">http://www.orangesoft.co.jp/RDB/rdb_memo.html</A>
+&gt;     
+&gt;     良いですね〜．いろいろ参考になります．(^^;
+
+同じく。力作ですね。SQLの標準で定義されたものかどうかのコメントがある
+ともっとうれしいです。
+
+&gt;     PostgreSQL の create temporary table はよくわかりませんが，
+&gt;     Oracle の create global temporary table では，作成した
+&gt;     テーブルは全セッションで共有しますが，テーブルにINSERT
+&gt;     したデータは，INSERTしたセッションからしか見えないものの
+&gt;     ようです．
+
+PostgreSQLの場合、テーブル自体がほかのセッションから見えません。
+
+&gt;     制約はOracleでは全てサポートしてますね．
+&gt;     FOREIGN KEY は，ON DELETE CASCADE はできますが，
+&gt;     ON UPDATE CASCADE はできないようです．
+&gt;     
+&gt;     PostgreSQL 7.0は両方出来ないようですね．
+
+え?ON DELETE CASCADE も ON UPDATE CASCADEもありますよ。
+
+create table t1 (i int primary key);
+psql:a.sql:2: NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index 't1_pkey' for table 't1'
+CREATE
+create table t2 (
+	i int,
+	constraint my_constraint foreign key (i) references t1
+	on delete cascade
+	on update cascade);
+psql:a.sql:8: NOTICE:  CREATE TABLE will create implicit trigger(s) for FOREIGN KEY check(s)
+CREATE
+insert into t1 values(1);
+INSERT 151867 1
+insert into t1 values(2);
+INSERT 151868 1
+insert into t2 values(1);
+INSERT 151869 1
+insert into t2 values(2);
+INSERT 151870 1
+select * from t1;
+ i 
+---
+ 1
+ 2
+(2 rows)
+
+select * from t2;
+ i 
+---
+ 1
+ 2
+(2 rows)
+
+delete from t1 where i = 1;
+DELETE 1
+select * from t2;
+ i 
+---
+ 2
+(1 row)
+
+update t1 set i = 3 where i = 2;
+UPDATE 1
+select * from t2;
+ i 
+---
+ 3
+(1 row)
+
+
+&gt;     また，子テーブルにデータがあっても親テーブルをDROPできますね．
+&gt;     （Oracleだと出来ません）
+
+DROPできるのがSQL92に則った仕様では?外部キーで参照されている場合にエラー
+になるようにするためにはSQL92によれば、
+
+	DROP TABLE テーブル RESTRICT;
+
+だそうです。
+
+&gt;     トランザクションは…，OracleはPostgreSQLと同じように
+&gt;     読み取りと書き替えが同時に行えるタイプですね．
+&gt;     PostgerSQLの場合は，どんなに長いトランザクションでも平気ですが，
+&gt;     Oracleの場合，長いトランザクションを実行しつつデータを書き替える
+&gt;     場合，大きなロールバックセグメントがないと途中で止まります．
+
+これは大きなPostgreSQLのメリットですね。でも、将来はOracleと同じような
+方式になると言う話もあるので、このメリットはいまのうちだけかな?(そのか
+わりvacuumがいらなくなる)
+
+&gt;     その他ですが，coalsce って…何を意味するのでしょう？
+&gt;     Oracleにテーブルスペースでの coalsce はりますね．
+&gt;     nullif はよくわかりません(汗)
+&gt;     case, cast, はあります．decodeという便利な物もありますね．
+
+coalesceもnullifもcaseの短縮形のようなものです。
+
+coalesce(i,j)は
+
+case when i is not null then i else j end
+
+と同じ。
+
+nullif(i,-1)は、
+
+case when i = -1 then null else i end
+
+と同じです。いずれもSQL92標準です。
+
+&gt;     文字列の代入処理では，長さをオーバーするとOracleは
+&gt;     かならずエラーになるようです．
+
+私はこの方が良いと思います。あるいは
+
+set strict_check to on;
+
+とかするとOracleと同じ動作になるようにするとか。
+
+&gt;     とりあえず，思いついただけ書き並べてみました．
+&gt;     長文失礼しました．
+
+いや、とても参考になりました。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00650" HREF="msg00650.html">[pgsql-jp 14939] RDB Memo公開しました。</A></STRONG>
+<UL><LI><EM>From:</EM> Takashi SHIODA &lt;tsio@orangesoft.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00662" HREF="msg00662.html">[pgsql-jp 14951] Re: RDB Memo公開しました。</A></STRONG>
+<UL><LI><EM>From:</EM> "Mikage Sawatari (Taku Sano)" &lt;mikage@mikage.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00665.html">[pgsql-jp 14954] Re: 半角のチェック方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00667.html">[pgsql-jp 14956] Re: telnetプログラム？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00663.html">[pgsql-jp 14952] Re: RDB Memo公開しました。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00642.html">[pgsql-jp 14931] 訂正</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00666"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00666"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8579] Re: stuck spinlock -->
+<!--X-From: Manabu Watanabe <manyabu.nabe@ooi.co.jp> -->
+<!--X-Date: Wed, 02 Jun 1999 10:24:54 +0900 -->
+<!--X-Message-Id: 199906020124.KAA19147@yokohama.ooi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199906020006.JAA01513@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8579] Re: stuck spinlock </TITLE>
+<LINK REV="made" HREF="mailto:manyabu.nabe@ooi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00012.html">Date Prev</A>][<A HREF="msg00014.html">Date Next</A>][<A HREF="msg00012.html">Thread Prev</A>][<A HREF="msg00018.html">Thread Next</A>][<A HREF="index.html#00013">Date Index</A>][<A HREF="threads.html#00013">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8579] Re: stuck spinlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Manabu Watanabe &lt;<A HREF="mailto:manyabu.nabe@ooi.co.jp">manyabu.nabe@ooi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 02 Jun 1999 10:24:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00012.html">199906020006.JAA01513@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　回答ありがとうございます。確かに同時接続が多いときに障害が発生し
+ています。これを FreeBSD や PostgreSQL のチューニングで回避できる
+のかどうか切り分けていきたいと思います。
+
+
+差出人: Tatsuo Ishii
+送信日: 06/02/1999 09:06:52
+件名　: 【[pgsql-jp 8578] Re: stuck spinlock 】
+&gt; o システムのリソースの不足
+
+　これにつきましてはこの ML や pgsql-hackers のアーカイブにも指摘
+がありましたので、カーネルのパラメーターに以下の設定を追加し、
+
+maxusers        256
+options         SHMMAXPGS=4096
+
+対応しているつもりです。 ipcs で確認する限り、共有メモリは 16MB 確
+保されています。これにあわせて postmaster 起動時には "-B 1024" と
+して 8MB 割り当てています。 PostgreSQL のコンパイルはデフォルトの
+まま行っていますので、同時接続は 64 までだと考えてよろしいのですよ
+ね?(4/14 パッチ済み)
+
+# ipcs -M
+shminfo:
+	shmmax: 16777216	(max shared memory segment size)
+	shmmin:       1	(min shared memory segment size)
+	shmmni:      32	(max number of shared memory identifiers)
+	shmseg:       8	(max shared memory segments per process)
+	shmall:    1024	(max amount of shared memory in pages)
+
+
+&gt; o バグ
+
+　pgsql-hackers を漁っていましたら、共有メモリに関するパッチがある
+という投稿をみかけ(たしか石井さんの投稿だったと思います)、 
+pgsql-patches から 5/6 付けのパッチを入手して当ててみましたが、こ
+れで現象が変わったという事はありませんでした。
+
+
+&gt; 6.5 の開発中に、この問題を引き起こすバグが見付かっています。6.4.2(パッ
+&gt; チバージョン含む)にも同じ問題があるかどうかは分かりませんが、この場合、
+&gt; 
+&gt; 	FATAL: s_lock(28001065) at spin.c:125, stuck spinlock. Aborting.
+&gt; 
+&gt; に至る前に、他のエラーメッセージ(ERROR)やNOTICEが出ているはずです。
+
+　"^ERROR" では sql 構文エラーしか見つかりませんでした ;-) 
+"^NOTICE" で grep したところ、先の投稿で示したメッセージのほかに、
+以下の2種類のメッセージが見つかりました。
+
+NOTICE:  LockRelease: locktable lookup failed, no lock
+
+NOTICE:  LockReplace: xid table corrupted
+
+　石井さんが言われているバグというのは、どのようなものでしょうか。
+参照できる URL 等ありましたら教えてください。また、 "-d 1" でログ
+を取っているのですが、レベルを上げる事で有益な情報を得る事ができる
+のでしょうか? "-d 1" でもログはかなり膨大になってしまうため、 
+PostgreSQL に負担がかからないかと心配なのです。
+
+-- 
+
++* オオイテクノ株式会社 ビジネスシステム事業部
++* 渡辺 学 &lt; manyabu.nabe@ooi.co.jp &gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00018" HREF="msg00018.html">[pgsql-jp 8584] Re: stuck spinlock</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 8578] Re: stuck spinlock</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 8578] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00014.html">[pgsql-jp 8580] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 8578] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 8584] Re: stuck spinlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00013"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00013"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

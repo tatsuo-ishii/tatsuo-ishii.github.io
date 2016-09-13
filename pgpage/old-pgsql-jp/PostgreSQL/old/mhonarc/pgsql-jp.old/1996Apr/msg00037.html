@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 424] About PHP/FI + Postgres95 -->
+<!--X-From: yasu@hike.te.chiba&#45;u.ac.jp (Yasunobu Suzuki) -->
+<!--X-Date: Tue, 30 Apr 1996 19:42:16 +0900 -->
+<!--X-Message-Id: 199604301042.TAA11288@hike3.hike.te.chiba&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 424] About PHP/FI + Postgres95 </TITLE>
+<LINK REV="made" HREF="mailto:yasu@hike.te.chiba-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][Thread Prev][<A HREF="msg00036.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 424] About PHP/FI + Postgres95</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yasu@hike.te.chiba-u.ac.jp">yasu@hike.te.chiba-u.ac.jp</A> (Yasunobu Suzuki)</LI>
+<LI><em>Date</em>: Tue, 30 Apr 1996 19:42:16 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:yasu@hike.te.chiba-u.ac.jp">yasu@hike.te.chiba-u.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+鈴木＠千葉大です。
+
+以前、このMLでちょっと触れられていた、PHP/FIなるものを使ってみたのですが、
+Postgres95 + WWWの利用を考えている方には、かなり便利なものだと思いましたので、
+簡単ではありますが報告してみたいと思います。
+
+１ PHP/FIとは？
+
+PHP/FIは、もともとはWWWのフォームの処理のためのものらしいのですが、
+機能拡張が行なわれて、Postgres95やmSQLやgdbmなどのデータベースへのアクセス
+機能がサポートされています。大きなポイントとして、このPHP/FIは、HTML文書中に
+直接スクリプトを埋め込むことができて、データベースをアクセスして得た情報を
+そのままHTMLに埋め込むことができます。また、この機能はサーバ側で行なわれる
+ため、クライアントはNetscapeでもMosaicでもInternetExplolorでもOKです。
+
+PHP/FIについての情報は、<A HREF="http://www.vex.net/php">http://www.vex.net/php</A>  からたどれます。
+
+２ PHP/FIを使用するのに必要なもの
+
+PHP/FIは、CGIプログラムの形で実装されているので、HTTPのサーバが必要ですが、
+NCSAおよびApache HTTPD、NetscapeHTTPDでサポートされます。私の環境(*1)では、
+NCSA HTTPD ver1.5aを使用しました。それぞれに、CGIリダイレクトのための修正が
+必要なので、HTTPDにpatchをあててコンパイルし直すなどの作業が必要です。
+ちなみに、NCSA httpd はver1.5が必要です(*2)。
+
+インストールの作業自体は特に難しいことはありませんでした。
+附属するテストプログラムでPostgres95のテストが通ればOKです。
+
+*1 当方の環境：	FreeBSD 2.1.0R
+		SunOS 4.1.3
+		Postgres95 ver 1.01
+		NCSA httpd ver1.5a
+
+*2 実は、NCSA httpdの最新バージョンは1.5.1なのですが、1.5.1のソースには
+   CGIリダイレクトのためのパッチがうまくあたらなかったので1.5aに戻しました。
+
+
+３ 使用例
+
+例えば、こんな感じのスクリプトを埋め込みます。文法的にはPerlに近いものです。
+
+&lt;?
+	echo "&lt;TITLE&gt;WWW -- Postgres95 database Interface Test Page&lt;/TITLE&gt;";
+	
+	$conn = pg_Connect("localhost","5432","","","mydb");
+	if (!$conn);
+		echo "An error occured in connection process.\n";
+		exit;
+	endif;
+
+	$result = pg_Exec($conn,"select * from sample");
+	if (!$result);
+		echo "An error occured in database operation process.\n";
+		exit;
+	endif;
+
+	$num = pg_NumRows($result);
+	$i = 0;
+
+	while ($i &lt; $num);
+		echo pg_Result($result,$i,"name");
+		echo pg_Result($result,$i,"age");
+		echo "&lt;BR&gt;";
+		$i++;
+	endwhile;
+
+	pg_FreeResult($result);
+	pg_Close($conn);
+&gt;
+
+あらかじめ、mydbをつくって、psqlかなんかでsampleテーブルにnameとageを定義して
+データを入力しておくと、これに接続してnameとageのエントリを表示します。
+これを（サーバの設定によりますが）sample.phtmlとして保存します。
+あとは、これをブラウザで見るだけです。
+
+ちょっと使ってみた感想としましては、フォーム処理と合わせると、
+フォームで打ち込んだSQLコマンドを引き渡して結果を受けとることぐらいは
+楽勝だと思います。受けとった結果をそのままHTMLのタグで整形できるので便利です。
+
+なによりも、HTML中に埋め込むことができるので、CGIなどのようにセキュリティ
+ホールになる可能性が小さく、サーバ側の設定がきちんとおこなわれていれば、
+ページを作るのにHTMLのブラウザがあれば足りてしまいます。
+
+以上、簡単すぎて何の説明にもなってませんが、まだ使ったことのない方が
+おりましたらぜひ試してみてはいかがでしょうか。
+
+長々と失礼しました。
+
+＃ いま、いろいろやっている最中です。
+＃ Read Only Man から少し抜け出せたかな？
+
+|  千葉大学 工学研究科 電気電子工学専攻 | 
+|   電子システム講座 計算機工学分野(10) | 
+|         鈴木 康修 ( Suzuki Yasunobu ) | 
+|     e-mail:yasu@hike.te.chiba-u.ac.jp | 
+|<A HREF="http://www.hike.te.chiba-u.ac.jp/~yasu/">http://www.hike.te.chiba-u.ac.jp/~yasu/</A>|
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[postgres95 423] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[postgres95 425] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00036.html">[postgres95 423] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

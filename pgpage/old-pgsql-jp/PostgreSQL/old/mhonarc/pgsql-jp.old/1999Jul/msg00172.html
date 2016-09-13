@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9368] Re: backend closed the channel unexpectedly. -->
+<!--X-From: Toshiro Tsujiura <tsujiura@workspaceltd.com> -->
+<!--X-Date: Wed, 14 Jul 1999 11:33:34 +0900 -->
+<!--X-Message-Id: 378BF6FE.4F8BAD30@workspaceltd.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199907120118.KAA10166@vivid.sisd.dnp.co.jp -->
+<!--X-Reference-Id: 37895C41.A3C411D4@workspaceltd.com -->
+<!--X-Reference-Id: 378B48BA3D4.BE1EKIKUCHI@sv.pixy.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9368] Re: backend closed the channel unexpectedly. </TITLE>
+<LINK REV="made" HREF="mailto:tsujiura@workspaceltd.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00170.html">Date Prev</A>][<A HREF="msg00171.html">Date Next</A>][<A HREF="msg00161.html">Thread Prev</A>][<A HREF="msg00177.html">Thread Next</A>][<A HREF="index.html#00172">Date Index</A>][<A HREF="threads.html#00172">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9368] Re: backend closed the channel unexpectedly.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshiro Tsujiura &lt;<A HREF="mailto:tsujiura@workspaceltd.com">tsujiura@workspaceltd.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Jul 1999 11:33:34 +0900</LI>
+<LI><em>Organization</em>: WorkSpaceLtd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00115.html">199907120118.KAA10166@vivid.sisd.dnp.co.jp</A>&gt; &lt;<A HREF="msg00117.html">37895C41.A3C411D4@workspaceltd.com</A>&gt; &lt;<A HREF="msg00161.html">378B48BA3D4.BE1EKIKUCHI@sv.pixy.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+きくちさん、こんにちは。辻浦です。
+ちょっと長いので、興味のない方は読み飛ばしてください。
+
+&gt;ちなみに、エラーが出たSQLと言うのは以下のような感じです。
+
+&gt;&gt; select sum(OT.quantity * OT.price)
+&gt;&gt; from OTbl OT,PTbl PT
+&gt;&gt; where OT.canceled=false
+&gt;&gt; and OT.product = PT.id
+&gt;&gt; and OT.form in
+&gt;&gt; (select OF.id from
+&gt;&gt; OFTbl OF,MTbl MT
+&gt;&gt; where OF.or = MT.id
+&gt;&gt; and date_trunc('day',OF.or_date)  &gt;= '01-01-1999'
+&gt;&gt; and date_trunc('day',OF.or_date) &lt;= '12-01-1999');
+
+上のＳＱＬ文を元に、こちらで勝手に以下のような
+ストーリを考えてみました。
+実際と違っていても怒らないで下さい。
+
+Ptblの「id」は、Otblの「Product」に結びついているので
+Ptblは製品マスター、Otblは注文データ。
+OFtblの「or」は、Mtblの「id」に結びついているので
+OFtblは注文伝票、Mtblは顧客マスター。
+図に描くと以下のようになります。
+（プロポーショナルフォントであわせています）
+
+Otbl                        OFtbl
+---------                   ---------
+|form     ------------&gt; |id
+|product  ---                |or_date
+|canceled    |                 |or      ---
+|quantity     |                 |             |
+|price          |       Ptbl                  |        Mtbl
+                  |      -----                |       ---------
+                  |---&gt;|id                     |---&gt;|id
+                          |                              |
+
+結果として必要なのは、Otblのquantityとpriceの積の合計。
+集計する条件は、OFtblのor_dateの範囲。
+まず、考えられるＳＱＬ文としては
+「select sum ( quantity * price ) from Otbl
+  where  canceled = false and
+         form = ( select id from OFtbl
+                 where or_date between
+                 '01-01-1999' and '12-01-1999' ); 」
+
+ここで検討する必要があるのは、
+＊「Otbl.form」と「OFtbl.id」は１対１か？
+＊「Otbl.product」は「Ptbl.id」の中に存在するか？
+＊「OFtbl.or」は「Mtbl.id」の中に存在するか？
+
+これによって作成するＳＱＬ文も多少違ってくるかも
+しれません。
+それでは、また。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 9373] Re: backend closed the channel unexpectedly.</A></STRONG>
+<UL><LI><EM>From:</EM> Naohito Kikuchi &lt;kick@sisd.dnp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00115" HREF="msg00115.html">[pgsql-jp 9311] backend closed the channel unexpectedly.</A></STRONG>
+<UL><LI><EM>From:</EM> Naohito Kikuchi &lt;kick@sisd.dnp.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00117" HREF="msg00117.html">[pgsql-jp 9313] Re: backend closed the channel unexpectedly.</A></STRONG>
+<UL><LI><EM>From:</EM> Toshiro Tsujiura &lt;tsujiura@workspaceltd.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00161" HREF="msg00161.html">[pgsql-jp 9357] Re: backend closed the channel unexpectedly.</A></STRONG>
+<UL><LI><EM>From:</EM> Naohito Kikuchi &lt;kikuchi@pixy.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00170.html">[pgsql-jp 9366] RE: postmasterの自動起動その2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00171.html">[pgsql-jp 9367] Re: 自己紹介、インストールの質問</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 9357] Re: backend closed the channel unexpectedly.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 9373] Re: backend closed the channel unexpectedly.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00172"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00172"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

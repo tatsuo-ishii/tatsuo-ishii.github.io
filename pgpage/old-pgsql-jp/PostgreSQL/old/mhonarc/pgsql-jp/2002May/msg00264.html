@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26029] Re: GROUP BY などについて -->
+<!--X-From: Kasumi Iwata <Kasumi_Iwata@virtems.com> -->
+<!--X-Date: Sun, 19 May 2002 12:54:39 +0900 -->
+<!--X-Message-Id: 20020519035452.8E9B0DBC3@jelly.virtems.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001701c1fe8f$d15dfa20$adf8a8c0@onoloox -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26029] Re: GROUP BY などについて </TITLE>
+<LINK REV="made" HREF="mailto:Kasumi_Iwata@virtems.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00263.html">Date Prev</A>][<A HREF="msg00265.html">Date Next</A>][<A HREF="msg00259.html">Thread Prev</A>][<A HREF="msg00260.html">Thread Next</A>][<A HREF="index.html#00264">Date Index</A>][<A HREF="threads.html#00264">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26029] Re: GROUP BY などについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kasumi Iwata &lt;<A HREF="mailto:Kasumi_Iwata@virtems.com">Kasumi_Iwata@virtems.com</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 19 May 2002 12:54:39 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00259.html">001701c1fe8f$d15dfa20$adf8a8c0@onoloox</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小野さん、堀江さん、川合さん、お返事ありがとうございます。
+堀江さんお久しぶりです。
+
+まずみなさんにお返事する前に、私の質問の仕方が悪かったようなので、
+サンプルを含めてもう一度説明させていただきます。
+
+"Kenji Ono" &lt;ono@fjct.fujitsu.com&gt; wrote:
+
+&gt; テーブル関連図が今一見えないのでつらいです。
+&gt; 例えば、
+&gt; ・qn（質問）.id（質問コード)とqn_item(選択肢).id(質問コード)で一致。
+&gt; ・qn_item.qn(選択肢コード)とqn_vote（質問毎解答).とのつながりが不明
+&gt; ・質問毎の解答がqn_voteに入っているのなら、qn.idとqn_vote.と一致する
+&gt; 　列が必要。
+
+qn.id = qn_item.qn = qn_vote.qnで一致しています。
+qn_item.id = qn_vote.itemで一致で一致しています。
+
+＜サンプル＞
+
+[qnテーブル]
+id | title                      | description |
+--------------------------------
+1  | 世界一強いのは誰？|一番強いと思う人に投票してください。
+2  | 世界一弱いのは誰？|一番弱いと思う人に投票してください。
+3  | 好きなお茶は？       |好きなお茶を選んでください。
+
+[qn_itemテーブル]
+qn | id | content
+---------------------------------
+1  | 1  | ルフィー
+1  | 2  | ゾロ
+1  | 3  | サンジ
+2  | 1  | ウソップ
+2  | 2  | ナミ
+3  | 1  | ウーロン茶
+3  | 2  | 玄米茶
+3  | 3  | 緑茶
+
+[qn_voteテーブル]
+qn | uid    | item
+----------------
+1   | iwata | 2     //ユーザーiwataが質問１に対して選択肢２を選択した。
+2   | iwata | 1     //ユーザーiwataが質問２に対して選択肢１を選択した。
+1   | sato  | 1     //ユーザーsatoが質問１に対して選択肢１を選択した。
+3   | kato  | 3     // ユーザーkatoが質問３に対して選択肢３を選択した。
+
+表示させたい状態は、
+
+qn_item.id | content   | count 
+-----------------------
+1             | ルフィー  | 1  //ルフィーへの投票者合計：１
+2             | ゾロ       |  1  //ゾロへの投票者合計：1
+3             | サンジ    | 0   //サンジへの投票者合計：0
+
+というものです。質問コードのqn.id( =qn_item.qn = qn_vote.qn)は
+1つ指定されます。
+idもしくはcontentに対する合計を取り出したいのです。
+
+それでは、よろしくお願いします。皆様から頂いた回答は今やっている最
+中なので、また後日ご報告いたします。
+
+
+岩田香純 Kasumi Iwata
+Kasumi_Iwata@virtems.com
+
+VIRTEMS Corp.
+<A HREF="http://www.virtems.com">http://www.virtems.com</A>
+
+------------------------------------------
+ロロノア・プロジェクト（新製品開発）はじめました。
+
+------------------------------------------
+FrameScript日本語対応版の販売を開始しました。
+<A HREF="http://www.infodesign.co.jp/framescript/">http://www.infodesign.co.jp/framescript/</A>
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00259" HREF="msg00259.html">[pgsql-jp: 26024] Re: GROUP BY などについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Kenji Ono" &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp: 26028] Re: GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00265.html">[pgsql-jp: 26030] Re: JSPでPostgreSQL を連携させるには？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00259.html">[pgsql-jp: 26024] Re: GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp: 26025] Re: GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00264"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00264"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

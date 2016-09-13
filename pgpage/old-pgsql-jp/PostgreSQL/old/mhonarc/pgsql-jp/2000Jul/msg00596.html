@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16364] Re: libpqでmallocした時の問題 -->
+<!--X-From: Akihiro Tsukamoto <atsuka@be.mbn.or.jp> -->
+<!--X-Date: Mon, 31 Jul 2000 09:52:16 +0900 -->
+<!--X-Message-Id: 20000731091752.52B1.ATSUKA@be.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000728195032.8C86.ATSUKA@be.mbn.or.jp -->
+<!--X-Reference-Id: 20000728200938.40375296.1362248718@mailhost.cyheit.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16364] Re: libpqでmallocした時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:atsuka@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00595.html">Date Prev</A>][<A HREF="msg00597.html">Date Next</A>][<A HREF="msg00595.html">Thread Prev</A>][<A HREF="msg00599.html">Thread Next</A>][<A HREF="index.html#00596">Date Index</A>][<A HREF="threads.html#00596">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16364] Re: libpqでmallocした時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akihiro Tsukamoto &lt;<A HREF="mailto:atsuka@be.mbn.or.jp">atsuka@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 31 Jul 2000 09:52:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00580.html">20000728195032.8C86.ATSUKA@be.mbn.or.jp</A>&gt; &lt;<A HREF="msg00583.html">20000728200938.40375296.1362248718@mailhost.cyheit.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塚本です。
+返信が遅くなり、すみませんでした。
+
+&gt; 　解決にならないかもしれませんが、カーソルの宣言を一度でやっ
+&gt; てしまってはどうでしょう？
+やってみました。が、だめでした・・・。
+
+&gt; 　又、w_sqlを使わずに、PQexec()の第2引数を直に文字列にしてし
+&gt; まうのはどうでしょうか？
+これもだめでした・・・。
+
+&gt; 　・・・どれも関係ないとは思いますが、ものは試しという事で。
+いろいろと試してみたのですが、どれもうまくいかなくて・・・。
+
+&gt; 　細かい話ですが、strcatの第2引数の最後に空白が来る意味って
+&gt; 何かあるのでしょうか？
+これは特に意味は有りません。実際に書いたソースでは、このSQLの後にorder
+byとかがついていたのですが、簡単にするために削除した際に残ってしまったも
+のです。
+
+&gt; 　Fetchが成功しているのか、確かめましたか？
+&gt; 　resがNULLでなくても、PQresultStatus(res)がPGRES_TUPLES_OK
+&gt; 以外ではFetchは失敗しています。
+はい、これも確かめたのち、簡単にするために結果の判定を削除しました。
+
+&gt; 　他には、memset()を外したら成功するのか、PQntuples()でタプ
+&gt; ル数を調べる等々。
+memset()なしでもだめでした。mallocした時点で既にres=0x0となっていました。
+malloc後、PQntuples(res）も、PQgetvalue()同様、0になってしまいました。
+
+memsetなし、PQexecに直接SQLを渡した時のgdbの結果は下のようになりました。
+
+- gdb ---------------------------------------------------------
+26          conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+(gdb) n
+28          strcpy(w_sql, "BEGIN");
+(gdb)
+29          res = PQexec(conn1, w_sql);
+(gdb)
+31          PQclear(res);
+(gdb)
+33          res = PQexec(conn1, "DECLARE select_work_tbl CURSOR FOR SELECT * FROM work_tbl
+");
+(gdb)
+34          PQclear(res);
+(gdb)
+36          strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+(gdb)
+37          res = PQexec(conn1, w_sql);
+(gdb)
+39          work_p = malloc(2048);
+(gdb) p (char *)PQgetvalue(res, 0, 0)
+$8 = 0x15040 "10"
+(gdb) p PQntuples(res)
+$9 = 3
+(gdb) n
+42          fp = fopen("./test.txt", "r");
+(gdb) p (char *)PQgetvalue(res, 0, 0)
+$10 = 0x0
+(gdb) p PQntuples(res)
+$11 = 0
+
+--------------------------------------------------------------------
+
+&gt; 　又、デバッカだけでなく、Fetchした結果を画面かファイルに出
+&gt; 力するようにしてみるというのも良いと思います。
+知識が乏しく、もう仕分けないのですが、これはどのようにすればいいのでしょ
+うか？
+PQgetvalueができなくても、ファイル出力は可能なのでしょうか？PQgetvalueし
+た後にファイル出力することはできるのですが・・・。
+
+&gt; 　解決にはなっていなくて申し訳ありませんが、この程度の事しか
+&gt; 言えないです。
+いえ、返信をいただいただけでも有りがたいです。
+mallocやfopenが使えないとなると、PostgreSQLをあきらめるしかないのかな
+・・・。私の環境が特殊なのかな？
+
+
+-------------------------------------------------------------
+塚本 明博
+atsuka@be.mbn.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00599" HREF="msg00599.html">[pgsql-jp 16367] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Kohzi Terao &lt;terao@cyheit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00580" HREF="msg00580.html">[pgsql-jp 16347] libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00583" HREF="msg00583.html">[pgsql-jp 16350] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Kohzi Terao &lt;terao@cyheit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 16363] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00597.html">[pgsql-jp 16365] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 16363] Re: libpq でmalloc した時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00599.html">[pgsql-jp 16367] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00596"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00596"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

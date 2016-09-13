@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 193] Re: postgres95&#45;1.0 JP patch -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 02 Oct 1995 15:28:00 +0900 -->
+<!--X-Message-Id: 199510020628.PAA23495@srashc.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9509250307.AA01780@yukie.rccm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 193] Re: postgres95-1.0 JP patch </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00000.html">Date Prev</A>][<A HREF="msg00002.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00002.html">Thread Next</A>][<A HREF="index.html#00001">Date Index</A>][<A HREF="threads.html#00001">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 193] Re: postgres95-1.0 JP patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 02 Oct 1995 15:28:00 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。私も SS10/4.1.3/JLE-1.1.3/1.0+JP patch でようやく 
+regression test を行ないました。皆様の regression 結果とともに検討して
+みます。
+
+&gt;桑村です。
+
+&gt; ありがとうございます。早速、（先週）DEC3000/800(Titan2)でパッチを当て
+&gt;て作ってみました。以下は、regression テストの結果のサンプルとの比較で
+&gt;す。多分うまく行っていると思います。（バークレーのPostgres95 ML による
+&gt;と、もとの sample.regress.out はおかしい所があるそうです。）
+&gt;
+&gt;
+&gt;1.
+&gt;------------------------------------------------------------------------
+&gt;2006,2007d2004
+&gt;&lt; |             | ZYWZ410-    |
+&gt;&lt; -----------------------------
+&gt;
+&gt;  これは、変なのでは？これのクエリーは、
+&gt;
+&gt;	QUERY: SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+&gt;
+&gt;ですが、結果のどこにも '3' という文字はありません。
+
+これは、sample がおかしいという意味ですよね？私のところの結果では、
+
+QUERY: SELECT '' AS three, c.f1 FROM CHAR8_TBL c WHERE c.f1 ~ '.*34.*';
+-----------------------------
+| three       | f1          |
+-----------------------------
+|             | 343f%2a     |
+-----------------------------
+|             | d34aas      |
+-----------------------------
+|             | 12345678    |
+-----------------------------
+
+となりました。（これで正しいと思います）
+
+&gt;2.
+&gt;------------------------------------------------------------------------
+&gt;7032c7029
+&gt;&lt; | jeff        | 23          | (0,-9.25597e+61)| 1075760332  | X          | 0           |             |
+&gt;---
+&gt;&gt; | jeff        | 23          | (8,7.7)     | 600         | sharon      | 3.5         |             |
+&gt;7034c7031
+&gt;&lt; | cim         | 30          | (0,-9.25597e+61)| 1074973900  |             | 1.97626258336499e-321|             |
+&gt;---
+&gt;&gt; | cim         | 30          | (10.5,4.7)  | 400         |             | 3.4         |             |
+&gt;7036c7033
+&gt;&lt; | linda       | 19          | (0.9,6.1)   | 100         |             | 4.66726071655463e-62|             |
+&gt;---
+&gt;&gt; | linda       | 19          | (0.9,6.1)   | 100         |             | 2.9         |             |
+&gt;
+&gt;
+&gt;  これは本家MLにも出てましたが、もとのデータ(~/src/test/regress/data/stud_emp.data)
+&gt;は以下のものです。
+&gt;
+&gt;	jeff	23	(8,7.7)	600	sharon	3.50000000000000000e+00	
+&gt;	cim	30	(10.5,4.7)	400		3.39999999999999990e+00	
+&gt;	linda	19	(0.9,6.1)	100		2.89999999999999990e+00	
+&gt;
+&gt;従って、テストの結果が正しいということです。
+
+ここも桑村さんと同じ結果でした。（sample が間違っている）さいとう＠NSC 
+さん、久保＠京大さん（お二人とも SunOS 4.1.3 系）も sample と良く似た
+結果です。おそらく例の copy_binary_from パッチを当てれば直ると思います。
+ちなみに、私は gcc-2.7.0 ＋ パッチ 1〜7 まで全部当てています。
+
+&gt;3.
+&gt;------------------------------------------------------------------------
+&gt;10034c10031
+&gt;&lt; | a,1471817   |
+&gt;---
+&gt;&gt; | a,469097    |
+&gt;
+&gt;  これについては、よくわかりません。どこで、このテーブルができるのか教えて下さい。
+
+私もわかりません。ひょっとして、一時的に作られるテーブル？
+
+&gt;  また、以下のテーブルはここでは選択されないと思うのですが。
+&gt;
+&gt;10092,10093d10088
+&gt;&lt; | pg_type     |
+&gt;&lt; ---------------
+
+私のところの regression にも現れませんでした。これも sample の間違いで
+すね。
+
+というわけで、私の環境では
+
+&gt;10034c10031
+&gt;&lt; | a,1471817   |
+&gt;---
+&gt;&gt; | a,469097    |
+
+の問題を除き、postgres-1.0 は、ほぼちゃんと動いているようです。
+--
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[postgres95 194] [Q] copy_binary_from patch</A></STRONG>
+<UL><LI><EM>From:</EM> Kubo Hiroshi &lt;h-kubo@yosisuke.kuee.kyoto-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00000.html">[postgres95 192] Re: YOROSHIKU</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00002.html">[postgres95 194] [Q] copy_binary_from patch</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[postgres95 196] Re: Welcome to postgres95</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00002.html">[postgres95 194] [Q] copy_binary_from patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00001"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00001"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

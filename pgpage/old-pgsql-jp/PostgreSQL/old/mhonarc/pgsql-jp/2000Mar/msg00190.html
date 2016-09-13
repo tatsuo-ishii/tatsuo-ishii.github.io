@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13496] Re: backend terminated abnormally -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Tue, 14 Mar 2000 15:34:50 +0900 -->
+<!--X-Message-Id: 200003140634.PAA17481@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38CDB4CF.2BA2EE37@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13496] Re: backend terminated abnormally </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00189.html">Date Prev</A>][<A HREF="msg00191.html">Date Next</A>][<A HREF="msg00206.html">Thread Prev</A>][<A HREF="msg00196.html">Thread Next</A>][<A HREF="index.html#00190">Date Index</A>][<A HREF="threads.html#00190">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13496] Re: backend terminated abnormally</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 14 Mar 2000 15:34:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00182.html">38CDB4CF.2BA2EE37@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。
+
+&gt;&gt;&gt;&gt; On Tue, 14 Mar 2000 12:41:03 +0900,
+&gt;&gt;&gt;&gt; 	Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt; wrote:
+
+&gt;&gt;&gt; SQL 文の記述内容によって、BACKEND 自体が落ちてしまうのは困りもので
+&gt;&gt;&gt; す。 ＤＢ自体は、OS が落ちない限り動いていて欲
+&gt;&gt;&gt;しいし、少なくとも、エラ−コ−ドを返すようにして欲しい。
+&gt;&gt; 
+&gt;&gt; そうあって欲しいものですが、この場合mallocに失敗していますから、エ
+&gt;&gt; ラーコードを返す処理自体が続行できない可能性があるのでfatal errorに
+&gt;&gt; しているのだと私は解釈しています。
+
+&gt;&gt; 7.0でもmallocに失敗したらfatal errorになるのは同様です。
+
+nkon&gt; ソ−スコ−ド見てないし、見ても簡単に理解できるもんじゃないですが、 
+nkon&gt; malloc の失敗で、エラ−コ−ドを返す処理自体が実行できなくて、
+nkon&gt; backend が crash するのは、ちょっと理解できないのですが。単純に、
+nkon&gt; malloc 失敗で、獲得済みを free してエラ−コ−ドを返すというわけ
+nkon&gt; にはいかないのでしょうか？。メモリ−リ−クの原因になるから？。
+
+一般に、これはなかなか困難です。
+
+途中まで進んでしまった処理が例外事象(mallocの失敗等)を検出した場合でも
+まがりなにりも処理を続行できるようにするには、細心の注意が必要です。
+
+少なくとも、中途半端に終った処理の後始末だけは「完全に」行なわなければ
+なりません。(たとえば、heap managementの後始末に失敗するとメモリリーク
+します)
+
+構造化例外機構を持たないCで書かれたコードでこれを実現するのはかなり手
+間がかかりそうですね。
+
+nkon&gt; 単純に、malloc 失敗で、獲得済みを free してエラ−コ−ドを返すと
+nkon&gt; いうわけにはいかないのでしょうか？。
+
+エラーコードを返す処理自体がheapを要求する(malloc()を呼ぶ)限り、この方
+法ではうまく行きません。なぜなら、獲得済みをfreeした所で、その後に
+malloc()を呼んで成功する保証などどこにもないからです。
+
+# freeして仮想空間に空きを作っているのを、他のプロセスがかたっぱしから
+# 食い潰しているかもしれない。
+
+少なくとも、heap不足を検知した後の後始末処理(エラーステータスを返す処
+理も含む)で一切新規heapの割り当てを行なわないようなコーディングを行な
+わない限り、問題の解決は不可能です。
+
+逆転の発想で、プロセス起動後の初期化時に必要と思われるメモリをすべて
+allocateしてしまい、後はプロセス内でマネージメントする(=一旦正常起動し
+てしまったら、二度とmalloc()は呼ばない)という戦略もあり、サーバプロセ
+スの実装法としては割とよく使われています。
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00182" HREF="msg00182.html">[pgsql-jp 13488] backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 13495] RE: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 13497] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 13512] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 13502] Re: １文字違いを検索する方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00190"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00190"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

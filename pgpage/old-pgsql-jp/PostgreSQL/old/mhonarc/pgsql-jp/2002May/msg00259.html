@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26024] Re: GROUP BY などについて -->
+<!--X-From: "Kenji Ono" <ono@fjct.fujitsu.com> -->
+<!--X-Date: Sun, 19 May 2002 02:16:54 +0900 -->
+<!--X-Message-Id: 001701c1fe8f$d15dfa20$adf8a8c0@onoloox -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020518150507.5A7F4DBC3@jelly.virtems.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26024] Re: GROUP BY などについて </TITLE>
+<LINK REV="made" HREF="mailto:ono@fjct.fujitsu.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00258.html">Date Prev</A>][<A HREF="msg00260.html">Date Next</A>][<A HREF="msg00257.html">Thread Prev</A>][<A HREF="msg00264.html">Thread Next</A>][<A HREF="index.html#00259">Date Index</A>][<A HREF="threads.html#00259">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26024] Re: GROUP BY などについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kenji Ono" &lt;<A HREF="mailto:ono@fjct.fujitsu.com">ono@fjct.fujitsu.com</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 19 May 2002 02:16:54 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00257.html">20020518150507.5A7F4DBC3@jelly.virtems.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小野といいます。
+
+
+&gt; 早速質問ですが、下のようなテーブルを作成しまして、簡易アンケートの
+&gt; システムを作っています。１つの質問に対し、複数の選択肢が用意され、
+&gt; ユーザーはその選択肢のなかから１つ選択するというしくみです。
+&gt;
+&gt; qnは１つの質問についてのデータが入ります。
+&gt; qn_itemは１つの選択肢についてのデータが入ります。
+&gt; qn_voteは1つの回答についてのデータが入ります。
+
+テーブル関連図が今一見えないのでつらいです。
+例えば、
+・qn（質問）.id（質問コード)とqn_item(選択肢).id(質問コード)で一致。
+・qn_item.qn(選択肢コード)とqn_vote（質問毎解答).とのつながりが不明
+・質問毎の解答がqn_voteに入っているのなら、qn.idとqn_vote.と一致する
+　列が必要。
+ようは、テーブルの正規化がなされていないと思われます。
+そんなことはないでしょうか。
+質問毎に値を管理するなら、qn,qn_voteの関係が不明。
+選択肢毎に値を管理するなら、qn_item,qn_voteの関係が不明
+選択肢の数に関係なく解答が一つなら、qn,qn_voteを分ける必要を感じません。
+
+取り合えず、qn_voteにid列を追加して質問毎の解答をqn_voteに格納するので
+あれば、以下のようなSQLでしょうか。
+select qn.id,count(*) from qn,qn_vote
+  where qn.id(+) = qn_vote.id
+  group by qn.id ;
+解答が無い質問(qn.id）にはnullが入ります。
+＋でqn.idとqn_vote.idの検索結果に関係なくqn.id内容を抽出。
+−でqn.idとqn_vote.idの検索結果で一致したqn.id列を抽出。
+だったと思います。
+逆かな？
+一度お試しあれ。
+
+&gt;
+&gt; -----------------作成したテーブル------------------
+&gt; CREATE TABLE qn (
+&gt;     id              SERIAL PRIMARY KEY,
+&gt;     title           TEXT,
+&gt;     description     TEXT,
+&gt;     uid             TEXT,
+&gt;     active          BOOLEAN,
+&gt;     visible         BOOLEAN
+&gt; );
+&gt;
+&gt; CREATE TABLE qn_item (
+&gt;     qn      INTEGER REFERENCES qn ON DELETE CASCADE,
+&gt;     id      INTEGER,
+&gt;     content TEXT,
+&gt;     PRIMARY KEY(qn,id)
+&gt; );
+&gt;
+&gt; CREATE TABLE qn_vote (
+&gt;     qn          INTEGER REFERENCES qn ON DELETE CASCADE,
+&gt;     uid         TEXT,
+&gt;     item        INTEGER,
+&gt;     vote_time   TIMESTAMP,
+&gt;     PRIMARY KEY(qn,uid)
+&gt; );
+&gt;
+&gt;
+&gt; 岩田香純 Kasumi Iwata
+&gt; Kasumi_Iwata@virtems.com
+&gt;
+&gt; VIRTEMS Corp.
+&gt; <A HREF="http://www.virtems.com">http://www.virtems.com</A>
+&gt; ------------------------------------------
+&gt; ロロノア・プロジェクト（新製品開発）はじめました。
+&gt;
+&gt; ------------------------------------------
+&gt; FrameScript日本語対応版の販売を開始しました。
+&gt; <A HREF="http://www.infodesign.co.jp/framescript/">http://www.infodesign.co.jp/framescript/</A>
+&gt;
+&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp: 26029] Re: GROUP BY などについて</A></STRONG>
+<UL><LI><EM>From:</EM> Kasumi Iwata &lt;Kasumi_Iwata@virtems.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00257" HREF="msg00257.html">[pgsql-jp: 26022] GROUP BY などについて</A></STRONG>
+<UL><LI><EM>From:</EM> Kasumi Iwata &lt;Kasumi_Iwata@virtems.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00258.html">[pgsql-jp: 26023] readline解決しました</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00260.html">[pgsql-jp: 26025] Re: GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00257.html">[pgsql-jp: 26022] GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp: 26029] Re: GROUP BY などについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00259"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00259"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

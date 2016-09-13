@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11636] JDBC2ドライバの件です。 -->
+<!--X-From: "ishii hajime" <i11@mbd.sphere.ne.jp> -->
+<!--X-Date: Sat, 6 Nov 1999 21:22:03 +0900 -->
+<!--X-Message-Id: 000e01bf2851$88dbc730$0900a8c0@mototec.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11636] JDBC2ドライバの件です。 </TITLE>
+<LINK REV="made" HREF="mailto:i11@mbd.sphere.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00208.html">Date Prev</A>][<A HREF="msg00211.html">Date Next</A>][<A HREF="msg00242.html">Thread Prev</A>][<A HREF="msg00205.html">Thread Next</A>][<A HREF="index.html#00209">Date Index</A>][<A HREF="threads.html#00209">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11636] JDBC2ドライバの件です。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "ishii hajime" &lt;<A HREF="mailto:i11@mbd.sphere.ne.jp">i11@mbd.sphere.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 6 Nov 1999 21:22:03 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井 一と申します。
+
+初めてではないのですがよろしくお願いいたします。
+ｊｄｂｃ２ドライバを使用してｊａｖａでのクライアントを作成しようと思い
+Ｊｂｕｉｌｄｅｒ３を使っているのですがｊｄｂｃエクスプローラからテーブルが見
+えませんでした。
+どうやらgetTableTDatabaseのMetaDataypes()がうまく動いていない様でしたので
+patchを作ってみました。
+一応、私のところでは動いているようなので、APIに詳しい人に確認して見ていただ
+ければと思います。
+環境は、vinelinux , postgress6.5.2 , jdk1.2b-v2 です。
+以下に patch をのせておきますので、どちら様か確認して頂ければ幸いです。
+
+i11@mbd.sphere.ne.jp
+
+
+*** DatabaseMetaData.java.org Sun Jan 17 13:51:56 1999
+--- DatabaseMetaData.java Sat Nov  6 18:43:52 1999
+***************
+*** 1651,1655 ****
+
+      // Now form the query
+!     StringBuffer sql = new StringBuffer("select relname,oid from pg_class
+where (");
+      boolean notFirst=false;
+      for(int i=0;i&lt;types.length;i++) {
+--- 1651,1656 ----
+
+      // Now form the query
+!     StringBuffer sql = new StringBuffer("select relname,oid,relkind from
+pg_class where (");
+!
+      boolean notFirst=false;
+      for(int i=0;i&lt;types.length;i++) {
+***************
+*** 1674,1681 ****
+      byte remarks[];
+
+!     while (r.next())
+!       {
+   byte[][] tuple = new byte[5][0];
+!
+   // Fetch the description for the table (if any)
+   java.sql.ResultSet dr = connection.ExecSQL("select description from
+pg_description where objoid="+r.getInt(2));
+--- 1677,1685 ----
+      byte remarks[];
+
+!  while (r.next())
+!  {
+   byte[][] tuple = new byte[5][0];
+!  byte[][] tableType = new byte[1][0];
+!  String[] defTable = {"r","i","S"};
+   // Fetch the description for the table (if any)
+   java.sql.ResultSet dr = connection.ExecSQL("select description from
+pg_description where objoid="+r.getInt(2));
+***************
+*** 1686,1694 ****
+     remarks = defaultRemarks;
+   dr.close();
+!
+   tuple[0] = null;  // Catalog name
+   tuple[1] = null;  // Schema name
+   tuple[2] = r.getBytes(1); // Table name
+!  tuple[3] = null;  // Table type
+   tuple[4] = remarks;  // Remarks
+   v.addElement(tuple);
+--- 1690,1705 ----
+     remarks = defaultRemarks;
+   dr.close();
+!
+!  if (defTable[0].equals(r.getString(3)))
+!   tableType[0] = defaultTableTypes[0].getBytes();
+!  else if (defTable[1].equals(r.getString(3)))
+!   tableType[0] = defaultTableTypes[1].getBytes();
+!  else if (defTable[2].equals(r.getString(3)))
+!   tableType[0] = defaultTableTypes[2].getBytes();
+!
+   tuple[0] = null;  // Catalog name
+   tuple[1] = null;  // Schema name
+   tuple[2] = r.getBytes(1); // Table name
+!  tuple[3] = tableType[0]; // Table type
+   tuple[4] = remarks;  // Remarks
+   v.addElement(tuple);
+***************
+*** 1785,1795 ****
+    public java.sql.ResultSet getTableTypes() throws SQLException
+    {
+      Field f[] = new Field[1];
+      Vector v = new Vector();
+      byte[][] tuple = new byte[1][0];
+      f[0] = new Field(connection,new String("TABLE_TYPE"),iVarcharOid,32);
+      for(int i=0;i&lt;getTableTypes.length;i++) {
+        tuple[0] = getTableTypes[i][0].getBytes();
+!       v.addElement(tuple);
+      }
+      return new ResultSet(connection,f,v,"OK",1);
+--- 1796,1808 ----
+    public java.sql.ResultSet getTableTypes() throws SQLException
+    {
++
+      Field f[] = new Field[1];
+      Vector v = new Vector();
+      byte[][] tuple = new byte[1][0];
++
+      f[0] = new Field(connection,new String("TABLE_TYPE"),iVarcharOid,32);
+      for(int i=0;i&lt;getTableTypes.length;i++) {
+        tuple[0] = getTableTypes[i][0].getBytes();
+!       v.addElement(tuple.clone());
+      }
+      return new ResultSet(connection,f,v,"OK",1);
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 11635] Re: --without-CXXオプションについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 11638] Re: 24H稼動は出来な い?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 11670] Re: pgbench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00205.html">[pgsql-jp 11632] Re: 24H稼動は出来ない?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00209"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00209"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

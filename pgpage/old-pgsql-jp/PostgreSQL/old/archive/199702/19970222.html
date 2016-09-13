@@ -1,0 +1,472 @@
+<A NAME="4">
+<PRE><B>
+From: Kuramoto Takafumi &lt;kuramoto@lib.tokushima-u.ac.jp&gt;
+Date: Sat, 22 Feb 97 19:32:32 JST
+Subject: [postgres95 1431] Re:  [HELP] can't compile pgSQl 6.0 on SunOS
+Message-Id: &lt;9702221032.AA11054@void.lib.tokushima-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+庫元＠徳島大学附属図書館です。
+
+桑村様、早速のアドバイスありがとうございました。
+取り敢えず、lib44bsd.aがない状況で、コンパイルしてみましたが、
+どうもダメでした。(失敗です。)
+jp.patchをあてた場合とあたてなかった場合と同じところでerrorで
+落ちてしまいました。明日にでも、BINDを入手しlib44bsd.aをインス
+トールし再度コンパイルしてみます。(御報告まで)
+
+
+これは、jp.patchをあてていない時のものです。
+
+-------
+In file included from pg_type.c:28:
+../../include/regex/utils.h:57: warning: `memmove' redefined
+../../include/c.h:741: warning: this is the location of the previous definition
+pg_type.c: In function `TypeCreate':
+pg_type.c:390: warning: implicit declaration of function `memset'
+ld -r -o SUBSYS.o catalog.o heap.o index.o indexing.o pg_aggregate.o pg_operator.o pg_proc.
+o pg_type.o
+gmake[2]: Leaving directory `/home/pgsql/archives/src/backend/catalog'
+gmake -C commands   all   
+gmake[2]: Entering directory `/home/pgsql/archives/src/backend/commands'
+gcc -Wall -Wmissing-prototypes -O2  -Dsunos4  -I.. -I../port/sunos4 -I../../include   -c as
+ync.c -o async.o
+async.c:85: port-protos.h: No such file or directory
+gmake[2]: *** [async.o] Error 1
+gmake[2]: Leaving directory `/home/pgsql/archives/src/backend/commands'
+gmake[1]: *** [postgres_group1] Error 2
+gmake[1]: Leaving directory `/home/pgsql/archives/src/backend'
+gmake: *** [all] Error 2
+
+------
+
+Makefile.customは
+
+PORTNAME= sunos4
+CUSTOM_CC= gcc
+
+です。
+
+------------------------------------------------------
+kuramoto@lib.tokushima-u.ac.jp
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@rccm.co.jp&gt;
+Date: Sat, 22 Feb 1997 15:42:41 +0900 (JST)
+Subject: [postgres95 1430] Re: [HELP] can't compile pgSQl 6.0 on SunOS
+Message-Id: &lt;Pine.LNX.3.91LJ1.0.4.970222153335.7531A-100000@earth.astea.rccm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村です。
+
+  sunos4 はすでに sparc となっているらしいのですが、僕も sunos4 でメイ
+クしました。やはり、最初はうまく行かず以下のような手順でなんとかできま
+した。また、regression てすとはほぼ DEC/OSF1 でやったときと同じような
+違いがありました。(ただし、まだ jp.patch はあててません。)
+  なお、 lib44bsd.a は、多分 BIND をインストールした時に同時にインストー
+ルされたものだと思います。
+
+(1) Make symlink.
+
+ln -s  src/backend/port/sparc src/backend/port/sunos4
+
+
+(2) Patches.
+
+(2.1) src/include&gt; diff -c c.h.org c.h
+*** c.h.org	Fri Dec 27 08:01:57 1996
+--- c.h	Tue Feb  4 19:25:35 1997
+***************
+*** 739,744 ****
+--- 739,745 ----
+  
+  #if defined(sunos4)
+  #define	memmove(d, s, l)	bcopy(s, d, l)
++ #include &lt;unistd.h&gt;
+  #endif
+  
+  /* These are for things that are one way on Unix and another on NT */
+
+
+(2.2) src/include&gt; diff -c config.h.org config.h
+*** config.h.org	Fri Jan 31 02:01:16 1997
+--- config.h	Tue Feb  4 16:32:20 1997
+***************
+*** 209,214 ****
+--- 209,215 ----
+  #if defined(sunos4)
+  #  define USE_POSIX_TIME
+  #  undef HAVE_MEMMOVE
++ #  undef HAVE_SYS_SELECT_H
+  #endif
+  
+  #if defined(svr4) 
+
+
+(2.3) src/backend/port&gt; diff -c Makefile.org Makefile
+*** Makefile.org	Fri Jan 24 02:00:35 1997
+--- Makefile	Wed Feb 19 18:38:00 1997
+***************
+*** 31,38 ****
+  
+  OBJS = $(PORTNAME)/SUBSYS.o
+  
+! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sparc_solaris/ultrix4/nextstep/svr4))
+  # Other ports get the inet_aton() function from their standard C libraries.
+  OBJS += inet_aton.o
+  endif
+  
+--- 31,39 ----
+  
+  OBJS = $(PORTNAME)/SUBSYS.o
+  
+! ifneq (,$(findstring /$(PORTNAME)/, /i386_solaris/sunos4/sparc_solaris/ultrix4/nextstep/svr4))
+  # Other ports get the inet_aton() function from their standard C libraries.
++ CC=gcc
+  OBJS += inet_aton.o
+  endif
+  
+
+(2.4) src&gt; diff -c Makefile.global.org Makefile.global
+*** Makefile.global.org	Wed Jan 29 02:00:13 1997
+--- Makefile.global	Wed Feb 19 18:26:00 1997
+***************
+*** 627,633 ****
+  else
+  CFLAGS_SL= -fPIC
+  endif
+! LDADD_BE= -lln -ldl
+  
+  %.so: %.o
+  	$(LD) -dc -dp -Bdynamic -o $@ $&lt;
+--- 627,633 ----
+  else
+  CFLAGS_SL= -fPIC
+  endif
+! LDADD_BE= -lln -ldl -l44bsd
+  
+  %.so: %.o
+  	$(LD) -dc -dp -Bdynamic -o $@ $&lt;
+
+
+(3) Output from customize
+src&gt; cat Makefile.custom
+PORTNAME= sunos4
+USE_READLINE= true
+READLINE_INC+= -DHAVE_LIBREADLINE
+# Remove the following line if you don't have &lt;readline.h&gt;
+READLINE_INC+= -DHAVE_READLINE_H
+# Remove the following line if you don't have &lt;history.h&gt;
+#READLINE_INC+= -DHAVE_HISTORY
+READLINE_INC+= -I/usr/local/include/readline
+READLINE_LIB+= -L/usr/local/lib -lreadline
+CURSES_LIB= -L/usr/lib -lcurses -ltermcap
+CUSTOM_CC= gcc
+
+
+
+&gt; 庫元＠徳島大学附属図書館です。
+&gt; 
+&gt; postgres95 MLの皆様へ
+&gt; 
+&gt; いつも皆様のメールを参考にさせていただいております。
+&gt; ありがとうございます。
+&gt; 
+&gt; 早速ですが、一つお教え願いたいことがあります。
+&gt; どうも、SunOSでのコンパイがうまくいきません。皆様の中でうまく
+&gt; コンパイルできたという方がおられましたら、アドバイスいただけ
+&gt; ないでしょうか。
+&gt; 
+&gt; &lt;&lt;環境&gt;&gt;
+&gt; SunOS4.1.4
+&gt; gcc 2.7.2.1
+&gt; gmake 3.75
+&gt; flex 2.5.4
+&gt; 
+&gt; postgreSQL6.0 + jp.patch
+&gt; 
+&gt; &lt;&lt;状況&gt;&gt;
+&gt; Makefile.global、Makefile.customは石井様のインストールのヒントを
+&gt; 参考にした。(Makefile.globalにSRCDIR= /home/pgsql/archives/srcを
+&gt; 付け加えた。)
+&gt; 
+&gt; ------
+&gt; In file included from nbtutils.c:25:
+&gt; ../../../include/regex/utils.h:57: warning: `memmove' redefined
+&gt; ../../../include/c.h:741: warning: this is the location of the previous definition
+&gt; nbtutils.c: In function `_bt_orderkeys':
+&gt; nbtutils.c:100: warning: implicit declaration of function `memset'
+&gt; nbtutils.c:138: warning: implicit declaration of function `bcopy'
+&gt; gcc -DJP -Wall -Wmissing-prototypes -O2  -Dsunos4  -I../.. -I../../port/sunos4
+&gt; -I../../../inc
+&gt; lude   -c nbtsort.c -o nbtsort.o
+&gt; In file included from nbtsort.c:61:
+&gt; ../../../include/regex/utils.h:57: warning: `memmove' redefined
+&gt; ../../../include/c.h:741: warning: this is the location of the previous definition
+&gt; nbtsort.c: In function `_bt_taperewind':
+&gt; nbtsort.c:272: `SEEK_SET' undeclared (first use this function)
+&gt; nbtsort.c:272: (Each undeclared identifier is reported only once
+&gt; nbtsort.c:272: for each function it appears in.)
+&gt; nbtsort.c: In function `_bt_spoolinit':
+&gt; nbtsort.c:457: warning: implicit declaration of function `memset'
+&gt; gmake[3]: *** [nbtsort.o] Error 1
+&gt; gmake[3]: Leaving directory `/home/pgsql/archives/src/backend/access/nbtree'
+&gt; gmake[2]: *** [submake] Error 2
+&gt; gmake[2]: Leaving directory `/home/pgsql/archives/src/backend/access'
+&gt; gmake[1]: *** [postgres_group1] Error 2
+&gt; gmake[1]: Leaving directory `/home/pgsql/archives/src/backend'
+&gt; gmake: *** [all] Error 2
+&gt; ------
+&gt; warning: `memmove' redefined
+&gt; warning: implicit declaration of function `bcopy
+&gt; などのwarningを多く出しながら上記の箇所でerrorになります。
+&gt; 私の力量ではどうしてよいか全然わかりません。どなたかアドバイス
+&gt; よろしくお願いします。
+&gt; 
+&gt; --------------------------------------------------------------------
+&gt; kuramoto@lib.tokushima-u.ac.jp
+&gt; 
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@rccm.co.jp&gt;
+Date: Sat, 22 Feb 1997 15:27:42 +0900 (JST)
+Subject: [postgres95 1429] Re: Benchmark test
+Message-Id: &lt;Pine.LNX.3.91LJ1.0.4.970222151654.7136A-100000@earth.astea.rccm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村です。
+
+  PostgreSQL6.0 をもう古くなってしまった SunOS4.1.1 の SparcStation2 
+でメイクしたのでベンチマークをしてみました。コンパイラは gcc 2.6.3 を
+使いました。
+
+SunOS4.1.1-JLE1.1.1/SparcStation2 32MB RAM + アサーションあり（デフォルト）
+
+query  0:   0.007 real   0.000 user   0.000 sys
+query  1:   2.831 real   0.950 user   1.630 sys
+query  2:   9.615 real   2.900 user   4.060 sys
+query  3:   2.410 real   0.860 user   1.160 sys
+query  4:   9.029 real   3.210 user   3.600 sys
+query  5:   2.088 real   1.000 user   0.960 sys
+query  6:   4.571 real   2.570 user   1.730 sys
+query  7:   0.126 real   0.110 user   0.010 sys
+query  8:   1.295 real   1.090 user   0.130 sys
+query  9:  35.897 real  21.890 user   9.450 sys
+query 10:  49.318 real  20.820 user   9.490 sys
+query 11:  41.903 real  13.470 user   9.720 sys
+query 12:  51.316 real  21.860 user  10.020 sys
+query 13:  49.647 real  20.750 user   9.060 sys
+query 14:  28.824 real  13.750 user  10.600 sys
+query 15:  42.027 real  22.670 user  12.420 sys
+query 16:  35.152 real  20.270 user   9.820 sys
+query 17:  44.685 real  16.090 user  14.740 sys
+query 18:  25.685 real  11.420 user   8.580 sys
+query 19:   7.367 real   2.100 user   2.830 sys
+query 20:   0.005 real   0.000 user   0.000 sys
+query 21:   0.004 real   0.000 user   0.000 sys
+query 22:   0.003 real   0.010 user   0.000 sys
+query 23:   0.003 real   0.000 user   0.000 sys
+query 24:   0.003 real   0.000 user   0.000 sys
+query 25:   0.003 real   0.010 user   0.000 sys
+query 26:   0.003 real   0.000 user   0.000 sys
+query 27:   0.125 real   0.020 user   0.060 sys
+query 28:   0.468 real   0.210 user   0.110 sys
+query 29:   0.003 real   0.000 user   0.000 sys
+query 30:   0.075 real   0.050 user   0.020 sys
+query 31:   0.200 real   0.120 user   0.080 sys
+query 32:   0.195 real   0.150 user   0.050 sys
+
+--
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Kuramoto Takafumi &lt;kuramoto@lib.tokushima-u.ac.jp&gt;
+Date: Sat, 22 Feb 97 14:59:23 JST
+Subject: [postgres95 1428] [HELP] can't compile pgSQl 6.0 on SunOS
+Message-Id: &lt;9702220559.AA06656@void.lib.tokushima-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+庫元＠徳島大学附属図書館です。
+
+postgres95 MLの皆様へ
+
+いつも皆様のメールを参考にさせていただいております。
+ありがとうございます。
+
+早速ですが、一つお教え願いたいことがあります。
+どうも、SunOSでのコンパイがうまくいきません。皆様の中でうまく
+コンパイルできたという方がおられましたら、アドバイスいただけ
+ないでしょうか。
+
+&lt;&lt;環境&gt;&gt;
+SunOS4.1.4
+gcc 2.7.2.1
+gmake 3.75
+flex 2.5.4
+
+postgreSQL6.0 + jp.patch
+
+&lt;&lt;状況&gt;&gt;
+Makefile.global、Makefile.customは石井様のインストールのヒントを
+参考にした。(Makefile.globalにSRCDIR= /home/pgsql/archives/srcを
+付け加えた。)
+
+------
+In file included from nbtutils.c:25:
+../../../include/regex/utils.h:57: warning: `memmove' redefined
+../../../include/c.h:741: warning: this is the location of the previous definition
+nbtutils.c: In function `_bt_orderkeys':
+nbtutils.c:100: warning: implicit declaration of function `memset'
+nbtutils.c:138: warning: implicit declaration of function `bcopy'
+gcc -DJP -Wall -Wmissing-prototypes -O2  -Dsunos4  -I../.. -I../../port/sunos4
+-I../../../inc
+lude   -c nbtsort.c -o nbtsort.o
+In file included from nbtsort.c:61:
+../../../include/regex/utils.h:57: warning: `memmove' redefined
+../../../include/c.h:741: warning: this is the location of the previous definition
+nbtsort.c: In function `_bt_taperewind':
+nbtsort.c:272: `SEEK_SET' undeclared (first use this function)
+nbtsort.c:272: (Each undeclared identifier is reported only once
+nbtsort.c:272: for each function it appears in.)
+nbtsort.c: In function `_bt_spoolinit':
+nbtsort.c:457: warning: implicit declaration of function `memset'
+gmake[3]: *** [nbtsort.o] Error 1
+gmake[3]: Leaving directory `/home/pgsql/archives/src/backend/access/nbtree'
+gmake[2]: *** [submake] Error 2
+gmake[2]: Leaving directory `/home/pgsql/archives/src/backend/access'
+gmake[1]: *** [postgres_group1] Error 2
+gmake[1]: Leaving directory `/home/pgsql/archives/src/backend'
+gmake: *** [all] Error 2
+------
+warning: `memmove' redefined
+warning: implicit declaration of function `bcopy
+などのwarningを多く出しながら上記の箇所でerrorになります。
+私の力量ではどうしてよいか全然わかりません。どなたかアドバイス
+よろしくお願いします。
+
+--------------------------------------------------------------------
+kuramoto@lib.tokushima-u.ac.jp
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;
+Date: Sat, 22 Feb 1997 13:14:03 +0900
+Subject: [postgres95 1427] [HELP](2)cannot patch to PHP/FI 2.0b10 
+Message-Id: &lt;9702220414.AA00059@ESS.air.akita-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+Received: from shiva.race.u-tokyo.ac.jp by Air.akita-u.ac.jp 
+(5.67+1.6W/6.4JAIN-[94/08/09])
+	id AA18341; Sat, 22 Feb 97 03:58:42 JST
+Return-Path: &lt;owner-apache@race.u-tokyo.ac.jp&gt;
+Received: (from majordom@localhost) by shiva.race.u-tokyo.ac.jp (8.8.5/3.5Wpl2) 
+id DAA22375; Sat, 22 Feb 1997 03:03:17 +0900 (JST)
+X-Authentication-Warning: shiva.race.u-tokyo.ac.jp: majordom set sender to 
+owner-apache@race.u-tokyo.ac.jp using -f
+船木＠秋田県立図書館です。
+m2@soum.co.jpさん、おみつさんからご指摘いただいた点についてなんですが、
+! REGXMSG1=以下、! REGXMSG2=以下とも、もともと１行になっていました。
+で、やっぱりpatchが当たりません。根本的に何か間違っているのでしょうか？
+やったことは
+１．php2.0b10を展開して/usr/local/php-2.0b10をつくる（と言うかできた）
+２．kanji2.0b10.mb.patchを/usr/local/php-2.0b10へコピー
+３．/usr/local/php-2.0b10へcdする。
+３．patch -p1 &lt; kanji2.0b10.mb.patchとする。
+です。その結果、以下の２つのrejファイルができました。
+何回も申し訳ありませんが、よろしくご教示下さい。
+
+船木　喜夫　yoshio@air.akita-u.ac.jp
+
+----------------config.h.in.rej-----------------------------
+***************
+*** 40,46
+  #undef HAVE_STRCASECMP
+  
+  /* Define if you have the mmap function.  */
+! #undef HAVE_MMAP
+  
+  /* Define if you have the putenv function.  */
+  #undef HAVE_PUTENV
+--- 40,46 -----
+  #undef HAVE_STRCASECMP
+  
+  /* Define if you have the mmap function.  */
+! /* #undef HAVE_MMAP */
+  
+  /* Define if you have the putenv function.  */
+  #undef HAVE_PUTENV
+
+−−−−−install.rej−−−−−−−−−−−−−−
+***************
+*** 509,515
+  	PHPSENDMAIL=&quot;&quot;
+  fi
+  
+! if grep &quot;#define HAVE_REGCOMP 1&quot; config.h &gt;/dev/null 2&gt;&amp;1
+  then
+  	echo &quot;Your system appears to have a Posix compliant regex library&quot;;
+  	echo &quot;On some systems this library is broken.  UnixWare 2.0.x is an&quot;
+--- 509,530 -----
+  	PHPSENDMAIL=&quot;&quot;
+  fi
+  
+! $ECHO_N &quot;Do you want to use multi-byte extension for regex library? [y/N] &quot;
+! read a
+! if [ &quot;$a&quot; = &quot;y&quot; -o &quot;$a&quot; = Y ]
+! then
+! 	echo &quot;Using multi-byte extension for regular expression library&quot;
+! 	echo &quot;&quot;
+! 	LIBREGEX=-lregex
+! 	LIBREGEXDIR=-L./jp.regex
+! 	REGEX_INCLUDE=-I./jp.regex
+! 	OURREGEX=jp.regex/libregex.a
+! 	REGEXMSG1=&quot;For Apache 1.1.1 you must copy src/jp.regex/libregex.a and 
+src/jp.regex/regex.h to $APACHE_DIR and add -I. and -llibregex.a to 
+Configuration&quot;
+! 	REGEXMSG2=&quot;For Apache 1.2 or higher you must set the WANTHSREGEX 
+Configuration parameter to N and copy src/jp.regex/libregex.a and 
+src/jp.regex/regex.h to $APACHE_DIR then add -I. and -llibregex.a to 
+Configuration&quot;
+! 	STATICLIBREGEX=jp.regex/libregex.a
+! 	echo &quot;#define MB 1&quot; &gt;&gt; config.h
+! 
+! elif grep &quot;#define HAVE_REGCOMP 1&quot; config.h &gt;/dev/null 2&gt;&amp;1
+  then
+  	echo &quot;Your system appears to have a Posix compliant regex library&quot;;
+  	echo &quot;On some systems this library is broken.  UnixWare 2.0.x is an&quot;
+
+
+
+
+
+
+
+<HR>
+</PRE>

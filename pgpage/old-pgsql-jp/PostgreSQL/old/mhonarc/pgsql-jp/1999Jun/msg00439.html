@@ -1,0 +1,562 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9004] Re: FastCGI vs Perl -->
+<!--X-From: Youichi Iwakiri <iwakiri@jkk.hitachi.co.jp> -->
+<!--X-Date: Wed, 23 Jun 1999 12:40:34 +0900 -->
+<!--X-Message-Id: 199906230338.MAA01967@mailgw.jkk.hitachi.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 199906220802.RAA26079@mailgw.jkk.hitachi.co.jp -->
+<!--X-Reference-Id: 199906230131.KAA01713@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9004] Re: FastCGI vs Perl </TITLE>
+<LINK REV="made" HREF="mailto:iwakiri@jkk.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00437.html">Date Prev</A>][<A HREF="msg00438.html">Date Next</A>][<A HREF="msg00431.html">Thread Prev</A>][<A HREF="msg00444.html">Thread Next</A>][<A HREF="index.html#00439">Date Index</A>][<A HREF="threads.html#00439">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9004] Re: FastCGI vs Perl</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:iwakiri@jkk.hitachi.co.jp">iwakiri@jkk.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Jun 1999 12:40:34 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00417.html">199906220802.RAA26079@mailgw.jkk.hitachi.co.jp</A>&gt;&lt;<A HREF="msg00431.html">199906230131.KAA01713@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+Tatsuo Ishiiさんの&lt;<A HREF="msg00431.html">199906230131.KAA01713@ext16.sra.co.jp</A>&gt;から
+&gt;&gt; 2. FastCGI(その1)
+&gt;&gt;    cgiプログラムは1プロセスとして常駐。
+&gt;&gt;    perlのオーバヘッドのみ解消、毎回Pg::connectdb()は実施。
+&gt;ちょっと気になるのですが、CGIは1プロセスのみですか？ここがボトルネック
+&gt;になったりしないのでしょうか？
+
+2プロセス常駐させてます。
+と書きかけて間違ってました m(_ _)m
+
+httpd.conf内でstaticに常駐させるプロセス数を指定できるのですが、
+
+AddHandler fastcgi-script .fcgi .fpl
+FastCgiServer cgi-bin/get_thread.fcgi -processes 2
+FastCgiServer cgi-bin/set_thread.fcgi -processes 2
+
+としていたため、
+get_thread.fcgi × 4プロセス (apache起動時にローディングされます)
+get_thread2.fcgi× 1プロセス (最初の呼び出し時にローディング、以降常駐)
+となってました。
+
+FastCgiServer cgi-bin/get_thread.fcgi -processes 4
+FastCgiServer cgi-bin/set_thread2.fcgi -processes 4
+
+どちらも4プロセス常駐させて再度計測しました。
+
+1.Pg::connectdb()を最初に実行、開放せず
+iwa# ./ab -n 500 -c 2 <A HREF="http://localhost/fcgi-bin/get_thread.fcgi">http://localhost/fcgi-bin/get_thread.fcgi</A>
+Document Path:          /fcgi-bin/get_thread.fcgi
+Document Length:        611 bytes
+
+Concurrency Level:      2
+Time taken for tests:   30.434 seconds
+Complete requests:      500
+Failed requests:        0
+Non-2xx responses:      500
+Total transferred:      400500 bytes
+HTML transferred:       305500 bytes
+Requests per second:    16.43
+Transfer rate:          13.16 kb/s received
+
+2.$conn=Pg::connectdb(),$conn-&gt;resetをhttpリクエスト毎に実施。
+iwa# ./ab -n 500 -c 2 <A HREF="http://localhost/fcgi-bin/get_thread2.fcgi">http://localhost/fcgi-bin/get_thread2.fcgi</A>
+Document Path:          /fcgi-bin/get_thread2.fcgi
+Document Length:        650 bytes
+
+Concurrency Level:      2
+Time taken for tests:   88.755 seconds
+Complete requests:      500
+Failed requests:        0
+Total transferred:      419500 bytes
+HTML transferred:       325000 bytes
+Requests per second:    5.63
+Transfer rate:          4.73 kb/s received
+
+&gt;&gt; 結論としては、Pg::connect()はperlのオーバヘッドより
+&gt;&gt; Pg::connectdb()のオーバヘッドが非常に大きいということが
+&gt;&gt; 判りました。
+&gt;バックエンドをforkするコストでしょうか。
+
+そうです。バックエンドのfork(),exec()に要している時間だと
+思います。
+
+&gt;ところで、Apacheを起動する前に、環境変数PGCLIENTENCODING=EUC_JPをセッ
+&gt;トしてみて頂けますでしょうか？こうすると、バックエンドのエンコーディン
+&gt;グを問い合わせるSELECT文がでなくなります。このオーバヘッドがどの位か気
+&gt;になっています。
+
+やってみましたが、性能に差はいられませんでした。
+環境変数PGCLIENTENCODINGがちゃんと渡されているかは、php3.09の
+サンプルtest.php3で確認しました。動作環境を見ていただいた方が
+はやいと思いますのでtest.php3の結果を添付します。
+
+Time taken for tests:   88.755 seconds (PGCLIENTENCODING=EUC_JP有)
+Time taken for tests:   88.806 seconds (PGCLIENTENCODING=EUC_JP無)
+
+apacheがget_thread.fcgiとget_thread2.fcgiをfork()して常駐させる際に
+環境変数を引き継いでないのかもしれません。
+調べてみます。
+</PRE>
+<center><h1>PHP Version 3.0.9</h1></center>
+by <a href="mailto:rasmus@lerdorf.on.ca">Rasmus Lerdorf</a>,
+<a href="mailto:andi@php.net">Andi Gutmans</a>,
+<a href="mailto:bourbon@netvision.net.il">Zeev Suraski</a>,
+<a href="mailto:ssb@fast.no">Stig Bakken</a>,
+<a href="mailto:shane@caraveo.com">Shane Caraveo</a>,
+<a href="mailto:jimw@php.net">Jim Winstead</a>, and countless others.<P>
+<hr><center>System: FreeBSD iwa.jkk.hitachi.co.jp 3.1-RELEASE FreeBSD 3.1-RELEASE #3: Thu Jun 17 08:44:28 JST 1999     root@iwa.jkk.hitachi.co.jp:/usr/src/sys/compile/PAO_IWA  i386<br>Build Date: Jun 18 1999</center>
+<center>
+<hr><h2>Extensions</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Extensions</th><th bgcolor="#00DDDD">Additional Information</th></tr>
+<tr><th align=left bgcolor="#999999">PHP core</th>
+<td bgcolor="#DDDDDD"><tt>CFLAGS=-g -O2 -O2<br>
+HSREGEX=no</td></tr>
+<tr><th align=left bgcolor="#999999">Basic Functions</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_DL</th><td bgcolor="#DDDDDD">Dynamic Library support enabled.
+</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_dir</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_filestat</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_file</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_head</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">Sendmail</th><td bgcolor="#DDDDDD">Path to sendmail: <tt>/usr/sbin/sendmail -t</tt></td></tr>
+<tr><th align=left bgcolor="#999999">Syslog</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PostgreSQL</th><td bgcolor="#DDDDDD"><table cellpadding=5><tr><td>Allow persistent links:</td><td>Yes</td></tr>
+<tr><td>Persistent links:</td><td>0/Unlimited</td></tr>
+<tr><td>Total links:</td><td>0/Unlimited</td></tr>
+<tr><td valign="top">Compilation definitions:</td><td><tt>PGSQL_INCLUDE=-I/usr/local/pgsql/include<br>
+PGSQL_LFLAGS=-L/usr/local/pgsql/lib<br>
+PGSQL_LIBS=-lpq<br></tt></td></tr></table>
+</td></tr>
+<tr><th align=left bgcolor="#999999">Socket functions</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">Regular Expressions</th><td bgcolor="#DDDDDD">System regex library enabled
+</td></tr>
+<tr><th align=left bgcolor="#999999">Apache</th><td bgcolor="#DDDDDD"><tt>APACHE_INCLUDE=-I/usr/local/apache/include<br>
+APACHE_TARGET=<br></tt>
+Apache Version: <b>Apache/1.3.6</b><br>Apache Release: <b>10306100</b><br>Apache API Version: <b>19990320</b><br>Hostname/port: <b>iwa.jkk.hitachi.co.jp:80</b><br>
+User/Group: <b>nobody(65534)/65534</b><br>
+Max Requests: <b>per child: 30 &nbsp;&nbsp; keep alive: off &nbsp;&nbsp; max per connection: 100</b><br>
+Timeouts: <b>connection: 300 &nbsp;&nbsp; keep-alive: 15</b><br>Server Root: <b>/usr/local/apache</b><br>
+Loaded modules: mod_fastcgi, mod_perl, mod_setenvif, mod_auth, mod_access, mod_alias, mod_userdir, mod_actions, mod_imap, mod_asis, mod_cgi, mod_dir, mod_autoindex, mod_include, mod_status, mod_negotiation, mod_mime, mod_log_config, mod_env, mod_php3, mod_so, http_core<br></td?</tr>
+</td></tr>
+<tr><th align=left bgcolor="#999999">Crypt</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">DBM</th><td bgcolor="#DDDDDD">ndbm support enabled</td></tr>
+<tr><th align=left bgcolor="#999999">bcmath</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">browscap</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_pack</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PCRE</th><td bgcolor="#DDDDDD">Perl Compatible Regular Expressions<table cellpadding=5><tr><td>PCRE library version:</td><td>2.05 21-Apr-1999</td></tr></table></td></tr>
+</table>
+<hr><h2>Configuration</h2>
+php3.ini file path is set to: /usr/local/apache<br>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Directive</th><th bgcolor="#00DDDD">Master Value</th><th bgcolor="#00DDDD">Local Value</th></tr>
+<tr><td bgcolor="#999999">arg_separator</td><td bgcolor="#DDDDDD">&nbsp;&</td><td bgcolor="#DDDDDD">&nbsp;&</td></tr>
+<tr><td bgcolor="#999999">asp_tags</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">auto_prepend_file</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">auto_append_file</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">browscap</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">cgi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">debugger.host</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">debugger.port</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">define_syslog_variables</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">display_errors</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">doc_root</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">enable_dl</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">engine</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">error_log</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_append_string</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_prepend_string</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_reporting</td><td bgcolor="#DDDDDD">7</td><td bgcolor="#DDDDDD">7</td></tr>
+<tr><td bgcolor="#999999">extension_dir</td><td bgcolor="#DDDDDD">&nbsp;./</td><td bgcolor="#DDDDDD">&nbsp;./</td></tr>
+<tr><td bgcolor="#999999">gpc_order</td><td bgcolor="#DDDDDD">&nbsp;GPC</td><td bgcolor="#DDDDDD">&nbsp;GPC</td></tr>
+<tr><td bgcolor="#999999">ignore_user_abort</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">include_path</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">isapi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">last_modified</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">log_errors</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">max execution time</td><td bgcolor="#DDDDDD">30</td><td bgcolor="#DDDDDD">30</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_gpc</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_runtime</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_sybase</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">memory limit</td><td bgcolor="#DDDDDD">8388608</td><td bgcolor="#DDDDDD">8388608</td></tr>
+<tr><td bgcolor="#999999">nsapi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">open_basedir</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">precision</td><td bgcolor="#DDDDDD">14</td><td bgcolor="#DDDDDD">14</td></tr>
+<tr><td bgcolor="#999999">safe_mode</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">safe_mode_exec_dir</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">sendmail_from</td><td bgcolor="#DDDDDD">&nbsp;me@localhost.com</td><td bgcolor="#DDDDDD">&nbsp;me@localhost.com</td></tr>
+<tr><td bgcolor="#999999">sendmail_path</td><td bgcolor="#DDDDDD">&nbsp;/usr/sbin/sendmail -t</td><td bgcolor="#DDDDDD">&nbsp;/usr/sbin/sendmail -t</td></tr>
+<tr><td bgcolor="#999999">short_open_tag</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">smtp</td><td bgcolor="#DDDDDD">&nbsp;localhost</td><td bgcolor="#DDDDDD">&nbsp;localhost</td></tr>
+<tr><td bgcolor="#999999">sql_safe_mode</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">track_errors</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">track_vars</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">upload_max_filesize</td><td bgcolor="#DDDDDD">2097152</td><td bgcolor="#DDDDDD">2097152</td></tr>
+<tr><td bgcolor="#999999">upload_tmp_dir</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">user_dir</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">warn_plus_overloading</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">xbithack</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">browscap</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">y2k_compliance</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">highlight_comment</td><td bgcolor="#DDDDDD"><font color=#FF8000>&nbsp;#FF8000</font></td><td bgcolor="#DDDDDD"><font color=#FF8000>&nbsp;#FF8000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_default</td><td bgcolor="#DDDDDD"><font color=#0000BB>&nbsp;#0000BB</font></td><td bgcolor="#DDDDDD"><font color=#0000BB>&nbsp;#0000BB</font></td></tr>
+<tr><td bgcolor="#999999">highlight_html</td><td bgcolor="#DDDDDD"><font color=#000000>&nbsp;#000000</font></td><td bgcolor="#DDDDDD"><font color=#000000>&nbsp;#000000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_string</td><td bgcolor="#DDDDDD"><font color=#DD0000>&nbsp;#DD0000</font></td><td bgcolor="#DDDDDD"><font color=#DD0000>&nbsp;#DD0000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_bg</td><td bgcolor="#DDDDDD"><font color=#FFFFFF>&nbsp;#FFFFFF</font></td><td bgcolor="#DDDDDD"><font color=#FFFFFF>&nbsp;#FFFFFF</font></td></tr>
+<tr><td bgcolor="#999999">highlight_keyword</td><td bgcolor="#DDDDDD"><font color=#007700>&nbsp;#007700</font></td><td bgcolor="#DDDDDD"><font color=#007700>&nbsp;#007700</font></td></tr>
+</table><hr><h2>Environment</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">MACHTYPE</td><td bgcolor="#DDDDDD">i386</td></tr>
+<tr><td bgcolor="#999999">USER</td><td bgcolor="#DDDDDD">root</td></tr>
+<tr><td bgcolor="#999999">MAIL</td><td bgcolor="#DDDDDD">/var/mail/root</td></tr>
+<tr><td bgcolor="#999999">PGCLIENTENCODING</td><td bgcolor="#DDDDDD">EUC_JP</td></tr>
+<tr><td bgcolor="#999999">SHLVL</td><td bgcolor="#DDDDDD">2</td></tr>
+<tr><td bgcolor="#999999">VENDOR</td><td bgcolor="#DDDDDD">intel</td></tr>
+<tr><td bgcolor="#999999">HOME</td><td bgcolor="#DDDDDD">/root</td></tr>
+<tr><td bgcolor="#999999">PAGER</td><td bgcolor="#DDDDDD">more</td></tr>
+<tr><td bgcolor="#999999">GROUP</td><td bgcolor="#DDDDDD">wheel</td></tr>
+<tr><td bgcolor="#999999">LOGNAME</td><td bgcolor="#DDDDDD">root</td></tr>
+<tr><td bgcolor="#999999">BLOCKSIZE</td><td bgcolor="#DDDDDD">K</td></tr>
+<tr><td bgcolor="#999999">TERM</td><td bgcolor="#DDDDDD">vt100</td></tr>
+<tr><td bgcolor="#999999">PATH</td><td bgcolor="#DDDDDD">/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/bin:/usr/X11R6/bin:/root/bin</td></tr>
+<tr><td bgcolor="#999999">REMOTEHOST</td><td bgcolor="#DDDDDD">158.213.214.162</td></tr>
+<tr><td bgcolor="#999999">HOST</td><td bgcolor="#DDDDDD">iwa.jkk.hitachi.co.jp</td></tr>
+<tr><td bgcolor="#999999">SHELL</td><td bgcolor="#DDDDDD">/usr/local/bin/tcsh</td></tr>
+<tr><td bgcolor="#999999">OSTYPE</td><td bgcolor="#DDDDDD">FreeBSD</td></tr>
+<tr><td bgcolor="#999999">PWD</td><td bgcolor="#DDDDDD">/usr/local/apache/bin</td></tr>
+<tr><td bgcolor="#999999">MANPATH</td><td bgcolor="#DDDDDD">/usr/share/man:/usr/X11R6/man:/usr/local/man</td></tr>
+<tr><td bgcolor="#999999">HOSTTYPE</td><td bgcolor="#DDDDDD">FreeBSD</td></tr>
+</table>
+<hr><h2>PHP Variables</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">PHP_SELF</td><td bgcolor="#DDDDDD">/test.php3</td></tr>
+</table>
+<hr><h2>Apache Environment</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">DOCUMENT_ROOT</td><td bgcolor="#DDDDDD">/usr/local/apache/htdocs&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT</td><td bgcolor="#DDDDDD">image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-powerpoint, application/vnd.ms-excel, */*&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT_ENCODING</td><td bgcolor="#DDDDDD">gzip, deflate&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT_LANGUAGE</td><td bgcolor="#DDDDDD">ja&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_CONNECTION</td><td bgcolor="#DDDDDD">Keep-Alive&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_HOST</td><td bgcolor="#DDDDDD">158.213.214.28&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_USER_AGENT</td><td bgcolor="#DDDDDD">Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)&nbsp;</td></tr>
+<tr><td bgcolor="#999999">PATH</td><td bgcolor="#DDDDDD">/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/bin:/usr/X11R6/bin:/root/bin&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REMOTE_ADDR</td><td bgcolor="#DDDDDD">158.213.214.162&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REMOTE_PORT</td><td bgcolor="#DDDDDD">1049&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SCRIPT_FILENAME</td><td bgcolor="#DDDDDD">/usr/local/apache/htdocs/test.php3&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_ADMIN</td><td bgcolor="#DDDDDD">root@iwa.jkk.hitachi.co.jp&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_NAME</td><td bgcolor="#DDDDDD">iwa.jkk.hitachi.co.jp&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_PORT</td><td bgcolor="#DDDDDD">80&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_SIGNATURE</td><td bgcolor="#DDDDDD"><ADDRESS>Apache/1.3.6 Server at iwa.jkk.hitachi.co.jp Port 80</ADDRESS>
+&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_SOFTWARE</td><td bgcolor="#DDDDDD">Apache/1.3.6 (Unix) mod_fastcgi/2.2.2 mod_perl/1.19 PHP/3.0.9&nbsp;</td></tr>
+<tr><td bgcolor="#999999">GATEWAY_INTERFACE</td><td bgcolor="#DDDDDD">CGI/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_PROTOCOL</td><td bgcolor="#DDDDDD">HTTP/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REQUEST_METHOD</td><td bgcolor="#DDDDDD">GET&nbsp;</td></tr>
+<tr><td bgcolor="#999999">QUERY_STRING</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REQUEST_URI</td><td bgcolor="#DDDDDD">/test.php3&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SCRIPT_NAME</td><td bgcolor="#DDDDDD">/test.php3&nbsp;</td></tr>
+</table>
+<hr><h2>HTTP Headers Information</h2>
+<table border=5 width="600">
+ <tr><th colspan=2 bgcolor="#00DDDD">HTTP Request Headers</th></tr>
+<tr><td bgcolor="#999999">HTTP Request</td><td bgcolor="#DDDDDD">GET /test.php3 HTTP/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept</td><td bgcolor="#DDDDDD">image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-powerpoint, application/vnd.ms-excel, */*&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept-Encoding</td><td bgcolor="#DDDDDD">gzip, deflate&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept-Language</td><td bgcolor="#DDDDDD">ja&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Connection</td><td bgcolor="#DDDDDD">Keep-Alive&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Host</td><td bgcolor="#DDDDDD">158.213.214.28&nbsp;</td></tr>
+<tr><td bgcolor="#999999">User-Agent</td><td bgcolor="#DDDDDD">Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)&nbsp;</td></tr>
+ <tr><th colspan=2  bgcolor="#00DDDD">HTTP Response Headers</th></tr>
+<tr><td bgcolor="#999999">Connection</td><td bgcolor="#DDDDDD">close&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Transfer-Encoding</td><td bgcolor="#DDDDDD">chunked&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Content-Type</td><td bgcolor="#DDDDDD">text/html&nbsp;</td></tr>
+</table>
+
+</center><hr><h2>PHP License</h2>
+<PRE>This program is free software; you can redistribute it and/or modify
+it under the terms of:
+
+A) the GNU General Public License as published by the Free Software
+   Foundation; either version 2 of the License, or (at your option)
+   any later version.
+
+B) the PHP License as published by the PHP Development Team and
+   included in the distribution in the file: LICENSE
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of both licenses referred to here.
+If you did not, or have any questions about PHP licensing, please
+contact core@php.net.</PRE>
+<center><h1>PHP Version 3.0.9</h1></center>
+by <a href="mailto:rasmus@lerdorf.on.ca">Rasmus Lerdorf</a>,
+<a href="mailto:andi@php.net">Andi Gutmans</a>,
+<a href="mailto:bourbon@netvision.net.il">Zeev Suraski</a>,
+<a href="mailto:ssb@fast.no">Stig Bakken</a>,
+<a href="mailto:shane@caraveo.com">Shane Caraveo</a>,
+<a href="mailto:jimw@php.net">Jim Winstead</a>, and countless others.<P>
+<hr><center>System: FreeBSD iwa.jkk.hitachi.co.jp 3.1-RELEASE FreeBSD 3.1-RELEASE #3: Thu Jun 17 08:44:28 JST 1999     root@iwa.jkk.hitachi.co.jp:/usr/src/sys/compile/PAO_IWA  i386<br>Build Date: Jun 18 1999</center>
+<center>
+<hr><h2>Extensions</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Extensions</th><th bgcolor="#00DDDD">Additional Information</th></tr>
+<tr><th align=left bgcolor="#999999">PHP core</th>
+<td bgcolor="#DDDDDD"><tt>CFLAGS=-g -O2 -O2<br>
+HSREGEX=no</td></tr>
+<tr><th align=left bgcolor="#999999">Basic Functions</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_DL</th><td bgcolor="#DDDDDD">Dynamic Library support enabled.
+</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_dir</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_filestat</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_file</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_head</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">Sendmail</th><td bgcolor="#DDDDDD">Path to sendmail: <tt>/usr/sbin/sendmail -t</tt></td></tr>
+<tr><th align=left bgcolor="#999999">Syslog</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PostgreSQL</th><td bgcolor="#DDDDDD"><table cellpadding=5><tr><td>Allow persistent links:</td><td>Yes</td></tr>
+<tr><td>Persistent links:</td><td>0/Unlimited</td></tr>
+<tr><td>Total links:</td><td>0/Unlimited</td></tr>
+<tr><td valign="top">Compilation definitions:</td><td><tt>PGSQL_INCLUDE=-I/usr/local/pgsql/include<br>
+PGSQL_LFLAGS=-L/usr/local/pgsql/lib<br>
+PGSQL_LIBS=-lpq<br></tt></td></tr></table>
+</td></tr>
+<tr><th align=left bgcolor="#999999">Socket functions</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">Regular Expressions</th><td bgcolor="#DDDDDD">System regex library enabled
+</td></tr>
+<tr><th align=left bgcolor="#999999">Apache</th><td bgcolor="#DDDDDD"><tt>APACHE_INCLUDE=-I/usr/local/apache/include<br>
+APACHE_TARGET=<br></tt>
+Apache Version: <b>Apache/1.3.6</b><br>Apache Release: <b>10306100</b><br>Apache API Version: <b>19990320</b><br>Hostname/port: <b>iwa.jkk.hitachi.co.jp:80</b><br>
+User/Group: <b>nobody(65534)/65534</b><br>
+Max Requests: <b>per child: 30 &nbsp;&nbsp; keep alive: off &nbsp;&nbsp; max per connection: 100</b><br>
+Timeouts: <b>connection: 300 &nbsp;&nbsp; keep-alive: 15</b><br>Server Root: <b>/usr/local/apache</b><br>
+Loaded modules: mod_fastcgi, mod_perl, mod_setenvif, mod_auth, mod_access, mod_alias, mod_userdir, mod_actions, mod_imap, mod_asis, mod_cgi, mod_dir, mod_autoindex, mod_include, mod_status, mod_negotiation, mod_mime, mod_log_config, mod_env, mod_php3, mod_so, http_core<br></td?</tr>
+</td></tr>
+<tr><th align=left bgcolor="#999999">Crypt</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">DBM</th><td bgcolor="#DDDDDD">ndbm support enabled</td></tr>
+<tr><th align=left bgcolor="#999999">bcmath</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">browscap</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PHP_pack</th><td bgcolor="#DDDDDD">No additional information.</td></tr>
+<tr><th align=left bgcolor="#999999">PCRE</th><td bgcolor="#DDDDDD">Perl Compatible Regular Expressions<table cellpadding=5><tr><td>PCRE library version:</td><td>2.05 21-Apr-1999</td></tr></table></td></tr>
+</table>
+<hr><h2>Configuration</h2>
+php3.ini file path is set to: /usr/local/apache<br>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Directive</th><th bgcolor="#00DDDD">Master Value</th><th bgcolor="#00DDDD">Local Value</th></tr>
+<tr><td bgcolor="#999999">arg_separator</td><td bgcolor="#DDDDDD">&nbsp;&</td><td bgcolor="#DDDDDD">&nbsp;&</td></tr>
+<tr><td bgcolor="#999999">asp_tags</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">auto_prepend_file</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">auto_append_file</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">browscap</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">cgi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">debugger.host</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">debugger.port</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">define_syslog_variables</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">display_errors</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">doc_root</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">enable_dl</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">engine</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">error_log</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_append_string</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_prepend_string</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">error_reporting</td><td bgcolor="#DDDDDD">7</td><td bgcolor="#DDDDDD">7</td></tr>
+<tr><td bgcolor="#999999">extension_dir</td><td bgcolor="#DDDDDD">&nbsp;./</td><td bgcolor="#DDDDDD">&nbsp;./</td></tr>
+<tr><td bgcolor="#999999">gpc_order</td><td bgcolor="#DDDDDD">&nbsp;GPC</td><td bgcolor="#DDDDDD">&nbsp;GPC</td></tr>
+<tr><td bgcolor="#999999">ignore_user_abort</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">include_path</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">isapi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">last_modified</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">log_errors</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">max execution time</td><td bgcolor="#DDDDDD">30</td><td bgcolor="#DDDDDD">30</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_gpc</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_runtime</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">magic_quotes_sybase</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">memory limit</td><td bgcolor="#DDDDDD">8388608</td><td bgcolor="#DDDDDD">8388608</td></tr>
+<tr><td bgcolor="#999999">nsapi_ext</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">open_basedir</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">precision</td><td bgcolor="#DDDDDD">14</td><td bgcolor="#DDDDDD">14</td></tr>
+<tr><td bgcolor="#999999">safe_mode</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">safe_mode_exec_dir</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">sendmail_from</td><td bgcolor="#DDDDDD">&nbsp;me@localhost.com</td><td bgcolor="#DDDDDD">&nbsp;me@localhost.com</td></tr>
+<tr><td bgcolor="#999999">sendmail_path</td><td bgcolor="#DDDDDD">&nbsp;/usr/sbin/sendmail -t</td><td bgcolor="#DDDDDD">&nbsp;/usr/sbin/sendmail -t</td></tr>
+<tr><td bgcolor="#999999">short_open_tag</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">smtp</td><td bgcolor="#DDDDDD">&nbsp;localhost</td><td bgcolor="#DDDDDD">&nbsp;localhost</td></tr>
+<tr><td bgcolor="#999999">sql_safe_mode</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">track_errors</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">track_vars</td><td bgcolor="#DDDDDD">1</td><td bgcolor="#DDDDDD">1</td></tr>
+<tr><td bgcolor="#999999">upload_max_filesize</td><td bgcolor="#DDDDDD">2097152</td><td bgcolor="#DDDDDD">2097152</td></tr>
+<tr><td bgcolor="#999999">upload_tmp_dir</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">user_dir</td><td bgcolor="#DDDDDD">&nbsp;</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">warn_plus_overloading</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">xbithack</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">browscap</td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td><td bgcolor="#DDDDDD">&nbsp;<i>none</i></td></tr>
+<tr><td bgcolor="#999999">y2k_compliance</td><td bgcolor="#DDDDDD">0</td><td bgcolor="#DDDDDD">0</td></tr>
+<tr><td bgcolor="#999999">highlight_comment</td><td bgcolor="#DDDDDD"><font color=#FF8000>&nbsp;#FF8000</font></td><td bgcolor="#DDDDDD"><font color=#FF8000>&nbsp;#FF8000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_default</td><td bgcolor="#DDDDDD"><font color=#0000BB>&nbsp;#0000BB</font></td><td bgcolor="#DDDDDD"><font color=#0000BB>&nbsp;#0000BB</font></td></tr>
+<tr><td bgcolor="#999999">highlight_html</td><td bgcolor="#DDDDDD"><font color=#000000>&nbsp;#000000</font></td><td bgcolor="#DDDDDD"><font color=#000000>&nbsp;#000000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_string</td><td bgcolor="#DDDDDD"><font color=#DD0000>&nbsp;#DD0000</font></td><td bgcolor="#DDDDDD"><font color=#DD0000>&nbsp;#DD0000</font></td></tr>
+<tr><td bgcolor="#999999">highlight_bg</td><td bgcolor="#DDDDDD"><font color=#FFFFFF>&nbsp;#FFFFFF</font></td><td bgcolor="#DDDDDD"><font color=#FFFFFF>&nbsp;#FFFFFF</font></td></tr>
+<tr><td bgcolor="#999999">highlight_keyword</td><td bgcolor="#DDDDDD"><font color=#007700>&nbsp;#007700</font></td><td bgcolor="#DDDDDD"><font color=#007700>&nbsp;#007700</font></td></tr>
+</table><hr><h2>Environment</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">MACHTYPE</td><td bgcolor="#DDDDDD">i386</td></tr>
+<tr><td bgcolor="#999999">USER</td><td bgcolor="#DDDDDD">root</td></tr>
+<tr><td bgcolor="#999999">MAIL</td><td bgcolor="#DDDDDD">/var/mail/root</td></tr>
+<tr><td bgcolor="#999999">SHLVL</td><td bgcolor="#DDDDDD">2</td></tr>
+<tr><td bgcolor="#999999">VENDOR</td><td bgcolor="#DDDDDD">intel</td></tr>
+<tr><td bgcolor="#999999">HOME</td><td bgcolor="#DDDDDD">/root</td></tr>
+<tr><td bgcolor="#999999">PAGER</td><td bgcolor="#DDDDDD">more</td></tr>
+<tr><td bgcolor="#999999">GROUP</td><td bgcolor="#DDDDDD">wheel</td></tr>
+<tr><td bgcolor="#999999">LOGNAME</td><td bgcolor="#DDDDDD">root</td></tr>
+<tr><td bgcolor="#999999">BLOCKSIZE</td><td bgcolor="#DDDDDD">K</td></tr>
+<tr><td bgcolor="#999999">TERM</td><td bgcolor="#DDDDDD">vt100</td></tr>
+<tr><td bgcolor="#999999">PATH</td><td bgcolor="#DDDDDD">/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/bin:/usr/X11R6/bin:/root/bin</td></tr>
+<tr><td bgcolor="#999999">REMOTEHOST</td><td bgcolor="#DDDDDD">158.213.214.162</td></tr>
+<tr><td bgcolor="#999999">HOST</td><td bgcolor="#DDDDDD">iwa.jkk.hitachi.co.jp</td></tr>
+<tr><td bgcolor="#999999">SHELL</td><td bgcolor="#DDDDDD">/usr/local/bin/tcsh</td></tr>
+<tr><td bgcolor="#999999">OSTYPE</td><td bgcolor="#DDDDDD">FreeBSD</td></tr>
+<tr><td bgcolor="#999999">PWD</td><td bgcolor="#DDDDDD">/usr/local/apache/bin</td></tr>
+<tr><td bgcolor="#999999">MANPATH</td><td bgcolor="#DDDDDD">/usr/share/man:/usr/X11R6/man:/usr/local/man</td></tr>
+<tr><td bgcolor="#999999">HOSTTYPE</td><td bgcolor="#DDDDDD">FreeBSD</td></tr>
+<tr><td bgcolor="#999999">EDITOR</td><td bgcolor="#DDDDDD">/usr/bin/ee</td></tr>
+</table>
+<hr><h2>PHP Variables</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">PHP_SELF</td><td bgcolor="#DDDDDD">/test.php3</td></tr>
+</table>
+<hr><h2>Apache Environment</h2>
+<table border=5 width="600">
+<tr><th bgcolor="#00DDDD">Variable</th><th bgcolor="#00DDDD">Value</th></tr>
+<tr><td bgcolor="#999999">DOCUMENT_ROOT</td><td bgcolor="#DDDDDD">/usr/local/apache/htdocs&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT</td><td bgcolor="#DDDDDD">image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-powerpoint, application/vnd.ms-excel, */*&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT_ENCODING</td><td bgcolor="#DDDDDD">gzip, deflate&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_ACCEPT_LANGUAGE</td><td bgcolor="#DDDDDD">ja&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_CONNECTION</td><td bgcolor="#DDDDDD">Keep-Alive&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_HOST</td><td bgcolor="#DDDDDD">158.213.214.28&nbsp;</td></tr>
+<tr><td bgcolor="#999999">HTTP_USER_AGENT</td><td bgcolor="#DDDDDD">Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)&nbsp;</td></tr>
+<tr><td bgcolor="#999999">PATH</td><td bgcolor="#DDDDDD">/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/bin:/usr/X11R6/bin:/root/bin&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REMOTE_ADDR</td><td bgcolor="#DDDDDD">158.213.214.162&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REMOTE_PORT</td><td bgcolor="#DDDDDD">1058&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SCRIPT_FILENAME</td><td bgcolor="#DDDDDD">/usr/local/apache/htdocs/test.php3&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_ADMIN</td><td bgcolor="#DDDDDD">root@iwa.jkk.hitachi.co.jp&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_NAME</td><td bgcolor="#DDDDDD">iwa.jkk.hitachi.co.jp&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_PORT</td><td bgcolor="#DDDDDD">80&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_SIGNATURE</td><td bgcolor="#DDDDDD"><ADDRESS>Apache/1.3.6 Server at iwa.jkk.hitachi.co.jp Port 80</ADDRESS>
+&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_SOFTWARE</td><td bgcolor="#DDDDDD">Apache/1.3.6 (Unix) mod_fastcgi/2.2.2 mod_perl/1.19 PHP/3.0.9&nbsp;</td></tr>
+<tr><td bgcolor="#999999">GATEWAY_INTERFACE</td><td bgcolor="#DDDDDD">CGI/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SERVER_PROTOCOL</td><td bgcolor="#DDDDDD">HTTP/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REQUEST_METHOD</td><td bgcolor="#DDDDDD">GET&nbsp;</td></tr>
+<tr><td bgcolor="#999999">QUERY_STRING</td><td bgcolor="#DDDDDD">&nbsp;</td></tr>
+<tr><td bgcolor="#999999">REQUEST_URI</td><td bgcolor="#DDDDDD">/test.php3&nbsp;</td></tr>
+<tr><td bgcolor="#999999">SCRIPT_NAME</td><td bgcolor="#DDDDDD">/test.php3&nbsp;</td></tr>
+</table>
+<hr><h2>HTTP Headers Information</h2>
+<table border=5 width="600">
+ <tr><th colspan=2 bgcolor="#00DDDD">HTTP Request Headers</th></tr>
+<tr><td bgcolor="#999999">HTTP Request</td><td bgcolor="#DDDDDD">GET /test.php3 HTTP/1.1&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept</td><td bgcolor="#DDDDDD">image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-powerpoint, application/vnd.ms-excel, */*&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept-Encoding</td><td bgcolor="#DDDDDD">gzip, deflate&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Accept-Language</td><td bgcolor="#DDDDDD">ja&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Connection</td><td bgcolor="#DDDDDD">Keep-Alive&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Host</td><td bgcolor="#DDDDDD">158.213.214.28&nbsp;</td></tr>
+<tr><td bgcolor="#999999">User-Agent</td><td bgcolor="#DDDDDD">Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)&nbsp;</td></tr>
+ <tr><th colspan=2  bgcolor="#00DDDD">HTTP Response Headers</th></tr>
+<tr><td bgcolor="#999999">Connection</td><td bgcolor="#DDDDDD">close&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Transfer-Encoding</td><td bgcolor="#DDDDDD">chunked&nbsp;</td></tr>
+<tr><td bgcolor="#999999">Content-Type</td><td bgcolor="#DDDDDD">text/html&nbsp;</td></tr>
+</table>
+
+</center><hr><h2>PHP License</h2>
+<PRE>This program is free software; you can redistribute it and/or modify
+it under the terms of:
+
+A) the GNU General Public License as published by the Free Software
+   Foundation; either version 2 of the License, or (at your option)
+   any later version.
+
+B) the PHP License as published by the PHP Development Team and
+   included in the distribution in the file: LICENSE
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of both licenses referred to here.
+If you did not, or have any questions about PHP licensing, please
+contact core@php.net.</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00444" HREF="msg00444.html">[pgsql-jp 9009] Re: FastCGI vs Perl</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;iwakiri@jkk.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00417" HREF="msg00417.html">[pgsql-jp 8983] FastCGI vs Perl</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;iwakiri@jkk.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00431" HREF="msg00431.html">[pgsql-jp 8997] Re: FastCGI vs Perl</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00437.html">[pgsql-jp 9003] Re: PostgreSQL CDROM</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00438.html">[pgsql-jp 9005] Re: PostgreSQL CDROM</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 8997] Re: FastCGI vs Perl</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00444.html">[pgsql-jp 9009] Re: FastCGI vs Perl</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00439"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00439"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23914] Re: exited with status 139 -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Mon, 03 Dec 2001 15:48:56 +0900 -->
+<!--X-Message-Id: 3C0B2058.4070309@sons.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3BEB98EC.1070208@sons.co.jp -->
+<!--X-Reference-Id: 200111120529.OAA29121@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 20011112.150104.08682315.mit&#45;sato@scc&#45;kk.co.jp -->
+<!--X-Reference-Id: 200111120616.fAC6GWa19677@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 3BF0A17B.4080703@sons.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23914] Re: exited with status 139 </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00026.html">Date Prev</A>][<A HREF="msg00025.html">Date Next</A>][<A HREF="msg00028.html">Thread Prev</A>][<A HREF="msg00025.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23914] Re: exited with status 139</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 03 Dec 2001 15:48:56 +0900</LI>
+<LI><em>References</em>: &lt;3BEB98EC.1070208@sons.co.jp&gt;	&lt;200111120529.OAA29121@sraigw.sra.co.jp&gt;	&lt;20011112.150104.08682315.mit-sato@scc-kk.co.jp&gt; &lt;200111120616.fAC6GWa19677@mailhost.e-vision.co.jp&gt; &lt;3BF0A17B.4080703@sons.co.jp&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:0.9.6) Gecko/20011120</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤です。20日ほど前の話題ですが…
+
+postgres の backend が日に一回程度 exited with status 139 で落ち、RDBMS 全
+体が restart してしまう問題について、core ファイルをデバッガで追ってみた結
+果分かったことをお知らせします。
+
+■環境
+Solaris 8 for Intel
+(uname -a -&gt; SunOS xxxxxx 5.8 Generic_108529-11 i86pc i386 i86pc)
+  /etc/system に下記を追加
+    set shmsys:shminfo_shmmax = 0xffffffff
+    set semsys:seminfo_semmns=256
+    set semsys:seminfo_semmsl=256
+    set rlim_fd_max = 8192
+    set rlim_fd_cur = 8192
+
+gcc version 2.95.3 20010315 (release)
+
+postgresql-7.1.3-patched-20010914.tar.gz
+  configure --prefix=/opt/home/postgres --enable-multibyte=EUC_JP
+  max_connections = 128
+  sort_mem = 4096
+  shared_buffers = 512
+  wal_files = 16
+  wal_sync_method = open_datasync
+  checkpoint_segments = 8
+  後は default です。
+
+■状況
+
+・処理量はだいたい 30 トランザクション/sec. 程度。
+
+・backend 最大数は 128 で、そのうち 120 を常時利用しています。
+
+・core ファイルの backtrace 結果は
+#0  0x080ed8df in ExecEvalVar ()
+#1  0x080eeefc in ExecEvalExpr ()
+#2  0x080ee502 in ExecEvalFuncArgs ()
+#3  0x080ee596 in ExecMakeFunctionResult ()
+#4  0x080ee840 in ExecEvalOper ()
+#5  0x080eeff9 in ExecEvalExpr ()
+#6  0x080ef220 in ExecQual ()
+#7  0x080f4bf5 in IndexNext ()
+#8  0x080ef904 in ExecScan ()
+#9  0x080f4e81 in ExecIndexScan ()
+#10 0x080ecce4 in ExecProcNode ()
+#11 0x080f743b in ExecNestLoop ()
+#12 0x080ecd38 in ExecProcNode ()
+#13 0x080ec6ba in EvalPlanQualNext ()
+#14 0x080ec67d in EvalPlanQual ()
+#15 0x080ebd58 in ExecReplace ()
+#16 0x080eb8a0 in ExecutePlan ()
+#17 0x080ea75a in ExecutorRun ()
+#18 0x08154059 in ProcessQuery ()
+#19 0x0815271b in pg_exec_query_string ()
+#20 0x081539d0 in PostgresMain ()
+#21 0x08133420 in DoBackend ()
+#22 0x08132e1a in BackendStartup ()
+#23 0x081319d7 in ServerLoop ()
+#24 0x081311e2 in PostmasterMain ()
+#25 0x081032f2 in main ()
+#26 0x0806dd97 in _start ()
+
+・pg_exec_query_string に渡ってきている SQL 文に共通の特徴は、常に「update
+〜 set 〜 from 〜 where 〜」文 (from がある) で、set 内で field 自身の値に
+field を代入していることです (x=x+1 のような形)。
+
+・デバッガで追った結果、
+postgresql-7.1.3/src/backend/executor/execQual.c:311
+
+   310          case OUTER:             /* get the tuple from the outer node
+*/
+   311              slot = econtext-&gt;ecxt_outertuple;
+   312              break;
+
+ここの econtext-&gt;ecxt_outertuple が NULL で、
+
+   323      heapTuple = slot-&gt;val;
+   324      tuple_type = slot-&gt;ttc_tupleDescriptor;
+
+323行目で落ちているらしい。
+
+・いつも落ちてしまう SQL 文も、常に落ちるわけではなくて、何らかのタイミン
+グにはまった時に落ちるように見えます。
+
+source をもっとしっかり追って原因を探る時間がなく、こちらでは結局、update
+文に from があると悪いのでは、と当たりをつけて、全ての update 〜 from 文を
+置き換えることで対処中です。
+
+奥歯にものが挟まったような報告で申し訳ありませんが、何かの参考になれば、と
+思います。
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00065" HREF="msg00065.html">[pgsql-jp 23955] Re: exited with status 139</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[pgsql-jp 23915] Re: exited with status 139</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 23916] Re: CSV データのインサート</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 23915] Re: exited with status 139</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 23918] Bruce Momjian 氏来日セミナーのご案内</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 23915] Re: exited with status 139</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

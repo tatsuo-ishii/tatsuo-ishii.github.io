@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5784] Re: PostgreSQL のスピードに関して -->
+<!--X-From: Tomonori Mitsui <mitsui@synergy.co.jp> -->
+<!--X-Date: Mon, 02 Nov 1998 11:02:47 +0900 -->
+<!--X-Message-Id: 199811020205.LAA14342@oowashi.synergy.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5784] Re: PostgreSQL のスピードに関して </TITLE>
+<LINK REV="made" HREF="mailto:mitsui@synergy.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00004.html">Date Next</A>][<A HREF="msg00006.html">Thread Prev</A>][<A HREF="msg00002.html">Thread Next</A>][<A HREF="index.html#00003">Date Index</A>][<A HREF="threads.html#00003">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5784] Re: PostgreSQL のスピードに関して</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tomonori Mitsui &lt;<A HREF="mailto:mitsui@synergy.co.jp">mitsui@synergy.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 02 Nov 1998 11:02:47 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+三井です。
+
+先日、特定フィールドをselectすると Seq Scan になることを
+お教えいただきました。
+次に、vacuum をかければどうかという御指摘をちょうだいし、
+実行してみました。
+その結果、新たな問題が発生しました。
+どなたか、修正方法を教えていただければ幸いです。
+
+−−−−−−−−状況−−−−−−−−−−−−
+vacuum コマンドを発行してから完了するまでに、
+約１週間もかかりました。（こんなに時間がかかるのでしょうか？）
+
+完了後、例のＳＱＬを発行したところ
+
+&gt; &gt;explain select * from di where dd_no=5972;
+&gt; &gt;NOTICE:QUERY PLAN:
+&gt; &gt;Index Scan on di  (cost=0.00 size=0 width=51)
+&gt; &gt;
+
+「＊」条件の場合は、 Index Scan だったものが、Seq Scan に
+なってしまいました。
+
+explain select * from di where dd_no=5972;
+NOTICE:QUERY PLAN:
+Seq Scan on di  (cost=0.00 size=0 width=51)
+
+テーブルの状況を見ると、同一テーブルおよびインデックス名が
+２つずつ表示されます。（vacuum 前は１つずつ）
+
+testdb=&gt; \d
+
+Database    = testdb
+ +---------+------------+----------+
+ |  Owner  |  Relation  |   Type   |
+ +---------+------------+----------+
+ | pgsql   | dd         | table    |
+ | pgsql   | dd         | table    |
+ | pgsql   | dd_key     | index    |
+ | pgsql   | dd_key     | index    |
+ | pgsql   | di         | table    |
+ | pgsql   | di         | table    |
+ | pgsql   | di_key     | index    |
+ | pgsql   | di_key     | index    |
+ +---------+------------+----------+
+
+インデックスの定義も、以前はdd_noが１つだけだったのですが、
+何故か２つ表示されます。
+
+testdb=&gt; \d di_key
+
+Table    = di_key
++---------+--------+-------+
+|  Field  |  Type  | Length|
++---------+--------+-------+
+| dd_no   | int4   |     4 |
+| dd_no   | int4   |     4 |
++---------+--------+-------+
+
+このようになってしまうのは、インストール方法に何か問題が
+あるのでしょうか？
+それとも、6.2.1の仕様なのでしょうか？
+
+＜システム環境＞
+
+　Solaris 2.5.1 for x86
+　PostgreSQL 6.2.1
+
+−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−
+
+&gt; &gt;＊dd_noはindexフィールドで他（a2,a3,a4,a5）は通常のフィールドです。
+&gt; &gt;
+&gt; &gt;select * from di where dd_no=5972;
+&gt; &gt;は、瞬時に結果が帰りますが、diテーブルの特定フィールドを指定すると
+&gt; &gt;Index Scan ではなく Seq Scan になります。
+&gt; &gt;
+&gt; &gt;explain select * from di where dd_no=5972;
+&gt; &gt;NOTICE:QUERY PLAN:
+&gt; &gt;Index Scan on di  (cost=0.00 size=0 width=51)
+&gt; &gt;
+&gt; &gt;explain select a2,a3,a4,a5 from di where dd_no=5972;
+&gt; &gt;NOTICE:QUERY PLAN:
+&gt; &gt;Seq Scan on di  (cost=0.00 size=0 width=4)
+&gt; 
+&gt; explain の結果を見ると、cost, size が 0 になっています。これは、
+&gt; vaccum がかかっていないことを意味しています。
+&gt; 
+&gt; vacuum をかければまた違う結果が出ると思います。
+&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 5783] PostgreSQL 6.4 + SKK</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 5785] Re: snapshot install memo</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 5787] Re: snapshot install memo</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 5783] PostgreSQL 6.4 + SKK</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00003"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00003"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

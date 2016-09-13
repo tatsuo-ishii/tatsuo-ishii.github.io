@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9455] RE: How To PSQL Default Encoding set?  Win&#45;NT4 environment. -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Fri, 16 Jul 1999 01:27:51 +0900 -->
+<!--X-Message-Id: NCBBKEPFCJBJDLLOGBDHIEEGCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 008901bece89$6c099000$01324d80@win&#45;nt4.skcapi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9455] RE: How To PSQL Default Encoding set?  Win-NT4 environme </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00258.html">Date Prev</A>][<A HREF="msg00260.html">Date Next</A>][<A HREF="msg00237.html">Thread Prev</A>][<A HREF="msg00264.html">Thread Next</A>][<A HREF="index.html#00259">Date Index</A>][<A HREF="threads.html#00259">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9455] RE: How To PSQL Default Encoding set?  Win-NT4 environment.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 16 Jul 1999 01:27:51 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt; こんにちは、斉藤＠新生開発です。
+
+（引用省略）
+
+&gt; ぐちゃぐちゃになってしまいました。
+&gt; というのも、Win-NT4側からPSQLで操作する再に、SET CLIENTENCODING TO 'SJIS'
+&gt; をしないで書き込んだときのものであることが判明しました。
+&gt;
+&gt; そこで、PSQLのDefaultでSJISにしようかと手がけている最中です。
+
+  私のサイトのPostgreSQL関連情報のページに、デフォルトがSJISになっている
+libpq.dllがあります。よろしかったらどうぞ（今度配布されるCD-ROMにも入ってい
+ます）。
+
+	<A HREF="http://www.interwiz.koganei.tokyo.jp/software/PostgreSQL/">http://www.interwiz.koganei.tokyo.jp/software/PostgreSQL/</A>
+
+  もちろん環境変数“PGCLIENTENCODING”やpsqlのコマンドの“SET CLIENTENCODING
+TO 'xxx'”を使えばSJIS以外にも変更できます。
+
+&gt; １．まず、ちょっとばすしてますけど、interfacesのlibpqなんですが一部スタ
+ティ
+&gt; ック
+&gt; リンクされていてnativeモードにてmakeするときに見つからなくなってしまいます
+&gt; 。
+
+  win32用のMakefileにはMULTIBYTE環境に必要な内容がきちんと入っておりません。
+パッチはあるんですけど、送ったら対応してもらえます？＞石井さん
+
+&gt; ２．つぎに、本題のDefaultの挙動を CLIENTENCODINGの環境変数設定で行おうとし
+&gt; まし
+&gt; た。
+&gt; has_client_encodingをいくらSJISに設定しても生きないんです。
+&gt; mainでputenvしきちんとCLIENTENCODING=SJISとなっても生きません。
+
+  どうしてそれでうまくいかないかはわかりませんが、この辺をやっているのは
+libpqですから、そちらをいじくるのが正しいと思います。
+
+  src/interfaces/libpq/fe-connect.cのPQsetenv関数を見てください。私は次のよ
+うに変更して、デフォルトエンコーディングをコンパイル時に指定したエンコーディ
+ングに変更しています（本来はサーバと同じエンコーディングになります）。
+
+−−−−ここから−−−−
+diff -rc src.orig/interfaces/libpq/fe-connect.c
+src/interfaces/libpq/fe-connect.c
+*** src.orig/interfaces/libpq/fe-connect.c	Wed May 26 16:07:33 1999
+--- src/interfaces/libpq/fe-connect.c	Fri Jul 16 00:27:52 1999
+***************
+*** 815,820 ****
+--- 815,824 ----
+  	env = getenv(envname);
+  	if (!env || *env == '\0')
+  	{
++ #ifdef WIN32
++ 		sprintf(envbuf, "%s=%s", envname, MULTIBYTE);
++ 		putenv(envbuf);
++ #else
+  		rtn = PQexec(conn, "select getdatabaseencoding()");
+  		if (rtn &amp;&amp; PQresultStatus(rtn) == PGRES_TUPLES_OK)
+  		{
+***************
+*** 832,837 ****
+--- 836,842 ----
+  			sprintf(envbuf, "%s=%s", envname, pg_encoding_to_char(MULTIBYTE));
+  			putenv(envbuf);
+  		}
++ #endif
+  	}
+  #endif
+−−−−ここまで−−−−
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp 9499] Re: How To PSQL Default Encoding set? Win-NT4 environment.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00264" HREF="msg00264.html">[pgsql-jp 9460] Re: How To PSQL Default Encoding set? Win-NT4 environment.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00237" HREF="msg00237.html">[pgsql-jp 9433] How To PSQL Default Encoding set?  Win-NT4 environment.</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Saito" &lt;saito@inetrt.skcapi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00258.html">[pgsql-jp 9454] Re: ★機能比較★　Oracle等既存DBMSとの比較</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 9456] Re: ★機能比較★　Oracle等既存DB MSとの比較</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00237.html">[pgsql-jp 9433] How To PSQL Default Encoding set?  Win-NT4 environment.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 9460] Re: How To PSQL Default Encoding set? Win-NT4 environment.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00259"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00259"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

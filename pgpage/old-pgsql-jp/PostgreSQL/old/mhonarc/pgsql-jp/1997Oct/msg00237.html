@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2823] Re: MOVE & FETCH, PostgresPerl. -->
+<!--X-From: minohata@com&#45;net.co.jp (minohata) -->
+<!--X-Date: Wed, 29 Oct 1997 23:38:40 +0900 -->
+<!--X-Message-Id: 01bce478$5913a780$LocalHost@pc -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2823] Re: MOVE &amp; FETCH, PostgresPerl. </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00236.html">Date Prev</A>][<A HREF="msg00238.html">Date Next</A>][<A HREF="msg00262.html">Thread Prev</A>][<A HREF="msg00240.html">Thread Next</A>][<A HREF="index.html#00237">Date Index</A>][<A HREF="threads.html#00237">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2823] Re: MOVE &amp; FETCH, PostgresPerl.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A> (minohata)</LI>
+<LI><em>Date</em>: Wed, 29 Oct 1997 23:38:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お騒がせ致しました。
+
+&gt;これは、多分FETCHとMOVEの問題ではなくて、$conn-&gt;execute
+&gt;の呼びだし方の問題のような気がいたします。
+&gt;
+&gt;# $conn-&gt;executeは複文を受けつけるんですか？ &gt; 詳しい方
+&gt;
+&gt;一度、単文ごとに$conn-&gt;executeを複数回送出させてみて、
+&gt;反応を見るというのはいかがでしょうか？
+
+
+その通りでした。
+Perlスクリプト中でコマンド列を split( /\n/ )して、
+単文毎に$conn-&gt;executeするとあっさり成功しました。
+PostgresPerlを最初に試した時に、
+
+$query_string = &lt;&lt;"_STR_";
+BEGIN;
+SELECT * FROM foo WHERE bar;
+END;
+_STR_
+$query = $conn-&gt;execute( $query_string );
+
+とやってうまく動作したものですから、てっきり複文が
+通るものだと思い込んでおりました。
+
+
+&gt;ところで、この問題の本質だと思うのですが、postgresql-6.2についてくる
+&gt;ver1.4のPg.pmでは、$value = $result-&gt;getvalue($tup_num, $field_num)と
+&gt;いうような感じで、ダイレクトにタップルとフィールドの位置を選択して結果
+&gt;を得られるようになっています。
+&gt;
+&gt;結果のN行目からM行を取り出したいというような時には、こちらの方がより楽
+&gt;だと思います。
+
+
+Perlスクリプトで以下のような実験をしてみました。
+(準備)
+3万レコード×26フィールドのクラスtest1を用意する。
+#中身は乱数で適当に生成。
+#26フィールドの内、
+# 1つがint4の通し番号(フィールド名:serial btree索引作成)
+# 24個がvarchar(20)
+# 残り１つはtext
+#タブ区切りでテキストファイルに保存してからcopyすると
+#数十秒で済んじゃいましたが、ものは試しとばかり、
+#1レコードずつinsertしてみたら、1時間くらいハードディ
+#スクがうなっていました(笑)。
+
+
+(実験1)
+下記SQLを実行し、$query-&gt;fetchrow()で、
+出力された10行を表示する。
+
+BEGIN;
+DECLARE mycursor CURSOR FOR
+SELECT * FROM test1
+WHERE serial&gt;1000 and serial&lt;2000
+ORDER BY serial;
+MOVE FORWARD 10 IN mycursor;
+FETCH 10 IN mycursor;
+END;
+
+
+(実験2)
+下記SQLを実行し、$query-&gt;fetchrow()で、
+最初の10行を捨てて次の10行を表示する。
+
+BEGIN;
+SELECT * FROM test1
+WHERE serial&gt;1000 and serial&lt;2000
+ORDER BY serial;
+END;
+
+
+(結果)
+timeコマンドを使って何回か試したうちの平均的なものです。
+
+実験1　0.130u 0.050s 0:00.45 40.0% 563+619k 0+0io 1pf+0w
+実験2　0.230u 0.092s 0:02.16 14.8% 535+1026k 0+0io 0pf+0w
+
+まあ、C言語を捨てて(=C言語に見捨てられて)、手抜き可能な
+Perlに逃げたズボラ人間のする実験ですから、精度は低いですが。
+
+
+(考察)
+実験2の場合、SELECT * で全てのデータを検索するので時間とメモリを食う。
+実験1では、要求された数に達したら検索を打ち切るので早い。
+
+何でこんなことにこだわるかといいますと、
+Yahooみたいに最初に検索した時は、全データを検索して
+「****件のデータがヒットしました。そのうちの1-20を表示しています」
+と表示し、[次の20件]ボタンを押す毎に、
+「****件のうち??-**を表示しています」
+となるようなWebデータベースを作ってみたい、と考えているからです。
+
+この場合、最初の検索時にはデータを総舐めしてヒット数を出す必要が
+ありますが、次からは(ヒット数が既にわかっているので)いちいち
+全データを舐め直す必要はないな、と思った次第であります。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00240" HREF="msg00240.html">[pgsql-jp 2826] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00236.html">[pgsql-jp 2822] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00238.html">[pgsql-jp 2824] converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 2848] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00240.html">[pgsql-jp 2826] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00237"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00237"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

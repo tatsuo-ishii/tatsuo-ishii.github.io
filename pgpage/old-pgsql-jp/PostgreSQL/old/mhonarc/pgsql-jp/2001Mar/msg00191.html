@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索 -->
+<!--X-From: "Voice" <voice@blues.interq.or.jp> -->
+<!--X-Date: Wed, 14 Mar 2001 02:37:46 +0900 -->
+<!--X-Message-Id: 010401c0abe4$5185f2c0$020019ac@rimserver.yo.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索 </TITLE>
+<LINK REV="made" HREF="mailto:voice@blues.interq.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00190.html">Date Prev</A>][<A HREF="msg00192.html">Date Next</A>][<A HREF="msg00193.html">Thread Prev</A>][<A HREF="msg00192.html">Thread Next</A>][<A HREF="index.html#00191">Date Index</A>][<A HREF="threads.html#00191">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Voice" &lt;<A HREF="mailto:voice@blues.interq.or.jp">voice@blues.interq.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Mar 2001 02:37:46 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+奥村と申します。
+
+ある検索システムを作成したいのですが、やりたい事が出来ずに
+止まっております。
+お知恵を貸して頂け無いでしょうか。
+
+会社テーブル（会社ID,　会社名称漢字、会社名称かな）
+社員テーブル（会社ID,　個人ID)　*1
+個人テーブル（個人ID,　名前漢字、名前かな）
+個人特徴テーブル（個人ID,　特徴ID）　*2
+特徴情報テーブル（特徴ID, 特徴）
+
+*1は、同じ会社IDで複数の個人IDを登録可能
+*2は、同じ個人IDで複数の特徴IDを登録可能
+
+ある特徴を持った社員がいるかを検索する時、例えば
+　特徴ID=1（背が高い）
+　特徴ID=2（痩せている）
+　特徴ID=3（男性）
+　特徴ID=4（組合員）
+の人を検索する際に、
+
+select 会社．会社名称, 個人．名前　from 会社、社員、個人、個人特徴
+where 会社．会社ID＝社員．会社ID
+and　　社員．個人ID＝個人特徴．個人ID
+and　　社員．個人ID＝個人．個人ID
+and    会社．会社名称漢字 like '%%'
+and    会社．会社名称かな like '%%'
+and    個人．名前漢字 like '%%'
+and    個人．名前かな like '%%'
+and   (個人特徴．特徴ID＝１　or　個人特徴．特徴ID＝２
+or　　　個人特徴．特徴ID＝３　or　個人特徴．特徴ID＝４)
+group by 個人．名前
+having count(個人．名前）＞＝特徴数（４）
+
+として検索は出来たのですが、特徴のor条件が増えてきた時に負荷が
+かかるようで、検索出来ない（バックエンドとの接続が切れてしまう）事も
+あります。
+５−６件の or なら検索可能ですが、８−１０と or が増えてくるとスワップが
+発生して応答までに３０秒から４０秒かかり検索出来ない事があります。
+テーブル内の情報は３０から４０件とたいした数ではありません。
+（名称、名前の like '%%' のワイルドカードの間には、キーワードがあれば
+それを挿入します）
+
+***************
+ここで質問です。
+私のやろうとしている検索方法は一般的ではなく、かなり効率の悪い
+検索方法なのでしょうか？
+または、like 検索に負荷がかかっているのでしょうか？
+***************
+
+また、これを解決する為に個人特徴テーブルを
+　個人特徴テーブル（個人ID,　個人特徴ビット情報）
+と変更しようと思います。
+この時、ビット情報は１ビットが前回の特徴IDと対応しており、０ビット目
+がONの時は（背が高い）との意味を持たせます。
+
+前回の検索した人の場合、
+select 会社．会社名称, 個人．名前　from 会社、社員、個人、個人特徴
+where 会社．会社ID＝社員．会社ID
+and　　社員．個人ID＝個人特徴．個人ID
+and　　社員．個人ID＝個人．個人ID
+and    会社．会社名称漢字 like '%%'
+and    会社．会社名称かな like '%%'
+and    個人．名前漢字 like '%%'
+and    個人．名前かな like '%%'
+and   (個人特徴．個人特徴ビット情報　＆　０ｘ０００F　）　＝　０ｘ０００F
+と、検索すれば負荷がかからないのではないかと推測しています。
+
+
+***************
+再度質問です。
+postgres で where 句に対しての上記のような論理演算判定は可能で
+しょうか？
+自分でも調べたのですが見当たりませんでした。
+***************
+
+以上は私の知識内での対応なので検索方法やテーブル構成など
+適切では無いかもしれません。
+もし、SQLの何らかの手法を使って、もしくはテーブル構成を変更する
+事によって簡単に検索出来る方法があればご教授頂ければ幸いです。
+
+
+宜しくお願い致します。
+
+奥村
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00197" HREF="msg00197.html">[pgsql-jp 20331] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> ohmura &lt;fermat@galaxy.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00196" HREF="msg00196.html">[pgsql-jp 20330] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> 玉川竜司&lt;tamagawa@sts.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00195" HREF="msg00195.html">[pgsql-jp 20329] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> Junichi Kuroki &lt;kuroki@mycc.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00194" HREF="msg00194.html">[pgsql-jp 20328] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00192" HREF="msg00192.html">[pgsql-jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00190.html">[pgsql-jp 20324] Re: ロック検出時のnot-wait動作について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 20327] i モードからPostgreSQLを操ってみませんか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00191"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00191"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

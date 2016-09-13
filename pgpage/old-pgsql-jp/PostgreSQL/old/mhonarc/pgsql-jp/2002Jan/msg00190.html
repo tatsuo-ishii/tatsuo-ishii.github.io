@@ -1,0 +1,215 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24521] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル] -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Sat, 19 Jan 2002 11:58:05 +0900 -->
+<!--X-Message-Id: 3C48E0BD.AE7AE7B7@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C46EE2C7C.D332KAKUMA@mail.mib21.co.jp -->
+<!--X-Reference-Id: 3C477522.DD8E6E9C@shonan.ne.jp -->
+<!--X-Reference-Id: 3C48379893.B941KAKUMA@mail.mib21.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24521] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル] </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00189.html">Date Prev</A>][<A HREF="msg00191.html">Date Next</A>][<A HREF="msg00189.html">Thread Prev</A>][<A HREF="msg00191.html">Thread Next</A>][<A HREF="index.html#00190">Date Index</A>][<A HREF="threads.html#00190">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24521] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 19 Jan 2002 11:58:05 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00172.html">3C46EE2C7C.D332KAKUMA@mail.mib21.co.jp</A>&gt; &lt;<A HREF="msg00177.html">3C477522.DD8E6E9C@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00189.html">3C48379893.B941KAKUMA@mail.mib21.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。こんにちは。
+
+Minoru Kakuma wrote:
+&gt; 
+&gt; 角間です。お返事ありがとうございます。
+&gt; 
+nkon &gt; &gt; 数百万件のような大量データーで、年齢別の件数だけを
+nkon &gt; &gt; 知りたいというような場合は、年齢を主キーとする表
+nkon &gt; &gt; (仮に agecount とします)を作って、M_PARENT の年齢
+nkon &gt; &gt; が変更になった都度、agecount 表の件数(人数)を更新
+nkon &gt; &gt; するという方法もあります
+&gt; 
+&gt; 大変有益な設計で、是非とも取り入れようと思っているのですが、
+&gt; 別の案件で「都道府県別の年代別での集計」というのが入っており、
+&gt; おそらく将来的に「都道府県別の任意の年代別（ユーザー選択）」
+&gt; というのが入ってきそうで、その仕様にも対応する設計を考えております。
+&gt; agecountにgov_id（県ID)を追加し、
+&gt; age_id primary key
+&gt; age    -- 年齢
+&gt; agecount -- カウント
+&gt; gov_id --県ID
+&gt; とすると、
+&gt; ４８（都道府県数）* 120(歳）= 5760レコード
+&gt; を全件検索し県IDと年齢でのGROUP BYによりそれぞれのカウントを得る。
+&gt; という設計を考えているのですが、こうなってしまうとまたもや
+&gt; 速度的に問題が発生しそうです。
+
+その程度の集計で、本当に速度的問題が発生するのでしょ
+うか。ハード構成や、DB の HDD 格納領域はどのようにな
+っていますか。
+
+ハードウェアーの増強とか、チューニング等を工夫した方
+が有益なように思いますが如何でしょうか。
+
+私( nkon )の提案した方法は大量データーの場合の方法で、
+2 万件程度のデーターで有用なのか疑問です。  2 万件位
+なら、石井さんや北村さんの方法で十分なように思います。
+そんなに厳しいレスポンスが本当に必要なのでしょうか。
+
+
+私の例は、年齢など更新(UPDATE)頻度の少いデーターとか
+オーバーへッドがかかっても、集計値の入手を優先させた
+いデーターについては、TRIGGER 等を使って自動的に集計
+データーを作ってしまうか、夜間バッチなどで、前日デー
+ターを集計して持っておくという手法です。
+
+事前に集計が予想される項目を洗い出して、各項目ごとに
+集計値を持たせておくという方法です。例えば、年代範囲
+別の集計値、年齢別の集計値、都道府県別と首都圏、関西
+圏、中部地方などいくつもの重複する項目に集計をとって
+おき、集計値の表示の際のレスポンスタイムを向上させる
+ものです。
+
+リアルタイムで集計値を変更する場合は、M_PARENT 顧客表
+に旧年齢(生年月日)列を追加して、UPDATE の場合は、年齢
+と旧年齢が異なる時だけ集計値表を変更するようにします。
+INSERT/DELETE では、当該年齢に +1 / -1 ですね。
+
+注意事項は、表単位に復元する場合、集計値表と元になる
+M_PARENT 表をセットで復元しないと、集計値が狂ってしま
+うことです。
+
+余談になりますが、十年近く前に、数十万件のレコードの
+各種属性値を指定して件数を求め、その結果をさらに AND/
+OR を繰り返して試行錯誤的に件数を求めるという仕様で、
+レスポンスタイム 0.5 秒以内を要求されて、ややこしい
+プログラムを作ったことがあります。今ならひょっとして、
+2 GHz の P4 に メモリ 3 GB 位のっけて、表計算ソフトを
+走らせた方が早かったりして(^^;; JOKE です)。
+
+
+&gt; おそらく年齢別、県別のデータの保持というのは世の中にたくさんある
+&gt; 集計だと思われるので、良い設計方法をご存知でしたらお教え願
+&gt; えないでしょうか？
+
+通常は、GROUP BY でその都度集計をとるか、夜間バッチ
+で前日集計値をもっておく位で十分なように思います。
+
+要は、更新時のパーフォーマンスを犠牲にしても、集計/
+検索のレスポンスタイムを向上させる必要があるかという
+ことにつきます。
+
+集計元となる表に沢山の列があって、平均行長が数KBにも
+なるというような特殊な例(DB設計が悪い事が多いですが)
+では、表の 垂直 / 水平 パーティショニングをする場合も
+あります。PostgreSQL 自体にはその機能がないので、
+TRIGGER やアプリケーションレベルで応用することになり
+ます。
+
+リアルタイムでなくてもよいなら、検索専用の別のDBサー
+バーを作るのも効果的です。この場合も、表の Partitioning
+や、スタースキーマにするなど工夫するとより効果がでる
+場合が多いでしょう。
+
+繰り返しますが、以上の話は、数百万件以上の大量データー
+を扱う場合の話で、数万件クラスでの費用対効果は疑問です。
+
+ 
+&gt; &gt; 本題からずれますが、年齢はどういう形でお持ちなので
+&gt; &gt; しょうか。
+...略....
+
+&gt; 現行考えているのはcronで毎晩全件検索で「今日が誕生日なら
+&gt; 誕生日＝＞年齢更新」のupdateを走らせる方法です。
+
+誕生日のデーターを持っているのならば、すなおに 
+CURRENT_DATE との差をとって年齢を算出して、UPDATE
+した方が確実です。
+
+今日が誕生日なら年齢加算という方式だと、万一、ハードの
+点検とか故障等々で、cron が走らなかったら、年齢が合わ
+なくなってしまいます。前回更新日を記憶させておく方法
+もありますがそこまで複雑にするだけの効果があるか疑問。
+
+
+-------- 宣伝 ------
+# JPUG 業務アプリ分科会参加者募集中です。
+<A HREF="http://www.postgresql.jp/subcommittee/ap/">http://www.postgresql.jp/subcommittee/ap/</A>
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00192" HREF="msg00192.html">[pgsql-jp 24523] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 24522] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp 24503] 他のテーブルを参照するupdate時のインデックスの利用について</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Kakuma &lt;kakuma@mib21.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 24508] Re: 他のテーブルを参照するupdate時のインデックスの利用について</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00189" HREF="msg00189.html">[pgsql-jp 24520] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Kakuma &lt;kakuma@mib21.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 24520] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 24522] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 24520] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 24522] Re: 他のテーブルを参照する[県別年齢別の集計用テーブル]</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00190"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00190"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

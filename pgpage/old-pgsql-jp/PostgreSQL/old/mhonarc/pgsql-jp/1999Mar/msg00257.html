@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7504] Re: Q) date -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 14 Mar 1999 23:02:05 +0900 -->
+<!--X-Message-Id: 199903141402.XAA00463@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990314100727J.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7504] Re: Q) date </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00254.html">Date Prev</A>][<A HREF="msg00255.html">Date Next</A>][<A HREF="msg00254.html">Thread Prev</A>][<A HREF="msg00148.html">Thread Next</A>][<A HREF="index.html#00257">Date Index</A>][<A HREF="threads.html#00257">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7504] Re: Q) date</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 14 Mar 1999 23:02:05 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;   山田＠町田市です。
+&gt; 
+&gt;   石井さん、お礼が遅くなり失礼しました。
+
+どういたしまして。
+
+&gt;   もともと、年月をリニアに持たせたかったので char(6) で表現していましたが、
+&gt; date との計算が必要な為に、結局あきらめて int を使う事にしました。これなら
+&gt; date_trunc() でいけますね。
+&gt; 
+&gt;   palloc failure ですが、他の例では動いているので、ちょっと納得がゆかない
+&gt; のですが、唯、メモリの開放をどこでどうやって行うのかが分かっておらず、安心でき
+&gt; ませんので、理解できるまでは使わない事にします。
+
+では、もう少し突っ込んで説明します。
+
+PostgreSQL の関数では、関数の戻り値を表現するのに 4 までで足りる場合は、
+値そのものを返します(1)。4 バイトを越える場合は、関数側で値を格納する
+エリアを palloc()で獲得し、そのエリアへのポインタを返します(2)。そして 
+PostgreSQL は関数の評価が終り、そのメモリが必要無くなれば pfree()で解
+放します。
+(1)の場合は pfree()は呼ばれません。その必要がないからです。
+
+山田さんの関数は、
+
+create function date2yyyymm(date) returns int4
+  as '/usr/local/pgsql/lib/modules/datetime_functions.so' 
+  language 'c';
+
+と int4(4バイト)を返すように定義されたので、PostgreSQL は値そのものを
+返す関数(1)であると解釈します。ですから、pfree()は呼ばれません。ところ
+が、実際には、
+
+char *
+date2yyyymm(DateADT val)
+{
+	char			*mem = palloc(6);
+
+	...
+
+	return (mem);
+}
+
+となっているので、palloc()で確保された mem は解放されません。これでは
+メモリが無くなるのは当然です。
+
+# あと細かい話ですが、6バイトしかない mem に sprintf( mem, "%d%02d",
+# year,month ) で書き込むと、7バイト目に '\0' が書き込まれてメモリを壊
+# しますよ。
+
+&gt; ところで
+
+&gt;  ５)会社で正式に導入すると情報部門の承認と、その管理かに置かれてしまい、
+&gt;    必要な処理を簡単にする事が出来ないが、海賊システムとして自分の部門で
+&gt;    使用するのに、必要に応じて遊んでいるPCとIPがあれば簡単に出来て、
+&gt;    私好みに使用できるから、 でしょうか。
+
+そうですね。今までは似たようなことをしようとすると、ユーザ側では表計算
+ソフトなどを使うしかなかったのですが、フリーのDBがあればもっと気の効い
+たことができますからね。
+
+&gt;   ーこれは情報部門泣かせでしょうが、現実の営業のニーズを満たす為には
+&gt;     機関システムとは別のかなり自由に使えるシステムが存在する必要がある
+&gt;     というのが、２０数年会社勤めしてきた実感です。(ただ、機関システム
+&gt;     との連関、ネットワークを邪魔しない、PC UNIX, postgreSQL の
+&gt;     知識が必要、等々、人間の知識の問題が多い事も事実です。)
+
+私も会社勤めは長いですが、まったく同感です。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00254" HREF="msg00254.html">[pgsql-jp 7501] Re: Q) date</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshi Yamada &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00254.html">[pgsql-jp 7501] Re: Q) date</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00255.html">[pgsql-jp 7502] Re: true NUMERIC type って何でしょう？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00254.html">[pgsql-jp 7501] Re: Q) date</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 7395] Why PostgreSQL?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00257"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00257"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

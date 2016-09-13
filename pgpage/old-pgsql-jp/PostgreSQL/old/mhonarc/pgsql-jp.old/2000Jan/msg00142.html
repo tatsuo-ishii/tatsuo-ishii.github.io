@@ -1,0 +1,264 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12595] Re: SQL関数で複数の列を返したい -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 09 Jan 2000 23:57:34 +0900 -->
+<!--X-Message-Id: 20000109235734B.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 387649281BB.8F6DMASAA825@mailsv.fjb.co.jp -->
+<!--X-Reference-Id: 20000108154856C.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 38776DAE25C.6D35MASAA825@mail4.catv.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12595] Re: SQL関数で複数の列を返したい </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00141.html">Date Prev</A>][<A HREF="msg00143.html">Date Next</A>][<A HREF="msg00138.html">Thread Prev</A>][<A HREF="msg00169.html">Thread Next</A>][<A HREF="index.html#00142">Date Index</A>][<A HREF="threads.html#00142">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12595] Re: SQL関数で複数の列を返したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 09 Jan 2000 23:57:34 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00130.html">387649281BB.8F6DMASAA825@mailsv.fjb.co.jp</A>&gt;&lt;<A HREF="msg00132.html">20000108154856C.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00138.html">38776DAE25C.6D35MASAA825@mail4.catv.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 天野です
+&gt; 
+&gt; 石井さんの丁寧な解説には、いつも感謝しながら
+&gt; 勉強させてもらっています。
+&gt; 
+&gt; 今回もどうもありがとうございます。
+
+どういたしまして。
+
+&gt; &gt; おしい。関数の呼出方が間違っています。
+&gt; &gt; 
+&gt; &gt; select corporation_name(f_id2name(10,'0001')),customer_name(f_id2name(10,'0001'));
+&gt; 
+&gt; なるほど、勉強になります。こんな方法があったのですね。
+&gt; まったくわかりませんでした。
+
+普段見かけない書き方ですが、ドキュメントにあります。
+
+      32. Extending SQL: Functions
+            Query Language (SQL) Functions
+
+のあたりですね。
+
+&gt; 単純に理解すると、f_id2name(）　ファンクションはm_id2name　テーブルを
+&gt; 返してくるので、該当するフィールドを取り出さなければならない為、
+&gt; corporation_name(） で取り出す。ということでしょうか？
+
+そうです。
+
+&gt; ところで　ｃorporation_name()　っていうのは、関数なのでしょうか？
+&gt; テーブル登録時、勝手に作られているとか？
+
+いえ、関数ではありません。PostgreSQLでは、このような書き方でフィールド
+を取り出すことができます。これはSQL関数に限ったことではなくて、
+
+create table t1(i int);
+
+というテーブルがあったとき、
+
+select t1.i from t1;
+
+と
+
+select i(t1) from t1;
+
+は全く同じものとして解釈されます。でも、
+
+select f_id2name(10,'0001').corporation_name;
+
+とは書けないところがなんとも...
+
+&gt; また、
+&gt; 
+&gt; select f_id2name(10,'0001');
+&gt; 
+&gt; でかえってきた
+&gt; 
+&gt;  ?column?
+&gt;  ---------
+&gt;  136900960
+&gt; 
+&gt; というのは、一時的にm_id2name　テーブルに作られたRowの　
+&gt; oidなのでしょうか？意味不明な数字が返ってきたのでできるなら
+&gt; その正体が知りたいです。
+
+これはほとんどバグですね。136900960 は、f_id2name(10,'0001') の結果を
+保持しているメモリ上の構造体へのポインタを10進数にしたものです。ですか
+ら、oid と違いなんの役にもたちません。
+
+&gt; た、確かに。ただ、パーサとかに何も考えさせずに、パラメータさえ指定すれば
+&gt; データが取れる方法は、SQL関数かな、と思ってその方法を探していたのですが、
+&gt; explain　で確認しても、関数を使用するとコストは0を表示するので、
+&gt; 実際どちらが効率的なのかは、わかりません。
+&gt; 
+&gt; 実際　view　を作成して　Select　をするのがいいのか、
+&gt; SQL関数のほうがいいのかどちらなんでしょう。
+
+オプティマイザが働きやすいので、view の方が早くなる可能性があります。
+
+&gt; ちなみに、view　にSelect　する方法と、ふつうにSelect　するのは、
+&gt; まったく同じコストでした。あたりまえといえば、あたりまえのような気が
+&gt; しますが、Viewを使用したほうが、ちょっと早いかな、なんて思っちゃ
+&gt; たりしていたので、ちょっと意外でした。
+
+PostgreSQLでは、view と言っても単に view を変形してSQLに落しているだけ
+ですから。
+
+&gt; &gt; 関数の引数指定で、setof としているのを取ればいいんでは?
+&gt; 
+&gt; すいません。どうすればいいのかわからないです。
+&gt; 石井さんの言う、「setof としているの」とは
+&gt; 
+&gt; create function id2name4m_corporation(corporation_id)
+&gt; returns setof text as
+&gt; 　　　＾＾＾＾＾＾＾＾＾
+&gt; 'select corporation_name from m_corporation where corporation_id= $1'
+&gt; language 'sql';
+&gt; 
+&gt; の text を引数にとるということでしょうか？
+
+済みません。
+
+create function id2name4m_corporation(corporation_id)
+returns text as ...
+
+とすれば良い、という意味です。
+
+&gt;だとすると
+&gt; 
+&gt; select id2name4m_corporation(m_corporation.corporation_name)
+&gt; 
+&gt; と、いうことでしょうか？基本的な部分の解釈がまちがっているとは
+
+上のように定義した上で、
+
+select id2name4m_corporation(corporation_name) from m_corporation;
+
+かな。
+
+ちょっと自信がないのですが、ターゲットリストに現れたsetof関数は、一度
+しか評価されないと思います。setofが無い場合は、テーブルのタプル分だけ
+評価されると理解しています。
+
+&gt; それと、SQL関数とか、pgSQLとかって、あまり使用されていないのでしょうか、
+&gt; アーカイブを検索してもほとんど、検索されなかったもので、もしかして
+&gt; 利用方法を間違っているのかなって、多少不安に思ったもので、、、
+
+SQL関数はあまり使われていないかも。PL/pgSQLの方は結構利用されているか
+も知れません。今までC関数で書かなければならなかったことが、かなりこれ
+でできますから。
+
+&gt; ストアドプロシージャを使うと、パーサとか、コンパイルとか必要ないから、
+&gt; かなり早くなる
+&gt; 
+&gt; と、聞けば僕の頭の中、ストアド→PostgresではSQL関数　と短絡思考に走り
+&gt; ほかにどんな方法があろうと、使えるなら使えるだけSQL関数で
+&gt; 埋め尽くしてやろう、とそんなことで、いっぱいになってしまうので、
+&gt; それだけの価値があるかどうか、結構気になります。
+
+PostgreSQLでは、ストアドプロシジャ(関数)だからパーサやオプティマイザな
+どが実行時に必要無いということはありません。
+
+&gt; ぼくのいろいろな情報から分析した処理速度の速さの、短絡的な印象は
+&gt; 
+&gt; SQL　&gt;　SQL関数　&gt;　pgSQL　&gt;　C関数
+
+これは左が一番早いのですよね。SQLが速いのはわかりますが、関数について
+はどうかな。pgSQL　&lt;　C関数 だと思いますけど。
+
+&gt; で、どのくらい違うのかという数値的な違いは、SQLを100とすると
+&gt; 
+&gt; SQL(100)　&gt;　SQL関数(30)　&gt;　pgSQL(25)　&gt;　C関数(10)
+&gt; 
+&gt; みたいな、感じです。
+
+計算の根拠を示していただけると面白いですね。
+
+&gt;もっとも、やれることに違いがあるので
+&gt; 一概に言えないでしょうが、SQLで表現できることなら
+&gt; SQL関数　も　C関数も変わらないのでしょうか？
+&gt; また、ふつうにSQLを発行するのに比べると、関数にすることによる
+&gt; コストはどのくらいの割合で削減できるものなのでしょう？
+
+一般的に関数にするとコストは上がりますよ。関数にして早くなるケースというと、
+
+select * from bar where (foo*3.14/12345+...(以下長い式が続く)) &gt; 0;
+
+のような問い合わせを C or PL/pgSQL or PL/tcl で関数化し、
+
+select * from bar where myfunc(foo) &gt; 0;
+
+として、functional index を定義したときくらいですかね。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00169" HREF="msg00169.html">[pgsql-jp 12622] Re: SQL関数で複数の列を返したい</A></STRONG>
+<UL><LI><EM>From:</EM> masahiro AMANO &lt;masaa825@mb.mailbank.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00130" HREF="msg00130.html">[pgsql-jp 12583] SQL関数で複数の列を返したい</A></STRONG>
+<UL><LI><EM>From:</EM> masahiro AMANO &lt;masaa825@mb.mailbank.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00132" HREF="msg00132.html">[pgsql-jp 12585] Re: SQL関数で複数の列を返したい</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00138" HREF="msg00138.html">[pgsql-jp 12591] Re: SQL関数で複数の列を返したい</A></STRONG>
+<UL><LI><EM>From:</EM> masahiro AMANO &lt;masaa825@mb.mailbank.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 12594] PHPのインストール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 12596] はじめまして！</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00138.html">[pgsql-jp 12591] Re: SQL関数で複数の列を返したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00169.html">[pgsql-jp 12622] Re: SQL関数で複数の列を返したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00142"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00142"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

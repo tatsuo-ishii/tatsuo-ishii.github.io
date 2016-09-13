@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23069] Re: INSERT 	するときのサイズチェック -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 11 Sep 2001 23:08:48 +0900 -->
+<!--X-Message-Id: 3B9E1AF0.F9C9687C@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010907194800.99AA.TYUU@tsubasa.co.jp -->
+<!--X-Reference-Id: 00ad01c139ed$a214a960$1823490a@tsc.tokyo.se.fujitsu.co.jp -->
+<!--X-Reference-Id: 20010911194806.6F30.TYUU@tsubasa.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23069] Re: INSERT 	するときのサイズチェック </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00110.html">Date Prev</A>][<A HREF="msg00112.html">Date Next</A>][<A HREF="msg00143.html">Thread Prev</A>][<A HREF="msg00116.html">Thread Next</A>][<A HREF="index.html#00111">Date Index</A>][<A HREF="threads.html#00111">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23069] Re: INSERT 	するときのサイズチェック</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 11 Sep 2001 23:08:48 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00070.html">20010907194800.99AA.TYUU@tsubasa.co.jp</A>&gt; &lt;<A HREF="msg00082.html">00ad01c139ed$a214a960$1823490a@tsc.tokyo.se.fujitsu.co.jp</A>&gt; &lt;<A HREF="msg00108.html">20010911194806.6F30.TYUU@tsubasa.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Hiroshi Morita wrote:
+&gt; 
+&gt; tyuu です。
+&gt; 
+&gt; ソフト工房の近藤様、
+&gt; ALIHALA Hiroshi 様、
+&gt; こんちゃーっす。 by 佐川急便
+&gt; 
+&gt; さて、本題です。
+&gt; 
+&gt; PHP + PostgresSQL で IP Address 管理をしたいなと思っているだけで、
+&gt; 特別な事はそんなにやってないです。
+&gt; 
+&gt; ただ、ちょっと怠け者で、
+&gt; varchar の size が DB Table の field ごとに
+&gt; 変わるのを手で修正したくなかっただけです。
+
+怠け者ではなくて、汎用ルーチンを作るときの王道だと
+思います。  DB のことは、DB に聞けです。
+
+# DB 定義情報(カタログ/メタデーター)を データーと
+# 同様に取得できなければ、それは、RDB  ではありません。
+
+ 
+&gt; 結局 CHECK は使わず、カタログ情報 (そんな名前とは知りませんでした)
+&gt; から教えてもらうようにしました。
+&gt; ただ Magic Number (-4) が入ってるのが、ちと気になるんですけどね(; ;)。
+
+4 については、tyuu さんが途中まで調べたとおり次のような
+定義から導き出されています。
+
+postgresql-7.1.2/src/include/c.h
+#ifndef __BEOS__                /* this shouldn't be required, but is is! */
+  typedef signed   int    int32;          /* == 32 bits */
+  typedef unsigned int    uint32;         /* == 32 bits */
+#define VARHDRSZ  ((int32) sizeof(int32))
+
+int32 というネーミングからみて、64 bit 版の PostgreSQL
+でも、VARHDRSZ は、4 のままの筈です。＞ 詳しい方教えて。
+この部分には、データー長などの内部情報が入っている筈で
+内部構造ですから、簡単には変えないと思います。
+
+マニュアルにも明記してあるし、安心して 4 を使っていい
+と思います。(version up や 移植の時は確認すべきでしょう)。
+
+&gt;   SELECT a.atttypmod -4  FROM pg_attribute a, pg_class c
+&gt;    WHERE c.relname = 'hoge' AND a.attnum &gt; 0 AND a.attrelid = c.oid
+&gt;    AND a.attname = 'foo';
+
+但し、pg_attribute.atttypmod  は、データー型によって
+使い方が違うので注意してください。
+
+私の使っている SQL をアップしておきました。目的に
+合わせて修正して参考にしていただければ幸い。
+
+<A HREF="http://www.shonan.ne.jp/~nkon/test/show.dd.sh.txt">http://www.shonan.ne.jp/~nkon/test/show.dd.sh.txt</A>
+
+&gt; CHECK を利用しなかったのは
+&gt;   CREATE TABLE hoge (foo VARCHAR(10) CHECK(CHAR_LENGTH(foo) &lt; 10) );
+&gt; 
+&gt; less than の後の数字が 11 の時に、動作してくれないためです。
+&gt; 10 の時は 9 文字以上の文字列が Insert された時に、
+&gt; エラーを出すのですが 11 の時は、動作しません。
+
+ソースコードみてないけど、多分そうなるはずです。
+
+(1) '12345678901' が、foo に代入される。
+
+(2) foo の 型は、VARCHAR(10)なので、末尾がカット
+    されて、 foo には、'1234567890' の 10 バイト
+    だけが入る。
+
+(3) CHAR_LENGTH(foo) 実行時には、10 バイトにカット
+    された後なので、octet_length(foo) が、10 を超える
+    ことはない。従ってこのチェックは無意味。
+
+なお、 CHECK(CHAR_LENGTH(foo) &lt; 10) ) ではなく、
+       CHECK(octet_length(foo) &lt;= 10) ) にすべき
+です。
+
+単なる技術的な問題として、このCHECK オプションを有効に
+するには、VARCHAR でなく、TEXT 型にしてやれば、10 バイト
+を超えるデーターは、CHECK で跳ねられます。
+
+私は、結合 KEY や重要なコードは、固定長の CHAR(n)
+で定義すべきだという考えなので、TEXT + CHECK 制約
+という考え方は採用しませんが、技術的にはこういう
+ことも可能です。
+
+CREATE TABLE hoge (foo text CHECK(octet_length(foo) &lt;= 10));
+
+insert into hoge values ('12345678901');
+(-403)ERROR:  ExecAppend: rejected due to CHECK constraint hoge_foo
+
+insert into hoge values ('1234567890');
+INSERT 11293366 1
+
+insert into hoge values ('東京都千代田区');
+(-403)ERROR:  ExecAppend: rejected due to CHECK constraint hoge_foo
+
+insert into hoge values ('東京都神田');
+INSERT 11293367 1
+
+なお、TEXT 型にした場合は、pg_attribute.atttypmod
+は、-1 になるので、アプリから、この項目に何バイト
+収容可能なのかをしるには、カタログ情報の CHECK 制約
+から情報を取得しなければなりません。
+
+....略....
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00070" HREF="msg00070.html">[pgsql-jp 23028] re: INSERT するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Morita &lt;tyuu@tsubasa.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00082" HREF="msg00082.html">[pgsql-jp 23040] Re: INSERT するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> "ALIHALA Hiroshi" &lt;arihara@tokyo.se.fujitsu.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00108" HREF="msg00108.html">[pgsql-jp 23066] Re: INSERT するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Morita &lt;tyuu@tsubasa.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 23068] Re: INSERT するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00112.html">[pgsql-jp 23070] Re: INSERT するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 23101] Re: INSERT 	するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 23074] Re: INSERT するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00111"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00111"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

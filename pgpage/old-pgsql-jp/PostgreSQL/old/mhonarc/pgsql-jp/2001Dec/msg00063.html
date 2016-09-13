@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23953] Re2: FILE OUTPUT 	について -->
+<!--X-From: Kenji Ono <ono@fjct.fujitsu.com> -->
+<!--X-Date: Wed, 5 Dec 2001 20:16:17 +0900 -->
+<!--X-Message-Id: 200112052016.FJG93312.PPO@fjct.fujitsu.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200112051534.HJJ75860.PPO@fjct.fujitsu.com -->
+<!--X-Reference-Id: 3C0DDA9F.60406@pjam.jpweb.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23953] Re2: FILE OUTPUT 	について </TITLE>
+<LINK REV="made" HREF="mailto:ono@fjct.fujitsu.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00062.html">Date Prev</A>][<A HREF="msg00064.html">Date Next</A>][<A HREF="msg00056.html">Thread Prev</A>][<A HREF="msg00064.html">Thread Next</A>][<A HREF="index.html#00063">Date Index</A>][<A HREF="threads.html#00063">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23953] Re2: FILE OUTPUT 	について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kenji Ono &lt;<A HREF="mailto:ono@fjct.fujitsu.com">ono@fjct.fujitsu.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 5 Dec 2001 20:16:17 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00052.html">200112051534.HJJ75860.PPO@fjct.fujitsu.com</A>&gt;&lt;<A HREF="msg00056.html">3C0DDA9F.60406@pjam.jpweb.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+石田さん、こんにちは。
+
+小野と言います。
+
+&gt; &gt; そこで、Oracleで言うところのutl_file.fopen見たいな関数はあります
+&gt; &gt; でしょうか。
+&gt; 
+&gt; テーブルが更新されたとき、トリガでファイルに出力したい、
+&gt; ということであれば、私の知るかぎり、PL/pgSQL でも PL/Perl でも
+&gt; 出来ないと思います。
+
+やはりないですか。
+Oracleが懐かしい・・・。
+ 
+&gt; 他には、c 言語で関数を書くか、
+
+そこで、ファイルのopen,write,closeのプログラムをＣ言語で作成し、
+こいつをPL/pgSQLから呼出そうかな、と思ってます。
+実験中ですが、うまくいく自身が全然ないです。
+
+---＜file_open.c＞---
+integer file_open ()
+{
+	integer wc ;
+	wc = fopen(〜) ;
+	return wc ;
+}
+---＜file_write.c＞---
+integer file_write (filep *integer,data *char)
+{
+	integer wc ;
+	wc = fwrite(filep,data) ;
+	return wc ;
+}
+---＜file_close.c＞---
+integer file_close (filep *integer)
+{
+	integer wc ;
+	wc = fclose(filep) ;
+}
+---&lt;SQL&gt;---
+CREATE FUNCTION file_open() RETURNS integer
+    AS '/usr1/proj/bray/sql/file_open.so' LANGUAGE 'c';
+CREATE FUNCTION file_write(filep, data) RETURNS integer
+    AS '/usr1/proj/bray/sql/file_write.so' LANGUAGE 'c';
+CREATE FUNCTION file_close(filep) RETURNS boolean
+    AS '/usr1/proj/bray/sql/file_close.so' LANGUAGE 'c';
+
+CREATE TABLE emp (
+    empname text
+);
+
+CREATE FUNCTION file_make() RETURNS INTEGER AS '
+DECLARE
+	fp integer ;
+	wc integer ;
+	table_data emp%ROWTYPE;
+BEGIN
+	fp = file_open() ;
+	select into table_data * from emp ;
+	wc = file_write(fp,table_data.empname) ;
+	file_close(fp) ;
+END;
+' LANGUAGE 'plpgsql';
+
+CREATE TRIGGER emp_stamp BEFORE INSERT OR UPDATE ON emp
+    FOR EACH ROW EXECUTE PROCEDURE file_make();
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp 23966] Re: Re2: FILE OUTPUT について</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[pgsql-jp 23954] Re: Re2: FILE OUTPUT 	について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00052" HREF="msg00052.html">[pgsql-jp 23942] FILE OUTPUT	について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00056" HREF="msg00056.html">[pgsql-jp 23946] Re: FILE OUTPUT について</A></STRONG>
+<UL><LI><EM>From:</EM> ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 23952] Re4: Postgresql 	で</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00064.html">[pgsql-jp 23954] Re: Re2: FILE OUTPUT 	について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 23946] Re: FILE OUTPUT について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00064.html">[pgsql-jp 23954] Re: Re2: FILE OUTPUT 	について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00063"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00063"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

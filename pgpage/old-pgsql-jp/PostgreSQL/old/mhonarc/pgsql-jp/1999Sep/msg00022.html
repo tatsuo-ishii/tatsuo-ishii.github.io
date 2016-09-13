@@ -1,0 +1,264 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10524] RE: geometric の  geometric_size について -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Thu, 2 Sep 1999 00:31:10 +0900 -->
+<!--X-Message-Id: NDBBKLBKJJMLDCBMIODFKEAMCBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199908300436.EAA07002@sran362.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10524] RE: geometric の  geometric_size について </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00021.html">Date Prev</A>][<A HREF="msg00023.html">Date Next</A>][<A HREF="msg00048.html">Thread Prev</A>][<A HREF="msg00025.html">Thread Next</A>][<A HREF="index.html#00022">Date Index</A>][<A HREF="threads.html#00022">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10524] RE: geometric の  geometric_size について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 2 Sep 1999 00:31:10 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: Kenji Sugita
+&gt;
+&gt;   こんにちは、
+&gt;
+&gt;   暫く geometric の質問ばかりになりそうです。ひとつづつ行きます。
+
+  覚悟してお待ちしております。
+
+&gt;   geometric の geometric_size について教えてください。
+&gt;
+&gt;   動作環境は以下の 2 通りです。
+&gt;
+&gt;     FreeBSD3.2
+&gt;     PostgreSQL 6.5.1 (--with-mb=EUC_JP)
+&gt;     <A HREF="ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz">ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz</A>
+&gt;     pgaccess.patch
+&gt;
+&gt;     Vine Linix1.1 (自宅の K6-2/400、メモリ 256M、UW SCSI にも入れました)
+&gt;     PostgreSQL 6.5.1 (--with-mb=EUC_JP)
+&gt;     <A HREF="ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz">ftp://ftp.jp.postgresql.org/pub/pgcd/examples/geometric-0.1.tar.gz</A>
+&gt;
+&gt;   ある体積以上のボックスを検索しようとして気が付きました。そこで、簡単に、
+&gt; geometric_size が 10x10x10 = 1000 を返すことを期待して、次の query を実行
+す
+&gt; る
+&gt; と backend が落ちてしまいます。
+&gt;
+&gt;     ====  geometric-0.1 の README.euc_jp より  ====
+&gt;     create table testtbl (a geometric);
+&gt;     create index testtblind on testtbl using rtree (a);
+&gt;
+&gt;     を実行して、ボックス型のデータを入れた後なので、geometry はできている
+は
+&gt; ず
+&gt;     です。count(*) は動いています。そして、以下を実行です。
+&gt;
+&gt;     sugita=&gt; select geometric_size('(0,0,0)[](10,10,10)');
+&gt;     pqReadData() -- backend closed the channel unexpectedly.
+&gt; 	    This probably means the backend terminated abnormally
+&gt; 	    before or while processing the request.
+&gt;     We have lost the connection to the backend, so further
+&gt; processing is impossible.  Terminating.
+&gt;
+&gt;   「オブジェクトの容量(面積や体積)を計算します。」ということを間違って私が
+&gt; 解釈
+&gt; してしまっているのでしょうか。
+
+  いいえ、解釈は正しいです。
+
+  すいません、バグです。geometric 0.1の公開直前に、geometric_size関数を内部
+関数から公開関数に慌てて昇格させたのですが、急いでやったので間違えておりまし
+た。すいません。
+
+  次のパッチを当ててください。
+
+−−−−ここから−−−−
+*** geometric-0.1/geometric/geo_ifs.h	Sun Jun 27 22:49:25 1999
+--- geometric-0.1.1/geometric/geo_ifs.h	Wed Sep  1 22:24:19 1999
+***************
+*** 42,48 ****
+
+  geometric *geometric_union(geometric *var1, geometric *var2);
+  geometric *geometric_intersect(geometric *var1, geometric *var2);
+! double geometric_size(geometric *var);
+
+  geometric *rt_geometric_union(geometric *var1, geometric *var2);
+  geometric *rt_geometric_intersect(geometric *var1, geometric *var2);
+--- 42,48 ----
+
+  geometric *geometric_union(geometric *var1, geometric *var2);
+  geometric *geometric_intersect(geometric *var1, geometric *var2);
+! double *geometric_size(geometric *var);
+
+  geometric *rt_geometric_union(geometric *var1, geometric *var2);
+  geometric *rt_geometric_intersect(geometric *var1, geometric *var2);
+*** geometric-0.1/geometric/geo_ifs.c	Sun Jun 27 22:44:24 1999
+--- geometric-0.1.1/geometric/geo_ifs.c	Wed Sep  1 22:44:59 1999
+***************
+*** 813,848 ****
+  /*
+   *  geometric_size - calculate area size of geometric object.
+   */
+! double geometric_size(geometric *var)
+  {
+      if (!var)
+! 	return 0.0;
+
+      switch (geo_type(var))
+      {
+      case GEO_POINT:
+      {
+! 	return 0.0;
+      }
+      case GEO_BOX:
+      {
+  	geo_box *tvar = (geo_box *)var;
+  	int ndim;
+- 	double r;
+  	int i;
+
+  	ndim = geo_ndim(tvar);
+
+! 	r = 1.0;
+
+  	for (i = 0; i &lt; ndim; i++)
+! 	    r *= fabs(geo_box_start_implicit_value(tvar, i) -
+geo_box_end_implicit_value(tvar, i));
+
+  	return r;
+      }
+      default:
+  	elog(ERROR, "geometric_size: Bad object type '%d'", geo_type(var));
+! 	return 0.0; /* don't reached */
+      }
+  }
+
+--- 813,856 ----
+  /*
+   *  geometric_size - calculate area size of geometric object.
+   */
+! double *geometric_size(geometric *var)
+  {
++     double *r;
++
++     r = (double *)palloc(sizeof(double));
++
+      if (!var)
+!     {
+! 	*r = 0.0;
+! 	return r;
+!     }
+
+      switch (geo_type(var))
+      {
+      case GEO_POINT:
+      {
+! 	*r = 0.0;
+! 	return r;
+      }
+      case GEO_BOX:
+      {
+  	geo_box *tvar = (geo_box *)var;
+  	int ndim;
+  	int i;
+
+  	ndim = geo_ndim(tvar);
+
+! 	*r = 1.0;
+
+  	for (i = 0; i &lt; ndim; i++)
+! 	    *r *= fabs(geo_box_start_implicit_value(tvar, i) -
+geo_box_end_implicit_value(tvar, i));
+
+  	return r;
+      }
+      default:
+  	elog(ERROR, "geometric_size: Bad object type '%d'", geo_type(var));
+! 	*r = 0.0;
+! 	return r; /* don't reached */
+      }
+  }
+
+***************
+*** 876,880 ****
+   */
+  void rt_geometric_size(geometric *var, float *r)
+  {
+!     *r = (float)geometric_size(var);
+  }
+--- 884,892 ----
+   */
+  void rt_geometric_size(geometric *var, float *r)
+  {
+!     double *size;
+!
+!     size = geometric_size(var);
+!     *r = (float)*size;
+!     pfree(size);
+  }
+−−−−ここまで−−−−
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[pgsql-jp 10527] Re: geometric のgeometric_size について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 10523] RE: geometric での  nrtree の使用</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 10525] Re: geometric でのnrtree の使用</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 10550] Re: ACCESSからpostggresへのアクセスについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 10527] Re: geometric のgeometric_size について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00022"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00022"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

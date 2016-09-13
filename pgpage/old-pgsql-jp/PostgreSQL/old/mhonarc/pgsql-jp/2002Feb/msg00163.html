@@ -1,0 +1,143 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24758] Re: db convert error(7.1.2 &#45;> 7.2) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 09 Feb 2002 13:48:47 +0900 -->
+<!--X-Message-Id: 20020209134847G.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200202070447.AA00288@rakkasei2.sainet.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24758] Re: db convert error(7.1.2 -&gt; 7.2) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00114.html">Thread Prev</A>][<A HREF="msg00100.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24758] Re: db convert error(7.1.2 -&gt; 7.2)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 09 Feb 2002 13:48:47 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00107.html">200202070447.AA00288@rakkasei2.sainet.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．元記事の方からデータを見せてもらったので調べてみました．結論
+から言うと，データの不正です．
+
+&gt; データのコンバートがうまくいかずに困っています。
+&gt; 7.1.2 から 7.2 への乗り換えをしようとしています。
+&gt; 
+&gt; ●失敗１
+&gt; 7.1.2 : pg_dump db &gt; db.txt
+&gt; 7.1.2 -&gt; 7.2 にバージョンアップ
+&gt; 7.2 : psql -f db.txt template1
+&gt; 
+&gt; ●失敗２
+&gt; 7.2(テスト機)から7.1.2(実機)のデータを拾ってくる
+&gt;   pg_dump -h hostIP db | psql db
+&gt; 実機を 7.2 にバージョンアップ
+&gt; テスト機から実機にデータを戻す
+&gt;   pg_dump db | psql -h hostIP db
+&gt; 
+&gt; 
+&gt; ●エラーメッセージ
+&gt; ERROR:  copy: line 33462, Invalid EUC_JP character sequence found (0x803f)
+&gt;   FATAL 1:  Socket command type 3 unknown
+&gt; psql:comikedb.txt:58450: ERROR:  copy: line 33462, Invalid EUC_JP 
+&gt;   character sequence found (0x803f)
+&gt; psql:comikedb.txt:58450: lost synchronization with server, 
+&gt;   resetting connection
+&gt; 
+&gt; この付近を見てみると
+&gt; 
+&gt; 安価(?)で
+&gt; 　↓
+&gt; 安価(.?)で
+&gt; 
+&gt; となっており、どうも半角クエスチョンマークの処理に失敗してる様子です。
+
+そうではありません．問題の個所は，ASCIIの "("+ 0x80 + ASCII "?" +
+ASCII ")"となっており，0x80が不正なのです．単独の 0x80 は決してEUC-JP
+には出現しません．
+
+&gt; ただわからない点があり、もうひとつのエラーメッセージに
+&gt; (0xbc29) のコードが不正だと出ているのです。どうもこれは
+&gt; 全角伸ばし音の2文字目と半角括弧の閉じの組み合わせみたい
+&gt; なのですが、データをみると至るところで使われています。
+&gt; が、エラーとして出ているのは1箇所だけなのです。エラーが
+&gt; 一個でも出るとそのテーブルのインポートをやめてしまってい
+&gt; るのかもしれませんが。
+&gt; 
+&gt; 例：シー)が
+
+面倒なので調べてませんが，こちらも同様の不正なデータでしょう．
+
+&gt; ちょっとソースを読む時間が無いので検証できていませんが、
+&gt; 同様の現象に遭っている方が居ないかと思いメールしました。
+&gt; 
+&gt; 環境：FreeBSD4.4  switch = --enable-multibyte=EUC_JP
+
+というわけで，もともとはお目こぼしで不正なデータを7.1で取込めていたの
+が，7.2でチェックがきびしくなって露呈した，ということですね．
+pg_dumpしたデータの方を修正してください．
+
+&gt; P.S. pg_hba.conf を変更した際、起動しなおさないといけなく
+&gt; 　　なったんですがこれは今後ずっとこのままなんでしょうか…
+
+これについてはすでに解説したので省略．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00107" HREF="msg00107.html">[pgsql-jp 24702] db convert error(7.1.2 -&gt; 7.2)</A></STRONG>
+<UL><LI><EM>From:</EM> Nakamura Kazuto &lt;kazuto@sainet.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 24757] Re: 動的ロードされたdllからのDB アクセス</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 24759] １２０万件あるデータの中からランダムに１行を取得する。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00114.html">[pgsql-jp 24709] Re: db convert error(7.1.2 -&gt; 7.2)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 24695] 壊れたViewの探し方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

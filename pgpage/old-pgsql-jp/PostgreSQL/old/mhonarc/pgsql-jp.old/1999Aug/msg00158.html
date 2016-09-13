@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10055] Re: DefineQueryRewrite: rule plan string too big. -->
+<!--X-From: ML <enaec2@asr&#45;osk.co.jp> -->
+<!--X-Date: Wed, 04 Aug 1999 09:11:25 +0900 -->
+<!--X-Message-Id: 37A7852D15E.3B88ENAEC2@mail.asr&#45;osk.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37A6A2DBFA.CEB7ENAEC2@mail.asr&#45;osk.co.jp -->
+<!--X-Reference-Id: 199908030942.SAA04493@ganymede.sunny.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10055] Re: DefineQueryRewrite: rule plan string too big. </TITLE>
+<LINK REV="made" HREF="mailto:enaec2@asr-osk.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00154.html">Date Prev</A>][<A HREF="msg00159.html">Date Next</A>][<A HREF="msg00120.html">Thread Prev</A>][<A HREF="msg00092.html">Thread Next</A>][<A HREF="index.html#00158">Date Index</A>][<A HREF="threads.html#00158">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10055] Re: DefineQueryRewrite: rule plan string too big.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: ML &lt;<A HREF="mailto:enaec2@asr-osk.co.jp">enaec2@asr-osk.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 04 Aug 1999 09:11:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00104.html">37A6A2DBFA.CEB7ENAEC2@mail.asr-osk.co.jp</A>&gt; &lt;<A HREF="msg00111.html">199908030942.SAA04493@ganymede.sunny.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ありがとうございます。早急に試してみます。
+
+----------------------------------------
+
+&gt; 谷山 @ Viewって何なのか良くわかってもいない私が答えていいのか？ です。(^^;
+&gt; 
+&gt; &gt;&gt;&gt;&gt; On Tue, 03 Aug 1999 17:05:47 +0900,
+&gt; &gt;&gt;&gt;&gt; 	ML &lt;enaec2@asr-osk.co.jp&gt; wrote:
+&gt; 
+&gt; enaec2&gt; ＰｏｓｔｇｒｅＳＱＬでCreate Viewを実行したら'DefineQueryRewrite:
+&gt; enaec2&gt; rule plan string too big.'  のメッセージが表示されViewが作成で
+&gt; enaec2&gt; きません。Viewを作成する際のSQL文の長さは決まってるのでしょう
+&gt; enaec2&gt; か？
+&gt; 
+&gt; SQL文の長さ(文字列長)が直接反映されるのかはさておき、これに関連する上限
+&gt; があるのは確かです。
+&gt; 
+&gt; 問題のメッセージは、PostgreSQL-6.5.1だと
+&gt; 
+&gt; backend/rewrite/rewriteDefine.c:
+&gt; 
+&gt; if (sizeof(FormData_pg_rewrite) + strlen(actionbuf) +
+&gt; 	strlen(qualbuf) &gt; MaxAttrSize)
+&gt; 	elog(ERROR, "DefineQueryRewrite: rule plan string too big.");
+&gt; 
+&gt; が出どころで、MaxAttrSizeで頭を押えられていることがわかります。
+&gt; 
+&gt; enaec2&gt; また、決まってないとしたら回避する方法はあるのでしょうか？
+&gt; 
+&gt; 上記のMaxAttrSizeを追いかけていくと、
+&gt; 
+&gt; /src/include/access/htup.h:
+&gt; 
+&gt; #define MaxAttrSize (MaxTupleSize - MAXALIGN(sizeof(HeapTupleHeaderData)))
+&gt; 
+&gt; #define MaxTupleSize	(BLCKSZ - MinTupleSize)
+&gt; 
+&gt; src/include/config.h:
+&gt; /*
+&gt;  * Size of a disk block --- currently, this limits the size of a tuple.
+&gt;  * You can set it bigger if you need bigger tuples.
+&gt;  */
+&gt; /* currently must be &lt;= 32k bjm */
+&gt; #define BLCKSZ	8192
+&gt; 
+&gt; というわけで、config.hのBLCKSZの値に依存することがわかります。
+&gt; 
+&gt; よって、回避する方法は、「BLCKSZを増やして、コンパイルをやりなおす」で
+&gt; はないかと思います。ただ、これをやると既存のデータベースファイルとの互
+&gt; 換性は取れなくなると予想されます。
+&gt; 
+&gt; 以前、石井さんがタプルサイズを増やすとパフォーマンスが上がる場合がある…
+&gt; というようなことを書いていらっしゃいましたね。
+&gt; 
+&gt; # というわけで、私はCのコードは読めてもSQLはわからんのです。(^^;
+&gt; 
+&gt; 〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+&gt;   よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+&gt; 
+
+-----
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+_/システムの構築からネットワーク構築全般まで_/
+_/株式会社　エーエスアール　　　　　　　　  _/
+_/　　　　Solution Group                    _/
+_/　　　北緯 34.40.33.869 東経 135.29.26.293_/
+_/　　　　山口　敏広　　enaec@asr-osk.co.jp _/
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00104" HREF="msg00104.html">[pgsql-jp 9948] DefineQueryRewrite: rule plan string too big.</A></STRONG>
+<UL><LI><EM>From:</EM> ML &lt;enaec2@asr-osk.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 9955] Re: DefineQueryRewrite: rule plan string too big.</A></STRONG>
+<UL><LI><EM>From:</EM> TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00154.html">[pgsql-jp 10053] invalid header?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 10056] Re: invalid header?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 9964] Re: DefineQueryRewrite: rule plan string too big.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00092.html">[pgsql-jp 9936] PostgrSQLとの接続方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00158"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00158"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

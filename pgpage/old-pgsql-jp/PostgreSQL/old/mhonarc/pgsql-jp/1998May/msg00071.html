@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4009] functional index (Re: date in a month) -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Tue, 12 May 1998 12:47:13 +0900 -->
+<!--X-Message-Id: 199805120347.MAA10773@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804280220.LAA19413@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4009] functional index (Re: date in a month) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00070.html">Date Prev</A>][<A HREF="msg00074.html">Date Next</A>][<A HREF="msg00149.html">Thread Prev</A>][<A HREF="msg00070.html">Thread Next</A>][<A HREF="index.html#00071">Date Index</A>][<A HREF="threads.html#00071">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4009] functional index (Re: date in a month)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 12 May 1998 12:47:13 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。中間報告です。
+
+&gt;&gt;&gt;ところで、試しにその関数で index 作ってみたのですが、untrutested
+&gt;&gt;&gt;function... とか言われてうまくいきませんでした。只今本家に問い合わせ中...
+&gt;&gt;
+&gt;&gt;ありがとうございます。しかし、一筋縄ではいきませんね。
+&gt;
+&gt;ですね...(今だ本家のMLでフォロー貰えず)
+
+その後「私も同じ問題にぶつかっているが、あの質問はどうなった」という個
+人メールを外国の方からいただき、今度は hackers リストに投げてみました。
+ただし、質問内容は同じではありません。いろいろやってみて分かったことは、
+「SQL function で index を作ろうとするとエラーになるが、C function な
+らOK」ということです。これがバグなのか仕様なのかはわかりませんが。ただ、
+別の致命的問題として、作成された functional index が (explain で見る限
+り)使われない、というのがあります。これではせっかく作った索引が意味な
+しですね。
+
+以下、本家に投げたメールを引用しておきます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+---------------------------------------------------------------------
+To: Postgres Hackers List &lt;hackers@postgreSQL.org&gt;
+Subject: [HACKERS] functional index
+From: t-ishii@sra.co.jp
+Date: Mon, 11 May 1998 14:25:25 +0900
+Sender: owner-pgsql-hackers@hub.org
+Precedence: bulk
+
+Seems like SQL functions cannot be used for defining functional
+indexes. Is this a feature or bug? (I couldn't find that restrictions
+in docs)
+
+&gt; create table d1 (d datetime);
+&gt; insert into d1 values('now'::datetime);
+&gt; create index d1index1 on d1 (d);
+&gt; create function date2month(datetime) returns datetime as ' select date_trunc(\'month\', datetime($1))' language 'sql';
+&gt; create index d1index2 on d1 (date2month(d) datetime_ops);
+&gt; ERROR:  internal error: untrusted function not supported.
+
+Next, C functions work great for creating functional
+indexes. Good. Unfortunately, the functional index I have created
+seems never be used. Any suggestion?
+
+create table d1(d date);
+CREATE FUNCTION date2month(date)
+RETURNS datetime
+AS '/mnt2/home/mgr/t-ishii/doc/PostgreSQL/functional_index/date2month/date2month.so'
+LANGUAGE 'c';
+(300 records insertion here)
+create index d1index on d1 using btree (date2month(d)  datetime_ops);
+vacuum d1;
+explain select * from d1 where date2month(d) = 'Mon Mar 01 00:00:00 1999 JST'::datetime;
+NOTICE:  QUERY PLAN:
+
+Seq Scan on d1  (cost=13.96 size=166 width=4)
+
+EXPLAIN
+
+---------------------- date2month.c --------------------
+#include "postgres.h"
+#include "utils/builtins.h"
+
+DateTime *date2month(DateADT date)
+{
+  static char *month = "month";
+  DateTime *d,*ret;
+  union {
+    text unit;
+    char buf[128];
+  } v;
+
+  d = date_datetime(date);
+  strcpy(VARDATA(&amp;v.unit),month);
+  VARSIZE(&amp;v.unit) = strlen(month)+VARHDRSZ;
+  ret = datetime_trunc(&amp;v.unit,d);
+  return(ret);
+}
+--
+Tatsuo Ishii
+t-ishii@sra.co.jp
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 4008] RE: PostODBC+MSqueryが動かない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 4012] Re: PHP/FI+Apache+PostgreSQL=????</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 4087] Re: InterBase for Linux is freely available</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00070.html">[pgsql-jp 4008] RE: PostODBC+MSqueryが動かない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00071"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00071"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

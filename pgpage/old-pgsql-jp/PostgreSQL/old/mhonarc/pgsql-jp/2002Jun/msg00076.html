@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26297] Re: 記念日等の範囲検索 -->
+<!--X-From: Takao Kato <sirius@jp.fujitsu.com> -->
+<!--X-Date: Thu, 06 Jun 2002 10:18:44 +0900 -->
+<!--X-Message-Id: u3wutd432j.wl@lespaul.lantc.cs.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020606083047.2B56.ISSY777@entrance&#45;e.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26297] Re: 記念日等の範囲検索 </TITLE>
+<LINK REV="made" HREF="mailto:sirius@jp.fujitsu.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00075.html">Date Prev</A>][<A HREF="msg00077.html">Date Next</A>][<A HREF="msg00075.html">Thread Prev</A>][<A HREF="msg00078.html">Thread Next</A>][<A HREF="index.html#00076">Date Index</A>][<A HREF="threads.html#00076">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26297] Re: 記念日等の範囲検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takao Kato &lt;<A HREF="mailto:sirius@jp.fujitsu.com">sirius@jp.fujitsu.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 06 Jun 2002 10:18:44 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00075.html">20020606083047.2B56.ISSY777@entrance-e.com</A>&gt;</LI>
+<LI><em>User-Agent</em>: SEMI/1.13.7 (Awazu) FLIM/1.13.2 (Kasanui) MULE/2.3 (SUETSUMUHANA) (based on Emacs 19.34)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ 加藤＠川崎です。
+
+&gt; 条件絞り込みで
+&gt; a月b日($s_day)〜c月d日($e_day)の該当者を検索をするとした場合
+&gt; select * from user where memorial_day &lt;= '$e_day' and memorial_day
+&gt; &gt;='$s_day'
+&gt; 
+&gt; むりやり年をつけたして検索もできそうなかんじもしたのですが、年をまたぐ指
+&gt; 定の場合（例えば12/20〜1/10までを検索）などどうすればいいのかと。
+
+
+朝の頭の体操と言うことで、少し考えてみました。手段として、
+
+(1)時期を「月」単位で切ってしまう
+(2)条件判定時にmemorial_dayに年を加えてしまう
+(3)memorial_dayに年情報を加える
+
+の3つの方法が「ぱっ」と思いつきます。
+
+
+(1)時期を「月」単位で切ってしまう
+   これは「月」で一度振るいにかけてしまうことで、12/20〜1/10なんて面倒
+   臭い判定を避ける方法です。これは当然思いついていると思います。
+
+   これに条件をもう一つ加えて、月を跨ぐ場合には上記条件を二回にわけて
+   しまう、、、例えば 12/20〜12/31と1/1〜1/10
+
+   クエリをどこから喰わせるのかで $e_day と $s_day の値を算出する方法
+   が変わって来ますが、仮に分離した結果判定範囲が
+
+      $s_day〜$e1_day
+      $s2_day〜$e_day
+
+   としたら
+   
+   select * from user where
+    memorial_day between $s_day and $e1_day or
+    memorial_day between $s1_day and $e_day;
+
+   で良いですよね。(overlapsでもOK)
+
+(2)条件決定時にmemorial_dayに年を加えてしまう
+   memorial_dayに今年と来年の「年」情報を条件判定時に加えてしまうもの
+   です。ただ「年」情報をどう加えれば良いかは別の方にお願いするとして、 ^^;;
+   年情報を加えたフィールドとして memorial_now memorial_next とでもし
+   て($s_dayと$e_dayにも年情報が加わっている)
+
+   select * from user where
+     memorial_now between $s_day and $e_day or
+     memorial_next between $s_day and $e_day;
+
+   でいけると思います。(overlapsでもOK)
+
+
+(3)memorial_dayに年情報を加える
+   (2)とは memorial_dayの型を初めから date 型(timestamp)にしておくとこ
+   ろが異なります。くわえて、cronなどで日に1度(例えば0時に)現在よりも
+   古い日の年情報を更新してしまいます。こうすれば(1)や(2)のように小細
+   工しなくても($s_day/$e_dayともにdateかtimestamp型なら)
+
+   select * from user where
+     memorial_day between $s_day and $e_day;
+
+   で終わりですよね。
+
+   注意点としては、「誕生日」は更新しても「生年月日」は更新してはいけ
+   ない、、、そりゃそうですよね。誕生日は毎年やってきますが、生年月日
+   は一生で一度ですから。このようにカラムの入力値に依存する関係を忘れ
+   て無闇に更新するとDBの意味がなくなったりします。
+
+   聡明な皆さんはともかく、僕なんかは忘れてやってしまいそうです ^^;
+
+こんなところかなぁ? ちなみにクエリ生成をPHPやPerlでやるならゴリゴリで
+きます。が、SQLだけでもっとシンプルかつ聡明な方法ありましたら教えてく
+ださい。^^
+----
+加藤＠川崎
+お便りは kato@lantc.cs.fujitsu.co.jp まで
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[pgsql-jp: 26302] Re: 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Ishiura &lt;issy777@entrance-e.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00078" HREF="msg00078.html">[pgsql-jp: 26299] Re: 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp: 26296] 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Ishiura &lt;issy777@entrance-e.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00075.html">[pgsql-jp: 26296] 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00077.html">[pgsql-jp: 26298] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp: 26296] 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00078.html">[pgsql-jp: 26299] Re: 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00076"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00076"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

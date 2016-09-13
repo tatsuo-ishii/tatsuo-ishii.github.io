@@ -1,0 +1,362 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27292] Re: 見積り表領域と -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Wed, 04 Sep 2002 13:24:52 +0900 (JST) -->
+<!--X-Message-Id: 20020904.132452.45497011.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 74803d69e56c4ca9e0$NiftyInterway@nifty.ne.jp -->
+<!--X-Reference-Id: 20020826.220134.39154064.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27292] Re: 見積り表領域と </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00064.html">Date Prev</A>][<A HREF="msg00066.html">Date Next</A>][<A HREF="msg00098.html">Thread Prev</A>][<A HREF="msg00081.html">Thread Next</A>][<A HREF="index.html#00065">Date Index</A>][<A HREF="threads.html#00065">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27292] Re: 見積り表領域と</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 04 Sep 2002 13:24:52 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;74803d69e56c4ca9e0$NiftyInterway@nifty.ne.jp&gt;&lt;20020826.220134.39154064.sugita@sra.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: sugita@sra.co.jp
+Date: Mon, 26 Aug 2002 22:01:34 +0900 (JST)
+
+;;;   インデックスのサイズについては、参照されている資料が思いっ切り間違っていまし
+;;; た。後で、直したのを投稿します。
+
+  間違いは、インデックス付きのテーブルにデータを投入した場合とインデックスを再
+構築した場合で、空間使用率が異なることです。最初のは、データを投入してからイン
+デックスを作成していました。両方の結果、アラインメントへの言及などを修正しまし
+た。
+
+================================================================
+
+
+			     ディスク領域の見積りの概要
+
+
+$Revision: 1.13 $
+
+1. 圧縮のない場合のテーブルサイズの概算見積もり方法
+
+    int4 の 1 フィールドのテーブルで 10 万レコードの場合の見積もりは以下のよう
+    になります。
+
+	32 + 4 + 4 + 4 = 44 … レコードサイズ。
+
+	    各行のヘッダ 32 バイト (7.3 では 28 バイト)
+	    + フィールド数 32 で、NULL 値がある場合の NULL ビットマスク
+	    + ページ内のタプルへのポインタ
+	    + int4 のサイズ 
+
+	8192 / 40 = 187 … ブロックあたりのレコード数。
+
+	    データベースページ数 /レコードサイズ。 
+
+	100000 / 187 = 535   … ブロック数。
+
+	    レコード数 / ブロックあたりのレコード数。 
+
+	535 * 8192 = 4382720 … テーブルファイルサイズ。
+
+	    ブロック数 * ブロックサイズ。
+
+    実測例を以下に示します。
+
+			       ファイルサイズ
+        レコード数  7.2                     7.3
+        ==========  ===================  ===================
+	100000       4022272              3612672
+	200000       8036352 (+4014080)   7225344 (+3612672)
+	300000      12050432 (+4014080)  10829824 (+3604480)
+	400000      16064512 (+4014080)  14442496 (+3612672)
+	500000      20078592 (+4014080)  18046976 (+3604480)
+
+    約 -8% の誤差は、ページ内のページ管理情報とNULL 値のための NULL ビットマス
+    クが全行に必要として見積もったため。
+
+    圧縮のある場合には、以降の「データ圧縮」の項を適用します。
+
+    フィールドが NULL 値かどうかを判断するNULL ビットマスクによって、NULL 値の
+    場合には値を格納する領域はタプル内に取られません。従って、ビットフラグが存
+    在し、すべてのフィールドについてタプル内に格納領域が必要として見積もりをす
+    るならば、実測値を下回る可能性は少なくなります。
+
+    NULL ビットマスクサイズは全フィールドが NULL の場合には 0 で、32 フィール
+    ドごとに 4 バイトずつ増加します。つまり、1〜32 フィールドで 4 バイト、33〜
+    64フィールドで 8 バイトとなります。
+
+2. インデックスサイズの見積もり (btree)
+
+    レコード辺りのオーバーヘッドが 12 としテーブルと同様に算出します。
+
+	12 + 4 =  16
+	8192 / 16 = 512
+	100000 / 512 = 195
+	195 * 8192 = 1597440
+
+    実測例を以下に示します。
+
+        レコード数  インデックスファイルサイズ  フリースペース  B 木レベル
+        ==========  ==========================  ==============  ==========
+	100000       2506752                    886028          2
+	200000       5013504 (+2506752)
+	300000       7512064 (+2498560)
+	400000      10010624 (+2498560)
+	500000      12509184 (+2498560)
+
+    約 64% の空間使用率で、B 木の空間使用率としては問題ありません。
+
+    上記では、インデックスの付いたテーブルへデータを投入しています。インデック
+    スを再構築するとフリースペースサイズが減少し空間使用率が増加します。
+
+        レコード数  インデックスファイルサイズ  フリースペース  B 木レベル
+        ==========  ==========================  ==============  ==========
+	100000      1810432                     195488          2
+	200000      3612672 +1802240
+	300000      5406720 +1794048
+	400000      7200768 +1794048
+	500000      8994816 +1794048
+
+    こちらの場合の空間使用率は、約 88% です。
+
+3. 主なデータ型の格納サイズ
+
+    データ型名              データベース上のバイト数
+    ----------------------  -------------------------------
+    smallint                2 
+    integer                 4
+    bigint                  8
+    decimal                 圧縮 (サイズは値の桁数に依存)
+    numeric                 圧縮 (同上)
+    real                    4
+    double precision        8
+    serial                  4 (7.2 では 8 の serial あり)
+
+    boolean                 1
+
+    character(n)            4 + データ長、圧縮
+    character varying(n)    〃
+    text                    〃
+
+    timestamp               8
+    time with time zone     8
+    interval                12
+    date                    4
+    time                    8
+    time with time zone     12
+
+    注) フィールド間は、通常は 4 バイトアラインメント。
+
+4. データ圧縮
+
+    以下の 3 つのデータ型の圧縮率は同一です。
+
+	character(n)
+	character varying(n)
+	text
+
+    以下の 2 つのデータ型の圧縮率は同一です。また、圧縮率は値の桁数の 1/2 の長
+    さの text の圧縮率とほぼ同等です。
+
+	decimal
+	numeric
+
+    text の圧縮率の例は以下の通りです。
+
+        ランダムな 1000 文字の漢字文字列 (圧縮率約 1/30)
+
+	    レコード数  テーブルファイルサイズ
+	    ==========  ======================
+	    10000       688128 
+	    20000       1368064 +679936
+	    30000       2048000 +679936
+	    40000       2736128 +688128
+	    50000       3416064 +679936
+
+	ランダムな 2000 文字の英字文字列 (圧縮率約 1/30)
+
+	    レコード数  テーブルファイルサイズ
+	    ==========  ======================
+	    10000       688128 
+	    20000       1368064 +679936
+	    30000       2048000 +679936
+	    40000       2736128 +688128
+	    50000       3416064 +679936
+
+5. データベースのサイズに影響する主な要因
+
+    前述の見積りは、データの初期投入でのファイルサイズで、データベースの運用と
+    共に PostgreSQL の追記型の影響によって、データベースのサイズは、動的に変化
+    します。その主な要因は以下のようになります。
+
+	1) 更新の頻度 (テーブルファイルとインデックスファイルに影響)
+
+	2) ソートを必要とするクエリーや JOIN のワークファイル
+
+	    explain によるソート領域の見積り。
+
+	3) WAL ファイルサイズ
+
+	    データベース領域より大きくなる場合もあります。
+
+	4) REINDEX のワークファイル
+
+	5) バックアップ領域などの付随的なワーク領域
+
+	6) テンポラリテーブルの使用の有無
+
+	7) 7.1 以前のコミットログは単調増加し、initdb 以外では縮小できないない
+           ので、長期間の運用では注意。
+
+    従って、静的なサイズの見積もりに加え、運用シナリオを作成し、実験を行ってディ
+    スク使用量を見積もります。特に 1) は PostgreSQL の追記型という特徴を反映し
+    た影響を受けるので、VACUUM の適用と合わせて運用設計を行います。また、運用
+    中のディスク領域の監視も必要です。
+
+6. 参考資料
+
+    1) データ圧縮
+
+        「PostgreSQL 完全攻略ガイド 第 3 版」の P.94〜95。
+
+	    7.2 では octet_length の戻り値が変更され圧縮された値でなく、データ
+            の実際のバイト数となっていることに注意。
+
+    2) データのデータベース上のバイト数
+
+        「PostgreSQL 7.1.3 ユーザーズガイド」の「3. データ型」を参照。
+
+    3) doc/FAQ_japanese
+
+	PostgreSQL(ポストグレス・キュー・エル)についてよくある質問とその解答(FAQ)
+
+        4.7) 一般的なテキストファイルからデータを保存するには、データベースの
+        ディスク容量はどのくらい必要です？
+
+    4) 「POSTGRESQL PERFORMANCE TUNING」の P. 39〜P. 41。
+
+        <A HREF="http://candle.pha.pa.us/main/writings/pgsql/performance.pdf">http://candle.pha.pa.us/main/writings/pgsql/performance.pdf</A>
+
+付録 1. リレーションの種類
+
+    種類              内容
+    ================  ==============================================================
+    テーブル          RDB のテーブルのレコードが格納されるヒープファイル。
+    インデックス      アクセスメソッド。btree、rtree、hash、gist が用意されている。
+    TOAST テーブル    1 カラムの最大格納後データサイズを 1G にするために使用される
+		      データ格納テーブル。必要に応じて圧縮も行われる。
+    シーケンス        ユニークな連番を生成するためのテーブル。シーケンスオブジェク
+		      トごとにひとつのレコードのみが存在し、追記型として扱われない。
+    ビュー            ルールによって実装された参照用ビュー。現時点では、更新可能で
+		      はない。
+    特殊リレーション  pg_xactlock のみで、トランザクションの排他制御用に使用される。
+		      ディスク上のデータ格納ファイルは存在しない。
+
+
+付録 2. ディスクファイル上のページファイル構造
+
+      ページヘッダ     ラインポインタ  ラインポインタ
+    +----------------+---------------+-----------------+
+    | PageHeaderData | pd_linp[1]    | pd_linp[2]  ... |
+    +-----------+----+---------------+-----------------+
+    | ... pd_linp[n] |                                 |
+    +----------------+                                 |
+    |                ^ pd_lower                        |
+    |                            フリースペース        |
+    |             v pd_upper                           |
+    |             +------------------------------------+
+    |             | タプルn ...                        |
+    +------------++--------+---------+-----------------+
+    |... タプル3 | タプル2 | タプル1 | 特殊データ      |
+    +------------+---------+---------+-----------------+
+				     ^ pd_special
+
+    PageHeaderData の構造
+
+    データ型       メンバ名    内容
+    =============  ==========  ================================================
+    XLogRecPtr     pd_lsn      ログシーケンス番号
+    StartUpID      pd_sui      スタートアップ識別子
+    LocationIndex  pd_lower    フリースペースの開始オフセット
+    LocationIndex  pd_upper    フリースペースの末端オフセット
+    LocationIndex  pd_special  特殊データの開始オフセット。テーブルと TOAST テー
+			       ブルの場合には、使用されないためページ終端のオフセッ
+			       ト。インデックスの場合には、アクセスメソッドで必要
+			       とする任意のデータ、例えば、btree の場合には、前後
+			       親の 3 つのブロック番号。シーケンスの場合には、シー
+			       ケンスを示すマジックナンバー 0x00001717。
+    OpaqueData     pd_opaque   アクセスメソッド固有データ、現在ページサイズを保存。
+    ItemIdData     pd_linp[1]  ラインポインタ配列の先頭要素
+================================================================
+
+
+Kenji Sugita
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[pgsql-jp: 27308] Re: 見積り表領域と</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuo Ohgaki &lt;yohgaki@ohgaki.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00064.html">[pgsql-jp: 27291] Re: Postgresの自動起動について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00066.html">[pgsql-jp: 27293] Re: Postgresの自動起動について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00098.html">[pgsql-jp: 27325] Re: コンパイル手順</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00081.html">[pgsql-jp: 27308] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00065"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00065"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

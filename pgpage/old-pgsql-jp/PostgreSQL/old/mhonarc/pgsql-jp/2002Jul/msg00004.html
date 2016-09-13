@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26554] lo型の追加について -->
+<!--X-From: "Hiroyuki Yamada" <hiroyuki@rh.is.hitachizosen.co.jp> -->
+<!--X-Date: Mon, 1 Jul 2002 18:55:12 +0900 -->
+<!--X-Message-Id: 001c01c220e5$68b09dc0$0200a8c0@is.hitachizosen.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26554] lo型の追加について </TITLE>
+<LINK REV="made" HREF="mailto:hiroyuki@rh.is.hitachizosen.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00010.html">Thread Prev</A>][<A HREF="msg00007.html">Thread Next</A>][<A HREF="index.html#00004">Date Index</A>][<A HREF="threads.html#00004">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26554] lo型の追加について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroyuki Yamada" &lt;<A HREF="mailto:hiroyuki@rh.is.hitachizosen.co.jp">hiroyuki@rh.is.hitachizosen.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 1 Jul 2002 18:55:12 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+山田＠京都です。
+　みなさん、こんにちは。ラージオブジェクトの事でちょっと教えていただきたいこ
+とがあります。
+過去のMLで下記のものを見つけたのですが、
+「※ pg_dumpを行なう前に」以下のところの１）２）の項目の実行方法（手順）等を
+教えていただけ
+ないでしょうか？ご教授の程、よろしくお願いします。
+
+&lt;以下引用&gt;
+============================================================================
+=======
+[pgsql-jp 24290] Re: ラージオブジェクトのバックアップ／リストアについて
+
+----------------------------------------------------------------------------
+----
+From: Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;
+Date: Wed, 26 Dec 2001 15:21:13 +0900
+References: &lt;200112260022.BBF17089.TFZLPVV@mail.wind.ne.jp&gt;
+----------------------------------------------------------------------------
+----
+井上です。
+Yousuke Takahashi wrote:
+&gt;
+&gt; 高橋です。お世話になります。
+&gt; ユーザー定義型のラージオブジェクト持つテーブルのバックアップ／リストアで
+&gt; つまずいています。お知恵を拝借したいと思います。
+&gt;
+&gt; まず、以下のようにして　lo というラージオブジェクト用のデータ型を定義し
+&gt;
+&gt; CREATE TYPE "lo" ( internallength = 4, externallength = 10,
+&gt; input = "int4in", output = "int4out", send = "int4out",
+&gt; receive = "int4in", default = '',passedbyvalue);
+
+[pgsql-jp 23132] BLOBのバックアップとリストア
+を参照してください。
+ODBCのFAQで説明されているloの型定義は手抜きがひどく
+[pgsql-jp 23141]のパッチを適用してもpg_restoreでは
+処理できません。contrib/loが提供しているlo型の方が
+望ましいと思います。
+ただ、単純にlo型をDROPして作り直しても既存のlo型の
+カラムには反映されない上にそのカラムは参照できなく
+なってしまいます。どうしてもということであれば、次
+のようないささか強引なやり方が可能かと思います。
+ただし結果の保証はいたしかねますので、あらかじめ
+（postmaster停止中の）$PGDATA以下を全コピーするな
+どしておいてから試してみてください。
+
+※ pg_dumpを行なう前に
+
+１）contrib/loからlo.soをインストールします。 &lt;----------ココ
+２）lo.soが提供するfunction群をインストールします。  &lt;------------ココ
+　　psql xxx &lt; lo.sql
+    この際 create type lo ... は当然ですがエラーと
+　　なります（元のlo型定義をdropしてはいけません）。
+
+３）次のコマンドを実行してlo型の中身を変更します。
+    update pg_type set typbyval='f', typinput='lo_in',
+    typoutput='lo_out',typreceive='lo_in',typsend='lo_out'
+    where typname='lo' and typbyval='t';
+    update pg_attribute set attbyval = 'f' where atttypid=
+    (select oid from pg_type where typname='lo');
+
+４）上記変更でlo型はcontrib/loが提供するものとほとんど
+　　同じものに変貌します。念のため変更の後で元のデータ
+　　が処理できることを確認してください。
+
+※ pg_restoreを行なう前に
+５）[pgsql 23141]のパッチを適用してpg_restoreを作成し
+　　直してください。なお7.2にはこのパッチが既に組み込
+　　まれています。
+
+ODBCのFAQを直さなくてはと思うものの。
+
+Hiroshi Inoue
+----------------------------------------------------------------------------
+----
+References:
+[pgsql-jp 24268] ラージオブジェクトのバックアップ／リストアについて
+From: Yousuke Takahashi &lt;yousuke@mail.wind.ne.jp&gt;
+Prev by Date: [pgsql-jp 24289] Re: 大量データ取得時間の短縮について
+Next by Date: [pgsql-jp 24291] timestamp 関数
+Prev by thread: [pgsql-jp 24268] ラージオブジェクトのバックアップ／リストア
+について
+Next by thread: [pgsql-jp 24264] No suitable driver
+Index(es):
+Date
+Thread
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00007" HREF="msg00007.html">[pgsql-jp: 26557] Re: lo型の追加について</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp: 26553] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp: 26555] update でのleft join</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00010.html">[pgsql-jp: 26559] Re: update でのleft join</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00007.html">[pgsql-jp: 26557] Re: lo型の追加について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00004"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00004"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

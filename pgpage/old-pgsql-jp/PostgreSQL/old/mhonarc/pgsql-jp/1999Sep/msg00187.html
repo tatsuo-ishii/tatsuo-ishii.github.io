@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10689] RE: geometric の  geometric_intersect と  geometric_same について -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Sat, 11 Sep 1999 23:12:49 +0900 -->
+<!--X-Message-Id: NDBBKLBKJJMLDCBMIODFKEBECBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199909070225.CAA10591@sran362.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10689] RE: geometric の  geometric_intersect と  geometric_sam </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00185.html">Date Prev</A>][<A HREF="msg00186.html">Date Next</A>][<A HREF="msg00066.html">Thread Prev</A>][<A HREF="msg00190.html">Thread Next</A>][<A HREF="index.html#00187">Date Index</A>][<A HREF="threads.html#00187">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10689] RE: geometric の  geometric_intersect と  geometric_same について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 11 Sep 1999 23:12:49 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt;   パラパラと細切れで済みませんが、geometric の geometric_intersect と
+&gt; geometric_same について質問です。まだ、他にもあるのですが、、、
+
+（引用省略）
+
+&gt;   まず、geometric_intersect です。実際には、ある 3 次元領域にひっかかるも
+の
+&gt; を
+&gt; 調べようとしたのですが、以下のようにしても落ちてしまいました。
+&gt;
+&gt;     sugita=&gt; select geometric_intersect('(100,200)','(150,300)');
+
+（引用省略）
+
+  これも内部関数から公開関数に格上げしたときのバグです。すいません。他にもあ
+るような気が…。
+
+  でも、どうしようか悩んでいます。上記のようなintersectだと結果は空になるべ
+きなのですが、PostgreSQLのC言語によるユーザ定義関数ではNULLを返すことができ
+ません。
+
+  姑息な方法でも良いですので、NULLを返す方法はないでしょうかね。＞識者の方
+
+  今考えられるのは、geometric_intersect_xなどのちょっと違った名称でユーザ定
+義関数を作成して、本来のgeometric_intersect関数はgeometric_intersect_xを呼び
+出すSQL関数にしておく。そしてそのSQL関数には、特定の結果をNULLに変換するCASE
+文を仕込んでおくというものです。
+
+  パフォーマンスはどうでしょう。気になります。
+
+&gt;   次に、geometric_same です。
+&gt;
+&gt;     ====  README.euc_jp  ====
+&gt;     ・geometric_same(geometric, geometric) returns bool
+&gt;       same(geometric, geometric) returns bool
+&gt;
+&gt;       2つのオブジェクトが合同かテストします。
+&gt;
+&gt; 「合同」とのことなので、大きさがそのままで位置をずらした場合には t になる
+と
+&gt; 思
+&gt; うのですが f になります。
+
+  すいません。「合同」という表現が良くなかったかもしれません。結論から言う
+と、位置をずらすとFALSEになります。じゃあどのような場合を「合同」と言ってい
+るのかというと、同じ位置で同じ形状を表すのに違う表現ができる場合に、これらを
+すべて「等しい」と判断する場合を「合同」と言っています。
+
+  たとえば、座標(0,0)から1辺の長さが10の正方形領域を表現するには、
+
+	(0,0)[](10,10)
+	(10,0)[](0,10)
+	(10,10)[](0,0)
+	(0,10)[](10,0)
+
+の4パターンがあります。geometric_equalではこれらは互いに異なるものと判断しま
+すが、geometric_sameではすべて等しいと判断します。さらにgeometric_sameでは浮
+動小数点の許容誤差を考慮しますので、微妙な値の違いも許容されます。
+
+  あと、特殊なパターンとしては、以下の、「点に等しい矩形」と「点」が、合同と
+して扱われます。
+
+	(0,0)[](0,0)
+	(0,0)
+
+  現在geometric-0.2の作成に忙しいため、レスポンスが悪くてすいません。今月中
+には0.2を出したいと思っていますが、追加内容が結構大きいのでどうなることや
+ら。
+
+  ちなみにgeometric-0.2では、（次元数+1）個以下の頂点で囲まれた領域、たとえ
+ば、
+
+	点	…1次元以上の空間で頂点数が1個
+	線分	…1次元以上の空間で頂点数が2個
+	三角形	…2次元以上の空間で頂点数が3個
+	四面体	…3次元以上の空間で頂点数が4個
+		：
+
+を扱えるようになります（「プリミティブ」と呼んでいます）。これにより、三角
+メッシュによる地形などが扱えるようになります。あと、かなりの制限付ですが円と
+楕円も実装中です。
+
+  さらに目新しいものとしては新たにmatrix型が追加されます。matrix型では行列同
+士の演算（加減算や乗算、左除算による連立方程式の解決や最小2乗法による解決）
+などができます。matrix型の実装の本来の目的は、geometricオブジェクトの座標変
+換用関数などで引数として利用するためです（しかしながら、内部での演算に行列演
+算が必要だったから、というのもある）。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 10693] Re: geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00190" HREF="msg00190.html">[pgsql-jp 10692] Re: RE: geometric の  geometric_intersect と  geometric_same について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00066" HREF="msg00066.html">[pgsql-jp 10568] geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Sugita &lt;sugita@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 10687] PHPからTABLEの存在確認</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 10688] Re: PHPからTABLEの存在確認</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00066.html">[pgsql-jp 10568] geometric のgeometric_intersect とgeometric_same について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00190.html">[pgsql-jp 10692] Re: RE: geometric の  geometric_intersect と  geometric_same について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00187"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00187"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

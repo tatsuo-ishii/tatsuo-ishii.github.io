@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24019] Re: 別データベース内のテーブルの参照方法について。 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 08 Dec 2001 14:49:14 +0900 -->
+<!--X-Message-Id: 20011208144914U.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: DBEMJIBAENJGNNBCLGEDAEGNCBAA.tsuru@oita.hht.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24019] Re: 別データベース内のテーブルの参照方法について。 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00128.html">Date Prev</A>][<A HREF="msg00130.html">Date Next</A>][<A HREF="msg00090.html">Thread Prev</A>][<A HREF="msg00160.html">Thread Next</A>][<A HREF="index.html#00129">Date Index</A>][<A HREF="threads.html#00129">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24019] Re: 別データベース内のテーブルの参照方法について。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 08 Dec 2001 14:49:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00077.html">DBEMJIBAENJGNNBCLGEDAEGNCBAA.tsuru@oita.hht.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+# Bruceさんのセミナー会場から．
+
+&gt; 初歩的な事かもしれませんが、ちょっと詰まってしまったので、投稿させて
+&gt; いただきました。
+&gt; 使用しているＤＢは、Postgresql7.1.3です。(ＯＳは、TurboLinux6.5Server）
+&gt; 
+&gt; psqlで、Ａというデータベースに接続した後、通常Ａデータベース内の
+&gt; テーブルについて問合せを行いますが、今回、Ａデータベース以外の
+&gt; Ｂデータベース内にあるｂテーブルについて、問合せを行いたいと思って
+&gt; ますが、以下の文を発行してもエラーが出てしまいます。
+&gt; 
+&gt; A=# select * from B.b;
+&gt; ERROR: parser: parse error at or near "."
+&gt; 
+&gt; 別データベースのテーブルを参照する場合は、From句で明示的に
+&gt; [データベース名].[テーブル名]で、
+&gt; 参照できるかと思っていたのですが上記の通りエラーが出ます。
+&gt; 
+&gt; 上記の様な、参照を行う場合のＳＱＬ文が知りたいのですが、
+&gt; 基本的な所で申し訳ありません。よろしくお願いします。
+
+他の方が書かれている通り，今のPostgreSQLではできませんが，PostgreSQLに
+はユーザ定義関数という強力な武器がありますので，ユーザ定義関数の中から
+他のDBに接続するようにすれば原理的にはお望みのことができます．実際，今
+開発中の7.2にcontrib/dblinkというのがあり，これをコンパイル,登録するだ
+けでかなりお望みのことに近いことができると思います(この関数は7.2用です
+が，Makefile をちょっといじれば簡単に7.1でも動くはずです)．
+
+使い方がちょっとややこしく，
+
+test=# select dblink_tok(t.dblink_p,0)::timestamp as f1 from (select dblink('dbname=test user=t-ishii port=5432','select t from t1') as dblink_p) as t;
+           f1           
+------------------------
+ 2001-01-01 00:00:00+09
+(1 row)
+
+のような感じになってしまうのが難点ですが，viewを使えばそのあたりはうま
+くお化粧できます．
+
+create view remote1 as
+select dblink_tok(t.dblink_p,0)::timestamp as f from (select dblink('dbname=test
+user=t-ishii port=5432','select t from t1') as dblink_p
+union all
+select null where false
+) as t;
+CREATE
+select * from remote1 where f &lt; '2001/1/10';
+           f            
+------------------------
+ 2001-01-01 00:00:00+09
+ 2001-01-02 00:00:00+09
+ 2001-01-03 00:00:00+09
+ 2001-01-04 00:00:00+09
+ 2001-01-05 00:00:00+09
+ 2001-01-06 00:00:00+09
+ 2001-01-07 00:00:00+09
+ 2001-01-08 00:00:00+09
+ 2001-01-09 00:00:00+09
+(9 rows)
+
+もちろんいろいろ制限もあって，たとえば更新ができないとか，オプティマイ
+ザもそれほどうまく動いてはくれないだろうかとかありますが，関数書くだけ
+で分散DBもどきができるところはPostgeSQLはやはり偉大です．
+
+詳しいことは付属のREADMEを御覧下さい．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00077" HREF="msg00077.html">[pgsql-jp 23967] 別データベース内のテーブルの参照方法について。</A></STRONG>
+<UL><LI><EM>From:</EM> "Tsuru.E" &lt;tsuru@oita.hht.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 24018] The Database that Bill Gates does not want you to see !!!</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 24020] gcc...no とでてインストールできない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 23980] Re: 別データベース内のテーブルの参照方法について。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 24050] Re: 他のＤＢ上のテーブルの扱い</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00129"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00129"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

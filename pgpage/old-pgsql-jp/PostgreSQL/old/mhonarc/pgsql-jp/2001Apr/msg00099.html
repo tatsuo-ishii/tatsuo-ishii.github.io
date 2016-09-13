@@ -1,0 +1,227 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20674] Re: Solaris8 へのInstall -->
+<!--X-From: Michitoshi Sato <lum@uni.sony.co.jp> -->
+<!--X-Date: Thu, 12 Apr 2001 18:04:13 +0900 -->
+<!--X-Message-Id: 200104120904.SAA14661@minerva.uni.sony.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 004501c0c32a$64c44140$b23516ac@shadow.fps.paso.fujitsu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20674] Re: Solaris8 へのInstall </TITLE>
+<LINK REV="made" HREF="mailto:lum@uni.sony.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00098.html">Date Prev</A>][<A HREF="msg00100.html">Date Next</A>][<A HREF="msg00098.html">Thread Prev</A>][<A HREF="msg00100.html">Thread Next</A>][<A HREF="index.html#00099">Date Index</A>][<A HREF="threads.html#00099">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20674] Re: Solaris8 へのInstall</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michitoshi Sato &lt;<A HREF="mailto:lum@uni.sony.co.jp">lum@uni.sony.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 12 Apr 2001 18:04:13 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤通敏です。
+
+SolarisREVIEW第１号の記事を参考にして
+Solaris8 1/01+UltraSPARC2の環境でpostgresql-7.1rc4が作れました。
+
+install方法を一杯書いたけどひとつだけ /etc/systemってどうなってます？
+デフォルトではpostgresは動きません。
+
+		set shmsys:shminfo_shmmax=0x7fffffff
+		set shmsys:shminfo_shmmin=1
+		set shmsys:shminfo_shmmni=0x1000
+		set shmsys:shminfo_shmseg=0x100
+
+最低限これくら書いておくのはお約束です。/etc/systemを書き換えたらreboot
+してくださいね。
+まえ準備として以下のものを用意しました。
+
+gcc-2.95.2
+gawk-3.0.6
+gmake-3.79.1
+flex-2.5.4a
+bison-1.28
+tcl-8.4a2
+tk-8.4a2
+readline-4.2	以下のパッチを当てる必要あり。
+*** readline.h.orig  Thu Feb 15 06:27:54 2001
+--- readline.h   Wed Apr 11 17:03:40 2001
+***************
+*** 413,415 ****
+  
+- #if 0
+  /* Backwards compatibility (compat.c).  These will go away sometime. */
+--- 413,414 ----
+***************
+*** 427,429 ****
+  extern char *filename_completion_function __P((const char *, int));
+- #endif
+  
+--- 426,427 ----
+
+configureのoptionは
+
+./configure  --enable-locale --enable-multibyte --enable-unicode-conversion --enable-recode --with-perl --with-tcl --with-odbc --enable-shared --disable-static --with-includes=/usr/local/include --with-libraries=/usr/local/lib
+
+あとは
+
+% gmake
+% su -c gmake install
+
+group postgresのuser postgresを作成して
+pathに/usr/local/pgsql/binを追加してinitdbを実行。
+
+% initdb --pgdata=/usr/local/pgsql/data
+This database system will be initialized with username "postgres".
+This user will own all the data files and must also own the server process.
+
+Fixing permissions on existing directory /usr/local/pgsql/data
+Creating directory /usr/local/pgsql/data/base
+Creating directory /usr/local/pgsql/data/global
+Creating directory /usr/local/pgsql/data/pg_xlog
+Creating template1 database in /usr/local/pgsql/data/base/1
+DEBUG:  database system was shut down at 2001-04-12 17:41:13 JST
+DEBUG:  CheckPoint record at (0, 8)
+DEBUG:  Redo record at (0, 8); Undo record at (0, 8); Shutdown TRUE
+DEBUG:  NextTransactionId: 514; NextOid: 16384
+DEBUG:  database system is in production state
+Creating global relations in /usr/local/pgsql/data/global
+DEBUG:  database system was shut down at 2001-04-12 17:41:25 JST
+DEBUG:  CheckPoint record at (0, 112)
+DEBUG:  Redo record at (0, 112); Undo record at (0, 0); Shutdown TRUE
+DEBUG:  NextTransactionId: 514; NextOid: 17199
+DEBUG:  database system is in production state
+Initializing pg_shadow.
+Enabling unlimited row width for system tables.
+Creating system views.
+Loading pg_description.
+Setting lastsysoid.
+Vacuuming database.
+Copying template1 to template0.
+
+Success. You can now start the database server using:
+
+    /usr/local/pgsql/bin/postmaster -D /usr/local/pgsql/data
+or
+    /usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile start
+
+
+postmasterを起動してsrc/test/regressでgmake checkして確実に動作しています。
+
+&gt; 水野＠FPSです。いろいろなアドバイスありがとうございます。
+&gt; 
+&gt; &gt; ;; Can not determine current user name. You are really hosed.
+&gt; &gt; 7.0.3には↑こんな文字列は含まれていません。(6.5.3には含まれています)
+&gt; &gt; バージョンの違う2つのPostgresqlがけんかしていませんか。
+&gt; 
+&gt; 正確には"Can not....."ではなく"Could not..."でした。
+&gt; ただまっさらのマシンに 7.0.2, 7.0.3, 7.1rc4のソースを持ってきたことしか
+&gt; ないので古いpostgresqlが存在するということはありえないと思われます。
+&gt; 
+&gt; まず佐藤さんのご指摘にあったGNU-ldの兼ですが
+&gt; PATHに/usr/ccs/binを先に通すようにでし7.0.2をビルドしてみたところ
+&gt; ビルドが通りました。
+&gt; ちなみにこのビルドでinitdbを行うと7.0.3と同じように"Could not determine..."
+&gt; メッセージが出ます。
+&gt; 
+&gt; まとめますと
+&gt; 1. GNU-ldのかわりに/usr/ccs/bin/ldを使わないと7.0.2はビルドできない。
+&gt; 2. 7.0.2と7.0.3ではinitdbを行うと"Could not determine current user name"エ
+&gt; ラーが出る
+&gt; 3. 7.1rc4ではThe program  '/usr/local/pgsql/bin/postgres'　needed by initdb
+&gt; does not
+&gt; belong to PostgreSQL version 7.1rc4, or　there may be a configuration
+&gt; problem."の
+&gt; エラーが出る。
+&gt; 
+&gt; ということです。リグレッションテストってのもやってみましたが同じところでエ
+&gt; ラーになる
+&gt; ようです。各ビルド＆Installもディレクトリごと消して圧縮ファイルから行ってま
+&gt; す。
+&gt; なんとなくですがビルドはOKだけど環境の設定がどこか間違っているという気も
+&gt; しないではないって感じですね。
+&gt; 
+&gt; ちなみにpostgresユーザの環境変数ですが
+&gt; 
+&gt; PATH=/usr/ccs/bin:/usr/local/pgsql/bin:/usr/local/bin:/usr/bin
+&gt; PGDATA=/usr/local/pgsql/data
+&gt; PGLIB=/usr/local/pgsql/lib
+&gt; POSTGRES_HOME=/usr/local/pgsql
+&gt; LD_LIBRARY_PATH=/usr/local/lib:/usr/local/pgsql/lib
+&gt; 
+&gt; となっています。
+&gt; 
+&gt; ちなみにｒｃ４のINSTALLファイルで確認済みプラットフォームにSparc/Solaris8っ
+&gt; て
+&gt; 言うのがみあたりませんね。X86/Solaris8とSparc/Solaris2.7-8があるようなので
+&gt; 動いてもよさそうですけど。
+&gt; 
+&gt; というわけでまだ解決されませんのでアドバイスよろしくお願いします。
+&gt; 
+&gt; 〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜
+&gt; FPS)第１開発部　水野　譲
+&gt; 
+&gt; joe@fps.fujitsu.com
+&gt; 
+&gt; 
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00100" HREF="msg00100.html">[pgsql-jp 20675] Re: Solaris8 へのInstall</A></STRONG>
+<UL><LI><EM>From:</EM> "Joe Mizuno" &lt;joe@fps.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00098" HREF="msg00098.html">[pgsql-jp 20673] Re: Solaris8 へのInstall</A></STRONG>
+<UL><LI><EM>From:</EM> "Joe Mizuno" &lt;joe@fps.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00098.html">[pgsql-jp 20673] Re: Solaris8 へのInstall</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 20675] Re: Solaris8 へのInstall</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00098.html">[pgsql-jp 20673] Re: Solaris8 へのInstall</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp 20675] Re: Solaris8 へのInstall</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00099"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00099"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

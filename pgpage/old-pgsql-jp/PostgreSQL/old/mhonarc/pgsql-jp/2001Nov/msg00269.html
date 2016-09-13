@@ -1,0 +1,235 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23853] Re: oid が2^32を超えた場合(7.2beta2にて) -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Mon, 26 Nov 2001 15:56:18 +0900 (JST) -->
+<!--X-Message-Id: 20011126.155618.58767467.sugita@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 20011122.200609.102570642.sugita@sra.co.jp -->
+<!--X-Reference-Id: 035701c17351$00236770$020aa8c0@win2000 -->
+<!--X-Reference-Id: 20011123.002945.35669870.sugita@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23853] Re: oid が2^32を超えた場合(7.2beta2にて) </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00268.html">Date Prev</A>][<A HREF="msg00270.html">Date Next</A>][<A HREF="msg00257.html">Thread Prev</A>][<A HREF="msg00277.html">Thread Next</A>][<A HREF="index.html#00269">Date Index</A>][<A HREF="threads.html#00269">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23853] Re: oid が2^32を超えた場合(7.2beta2にて)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 26 Nov 2001 15:56:18 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00254.html">20011122.200609.102570642.sugita@sra.co.jp</A>&gt;&lt;<A HREF="msg00256.html">035701c17351$00236770$020aa8c0@win2000</A>&gt;&lt;<A HREF="msg00257.html">20011123.002945.35669870.sugita@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: sugita@sra.co.jp
+Subject: [pgsql-jp 23841] Re: oid が 2^32 を超えた場合(7.2beta2 にて)
+Date: Fri, 23 Nov 2001 00:29:45 +0900 (JST)
+
+;;; ;;; 志村＠つみきソフトウェアです。
+;;; 
+;;;   調べてみると他にも atooid を使用しなければならない箇所があります。OID に関係
+;;; する他の部分も調べ直します。
+
+  ご指摘の部分とラージオブジェクトの部分も同様の修正をし、動作確認しました。
+7.1.3 では、psql のバグで、oid が大きいときに \lo_import と \lo_unlink が動か
+ないのも修正し、カレントを見てみたら既になおっていました。
+
+  添付のパッチは、7.1.3 の pg_dump へのものです。
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+<PRE>
+? pg_dump
+? pg_restore
+? pg_dumpall
+? pg_dump-hugeoid.patch
+? pg_dump.h.vim
+? pg_dump-hugeoid-2001-11-23.patch
+Index: pg_dump.c
+===================================================================
+RCS file: /home/mgr/sugita/jobs/cvs-master/pgsql/src/7.1.3/build/src/bin/pg_dump/pg_dump.c,v
+retrieving revision 1.1.1.1
+diff -u -3 -p -r1.1.1.1 pg_dump.c
+--- pg_dump.c	2001/08/16 18:36:43	1.1.1.1
++++ pg_dump.c	2001/11/22 16:04:51
+@@ -1224,7 +1224,7 @@ dumpBlobs(Archive *AH, char *junkOid, vo
+ 	int			loFd;
+ 	char		buf[loBufSize];
+ 	int			cnt;
+-	int			blobOid;
++	Oid			blobOid;
+ 
+ 	if (g_verbose)
+ 		fprintf(stderr, "%s saving BLOBs\n", g_comment_start);
+@@ -1263,7 +1263,7 @@ dumpBlobs(Archive *AH, char *junkOid, vo
+ 		/* Process the tuples, if any */
+ 		for (i = 0; i &lt; PQntuples(res); i++)
+ 		{
+-			blobOid = atoi(PQgetvalue(res, i, 0));
++			blobOid = atooid(PQgetvalue(res, i, 0));
+ 			/* Open the BLOB */
+ 			loFd = lo_open(g_conn, blobOid, INV_READ);
+ 			if (loFd == -1)
+@@ -2006,7 +2006,7 @@ getFuncs(int *numFuncs)
+ 		finfo[i].prorettype = strdup(PQgetvalue(res, i, i_prorettype));
+ 		finfo[i].retset = (strcmp(PQgetvalue(res, i, i_proretset), "t") == 0);
+ 		finfo[i].nargs = atoi(PQgetvalue(res, i, i_pronargs));
+-		finfo[i].lang = atoi(PQgetvalue(res, i, i_prolang));
++		finfo[i].lang = atooid(PQgetvalue(res, i, i_prolang));
+ 		finfo[i].usename = strdup(PQgetvalue(res, i, i_usename));
+ 		finfo[i].iscachable = (strcmp(PQgetvalue(res, i, i_iscachable), "t") == 0);
+ 		finfo[i].isstrict = (strcmp(PQgetvalue(res, i, i_isstrict), "t") == 0);
+@@ -2289,7 +2289,7 @@ getTables(int *numTables, FuncInfo *finf
+ 
+ 			resetPQExpBuffer(query);
+ 			appendPQExpBuffer(query,
+-							  "SELECT Oid FROM pg_index i WHERE i.indisprimary AND i.indrelid = %s ",
++							  "SELECT Oid FROM pg_index i WHERE i.indisprimary AND i.indrelid = '%s'::oid ",
+ 							  tblinfo[i].oid);
+ 			res2 = PQexec(g_conn, query-&gt;data);
+ 			if (!res2 || PQresultStatus(res2) != PGRES_TUPLES_OK)
+@@ -2328,13 +2328,13 @@ getTables(int *numTables, FuncInfo *finf
+ 				appendPQExpBuffer(query,
+ 							  "  SELECT c.relname "
+ 							  "    FROM pg_index i, pg_class c "
+-							  "    WHERE     i.indrelid = %s"
++							  "    WHERE     i.indrelid = '%s'::oid"
+ 							  "        AND   i.indisprimary "
+ 							  "        AND   c.oid = i.indexrelid"
+ 							  " UNION ALL "
+ 							  "  SELECT NULL "
+ 							  "    FROM pg_index i "
+-							  "    WHERE i.indrelid = %s"
++							  "    WHERE i.indrelid = '%s'::oid"
+ 							  "    AND   i.indisprimary "
+ 							  "    And NOT Exists(Select * From pg_class c Where c.oid = i.indexrelid)",
+ 							  tblinfo[i].oid, tblinfo[i].oid);
+@@ -2343,7 +2343,7 @@ getTables(int *numTables, FuncInfo *finf
+ 				appendPQExpBuffer(query,
+ 							  "SELECT c.relname "
+ 							  "FROM pg_index i LEFT OUTER JOIN pg_class c ON c.oid = i.indexrelid "
+-							  "WHERE i.indrelid = %s"
++							  "WHERE i.indrelid = '%s'::oid "
+ 							  "AND   i.indisprimary ",
+ 							  tblinfo[i].oid);
+ 			}
+@@ -3033,8 +3033,7 @@ dumpComment(Archive *fout, const char *t
+ 	/*** Build query to find comment ***/
+ 
+ 	query = createPQExpBuffer();
+-	appendPQExpBuffer(query, "SELECT description FROM pg_description WHERE objoid = ");
+-	appendPQExpBuffer(query, oid);
++	appendPQExpBuffer(query, "SELECT description FROM pg_description WHERE objoid = '%s'::oid", oid);
+ 
+ 	/*** Execute query ***/
+ 
+@@ -3141,7 +3140,7 @@ dumpTypes(Archive *fout, FuncInfo *finfo
+ 			continue;
+ 
+ 		/* skip relation types */
+-		if (atoi(tinfo[i].typrelid) != 0)
++		if (atooid(tinfo[i].typrelid) != 0)
+ 			continue;
+ 
+ 		/* skip undefined placeholder types */
+@@ -3394,7 +3393,7 @@ dumpOneFunc(Archive *fout, FuncInfo *fin
+ 
+ 	/* becomeUser(fout, finfo[i].usename); */
+ 
+-	sprintf(query, "SELECT lanname FROM pg_language WHERE oid = %u",
++	sprintf(query, "SELECT lanname FROM pg_language WHERE oid = '%u'::oid",
+ 			finfo[i].lang);
+ 	res = PQexec(g_conn, query);
+ 	if (!res ||
+@@ -4697,7 +4696,7 @@ findLastBuiltinOid_V70(void)
+ {
+ 	PGresult   *res;
+ 	int			ntups;
+-	int			last_oid;
++	Oid			last_oid;
+ 
+ 	res = PQexec(g_conn,
+ 			  "SELECT oid from pg_database where datname = 'template1'");
+Index: pg_dump.h
+===================================================================
+RCS file: /home/mgr/sugita/jobs/cvs-master/pgsql/src/7.1.3/build/src/bin/pg_dump/pg_dump.h,v
+retrieving revision 1.1.1.1
+diff -u -3 -p -r1.1.1.1 pg_dump.h
+--- pg_dump.h	2001/08/16 18:36:43	1.1.1.1
++++ pg_dump.h	2001/11/22 16:04:51
+@@ -63,7 +63,7 @@ typedef struct _funcInfo
+ 	char	   *oid;
+ 	char	   *proname;
+ 	char	   *proowner;
+-	int			lang;
++	Oid			lang;
+ 	int			nargs;
+ 	char	   *argtypes[FUNC_MAX_ARGS];
+ 	char	   *prorettype;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00277" HREF="msg00277.html">[pgsql-jp 23861] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00254" HREF="msg00254.html">[pgsql-jp 23838] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00256" HREF="msg00256.html">[pgsql-jp 23840] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00257" HREF="msg00257.html">[pgsql-jp 23841] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00268.html">[pgsql-jp 23852] Re: postgresql7.1 	のパフォーマンスチューニングについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 23854] Re: アンダーバー(_)を含むテーブル名をAccess(ODBC?)で使用する際の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00257.html">[pgsql-jp 23841] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00277.html">[pgsql-jp 23861] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00269"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00269"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

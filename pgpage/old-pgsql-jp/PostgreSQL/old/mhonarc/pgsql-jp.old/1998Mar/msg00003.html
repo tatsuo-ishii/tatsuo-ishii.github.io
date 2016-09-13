@@ -1,0 +1,307 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3435] Re: PostgreSQLでのＬｉｋｅの使用方法について -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Mon, 02 Mar 1998 18:29:35 +0900 -->
+<!--X-Message-Id: 199803020929.SAA28842@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199802260834.RAA00519@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3435] Re: PostgreSQLでのＬｉｋｅの使用方法について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00004.html">Date Next</A>][<A HREF="msg00006.html">Thread Prev</A>][<A HREF="msg00004.html">Thread Next</A>][<A HREF="index.html#00003">Date Index</A>][<A HREF="threads.html#00003">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3435] Re: PostgreSQLでのＬｉｋｅの使用方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 02 Mar 1998 18:29:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt;select a from table1 where a like '00__';
+&gt;&gt;■この結果は、以下のような結果になると思うのですが、なぜか、
+&gt;&gt;私の環境では一件もヒットしません。
+&gt;&gt;理由がわかりましたら、教えて頂きたいのですが。
+&gt;&gt;    a        
+&gt;&gt;------------------------
+&gt;&gt;    0010     
+&gt;&gt;    0011     
+&gt;&gt;    0012     
+&gt;&gt;    0020     
+&gt;&gt;    0021     
+&gt;&gt;    0022     
+&gt;&gt;
+&gt;&gt;使用環境
+&gt;&gt;    Linux sparc RHT4.2
+&gt;&gt;    postgrsql 6.2.1+ 6.2.1mbPL2.patch +その他パッチ
+&gt;
+&gt;どうやら PostgreSQL のバグのようです。6.3 でも治ってません。'00__' に
+&gt;限らず、'0__0' とかも駄目です。ようするに、'_' が2つ以上連続していると
+&gt;誤った query plan を作ってしまうようです。
+
+とりあえずパッチを作りました。
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2.1/patches/6.2.1mbPL2.patch.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2.1/patches/6.2.1mbPL2.patch.gz</A>
+と
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2.1/patches/regexp-index.patch">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2.1/patches/regexp-index.patch</A>
+が当たっているのを前提にしているのでご注意下さい。
+
+# 6.3 用のパッチは6.3の正式リリース後に出します。
+
+参考までに、実行結果を示します。
+
+QUERY: create table table1 (a text);
+QUERY: insert into table1 values ('0010');
+QUERY: insert into table1 values ('0011');
+QUERY: insert into table1 values ('0012');
+QUERY: insert into table1 values ('0020');
+QUERY: insert into table1 values ('0021');
+QUERY: insert into table1 values ('0022');
+QUERY: insert into table1 values ('0210');
+QUERY: insert into table1 values ('0211');
+QUERY: insert into table1 values ('0212');
+QUERY: insert into table1 values ('0213');
+QUERY: insert into table1 values ('_213');
+QUERY: select * from table1;
+a   
+----
+0010
+0011
+0012
+0020
+0021
+0022
+0210
+0211
+0212
+0213
+_213
+(11 rows)
+
+QUERY: select a from table1 where a like '001_';
+   a
+----
+0010
+0011
+0012
+(3 rows)
+
+QUERY: select a from table1 where a like '0_1_';
+   a
+----
+0010
+0011
+0012
+0210
+0211
+0212
+0213
+(7 rows)
+
+QUERY: select a from table1 where a like '00__';
+   a
+----
+0010
+0011
+0012
+0020
+0021
+0022
+(6 rows)
+
+QUERY: select a from table1 where a like '_213';
+a   
+----
+0213
+_213
+(2 rows)
+
+QUERY: select a from table1 where a like '\\_213';
+a   
+----
+_213
+(1 row)
+
+------------------------------ cut here -----------------------------
+*** src/backend/parser/gram.y.orig	Sun Mar  1 18:47:18 1998
+--- src/backend/parser/gram.y	Sun Mar  1 18:51:11 1998
+***************
+*** 2683,2697 ****
+  
+  						for (pos = 0; n-&gt;val.val.str[pos]; pos++)
+  						{
+! 							if ((n-&gt;val.val.str[pos] == '%' &amp;&amp;
+! 								 n-&gt;val.val.str[pos+1] != '%') ||
+! 							    (n-&gt;val.val.str[pos] == '_' &amp;&amp;
+! 					     		 n-&gt;val.val.str[pos+1] != '_'))
+! 					     		break;
+! 					     	if (n-&gt;val.val.str[pos] == '%' ||
+! 							    n-&gt;val.val.str[pos] == '_' ||
+! 							    n-&gt;val.val.str[pos] == '\\')
+  								pos++;
+  							match_least[match_pos] = n-&gt;val.val.str[pos];
+  							match_most[match_pos++] = n-&gt;val.val.str[pos];
+  						}
+--- 2683,2698 ----
+  
+  						for (pos = 0; n-&gt;val.val.str[pos]; pos++)
+  						{
+! 							if (n-&gt;val.val.str[pos] == '%' &amp;&amp;
+! 								 n-&gt;val.val.str[pos+1] != '%')
+! 								break;
+! 							if(n-&gt;val.val.str[pos] == '_')
+! 								break;
+! 						     	if (n-&gt;val.val.str[pos] == '\\' ||
+! 						     	n-&gt;val.val.str[pos] == '%')
+  								pos++;
++ 							if (n-&gt;val.val.str[pos] == '\0')
++ 								break;
+  							match_least[match_pos] = n-&gt;val.val.str[pos];
+  							match_most[match_pos++] = n-&gt;val.val.str[pos];
+  						}
+*** src/backend/utils/adt/like.c.orig	Fri Jan 30 11:47:51 1998
+--- src/backend/utils/adt/like.c	Sun Mar  1 19:22:41 1998
+***************
+*** 150,156 ****
+  }
+  
+  
+! /*	$Revision: 1.9 $
+  **	"like.c" A first attempt at a LIKE operator for Postgres95.
+  **
+  **	Originally written by Rich $alz, mirror!rs, Wed Nov 26 19:03:17 EST 1986.
+--- 150,156 ----
+  }
+  
+  
+! /*	$Revision: 1.10 $
+  **	"like.c" A first attempt at a LIKE operator for Postgres95.
+  **
+  **	Originally written by Rich $alz, mirror!rs, Wed Nov 26 19:03:17 EST 1986.
+***************
+*** 166,179 ****
+  **	All the nice shell RE matching stuff was replaced by just "_" and "%"
+  **
+  **	As I don't have a copy of the SQL standard handy I wasn't sure whether
+! **	to leave in the '\' escape character handling. (The standard
+! **	handles "%%" as a single literal percent, so we do too.)
+  **
+  **	Keith Parks. &lt;keith@mtcc.demon.co.uk&gt;
+  **
+  **	[SQL92 lets you specify the escape character by saying
+  **	 LIKE &lt;pattern&gt; ESCAPE &lt;escape character&gt;. We are a small operation
+! **	 so we force you to use '\' or '%%'. - ay 7/95]
+  **
+  */
+  
+--- 166,179 ----
+  **	All the nice shell RE matching stuff was replaced by just "_" and "%"
+  **
+  **	As I don't have a copy of the SQL standard handy I wasn't sure whether
+! **	to leave in the '\' escape character handling. (I suspect the standard
+! **	handles "%%" as a single literal percent)
+  **
+  **	Keith Parks. &lt;keith@mtcc.demon.co.uk&gt;
+  **
+  **	[SQL92 lets you specify the escape character by saying
+  **	 LIKE &lt;pattern&gt; ESCAPE &lt;escape character&gt;. We are a small operation
+! **	 so we force you to use '\'. - ay 7/95]
+  **
+  */
+  
+***************
+*** 205,229 ****
+  				continue;
+  			case '_':
+  				/* Match anything. */
+- 				/* Two underscores act just like one. */
+- 				if (*(p+1) == '_')
+- 				{
+- 					p++;
+- 					if (*text != '_')
+- 						return LIKE_FALSE;
+- 				}
+  				continue;
+  			case '%':
+! 				/* Two percents act just like one. */
+! 				if (*(p+1) == '%')
+! 				{
+! 					p++;
+! 					if (*text != '%')
+! 						return LIKE_FALSE;
+! 					else
+! 						continue;
+! 				}
+! 				++p;
+  				if (*p == '\0')
+  					/* Trailing percent matches everything. */
+  					return LIKE_TRUE;
+--- 205,215 ----
+  				continue;
+  			case '_':
+  				/* Match anything. */
+  				continue;
+  			case '%':
+! 				while (*++p == '%')
+! 					/* Consecutive percents act just like one. */
+! 					continue;
+  				if (*p == '\0')
+  					/* Trailing percent matches everything. */
+  					return LIKE_TRUE;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[pgsql-jp 3436] Re: PostgreSQLでのＬｉｋｅの使用方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Kouji Shirakawa &lt;sira@Qman.shikoku.nttcom.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 3434] マニュアルはありませんか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 3436] Re: PostgreSQLでのＬｉｋｅの使用方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 3438] Re: PostgreSQL 6.3 release!</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 3436] Re: PostgreSQLでのＬｉｋｅの使用方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00003"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00003"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

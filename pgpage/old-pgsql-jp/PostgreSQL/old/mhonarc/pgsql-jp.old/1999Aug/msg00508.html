@@ -1,0 +1,172 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10354] Re: large_object and Transaction -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Sun, 22 Aug 1999 16:38:28 +0900 -->
+<!--X-Message-Id: 37BFA8F4DC.E3AFSAKAIDA@smtp.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37BF7156334.9FBCSAKAIDA@smtp.psn.ne.jp -->
+<!--X-Reference-Id: 37BF87F5186.1D40NKON@mail.shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10354] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00507.html">Date Prev</A>][<A HREF="msg00509.html">Date Next</A>][<A HREF="msg00554.html">Thread Prev</A>][<A HREF="msg00517.html">Thread Next</A>][<A HREF="index.html#00508">Date Index</A>][<A HREF="threads.html#00508">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10354] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 22 Aug 1999 16:38:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00504.html">37BF7156334.9FBCSAKAIDA@smtp.psn.ne.jp</A>&gt; &lt;<A HREF="msg00506.html">37BF87F5186.1D40NKON@mail.shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Sun, 22 Aug 1999 14:17:41 +0900
+Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt; さん wrote:
+&gt; ソフト工房の近藤です。
+&gt; 
+&gt; &gt;   「キー重複、データ型不一致、check句の制約..（他にもいろいろ
+&gt; &gt; あります）が、これをユーザアプリ側で全て確認した後に、insert/
+&gt; &gt; updateを行う」ってとても不便です。
+&gt; &gt; 
+&gt; &gt; 　特に、check句などの'制約'に関しては、CREATE TABLE文で定義し
+&gt; &gt; たcheck句と同様の内容をユーザアプリでも記述しなければなりませ
+&gt; &gt; ん。
+&gt; &gt; 
+&gt; &gt; 　これらのエラーは backendが検知してユーザアプリ側に知らせてく
+&gt; &gt; れるものですよね。実際、PostgreSQLもそれを知らせてくれます。
+&gt; &gt; （問題なのは、トランザクションがABORTすることです。）
+&gt; 
+(snip)
+&gt; 
+&gt; 実際、制約条件違反とか、データー型不一致でエラーに
+&gt; なったら、結局、ROLLBACK して、データーの入力から
+&gt; やり直すしかないのでは？。
+
+　いえ、ここが問題です。rollbackしたい場合もあるし、それまで
+のデータを commitしたい場合もあります。
+
+&gt;                                それなら、SQL 文発行する
+&gt; 前に、データー入力段階でエラーにしてあげた方がユーザー
+&gt; の使い勝手がいいでしょう。
+
+　確かにそうなんですが、しかし、それをしようとすると、DDL で
+定義した '制約' をアプリ側でも記述しなければなりません。
+
+　つまり、トランザクション内では DDLの'制約'は利用できないこ
+とになります。DDLの'制約'は、backendがチェックしてくれるから
+こそ意味があるものですよね。
+
+
+&gt; 制約条件違反とか、データー型不一致エラーなどで、
+&gt; ROLLBACK しないで処理を進めるメリットってどういう
+&gt; ものがあるのでしょうか？。是非、具体的にお教えいた
+&gt; だけませんか。
+
+　教えるなどというものではありませんが...単純化した例では...
+
+　１.対話型の伝票入力処理プログラムの例
+
+  (0) Transactionを開始した。
+　(1) 伝票の10行までの insert は成功した。 
+　(2) 11行目の伝票入力でデータ型不一致になった。
+　(3) データ型不一致をユーザに知らせ、再度、伝票入力させた。
+　(4) 伝票11行目の insert は成功した。
+  (5) Commitした。
+
+  ２.数値計算を使用したバッチ型プログラムの例
+
+　(0) Transactionを開始した。
+  (1) ある計算処理を行いながらその結果を insert した。
+  (2) 101件目の計算結果は、check句の'制約'でエラーとなった。
+　(3) エラーとなった結果はinsertする必要がないので無効にした。
+　(4) '制約'エラー時にそれまでの書き込みを有効にする必要があった。
+  (5) Commitした。
+
+　３．１トランザクション内で、複数の表に対して insert/update/
+delete/selectを繰り返し使用して、データの状態が変動している場合
+などは、アプリ側でエラーを予測してチェック機能を組み込むことが
+大変煩わしいということもあります。
+
+
+&gt; ただどちらにせよ、商用ＤＢでそういう書方をしてきた
+&gt; 場合は、PostgreSQL への移植工数が増えるということで
+&gt; すね。
+
+　SQL ERRORで常に rollback というのは、PostgreSQLの仕様でし
+た？　（私は、バグだと思っていたのですが。）
+
+&gt;        SQL ERROR で、ROLLBACK しないプログラムを書く
+&gt; 人って多いんですかね？。
+
+　トランザクション処理の複雑さによって異なるでしょうが、比較
+的簡単なアプリでは、SQL ERRORで無条件に ROLLBACKという方が多
+いかもしれません。
+
+--
+Personal Software, Inc.
+境田雅明&lt;sakaida@psn.ne.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00517" HREF="msg00517.html">[pgsql-jp 10363] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00504" HREF="msg00504.html">[pgsql-jp 10350] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00506" HREF="msg00506.html">[pgsql-jp 10352] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00507.html">[pgsql-jp 10353] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00509.html">[pgsql-jp 10355] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00554.html">[pgsql-jp 10402] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00517.html">[pgsql-jp 10363] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00508"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00508"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

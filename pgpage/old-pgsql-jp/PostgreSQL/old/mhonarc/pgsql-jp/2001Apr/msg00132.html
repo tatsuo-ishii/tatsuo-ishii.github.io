@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20707] インストール後、初期化でエラーになります。 -->
+<!--X-From: shibata <shibata@lhd.nifs.ac.jp> -->
+<!--X-Date: Sun, 15 Apr 2001 13:20:35 +0900 -->
+<!--X-Message-Id: B6FF50A3.E18%shibata@lhd.nifs.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3AD916B8316.060AUSKSD@ms&#45;mm.neweb.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20707] インストール後、初期化でエラーになります。 </TITLE>
+<LINK REV="made" HREF="mailto:shibata@lhd.nifs.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00131.html">Date Prev</A>][<A HREF="msg00133.html">Date Next</A>][<A HREF="msg00135.html">Thread Prev</A>][<A HREF="msg00127.html">Thread Next</A>][<A HREF="index.html#00132">Date Index</A>][<A HREF="threads.html#00132">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20707] インストール後、初期化でエラーになります。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: shibata &lt;<A HREF="mailto:shibata@lhd.nifs.ac.jp">shibata@lhd.nifs.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 15 Apr 2001 13:20:35 +0900</LI>
+<LI><em>User-Agent</em>: Microsoft-Outlook-Express-Macintosh-Edition/5.02.2106</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+柴田です。違っていたらゴメンナサイ。
+
+export PGCLIENTENCODING=SQL_ASCII
+
+の設定をご自分の環境に合わせて下さい。
+--------------------------------------------
+/*
+ * Get encoding id from environment variable PGCLIENTENCODING.
+ */
+int
+PQenv2encoding(void)
+{
+        char       *str;
+        int                     encoding = SQL_ASCII;
+
+        str = getenv("PGCLIENTENCODING");
+        if (str &amp;&amp; *str != '\0')
+                encoding = pg_char_to_encoding(str);
+        return (encoding);
+}
+/*
+ * convert encoding char to encoding symbol value.
+ * case is ignored.
+ * if there's no valid encoding, returns -1
+ */
+int
+pg_char_to_encoding(const char *s)
+{
+        pg_encoding_conv_tbl *p = pg_conv_tbl;
+
+        if (!s)
+                return (-1);
+
+        for (; p-&gt;encoding &gt;= 0; p++)
+        {
+                if (!strcasecmp(s, p-&gt;name))
+                        break;
+        }
+        return (p-&gt;encoding);
+}
+pg_encoding_conv_tbl pg_conv_tbl[] = {
+        {SQL_ASCII, "SQL_ASCII", 0, ascii2mic, mic2ascii},      /* SQL/ACII
+*/
+        {EUC_JP, "EUC_JP", 0, euc_jp2mic, mic2euc_jp},          /* EUC_JP */
+        {EUC_CN, "EUC_CN", 0, euc_cn2mic, mic2euc_cn},          /* EUC_CN */
+        {EUC_KR, "EUC_KR", 0, euc_kr2mic, mic2euc_kr},          /* EUC_KR */
+        {EUC_TW, "EUC_TW", 0, euc_tw2mic, mic2euc_tw},          /* EUC_TW */
+        {UNICODE, "UNICODE", 0, 0, 0},          /* UNICODE */
+        {MULE_INTERNAL, "MULE_INTERNAL", 0, 0, 0},      /* MULE_INTERNAL */
+        {LATIN1, "LATIN1", 0, latin12mic, mic2latin1},          /* ISO 8859
+Lati
+n 1 */
+        {LATIN2, "LATIN2", 0, latin22mic, mic2latin2},          /* ISO 8859
+Lati
+n 2 */
+        {LATIN3, "LATIN3", 0, latin32mic, mic2latin3},          /* ISO 8859
+Lati
+n 3 */
+        {LATIN4, "LATIN4", 0, latin42mic, mic2latin4},          /* ISO 8859
+Lati
+n 4 */
+        {LATIN5, "LATIN5", 0, iso2mic, mic2iso},        /* ISO 8859 Latin 5
+*/
+        {KOI8, "KOI8", 0, koi2mic, mic2koi},            /* KOI8-R */
+        {WIN, "WIN", 0, win2mic, mic2win},      /* CP1251 */
+        {ALT, "ALT", 0, alt2mic, mic2alt},      /* CP866 */
+        {SJIS, "SJIS", 1, sjis2mic, mic2sjis},          /* SJIS */
+        {BIG5, "BIG5", 1, big52mic, mic2big5},          /* Big5 */
+        {WIN1250, "WIN1250", 1, win12502mic, mic2win1250},      /* WIN 1250
+*/
+        {-1, "", 0, 0, 0}                       /* end mark */
+};
+typedef struct
+{
+        int                     encoding;               /* encoding symbol
+value
+ */
+        char       *name;                       /* encoding name */
+        int                     is_client_only; /* 0: server/client both
+support
+ed 1:
+                                                                 * client
+only *
+/
+        void            (*to_mic) ();   /* client encoding to MIC */
+        void            (*from_mic) (); /* MIC to client encoding */
+}                       pg_encoding_conv_tbl;
+--------------------------------------------
+
+
+&gt; From: Daichi Ushikoshi &lt;usksd@mm.neweb.ne.jp&gt;
+&gt; Reply-To: pgsql-jp@sra.co.jp
+&gt; Date: Sun, 15 Apr 2001 12:34:16 +0900
+&gt; To: PGSQL_ML &lt;pgsql-jp@sra.co.jp&gt;
+&gt; Subject: [pgsql-jp 20705] インストール後、初期化でエラーになります。
+&gt; 
+&gt; インストール後に以下の様にしてDBを初期化しようとすると
+&gt; 
+&gt; 　　$ /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
+&gt; 
+&gt; 下記のメッセージが出て失敗します。
+&gt; 
+&gt; 　　initdb: pg_encoding failed
+&gt; 　　Perhaps you did not configure PostgreSQL for multibyte support or
+&gt; 　　the program was not successfully installed.
+&gt; 
+&gt; ちゃんとmultibyteサポートでconfigureしたしインストールも成功した様に
+&gt; 思えたのですが・・・
+&gt; 
+&gt; 使用環境はLaser5 Linux6.0 Rel2
+&gt; Postgresql-7.0.2 (-7.0.3でも同様に駄目でした）
+&gt; 
+&gt; ここが悪いんじゃないかという所がありましたら教えて下さい。
+&gt; インストール作業はWEB＋DB PRESS Vol.1を見て実施しました。
+&gt; 
+&gt; 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00130" HREF="msg00130.html">[pgsql-jp 20705] インストール後、初期化でエラーになります。</A></STRONG>
+<UL><LI><EM>From:</EM> Daichi Ushikoshi &lt;usksd@mm.neweb.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00131.html">[pgsql-jp 20706] Re: インストール後、初期化でエラーになります。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00133.html">[pgsql-jp 20708] Tips (Re: PostgreSQL 7.1 released!)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 20710] Re: インストール後、初期化でエラーになります。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 20702] 7.1 regression test ALL 76 tests passed</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00132"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00132"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

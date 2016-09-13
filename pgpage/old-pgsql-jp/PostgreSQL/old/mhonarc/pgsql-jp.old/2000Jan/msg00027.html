@@ -1,0 +1,125 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12480] 文字列による日付情報の扱い方 -->
+<!--X-From: "Naoyoshi J. Yasuda" <nao@dit.co.jp> -->
+<!--X-Date: Tue, 04 Jan 2000 14:28:53 +0900 -->
+<!--X-Message-Id: 200001040528.AA03504@sarah.net&#45;g.dit.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12480] 文字列による日付情報の扱い方 </TITLE>
+<LINK REV="made" HREF="mailto:nao@dit.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00026.html">Date Prev</A>][<A HREF="msg00028.html">Date Next</A>][<A HREF="msg00065.html">Thread Prev</A>][<A HREF="msg00028.html">Thread Next</A>][<A HREF="index.html#00027">Date Index</A>][<A HREF="threads.html#00027">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12480] 文字列による日付情報の扱い方</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Naoyoshi J. Yasuda" &lt;<A HREF="mailto:nao@dit.co.jp">nao@dit.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 04 Jan 2000 14:28:53 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:nao@dit.co.jp">nao@dit.co.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+日付型と文字型の比較に関する質問です。
+
+(1) テーブル名:		tbl
+    日付カラム名:	timestp (verchar(14) または text型)
+(2) timestp には 'YYYYMMDDhhmmss'(例 '20000104121043')の
+    ような14桁の文字列が入っている。【これが大きな問題になっています。】
+(3) tbl 中で timestp に書かれている時刻を見て、現在からＮ分前までの
+    データを抽出する。
+※  timestpが14桁の文字列になっているのは、ORACLEから持ってきたデータで
+    ORACLE上でそのように構成されていたのをそのままにした性です。
+
+質問：timestpが文字型の場合、どのようなSQLを書くのが良いでしょうか？
+
+[0] timestp が datetime 型であれば、次のようにシンプルなSQLが書けます。
+	sql=&gt; select * from tbl
+		where timestp between 'now'::datetime - 'Ｎ minutes'::interval
+		and 'now'::datetime;
+
+[1] ところが、timestp が 文字列型の場合、PostgreSQLの日付フォーマットに
+    'YYYYMMDDhhmmss'のような形式が無いので、下記のようには書けません。
+	sql=&gt; select * from pnf
+		where timestp::datetime between 'now'::datetime - 'Ｎ minutes'::interval
+		and 'now'::datetime;
+
+[2] timestp の書式を substr関数を使って'YYYYMMDD hh:mm:ss' のように変換すれば
+    良いかもしれませんが、下記のような記述をどうすればスマートにSQL文として
+    書けるでしょうか？
+	substring(timestp from 0 for 8) || ' ' ||
+	substring(timestp from 8 for 2) || ':' ||
+	substring(timestp from 10 for 2) || ':' ||
+	substring(timestp from 12 for 2) as pgtime
+
+[3] ORACLEやMySQLでは次のような書き方が出来るはずのものです...
+    (a) ORACLE
+	SQL&gt; select * from tbl where timestp between and
+		to_char((sysdate - (Ｎ/1440)),'YYYYMMDDHH24MISS')
+		to_char(sysdate,'YYYYMMDDHH24MISS') order by timestp;
+    (b) MySQL
+	mysql&gt; select * from tmp where timestp between
+		DATE_FORMAT(DATE_SUB(NOW(), INTERVAL Ｎ MINUTES), '%Y%m%d%H%i%s') and
+		DATE_FORMAT(DATE_SUB(NOW(),'%Y%m%d%H%i%s')
+
+実際のシステムは、DBをdatetimeを使って再構成することで解決しましたが、
+日付情報を文字列(YYYYMMDDhhmmss)のまま処理することができるかどうかを
+確認しておきたくて質問させて頂きました。
+
+スマートに記述できる方法がありましたら御教えください。(_ _)
+
+---やすだ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 12481] Re: 文字列による日付情報の扱い方</A></STRONG>
+<UL><LI><EM>From:</EM> Manabu Watanabe &lt;manyabu.nabe@ooi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 12479] Re: SELECT ... LIKE '%\\%'</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 12481] Re: 文字列による日付情報の扱い方</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 12518] Re: OpenLinux2.3へのインストールの仕方を教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 12481] Re: 文字列による日付情報の扱い方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00027"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00027"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

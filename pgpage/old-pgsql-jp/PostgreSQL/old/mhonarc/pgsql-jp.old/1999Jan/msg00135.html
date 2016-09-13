@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6548] Re: 6.3.2 でバックエンドが落ちる件 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 10 Jan 1999 18:08:29 +0900 -->
+<!--X-Message-Id: 199901100908.SAA00474@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010500b2bd140e71ec@tk.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6548] Re: 6.3.2 でバックエンドが落ちる件 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00134.html">Date Prev</A>][<A HREF="msg00136.html">Date Next</A>][<A HREF="msg00128.html">Thread Prev</A>][<A HREF="msg00102.html">Thread Next</A>][<A HREF="index.html#00135">Date Index</A>][<A HREF="threads.html#00135">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6548] Re: 6.3.2 でバックエンドが落ちる件</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 10 Jan 1999 18:08:29 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 　阿部＠ネクストです。
+
+&gt; &gt; NOTICE: SIAssignBackendId: discarding tag 2147430138 がなぜ出るのか分
+&gt; &gt; かりました。阿部さんの推測通り、PostgreSQL の同時ユーザ数(正確には同時
+&gt; &gt; コネクション数)が MaxBackendId (src/include/storage/sinvaladt.h で定義)
+&gt; &gt; を超えたときに出るようです。実は、メッセージを出す原因となったモジュー
+&gt; &gt; ルでは、同時コネクション数が MaxBackendId を超えることを想定していませ
+&gt; &gt; ん。本来、postmaster がコネクションを受け付けるときに、すでに存在する
+&gt; &gt; コネクション数をチェックすべきだと思うのですが、その処理がどこにも見当
+&gt; &gt; たりません。そこで、添付のパッチを作成してみました。お試し下さい。
+&gt; 
+&gt; 　なんと！そういう理由だったんですね。今までずっと謎のままで、
+&gt; もう6.4.2にバージョンアップするしかないなと思っていました。さすが
+&gt; 石井さんです！パッチまで作っていただいて・・・でも僕は6.4.2に
+&gt; 移行してしまったので、6.3.2を使っている人に役立ったら嬉しいです。
+
+あ、SIAssignBackendId: discarding ... の問題は 6.4.2 でも解決していま
+せんので、パッチは必要です。というか、あのパッチは 6.4.2 用です。
+
+&gt; &gt; これは多分ファイルテーブルを使い果たしているのだと思います。
+&gt; &gt;
+&gt; &gt;        file: table is full
+&gt; &gt;
+&gt; &gt; のようなメッセージがコンソールに出てませんか？6.3.2 の時は、ファイルテー
+&gt; &gt; ブルを使い果たす前に NOTICE: SIAssignBackendId:...  が出てしまっていた
+&gt; &gt; ので、現象が起こらなかったのでしょう。対策ですが、limit コマンドを使っ
+&gt; &gt; てバックエンドが使えるファイルディスクリプタ数を制限するのが確実です。
+&gt; &gt; 具体的には、postmaster を起動するときに、csh の limit コマンドを使って
+&gt; &gt; 20 程度に設定します(PostgreSQL がチェックするので、19以下には設定でき
+&gt; &gt; ません)。
+&gt; 
+&gt; 　あ、そういえば以前6.3.2のときに出ていました。それでlimitコマンドで
+&gt; datasizeを128mにしたり、同時に開くファイル数をカーネルで増やして
+&gt; みたりしたらそれは出なくなったんですよ。datasizeの128mってちょっと
+&gt; 多すぎるでしょうか。
+
+datasize はこの問題に関しては無関係だと思います。ただ、あまりにも 
+datasize を大きくすると、バックエンドだけで仮想メモリを喰い潰してしま
+う可能性があるので、あまり datasize は大きくしないほうが安全です。目安
+で言えば、MaxBackendId x datasize の値に対して、システムの仮想メモリの
+総量が十分余裕があるべきだと思います。この点から言うと、datasize =
+128m では、MaxBackendId = 64 の場合、8GB 以上の仮想メモリが最大必要に
+なってしまいます...(もちろん、64個のバックエンドが同時にメモリを使いま
+くるようなことは現実にはあまりないとは思います。あくまで安全サイドに極
+端に振った見積りです)
+
+&gt; &gt; P.S. 以上の対策で、市川さんのところのように多数の学生が同時に
+&gt; &gt; PostgreSQL を使う環境でも、安定して使えるようになれば良いのですが..
+&gt; 
+&gt; 　そうですね。特に業務に使用しているようなところなど（僕のところも
+&gt; そうですけど）は、多くの同時アクセスに耐えられるようなシステムを
+&gt; 目指さなければいけないですよね。もしそうなったら完全に実用的な
+&gt; フリーのソフトですよね。
+
+はい、全くその通りだと思います。「システム資源さえ十分に用意すれば 1024 
+ユーザでも大丈夫です」っていう位になってもらわないと。
+
+&gt; 　石井さん、本当にいつもありがとうございます！なんだかとても
+&gt; 勉強になりました。これからもPostgreSQLは使い続けるつもりなので、
+&gt; もっといろいろ使ってみたいと思います。
+
+どうしたしまして。阿部さんのように、負荷をかけている環境での 
+PostgreSQL の利用っていうのはとても貴重な実例です。これからも情報を提
+供していただけるとありがたいです。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00128" HREF="msg00128.html">[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00134.html">[pgsql-jp 6547] Re: 教えてください。日本語が使えません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 6549] Re: Perlインターフェースについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00102.html">[pgsql-jp 6515] Re: [plagia 02590] Re: PHP-3.0.6 kanji patches</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00135"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00135"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

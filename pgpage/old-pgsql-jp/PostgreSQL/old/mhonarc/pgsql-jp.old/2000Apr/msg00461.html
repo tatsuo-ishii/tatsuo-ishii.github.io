@@ -1,0 +1,194 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14164] regression test (float8, abstime)について -->
+<!--X-From: 新保　博之<hiroyuki.shinbo@nifty.ne.jp> -->
+<!--X-Date: Tue, 25 Apr 2000 23:53:07 +0900 -->
+<!--X-Message-Id: 20000425235307.53f40042.21506@nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14164] regression test (float8, abstime)について </TITLE>
+<LINK REV="made" HREF="mailto:hiroyuki.shinbo@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00460.html">Date Prev</A>][<A HREF="msg00462.html">Date Next</A>][<A HREF="msg00463.html">Thread Prev</A>][<A HREF="msg00488.html">Thread Next</A>][<A HREF="index.html#00461">Date Index</A>][<A HREF="threads.html#00461">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14164] regression test (float8, abstime)について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 新保　博之&lt;<A HREF="mailto:hiroyuki.shinbo@nifty.ne.jp">hiroyuki.shinbo@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Apr 2000 23:53:07 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。
+
+最近 PostgreSQL に興味を持ち、自分なりに勉強を始めた者です。
+
+インストールは市販の書籍を見ながら完了できたのですが、
+インストール後の Regression テストの結果の解釈で悩んでおります。
+
+過去のメーリングリストを検索してみたのですが、
+同じような質問が見つからなかったので、
+投稿させていただくこととしました。
+
+使用環境は、
+ RedHat Linux 6.2 /J
+
+ make  - GNU make version 3.77
+ gcc   - gcc version 2.91.66 , egcs 1.1.2
+
+ flex  - version 2.5.4
+ bison - GNU Bison version 1.28
+
+ glibc - glibc 2,1,2-11
+
+です。
+
+テスト結果のうち、次の２個所（float8, abstime）の結果について教授ください。
+
+*** expected/float8.out	Sun Jan 24 09:12:59 1999
+--- results/float8.out	Fri Apr  7 23:30:50 2000
+***************
+*** 189,201 ****
+  QUERY: SELECT '' AS bad, f.f1 * '1e200' from FLOAT8_TBL f;
+  ERROR:  Bad float8 input format -- overflow
+  QUERY: SELECT '' AS bad, f.f1 ^ '1e200' from FLOAT8_TBL f;
+! ERROR:  pow() result is out of range
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 = '0.0' ;
+  ERROR:  can't take log of zero
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 &lt; '0.0' ;
+  ERROR:  can't take log of a negative number
+  QUERY: SELECT '' AS bad, : (f.f1) from FLOAT8_TBL f;
+! ERROR:  exp() result is out of range
+  QUERY: SELECT '' AS bad, f.f1 / '0.0' from FLOAT8_TBL f;
+  ERROR:  float8div: divide by zero error
+  QUERY: SELECT '' AS five, FLOAT8_TBL.*;
+--- 189,217 ----
+  QUERY: SELECT '' AS bad, f.f1 * '1e200' from FLOAT8_TBL f;
+  ERROR:  Bad float8 input format -- overflow
+  QUERY: SELECT '' AS bad, f.f1 ^ '1e200' from FLOAT8_TBL f;
+! bad|?column?
+! ---+--------
+!    |0       
+!    |NaN     
+!    |NaN     
+!    |NaN     
+!    |NaN     
+! (5 rows)
+! 
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 = '0.0' ;
+  ERROR:  can't take log of zero
+  QUERY: SELECT '' AS bad, (; (f.f1)) from FLOAT8_TBL f where f.f1 &lt; '0.0' ;
+  ERROR:  can't take log of a negative number
+  QUERY: SELECT '' AS bad, : (f.f1) from FLOAT8_TBL f;
+! bad|            ?column?
+! ---+--------------------
+!    |                   1
+!    |7.39912306090513e-16
+!    |                   0
+!    |                   0
+!    |                   1
+! (5 rows)
+! 
+  QUERY: SELECT '' AS bad, f.f1 / '0.0' from FLOAT8_TBL f;
+  ERROR:  float8div: divide by zero error
+  QUERY: SELECT '' AS five, FLOAT8_TBL.*;
+
+----------------------
+
+疑問点は３点です。
+
+１）Ｎ乗の計算と、自然対数のＮ乗の計算値の結果を比較しているのだろうとは
+　　予測がつくのですが、Ｎ乗の計算の結果の NaN が何を意味するのか
+　　不明なのです。
+２）不一致している場合、テーブルに挿入済みの各行に対しての計算結果が
+　　出ているのだろうと思うのですが、いかがでしょうか。
+　　「f.f1 * '1e200'」のテストの場合、なぜ５行の値に対する計算結果が
+　　１行「Bad float8 input format -- overflow」だけなのでしょうか。、
+３）このような不一致が出ているにも関わらずに、RedHatにてPostgreSQLを
+　　使用することは可能なのでしょうか？
+
+
+
+--- results/abstime.out	Fri Apr  7 23:30:56 2000
+***************
+*** 96,103 ****
+      |Sun Jan 14 03:14:21 1973 PST
+      |Mon May 01 00:30:30 1995 PDT
+      |epoch                       
+!     |current                     
+! (4 rows)
+  
+  QUERY: SELECT '' AS three, ABSTIME_TBL.*
+    WHERE  (ABSTIME_TBL.f1 + '@ 3 year'::reltime) 
+--- 96,102 ----
+      |Sun Jan 14 03:14:21 1973 PST
+      |Mon May 01 00:30:30 1995 PDT
+      |epoch                       
+! (3 rows)
+  
+  QUERY: SELECT '' AS three, ABSTIME_TBL.*
+    WHERE  (ABSTIME_TBL.f1 + '@ 3 year'::reltime) 
+
+----------------------
+
+この場合、さらに不可解です。
+本来であれば４行結果が返るはずなのに、３行しか返ってきておりません。
+これはどのように考えるべきなのでしょうか？
+
+また、模範解答の current とは何を意味するのでしょうか？
+
+以上、教授いただけると助かります。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00488" HREF="msg00488.html">[pgsql-jp 14191] Re: regression test (float8, abstime)について</A></STRONG>
+<UL><LI><EM>From:</EM> HYODO Takashi &lt;hyodo@integra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00460.html">[pgsql-jp 14163] Re: libpq.dll と ODBC ドライバの漢字コード</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00462.html">[pgsql-jp 14165] シーラカンス本の添付のapache_1.3.9のmakeのとき、エラーになりますが・・・</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00463.html">[pgsql-jp 14166] Re: [pgsql-jp 14165] シーラカンス本の添付のapache_1.3.9のmakeのとき、エラーになりますが・・・</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00488.html">[pgsql-jp 14191] Re: regression test (float8, abstime)について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00461"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00461"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20539] select で複数のレコードのカラムを1行に表示したい -->
+<!--X-From: Toshiaki Okuda <toshi@ottot.to> -->
+<!--X-Date: Wed, 28 Mar 2001 21:38:26 +0900 -->
+<!--X-Message-Id: 20010328213826.E1930551.toshi@ottot.to -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20539] select で複数のレコードのカラムを1行に表示したい </TITLE>
+<LINK REV="made" HREF="mailto:toshi@ottot.to">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00402.html">Date Prev</A>][<A HREF="msg00405.html">Date Next</A>][<A HREF="msg00426.html">Thread Prev</A>][<A HREF="msg00409.html">Thread Next</A>][<A HREF="index.html#00404">Date Index</A>][<A HREF="threads.html#00404">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20539] select で複数のレコードのカラムを1行に表示したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshiaki Okuda &lt;<A HREF="mailto:toshi@ottot.to">toshi@ottot.to</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 Mar 2001 21:38:26 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、おくだともうします。
+
+現在、postgreSQL 7.0.3を使ってアプリケーションを開発しています。
+その中で、一つ疑問というか、分からないことがあったので、こちらに
+質問させて頂きます。
+
+3つのテーブルがあります。
+構造は以下の通り。
+
+Table "m_user"
+ Attribute |  Type   | Modifier 
+-----------+---------+----------
+ uid       | integer | not null (pkey)
+ udel      | boolean | not null
+ umail     | text    | not null
+
+Table "m_dlv"
+ Attribute |  Type   | Modifier 
+-----------+---------+----------
+ uid       | integer | not null (foregin key)
+ mid       | integer | not null (foregin key)
+ flag      | boolean | not null
+
+
+m_dlvの uid,midは、それぞれm_user, m_mmに依存しています。
+※ m_dlvの同一uidに対する行数は不定です。
+
+このデータから、
+
+uid, flag1, flag2, flag3, ... という形で出力をしたいと
+考えています。
+flag1, flag2, flag3, ...は、m_dlvのflagで、同一のuidのflagを
+1行にならべて表示したいのです。
+
+select m_user.uid, m_dlv.mid, m_dlv.flag from m_user, m_dlv where m_us
+er.uid = m_dlv.uid and m_mm.mid = m_dlv.mid order by m_user.uid, m_dlv.
+mid;
+
+
+とすると、当然ながら、
+  uid   | mid | flag 
+--------+-----+------
+      2 |   2 | t
+      2 |   3 | t
+      2 |   4 | t
+      2 |   5 | t
+      3 |   1 | f
+      3 |   2 | f
+      3 |   4 | f
+      3 |   5 | t
+      3 |   6 | f
+      4 |   1 | f
+      4 |   4 | f
+      4 |   5 | f
+      4 |   6 | f
+      6 |   1 | f
+      6 |   2 | f
+   /// 以下割愛 ///
+
+という様に表示されます。
+
+select1行では無理？と、思いperlで以下のようなスクリプトを書きました。
+(接続やエラー処理の部分は割愛しました)
+
+# m_userから全 uid/umail get
+$sql = "select uid from m_user order by uid";
+Pg::doQuery($db, $sql, \@user) ;
+$maxuser = $#user; 
+for $u_count (0 .. $#user) {
+  $uid = $user[$u_count][0];
+  $umail = $user[$u_count][1];
+  $uid[$u_count] = $uid; 
+  $umail[$u_count] = $umail; 
+  for ($j = 1; $j &lt;= 6; $j++)
+  {
+     print "$dlv[$i][j],";
+  }
+}
+
+$sql = "select uid, mid, flag from m_dlv order by uid, mid";
+Pg::doQuery($db, $sql, \@mdlv) ;
+
+for $d_count(0 .. $#mdlv) {
+  $uid = $mdlv[$d_count][0];
+  $mid = $mdlv[$d_count][1];
+  $flag = $mdlv[$d_count][2];
+  $dlv[$uid][$mid] = $flag;
+}
+
+for ($i = 0; $i &lt;= $maxuser; $i++)
+{
+    print "$uid[$i],'$umail[$i]',";
+    for ($j = 1; $j &lt;= 6; $j++)
+    {
+        print "$dlv[$i][j],";
+    }
+    print "\n";
+       
+}
+
+以下のようなものを期待していたのですが、
+
+2,t,f,t,f,f,f
+3,f,t,f,t
+4,f,t,f,t
+5,f,f,f,f,f
+
+実際の出力結果は以下のとおり
+
+2,,,,,,,,
+3,,,,,,,,
+4,,,,,,,,
+5,,,,,,,,
+
+booleanタイプが表示されないようです。
+
+perl, psqlのいずれかで、うまく表示するためのアドバイスをいただければ
+幸いです
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00409" HREF="msg00409.html">[pgsql-jp 20544] Re: select で複数のレコードのカラムを1行に表示したい</A></STRONG>
+<UL><LI><EM>From:</EM> "Kawai,Takanori" &lt;GCD00051@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00402.html">[pgsql-jp 20537] Re: Ver 6.5.3 日本語の検索が正しくできません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00405.html">[pgsql-jp 20540] postmaster が落ちる</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00426.html">[pgsql-jp 20561] Re: postmaster が落ちる</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 20544] Re: select で複数のレコードのカラムを1行に表示したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00404"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00404"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

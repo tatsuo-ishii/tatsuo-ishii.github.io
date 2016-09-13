@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5180] RE: [pgsql&#45;jp 5177] Re:配列に関する質問です。 -->
+<!--X-From: "sakuma" <sakuma@pst.co.jp> -->
+<!--X-Date: Thu, 27 Aug 1998 21:05:43 +0900 -->
+<!--X-Message-Id: 199808271204.VAA01861@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5180] RE: [pgsql-jp 5177] Re:配列に関する質問です。 </TITLE>
+<LINK REV="made" HREF="mailto:sakuma@pst.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00246.html">Date Prev</A>][<A HREF="msg00248.html">Date Next</A>][<A HREF="msg00253.html">Thread Prev</A>][<A HREF="msg00249.html">Thread Next</A>][<A HREF="index.html#00247">Date Index</A>][<A HREF="threads.html#00247">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5180] RE: [pgsql-jp 5177] Re:配列に関する質問です。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "sakuma" &lt;<A HREF="mailto:sakuma@pst.co.jp">sakuma@pst.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 27 Aug 1998 21:05:43 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐久間です。
+
+&gt; 続けてで、申し訳ありませんが、佐久間さんの方法で作った場合、
+&gt; 検索件数の制限というのは、どのような方法があるのでしょうか。
+&gt; 
+&gt; ex.)
+&gt; 　・趣味が７のユーザが、１００人検索できた。
+&gt; 　・最初に、１〜２０人までを表示する。
+&gt; 　　（おっと、基準を忘れてました。ＩＤの大きい順からの表示）
+&gt; 　・次に、２１〜４０人までを表示する。
+&gt; 
+&gt; 毎回、select文で１００人分のデータを引っ張ってきて、アプリ側で
+&gt; 処理をするのは想像できるのですが、無駄が多いですし。うーん。
+&gt; こういうときに、viewを使えば良いのですか？
+
+・趣味が７のユーザの、人数,始めの人、終わりの人を 取得。
+select	count(*) 	as count_person, 
+	max (id_person) as id_person_top,
+	min (id_person) as id_person_bottom
+from	relation_person_hobby 
+where	id_hobby = 7 ;
+
+・もし、一定人数より少なければ、全部持ってくる。
+select	id_person 
+from	relation_person_hobby 
+where	id_hobby = 7 
+order by id_person desc
+;
+
+・ここから先は、ネットワーク事情とによりますね。
+ アプリ（ウェブサーバ？）と DB サーバ 距離は遠いのでしょうか。
+ 最悪でも、id_person で切り分けながら取り出せます。
+(person_end = id_person_top to id_person_bottom)
+(person_beg = person_end - const_delta)
+
+select	count(*) 	as count_person_wk, 
+	max (id_person) as id_person_top_wk,
+	min (id_person) as id_person_bottom_wk
+from	relation_person_hobby 
+where	id_hobby = 7 
+and	id_person between person_beg and person_end
+;
+
+select	id_person 
+from	relation_person_hobby 
+where	id_hobby = 7 
+and	id_person between person_beg and person_end
+order by id_person desc
+;
+
+・ アプリ（ウェブサーバ？）と DB サーバ 距離は遠くて、
+ DB サーバの元気が余っているときは、こんな手もあります。
+ DB サーバの計算量は、relation_person_hobby のレコード数が２乗で
+ 効いてくるので、気をつけてください。
+
+select	r1_id_person
+from (
+	select	r1.id_person  as r1_id_person
+		count (*) 	as ordered_index
+	from	relation_person_hobby as r1,
+		relation_person_hobby as r2
+	where	r1.id_hobby = 7 
+	and	r2.id_hobby = 7 
+	and	r1.id_person &lt;= r2.id_person
+	group by r1.id_person
+     )
+where 	ordered_index between 1 and 20
+order by ordered_index
+;
+
+そろそろ帰宅するので、続きは明日。
+--
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00249" HREF="msg00249.html">[pgsql-jp 5182] Re: 配列に関する質問です。</A></STRONG>
+<UL><LI><EM>From:</EM> 川野 健一&lt;kawa@stgaia.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 5179] Re: loading libpgtcl.so failed?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 5181] Re: About SP</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00253.html">[pgsql-jp 5186] Re: ＷＥＢを使ってデータベース検索をしたいんですが・・・</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 5182] Re: 配列に関する質問です。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00247"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00247"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

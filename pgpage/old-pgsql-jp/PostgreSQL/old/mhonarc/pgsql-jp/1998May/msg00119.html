@@ -1,0 +1,207 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4057] [Q] attr. order in select & create index etc. -->
+<!--X-From: Yoshio Funaki <yoshio@Air.akita&#45;u.ac.jp> -->
+<!--X-Date: Fri, 15 May 1998 14:31:42 +0900 -->
+<!--X-Message-Id: 9805150531.AA00266@mebius.air.akita&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 038401bd7f05$5a616be0$e2cf8dcb@lambda.use&#45;net.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4057] [Q] attr. order in select &amp; create index etc. </TITLE>
+<LINK REV="made" HREF="mailto:yoshio@Air.akita-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00118.html">Date Prev</A>][<A HREF="msg00120.html">Date Next</A>][<A HREF="msg00106.html">Thread Prev</A>][<A HREF="msg00125.html">Thread Next</A>][<A HREF="index.html#00119">Date Index</A>][<A HREF="threads.html#00119">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4057] [Q] attr. order in select &amp; create index etc.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshio Funaki &lt;<A HREF="mailto:yoshio@Air.akita-u.ac.jp">yoshio@Air.akita-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 15 May 1998 14:31:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いつもお世話になっております。船木＠秋田県立図書館です。
+現在奮闘中の「書誌検索ＤＢ」のテスト中、不可解な現象に
+遭遇しましたので、先達からのご教示をお願いいたします。
+ちょと長文になりますが、よろしくお願いいたします。
+
+作成したテーブルはすべて
+title_code char(10),tag char(4),num char(3),data test
+という構造をしており、それぞれ出版者名用テーブル、著者名テーブル等
+約２０個のテーブルがあり、現在それぞれのテーブルには３０万〜５０万の
+タプルが入力されています。各テーブルの共通キーはtitle_codeです。
+
+＃前にも書きましたが、全部のデータを１つのテーブルに集めたら
+＃タプル数が１０００万を越えてしまったので泣く泣くこうしてます。
+
+ここで"出版社が「ほげほげ」の本を書名用テーブルから検索する"という目的で
+select l.data from d25xa l where l.tag='251A' and l.num='001' and l.title_code 
+in (select distinct m.title_code from a770b m  where m.data like 'ほげほげ%');
+＃d25xaには書名、a770bには出版社が入っています。
+
+という検索を考えました。とりあえずd25xaに対しては、常にtitle_codeをキーにして
+tag='251A',num='001'のものを検索しますので、この３つのアトリビュートの組で
+インデックスを作りました。
+lib=&gt; drop index id25xa;
+DROP
+lib=&gt; vacuum;
+VACUUM
+lib=&gt; create index id25xa on d25xa using btree(title_code,tag,num);
+CREATE
+
+ここで、個別にインデックスがちゃんと出来ているかを確認しました。
+
+explain select distinct m.title_code from a770b m  where m.data like 'ほげほげ
+%';
+NOTICE:  QUERY PLAN:
+Unique  (cost=2392.05 size=0 width=0)
+  -&gt;  Sort  (cost=2392.05 size=0 width=0)
+        -&gt;  Index Scan on m  (cost=2392.05 size=1 width=12)
+EXPLAIN
+
+explain select l.data from d25xa l where l.title_code='5010000156' and 
+l.tag='251A' and l.num='001';
+NOTICE:  QUERY PLAN:
+Index Scan on l  (cost=2.00 size=1 width=12)
+EXPLAIN
+
+explain select n.data from d25xa n where n.tag='251A' and n.num='001' and 
+n.title_code='5010000156';
+NOTICE:  QUERY PLAN:
+Index Scan on n  (cost=2.00 size=1 width=12)
+EXPLAIN
+
+２番目と３番目は同じ事のように思えるんですが、ここが今回の質問の
+核心です。で、プランをはかせてみると
+
+explain select l.data from d25xa l where l.tag='251A' and l.num='001' and 
+l.title_code in (select distinct m.title_code from a770b m  where m.data like '
+ほげほげ%');
+NOTICE:  QUERY PLAN:
+Seq Scan on l  (cost=16168.93 size=1 width=12)　　&lt;==== index scanじゃない
+  SubPlan
+    -&gt;  Unique  (cost=2392.05 size=0 width=0)
+          -&gt;  Sort  (cost=2392.05 size=0 width=0)
+                -&gt;  Index Scan on m  (cost=2392.05 size=1 width=12)
+EXPLAIN
+
+となって、lに対するクエリーにindexがつきません。そこで
+drop index id25xa;
+DROP
+vacuum;
+VACUUM
+create index id25xa on d25xa using btree ( tag,num,title_code);
+CREATE
+としてインデックスを作成するときのアトリビュートの順番を入れ替えて
+再度個別にインデックスが使われるかどうかを調べると
+explain select distinct m.title_code from a770b m  where m.data like 'ほげほげ
+%';
+NOTICE:  QUERY PLAN:
+Unique  (cost=2392.05 size=0 width=0)
+  -&gt;  Sort  (cost=2392.05 size=0 width=0)
+        -&gt;  Index Scan on m  (cost=2392.05 size=1 width=12)
+EXPLAIN
+
+explain select l.data from d25xa l where l.title_code='5010000156' and 
+l.tag='251A' and l.num='001';
+NOTICE:  QUERY PLAN:
+Index Scan on l  (cost=2.00 size=1 width=12)
+EXPLAIN
+
+explain select n.data from d25xa n where n.tag='251A' and n.num='001' and 
+n.title_code='5010000156';
+NOTICE:  QUERY PLAN:
+Index Scan on n  (cost=2.00 size=1 width=12)
+EXPLAIN
+
+となって最初と同じ結果になるんですが、さっきと同じクエリープランをはかせると
+
+explain select l.data from d25xa l where l.tag='251A' and l.num='001' and 
+l.title_code in (select distinct m.title_code from a770b m  where m.data like '
+ほげほげ%');
+
+NOTICE:  QUERY PLAN:
+Index Scan on l  (cost=2.00 size=1 width=12)　　　　　&lt;===== index scanになる
+  SubPlan    -&gt;  Unique  (cost=2392.05 size=0 width=0)
+	          -&gt;  Sort  (cost=2392.05 size=0 width=0)
+	                -&gt;  Index Scan on m (cost=2392.05 size=1 width=12)
+EXPLAIN
+
+となってlの検索にインデックスを使うようになります。そこで質問なのですが
+１）select .... in　の場合、アトリビュートの順番を事前に考え、クエリーを
+　　書くのが普通なのでしょうか。
+２）create index ..... ( )をする場合、どの順序でセレクトするかを事前に
+　　考え（）内の順番を決めるのでしょうか。
+３）この例のように、個別のクエリーと副問い合わせのクエリーはちがうアルゴリズム
+　　が採用されるのでしょうか。
+
+ついでといっては何ですが、追加質問として
+４）　クエリーのスピードを判断する材料はcost,size,widthのどれで、どうなると
+　　　早いんでしょうか。
+５）　本当は出版社が”「ほげほげ」で、副書名が「ほにゃらら」、著者が「ほにゃ」の
+　　　書名を引っ張ってくる”というクエリーが必要なんですが、postgreSQLでは
+　　　intersectをサポートしていないようなので、良い方法が思い浮かびません。
+　　　先達のご示唆をお願いいたします。
+
+船木　喜夫　yoshio@air.akita-u.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 4088] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 4063] [Q] speed of select .... in ( more [Q] of )</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00105" HREF="msg00105.html">[pgsql-jp 4043] NUMERIC型について</A></STRONG>
+<UL><LI><EM>From:</EM> "Tomoyoshi ASANO" &lt;asa@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00118.html">[pgsql-jp 4056] Re: NUMERIC型について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 4058] Re: NUMERIC型について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00106.html">[pgsql-jp 4044] Re: NUMERIC型について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 4063] [Q] speed of select .... in ( more [Q] of )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00119"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00119"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

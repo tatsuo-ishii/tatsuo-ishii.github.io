@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12976] Re:テーブルのDeadlock -->
+<!--X-From: "N.Ogiso" <ogiso@use&#45;net.co.jp> -->
+<!--X-Date: Tue, 1 Feb 2000 14:12:24 +0900 -->
+<!--X-Message-Id: 013701bf6c72$ece89400$8fcf8dcb@usenet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200002010431.NAA16522@smtpb.mailbank.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12976] Re:テーブルのDeadlock </TITLE>
+<LINK REV="made" HREF="mailto:ogiso@use-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00017.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00018.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12976] Re:テーブルのDeadlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "N.Ogiso" &lt;<A HREF="mailto:ogiso@use-net.co.jp">ogiso@use-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 1 Feb 2000 14:12:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00018.html">200002010431.NAA16522@smtpb.mailbank.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。
+
+&gt; PHPのプログラム的には、
+&gt;
+&gt; 　引数送信
+&gt; 　　　↓
+&gt; 　チェック処理
+&gt; 　　　↓
+&gt; 　TableA SELECT,INSERT or UPDATE
+&gt; 　　　↓
+&gt; 　集計処理
+&gt; 　　　↓
+&gt; 　TableB SELECT,INSERT or UPDATE
+&gt; 　　　↓
+&gt; 　集計処理
+&gt; 　　　↓
+&gt; 　TableC SELECT,INSERT or UPDATE
+&gt;
+&gt; となっており、順番は一定です。
+
+タスクとしては一定の順番かもしれませんが相手は
+ブラウザです。良く考えてみて下さい、ネットワーク上
+にある様々なブラウザから接続要求が来る度にプロセス
+が生成され、それぞれのプロセスはどのタイミングで生成
+されるかは接続要求が来るタイミングによりまちまちです。
+
+従って、あるプロセスが上記のロジックを処理している間に、
+他のプロセスは全く別の場所にあるロジックを処理してことも
+あります。
+
+このようなことを考慮した上でも先のメールで出した様な処理
+はしている可能性がないということでしょうか。
+
+
+&gt; あと、各INSERT or UPDATE文は、begin〜endでかこってはいますが、
+&gt; プログラムにはLOCK宣言は書いておりません(勝手にLOCKがかかる？)。
+
+勝手に LOCK がかかります。
+
+
+&gt; どーゆー現象なんでしょーか？
+
+前回のメールでは INSERT と UPDATE とのことでしたので
+言及しませんでしたが、PostgreSQL 6.4.2 では SELECT でも
+BGIN 〜 END の中ではロックしてしまします。（6.4.2 より新しい
+バージョンではそのようなことはありませんが。）そのパターン
+は次のようなものです。
+
+Process1            |      Process2
+------------------------------
+BEGIN                |   BIGIN
+LOCK TableA      |   LOCK TableB
+SELECT TableB   |   SELECT TableA
+UPDATE TableA   |   UPDATE TableB
+END                   |   END
+
+Process1 は TableA を UPDATE するために TableA を LOCK
+しているが、UPDATE するまでの過程で TableB からデータを
+取ってくる必要があり SELECT しようとしたら、Process2 によって
+TableB が LOCK されているために SELECT が待ち状態に
+なってしまうというものです。デッドロックする理由は前のメールと
+同じですね。
+
+---
+おぎそ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00018" HREF="msg00018.html">[pgsql-jp 12975] Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> Shinichi Fukuda &lt;shinf@ma.mailbank.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 12974] Re: [pgsql-jp 12963] Re: RDO(ODBC?)のエラーについて教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 12977] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 12975] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 12977] Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

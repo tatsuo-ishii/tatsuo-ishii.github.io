@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25237] 【解決しました】functionの引数の数について -->
+<!--X-From: 市村　正和<m.ichimura@nihontechno.co.jp> -->
+<!--X-Date: Tue, 12 Mar 2002 09:10:14 +0900 -->
+<!--X-Message-Id: 20020312085900.14B9.M.ICHIMURA@nihontechno.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020308203615.9547.M.ICHIMURA@nihontechno.co.jp -->
+<!--X-Reference-Id: a6adff$72f$1@guam.bioinfo.sfc.keio.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25237] 【解決しました】functionの引数の数について </TITLE>
+<LINK REV="made" HREF="mailto:m.ichimura@nihontechno.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00215.html">Date Prev</A>][<A HREF="msg00213.html">Date Next</A>][<A HREF="msg00149.html">Thread Prev</A>][<A HREF="msg00218.html">Thread Next</A>][<A HREF="index.html#00212">Date Index</A>][<A HREF="threads.html#00212">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25237] 【解決しました】functionの引数の数について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 市村　正和&lt;<A HREF="mailto:m.ichimura@nihontechno.co.jp">m.ichimura@nihontechno.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 12 Mar 2002 09:10:14 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00147.html">20020308203615.9547.M.ICHIMURA@nihontechno.co.jp</A>&gt; &lt;<A HREF="msg00149.html">a6adff$72f$1@guam.bioinfo.sfc.keio.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+市村です。
+functionの引数の制限の件ですが、解決いたしました。
+
+永安さん、アドバイスありがとうございます。
+微妙にファイル名は違いましたが、
+ご指摘いただいた通りでした。
+
+&gt; &gt; 引数を多くすると下のようなエラーが出てしまい、
+&gt; &gt; 15個までの引数しか受け付けないのですが↓
+&gt; &gt; 
+&gt; &gt; psql:sp_chumon1_insert.sql:9: ERROR:  functions cannot have more than 16
+&gt; &gt; arguments
+&gt; &gt; psql:sp_chumon1_insert.sql:93: ERROR:  Procedures cannot take more than 16 arguments
+&gt; &gt; 
+&gt; &gt; SQLserverのspのように、20個程度の引数でfunctionを実行する方法は
+&gt; &gt; ないのでしょうか？・・・
+&gt; 
+&gt; ソースを見てみたところ、src/include/pg_config.h の
+&gt; 
+&gt; ------------------------------------------------------------------------
+&gt; /*
+&gt;  * Maximum number of columns in an index and maximum number of arguments
+&gt;  * to a function. They must be the same value.
+&gt;  *
+&gt;  * The minimum value is 8 (index creation uses 8-argument functions).
+&gt;  * There is no specific upper limit, although large values will waste
+&gt;  * system-table space and processing time.
+&gt;  *
+&gt;  * CAUTION: changing these requires an initdb.
+&gt;  *
+&gt;  * BTW: if you need to call dynamically-loaded old-style C functions that
+&gt;  * have more than 16 arguments, you will also need to add cases to the
+&gt;  * switch statement in fmgr_oldstyle() in src/backend/utils/fmgr/fmgr.c.
+&gt;  * But consider converting such functions to new-style instead...
+&gt;  */
+&gt; #define INDEX_MAX_KEYS          16
+&gt; #define FUNC_MAX_ARGS           INDEX_MAX_KEYS
+&gt; 
+&gt; ------------------------------------------------------------------------
+&gt; 
+&gt; あたりが関係ありそうです。
+&gt; 
+&gt; バックエンドの中では FUNC_MAX_ARGS を見ているようです。
+&gt; 
+&gt; 上記のコメントを参考に試してみてはいかがでしょうか。
+
+上のファイルを探してみたところ、
+$ ./configure　で、
+
+src/include/config.h というファイルが作られるので、
+その中の"INDEX_MAX_KEYS"の１６を変更して、
+
+$ make
+$ make install-all-headers
+$ make install
+
+で、うまくいきました。
+
+#レス遅くなってすみません。
+
+-- 
+***************************************************
+          日本テクノシステム株式会社
+          システム営業一部 システム課
+          市村　正和
+          E-MAIL:m.ichimura@nihontechno.co.jp
+***************************************************
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00218" HREF="msg00218.html">[pgsql-jp: 25241] Re: 【解決しました】functionの引数の数について</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00147" HREF="msg00147.html">[pgsql-jp: 25170] functionの引数の数について</A></STRONG>
+<UL><LI><EM>From:</EM> 市村　正和&lt;m.ichimura@nihontechno.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00149" HREF="msg00149.html">[pgsql-jp: 25172] Re: function の引数の数について</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00215.html">[pgsql-jp: 25236] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00213.html">[pgsql-jp: 25238] VACUUMを実行するタイミングについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00149.html">[pgsql-jp: 25172] Re: function の引数の数について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00218.html">[pgsql-jp: 25241] Re: 【解決しました】functionの引数の数について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00212"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00212"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

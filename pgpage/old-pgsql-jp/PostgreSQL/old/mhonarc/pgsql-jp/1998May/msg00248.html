@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4186] Re: bigtext on postgresql&#45;6.3 -->
+<!--X-From: Yasuo Kanai <ykanai@to&#45;in.co.jp> -->
+<!--X-Date: Fri, 22 May 1998 18:16:36 +0900 -->
+<!--X-Message-Id: 19980522181636N.ykanai@to&#45;in.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805210548.OAA07140@pg.cni.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4186] Re: bigtext on postgresql-6.3 </TITLE>
+<LINK REV="made" HREF="mailto:ykanai@to-in.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00247.html">Date Prev</A>][<A HREF="msg00249.html">Date Next</A>][<A HREF="msg00218.html">Thread Prev</A>][<A HREF="msg00251.html">Thread Next</A>][<A HREF="index.html#00248">Date Index</A>][<A HREF="threads.html#00248">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4186] Re: bigtext on postgresql-6.3</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasuo Kanai &lt;<A HREF="mailto:ykanai@to-in.co.jp">ykanai@to-in.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 May 1998 18:16:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00218.html">199805210548.OAA07140@pg.cni.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+金井です。
+おみつ@CNIさん、ご回答いただきありがとうございます。
+From: Mitsuhiro Maeda &lt;mitsu@cni.co.jp&gt;
+Subject: [pgsql-jp 4155] Re: bigtext on postgresql-6.3
+Date: Thu, 21 May 1998 14:48:17 +0900
+
+&gt; &gt; postgresql-6.3 でbigtextを利用させていただくことは可能でしょうか。
+&gt; 
+&gt; 先日私も試してみましたが、動きました :-)
+
+アドバイスどおり、bigtext.cを修正し（別紙１）Solaris2.6/gcc2.8.1で
+gcc -shared \
+-I/usr/local/src/postgresql-6.3/src/include \
+-I/usr/local/src/postgresql-6.3/src/backend \
+bigtext.c -o libbigtext.so
+とすると
+bigtext.c: In function `check':
+bigtext.c:27: `WARN' undeclared (first use in this function)
+bigtext.c:27: (Each undeclared identifier is reported only once
+bigtext.c:27: for each function it appears in.)
+というエラーになります。解決のヒントございましたらお教えください。
+
+（別紙１）
+001 #include &lt;postgres.h&gt;
+002 
+003 #include "utils/elog.h"	/* for elog() */
+004 
+005 #include "storage/fd.h"		/* for O_ */
+006 #include "storage/large_object.h"
+007 
+008 #include "libpq/libpq-fs.h"	/* for INV_READ */
+009 
+010 /* functions are defined in backend/utils/adt/regexp.c */
+011 bool textregexeq(struct varlena *s, struct varlena *p);
+012 bool textregexne(struct varlena *s, struct varlena *p);
+013 bool texticregexeq(struct varlena *s, struct varlena *p);
+014 bool texticregexne(struct varlena *s, struct varlena *p);
+015 
+016 static bool check(Oid obj, struct varlena *pattern, bool (*func)())
+017 {
+018   LargeObjectDesc *desc;
+019   struct varlena *retval;
+020   int totalread;
+021   struct pgstat stbuf;
+022   int len;
+023   bool t;
+024 
+025   desc = inv_open(obj,INV_READ);
+026   if (!desc) {
+027     elog(WARN, "bigtexteq: couldn't open oid %d", obj);
+028     return(FALSE);
+029   }
+030 
+031   /* inv_stat() is very expensive operation
+032   if (inv_stat(desc,&amp;stbuf) &lt;0) {
+033     elog(WARN, "bigtexteq: couldn't stat oid %d",obj);
+034     (void)inv_close(desc);
+035     return(FALSE);
+036   }
+037   */
+038 /*
+039   len = stbuf.st_size;
+040 */
+041   len = inv_seek(desc, 0, SEEK_END);
+042   inv_seek(desc, 0, SEEK_SET);
+：
+--
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00251" HREF="msg00251.html">[pgsql-jp 4189] Re: bigtext on postgresql-6.3</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@cni.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00218" HREF="msg00218.html">[pgsql-jp 4155] Re: bigtext on postgresql-6.3</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@cni.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 4185] PostgreSQL CD-ROM</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 4187] Re: はじめまして&amp;教えて下さい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00218.html">[pgsql-jp 4155] Re: bigtext on postgresql-6.3</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 4189] Re: bigtext on postgresql-6.3</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00248"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00248"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

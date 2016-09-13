@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6774] RE:LOW LEVEL  LOCKINGとは？ -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Mon, 25 Jan 1999 12:39:13 +0900 -->
+<!--X-Message-Id: 000601be4814$46ade5a0$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901250204.LAA08354@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6774] RE:LOW LEVEL  LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00359.html">Date Prev</A>][<A HREF="msg00362.html">Date Next</A>][<A HREF="msg00358.html">Thread Prev</A>][<A HREF="msg00389.html">Thread Next</A>][<A HREF="index.html#00361">Date Index</A>][<A HREF="threads.html#00361">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6774] RE:LOW LEVEL  LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 25 Jan 1999 12:39:13 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 石井です。
+&gt;
+&gt; # 本家への質問はまだです。済みませんが、もう少しお待ち下さい。
+&gt;
+&gt; &gt;前回は苦しい言い訳をしてしまいました。
+&gt; &gt;気が引けるので、少し変形した例を作ってみました。
+&gt; &gt;
+&gt; &gt;Session-1(kubunを更新)         Session-2(dataを更新)
+&gt; &gt;
+&gt; &gt;begin;                                    begin;
+&gt; &gt;select data from b where .. ;
+&gt; &gt;   (dataが0であることを確認)
+&gt; &gt;update a set kubun='2' ...;
+&gt; &gt;end;
+&gt; &gt;                                            select kubun from a where ..;
+&gt; &gt;                                            (kubunが'1'であることを確認)
+&gt; &gt;                                            update b set data=10 ...;
+&gt; &gt;                                            end;
+&gt; &gt;
+&gt; &gt;v6.5のserializable isolation levelの場合の流れです。
+&gt;
+&gt; なるほど。serializable ということでは合っているが、アプリケーションか
+&gt; ら見ると困るよ、というケースですね。確かにこの場合は select for update
+&gt; を使わなければならないですね。
+&gt;
+&gt; &gt;現状やv6.5のread committedの場合,(kubunが'1'であることを確認)の
+&gt; &gt;ところではkubunが'2'に変わっているのが確認されます（別の動作が
+&gt; &gt;必要になりますね）。
+&gt;
+&gt; 「現状」って 6.4 のことですよね。すると 6.4 の isolation level は実は
+&gt; read_commited だったということになる？
+
+データの見え方という点では、read committed の方が6.4に近いでしょう。
+ただし、何といってもロックがないのが大きく、 6.4 では発生しえないシー
+ケンスが簡単に発生してしまうのが困る点です。
+
+たとえば、 SELECT してみて行が存在したら内容を編集してUPDATEし、
+存在しなければINSERTするという、ごく普通の処理が read commited
+ の場合、はたと困ってしまうのです。
+
+こういうケースのために select ... for update は必要になったのだという
+気がします。
+
+&gt;
+&gt; ところで、ちょっと前のメールで、
+&gt;
+&gt; &gt;&gt; というわけで、6.4 では lock .. だったのが、6.5 では select ... for
+&gt; &gt;&gt; update になるだけでは？
+&gt; &gt;
+&gt; &gt;select ... for updateは普通のselect文（ただし制限あり）の後に for update
+&gt; &gt;をつけるという形式ですが、行単位のロックになるのが現在との大きな違い
+&gt; &gt;です。 selectの後にいつもfor updateをつけるというやり方が、いわゆるROW
+&gt; &gt;LEVEL LOCKINGに該当するのかもしれません。
+&gt;
+&gt; この点ですが、6.4 の lock ...(テーブルロック)のセマンティクスに依存し
+&gt; ていて、6.5 で row-level locking になると困るアプリケーションって言う
+&gt; のはちょっとないような気がします。むしろ恩恵を受けるのではないかと。
+&gt;
+&gt; &gt;ただし、共有ロックではなく排他ロックですが。
+&gt;
+&gt; 6.4 の lock ... も排他ロックですね。
+&gt; なお、6.5 にも lock... はあり、6.4 の lock... とセマンティクスは全く同
+&gt; じなので、最悪 6.4 の lock に依存したアプリケーションも移行できます。
+
+そうですね。
+手動でテーブルロックをかけるための lock [table] コマンドは当然有効な
+コマンドです。
+ただ、今まではDeadlockを回避するのが目的だったのです（よね？）
+が、6.5からはそういう意味での使用は必要がなくなると思います。
+心配なら更新の対象になる行に for update をつけて select しておくという
+位で大体ＯＫだと思います。
+テーブルロックはバッチ処理型で大量に更新する場合の選択肢の一つ
+として考えるべきでしょう。
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00358" HREF="msg00358.html">[pgsql-jp 6771] Re: Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 6772] Re: How to remove old PostgreSQL?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00362.html">[pgsql-jp 6775] Re: To use or not to use Large Object</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00358.html">[pgsql-jp 6771] Re: Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00389.html">[pgsql-jp 6802] Re: RE:LOW LEVEL  LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00361"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00361"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

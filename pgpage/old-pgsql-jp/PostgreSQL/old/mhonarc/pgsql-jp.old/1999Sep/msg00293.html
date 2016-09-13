@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10795] Re:MS&#45;Access97のVBAからのSQLについて -->
+<!--X-From: "J.Baba" <jbaba@amy.hi&#45;ho.ne.jp> -->
+<!--X-Date: Mon, 20 Sep 1999 14:17:07 +0900 -->
+<!--X-Message-Id: 199909200517.OAA12974@amy.hi&#45;ho.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 007001bf01d3$91d44c80$01464989@seh.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10795] Re:MS-Access97のVBAからのSQLについて </TITLE>
+<LINK REV="made" HREF="mailto:jbaba@amy.hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00292.html">Date Prev</A>][<A HREF="msg00294.html">Date Next</A>][<A HREF="msg00276.html">Thread Prev</A>][<A HREF="msg00303.html">Thread Next</A>][<A HREF="index.html#00293">Date Index</A>][<A HREF="threads.html#00293">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10795] Re:MS-Access97のVBAからのSQLについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "J.Baba" &lt;<A HREF="mailto:jbaba@amy.hi-ho.ne.jp">jbaba@amy.hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 20 Sep 1999 14:17:07 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00276.html">007001bf01d3$91d44c80$01464989@seh.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　こんにちは。J.Baba です。
+
+&gt;「BeginTransメソッド」はVB5.0かVB6.0でないと、使えなかった
+&gt;ような？違っていたらすみません。
+
+お察しの通り、もちろん Access97 でも使えます。
+片岡さんがおっしゃられるように、BeginTrans メソッドで行うのが
+より確実な方法です。
+理由を説明する為に、込み入った話をさせていただきます。
+
+ODBC の仕様では、トランザクション制御に関して、AUTOCOMMIT という
+考え方を取っています。"Begin" を発行する、という考え方がありません。
+ところが、なぜか、それを使うミドルウエア（DAO、RDO等）側が、
+明示的トランザクション（BeginTrans）を使うという、ちぐはぐな事をしています。
+ODBC ドライバはサーバー側（PostgreSQL）とで、AUTOCOMMIT をエミュレートし、
+ミドルウエアはミドルウエアで、明示的トランザクションを ODBC との間で、
+エミュレートするという構図になっています。
+従って、"BeginTrane" と SQL 文での "Begin" の発行とは、
+必ずしも同じではありません。
+
+PostgreSQL の ODBC ドライバは、SQL 文では無く、AUTOCOMMIT の状態と、
+SQLTransact() という API で、"Commit" や、"Rollback" を発行して、
+自分（ODBC ドライバ）のトランザクションの状態を覚えています。
+SQL で発行すると、食い違いが生じます。
+まずいのは、ODBC のデフォルトの、AUTOCOMMIT ON の状態で、
+UPDATE や、INSERT 文を発行すると、ODBC ドライバが、暗黙で、
+"Commit" を発行します。例えば、次のようになります。
+
+　begin
+　select ...　&lt;- select 文では、commit は発行されない。
+　update ...　&lt;- commit が自動で発行されてしまう。
+
+　以後、トランザクションは継続されません
+
+最初のご質問は、たぶん、この状況でしょう。
+BeginTrans は、"Begin" を発行するのではなく、AUTOCOMMIT を OFF にする、
+という動作になっています。
+では、"Begin" はいつ発行されるかと言えば、トランザクションの最初の
+SQL 文の直前です。ドライバが覚えている状態が、実際（PostgreSQL 側）と
+異なると、どういう結果になるか、わかりません。
+
+# ところで、select 文では、この "Begin" の発行が行われないので、
+# "for update" 句が働かないのですが、なんとかならないものかと、
+# 前から気になっています。
+# わざわざ、select 文だけ除外しているようですが、その必要があるのでしょうか？
+
+DAO および、RDO 等のミドルウエアを使って、トランザクション制御を行う場合は、
+以上の事に、気を付けられたほうが良いと思います。
+なお、これは、DBMS エンジン側が、AUTOCOMMIT モードを直接サポートしない 
+他の DBMS にも、おおむねあてはまります。
+
+------------------------------------------------------------
+         馬場　二郎
+         Email : jbaba@amy.hi-ho.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00318" HREF="msg00318.html">[pgsql-jp 10820] Re:MS-Access97のVBAからのSQLについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00303" HREF="msg00303.html">[pgsql-jp 10805] Re: [pgsql-jp 10795] Re:MS-Access97のVBAからのSQLについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Shinichi Sugai" &lt;s-sugai@seh.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00276" HREF="msg00276.html">[pgsql-jp 10778] Re: [pgsql-jp 10768] RE: MS-Access97のVBAからのSQLについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Shinichi Sugai" &lt;s-sugai@seh.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 10794] Re: MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 10796] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00276.html">[pgsql-jp 10778] Re: [pgsql-jp 10768] RE: MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 10805] Re: [pgsql-jp 10795] Re:MS-Access97のVBAからのSQLについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00293"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00293"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

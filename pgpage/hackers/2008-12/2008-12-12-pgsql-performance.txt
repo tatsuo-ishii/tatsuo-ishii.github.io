@@ -1,0 +1,53 @@
+Subject: Re: [PERFORM] Need help with 8.4 Performance Testing
+From: Greg Smith <gsmith@gregsmith.com>
+To: Scott Carey <scott@richrelevance.com>
+cc: "pgsql-performance@postgresql.org" <pgsql-performance@postgresql.org>
+Date: Fri, 12 Dec 2008 02:55:52 -0500 (EST)
+
+On Tue, 9 Dec 2008, Scott Carey wrote:
+
+> My system is now CPU bound, the I/O can do sequential reads of more than 
+> 1.2GB/sec but Postgres can't do a seqscan 30% as fast because it eats up 
+> CPU like crazy just reading and identifying tuples... In addition to the 
+> fadvise patch, postgres needs to merge adjacent I/O's into larger ones 
+> to reduce the overhead.
+
+Do you have any profile data to back that up?  I think it's more likely 
+that bottlenecks are on the tuple processing side of things as you also 
+suggested.  There's really no sense guessing; one quick session with 
+something like oprofile would be more informative than any amount of 
+speculation on what's going on.
+
+> Additionally, the "If your operating system has any reasonable caching 
+> itself" comment earlier in this conversation --- Linux (2.6.18, Centos 
+> 5.2) does NOT.  I can easily make it spend 100% CPU in system time 
+> trying to figure out what to do with the system cache for an hour.
+
+Have you ever looked into how much memory ends up showing up as 
+"Writeback" in /proc/meminfo when this happens?  The biggest problem with 
+that kernel out of the box on the kind of workload you're describing is 
+that it will try and buffer way too much on the write side by default, 
+which can easily get you into the sort of ugly situations you describe. 
+I regularly adjust that kernel to lower dirty_ratio in particular 
+dramatically from the default of 40 to keep that from happening.  I did a 
+whole blog entry on one of those if you're not familiar with this 
+particular bit of painful defaults already: 
+http://notemagnet.blogspot.com/2008/08/linux-write-cache-mystery.html
+
+> I feel confident in saying that in about a year, I could spec out a 
+> medium sized budget for hardware ($25k) for almost any postgres setup 
+> and make it almost pure CPU bound.
+
+The largest database I manage is running on a Sun X4500, which is right at 
+that price point.  I've never seen it not be CPU bound.  Even though 
+people are pulling data that's spread across a few TB of disk, the only 
+time I ever see it straining to keep up with something there's always a 
+single CPU pegged.
+
+--
+* Greg Smith gsmith@gregsmith.com http://www.gregsmith.com Baltimore, MD
+
+-- 
+Sent via pgsql-performance mailing list (pgsql-performance@postgresql.org)
+To make changes to your subscription:
+http://www.postgresql.org/mailpref/pgsql-performance

@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2279] pg_password for FreeBSD -->
+<!--X-From: atsushi@map.chiba&#45;u.ac.jp (Atsushi Abe) -->
+<!--X-Date: Mon, 4 Aug 1997 13:25:49 +0900 (JST) -->
+<!--X-Message-Id: 199708040425.NAA03672@libra.map.chiba&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2279] pg_password for FreeBSD </TITLE>
+<LINK REV="made" HREF="mailto:atsushi@map.chiba-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00009.html">Thread Prev</A>][<A HREF="msg00004.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2279] pg_password for FreeBSD</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:atsushi@map.chiba-u.ac.jp">atsushi@map.chiba-u.ac.jp</A> (Atsushi Abe)</LI>
+<LI><em>Date</em>: Mon, 4 Aug 1997 13:25:49 +0900 (JST)</LI>
+<LI><em>Cc</em>: <A HREF="mailto:atsushi@map.chiba-u.ac.jp">atsushi@map.chiba-u.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+安部＠千葉大です。
+
+Postgresのpassword authentication についてですが FreeBSD2.2.1R
+で使えている人はいますか？
+
+多分使えないと思うのでそのためのパッチを作りました。
+といっても3行くらい追加しただけの怪しげな物ですが…
+
+こちらは
+
+FreeBSD 2.2.1R + postgres 6.1.1 で動いています。(DESは使ってません)
+また、password patchからの差分で src/backend/libpq/password.c
+に当てて下さい。
+
+
+それと、そのマシンで取ったベンチマークもあるので送ります。
+
+構成
+
+CPU		Pentium 133M
+Memory		64M(60ns)
+OS		FreeBSD 2.2.1R
+SCSI		Aduptec AHA-2940AU
+SCSI disk	nEC の2Gのディスク ULTRA SCSI対応 50pin(型番忘れました)
+SCSI CD-ROM	16倍速
+IDE		無し
+postgres ver	6.1.1
+
+では
+
+---パッチここから-----
+--- password.c.org	Sun Aug  3 15:06:39 1997
++++ password.c	Sun Aug  3 15:07:05 1997
+@@ -81,7 +81,13 @@
+ 	if (test_pw[strlen(test_pw)-1] == '\n')
+ 	    test_pw[strlen(test_pw)-1] = '\0';
+ 
++	#if defined(__FreeBSD__)
++	salt[0] = test_pw[3];
++	salt[1] = test_pw[4];
++	#else
+ 	strncpy(salt, test_pw, 2);
++	#endif
++
+ 	salt[2] = '\0';
+ 
+ 	if(strcmp(user, test_user) == 0) {
+---パッチここまで----
+
+---ベンチマークここから-----
+query  0:   0.001 real   0.001 user   0.000 sys
+query  1:   0.260 real   0.155 user  -1.983 sys
+query  2:   1.729 real  -1.472 user  -1.648 sys
+query  3:   0.235 real  -1.865 user  -5.984 sys
+query  4:   1.928 real   0.521 user  -1.630 sys
+query  5:   0.238 real  -1.866 user  -1.990 sys
+query  6:   0.559 real   0.404 user  -3.958 sys
+query  7:   0.020 real   0.021 user  -5.996 sys
+query  8:   0.344 real   0.288 user  -3.977 sys
+query  9:   1.325 real   1.012 user  -1.892 sys
+query 10:   4.763 real   3.170 user  -3.821 sys
+query 11:   1.769 real   1.428 user  -3.922 sys
+query 12:   1.730 real   1.061 user   0.060 sys
+query 13:   4.701 real   3.225 user  -3.808 sys
+query 14:   1.825 real   1.486 user  -1.945 sys
+query 15:   4.523 real   1.339 user   0.846 sys
+query 16:   4.495 real   3.231 user  -3.835 sys
+query 17:   4.987 real   1.821 user  -1.193 sys
+query 18:   3.006 real  -0.173 user   0.264 sys
+query 19:   0.485 real   0.312 user   0.055 sys
+query 20:   0.001 real   0.001 user   0.000 sys
+query 21:   0.001 real   0.001 user   0.000 sys
+query 22:   0.001 real   0.001 user   0.000 sys
+query 23:   0.001 real   0.001 user   0.000 sys
+query 24:   0.001 real   0.001 user   0.000 sys
+query 25:   0.001 real   0.001 user   0.000 sys
+query 26:   0.001 real   0.001 user   0.000 sys
+query 27:   0.011 real   0.011 user  -1.998 sys
+query 28:   0.042 real   0.043 user  -5.999 sys
+query 29:   0.001 real   0.001 user   0.000 sys
+query 30:   0.009 real   0.008 user  -1.998 sys
+query 31:   0.033 real   0.032 user  -1.998 sys
+query 32:   0.035 real   0.027 user  -1.991 sys
+-------------------------------
+
+/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
+\                                            /
+/        千葉大学大学院自然科学研究科        \
+\      博士前期課程電子機械科学専攻2年       /
+/                                            \
+\                  安部 敦                   /
+/       atsushi@hike.te.chiba-u.ac.jp        \
+\ <A HREF="http://w3.hike.te.chiba-u.ac.jp/~atsushi/">http://w3.hike.te.chiba-u.ac.jp/~atsushi/</A>  /
+/                                            \
+\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 2278] Re: Question.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 2280] Re: money型について etc</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 2283] Re: money型についてetc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 2278] Re: Question.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

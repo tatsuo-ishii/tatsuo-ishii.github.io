@@ -1,0 +1,231 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16860] Re: [pgsql&#45;jp 16857] Re: [pgsql&#45;jp 16840] Re: [pgsql&#45;jp 16835] Re: [pgsql&#45;jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Tue, 22 Aug 2000 21:06:09 +0900 (JST) -->
+<!--X-Message-Id: 20000822210609.1D368938@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000822164413.19622861@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 014801c00c11$9f93e120$7563bed2@hari.to -->
+<!--X-Reference-Id: 20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 01bf01c00c2c$f7100350$7563bed2@hari.to -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16860] Re: [pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00473.html">Date Prev</A>][<A HREF="msg00475.html">Date Next</A>][<A HREF="msg00471.html">Thread Prev</A>][<A HREF="msg00476.html">Thread Next</A>][<A HREF="index.html#00474">Date Index</A>][<A HREF="threads.html#00474">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16860] Re: [pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Aug 2000 21:06:09 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00448.html">20000822164413.19622861@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00449.html">014801c00c11$9f93e120$7563bed2@hari.to</A>&gt;&lt;<A HREF="msg00454.html">20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00471.html">01bf01c00c2c$f7100350$7563bed2@hari.to</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+針川＠はりさん、レスに感謝致します。
+結局のところ、小生のルーツ発言に誤りがあり
+「＋」や「−」の符号の問題ではなく、
+コンピューター的には正しいOID整数を持っている
+わけですが、
+SELECT がオーバーフロー正数値をエラーにしてしまう
+仕様に問題を感じている点に、まとまりが出てまいりました。
+（最初にそう言えば良いのですが、凡人ゆえの誤認します）
+
+つまり、現状の SELECT では
+select * from junk where oid = 2147488330;
+を、「　ERROR:  dtoi4: integer out of range　」
+としてしまいますし、それでは
+select * from junk where oid = -2147478966;
+と言うとかんじんのデーターを検索してくれません
+
+残ることは
+select * from junk where oid = '-2147478966';
+で初めて正常にデーターを検索してくれるわけです。
+
+よって、どなたかが SELECT のルーチンを正してくださるまでは
+オーバーフロ−しようが、しまいが、それが十分に小さい
+正数であろうが、INSERT直後の pg_getlastoid() の戻り値である
+正数を何でも補数にしてしまい、「’」シングルコーテイションで
+囲んで利用するしか回避できないと考えております。
+
+それで、任意に「補数」化する関数がPHPにないかと調べておりましたところ、
+算術関数あたりにも無くて・・・どうしようかと考えておりますと
+天から針川さんのメールであります。ありがたき幸せ！
+ところで、針川さまは、負数の補数化ですが、逆の場合は
+どうするのでしょうか？（って、おまへは甘いとどやされるでしょうか）ビクビク
+
+&gt;こんにちは。針川＠はり。と です。
+&gt;
+&gt;とりあえず…
+&gt;
+&gt;----- Original Message -----
+&gt;From: "Yoshio Tokuda" &lt;actords@zaqcad091da.zaq.ne.jp&gt;
+&gt;To: &lt;pgsql-jp@sra.co.jp&gt;
+&gt;Sent: Tuesday, August 22, 2000 6:34 PM
+&gt;Subject: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2の
+&gt;insert直後のpg_getlastoid()で正数になってしまう謎
+&gt;
+&gt;&gt; junk=# create table junk (a int,b text,c date);
+&gt;&gt; CREATE
+&gt;&gt; junk=# insert into junk values(123,'Abc','now');
+&gt;&gt; INSERT 2147488330 1
+&gt;&gt; junk=# select oid,* from junk;
+&gt;&gt;     oid     |  a  |  b  |     c
+&gt;&gt; ------------+-----+-----+------------
+&gt;&gt; -2147478966 | 123 | Abc | 2000-08-22
+&gt;&gt; (1 row)
+&gt;&gt;
+&gt;&gt; が正確なpsqlでのオペレーションの状況です。
+&gt;&gt; 面白いのは、INSERT実行時の結果レポートは
+&gt;&gt; 「　INSERT 2147488330 1　」として正数です。
+&gt;&gt; ところが、SELECT で OID を表示すると負数です。
+&gt;&gt; 数値部も異なります。つまりオーバーフロー現象
+&gt;&gt; なのでしょうか
+&gt;
+&gt;このOIDの値はBIT列はどちらも同じですね。
+&gt;
+&gt;-2147478966 8000124A
+&gt;2147488330 8000124A
+&gt;
+&gt;&gt; 事態はＰＨＰの問題なのでしょうか。PHPの問題ではないことが
+&gt;&gt; psqlでの手打ちでも確認していただけたと思います。
+&gt;&gt; 小生の直感では、PostgreSQL 7.0.2 が、INSERT ルーチンと、
+&gt;&gt; データーベースのハンドルルーチンとがOIDに関する
+&gt;&gt; 管理ビット長が異なるからではないでしょうか。
+&gt;&gt; それと、なんでみなさんと異なるOID発生ルーチンとなって
+&gt;&gt; しまったのかが理解を絶するところです。開発者しか
+&gt;&gt; わからないのでは？　早く正数のOIDを見たいです！
+&gt;
+&gt;PostgreSQL の 仕様変更かバグかな…?
+&gt;
+&gt;&gt; 当方ではどうしても「OID復元」をはずせませんので、
+&gt;&gt; PostgreSQL7.0.2 から、PostgreSQL 6.5.3へ戻し、
+&gt;&gt; 「OID復元」するしかないかとも考えておりますが、
+&gt;&gt; 仮に、PostgreSQL の問題であるのなら、どなたか
+&gt;&gt; パッチを提供していただけないかなとあまい気持ちが
+&gt;&gt; あるわけです。小生にはソースを検証するだけの
+&gt;&gt; 実力が無い人間ですので、優秀なかたのお知恵を
+&gt;&gt; 借りたいわけです。
+&gt;
+&gt;負数で入ってる$OID を (unsigned int)にキャストすれば
+&gt;回避できるんではないでしょうか？
+&gt;
+&gt;という事で、PHPを調べて見ましたが、
+&gt;PHPでは unsigned へのキャストもないし、
+&gt;それ以前に 31bit までの整数か 32bit の有符号整数でしか扱えないようです。
+&gt;
+&gt;pg_exec()に渡す時点では 文字列のようなので、
+&gt;とりあえず (float) にキャストしてごちゃごちゃすると
+&gt;なんとか 正のOIDを値を取得することが出来ます。
+&gt;
+&gt;&lt;html&gt;
+&gt;&lt;head&gt;
+&gt;&lt;/head&gt;
+&gt;&lt;body&gt;
+&gt;&lt;p&gt;
+&gt;&lt;?php
+&gt;
+&gt;function to_unsigned_float($OID)
+&gt;{
+&gt;    if ($OID &lt; 0)
+&gt;    {
+&gt;        // とりあえず 符号ビットを落とし整数にする。
+&gt;        $OID_LOW = $OID &amp; 0x7FFFFFFF;
+&gt;
+&gt;        // 一度 Float として 扱い 符号ビットを立てる。
+&gt;        $OID_FLOAT = (float)$OID_LOW + 2147483648.0;
+&gt;
+&gt;        return $OID_FLOAT;
+&gt;    }
+&gt;    else
+&gt;        return $OID;
+&gt;}
+&gt;
+&gt;    $OID = -2147478966;
+&gt;    echo $OID;
+&gt;
+&gt;    $OID = to_unsigned_float($OID);
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;
+&gt;    $OID = 78966;
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;
+&gt;    $OID = to_unsigned_float($OID);
+&gt;    echo "&lt;br&gt;", $OID;
+&gt;?&gt;
+&gt;&lt;/body&gt;
+&gt;&lt;/html&gt;
+&gt;
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+     Yoshio Tokuda
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00476" HREF="msg00476.html">[pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00454" HREF="msg00454.html">[pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00471" HREF="msg00471.html">[pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00473.html">[pgsql-jp 16859] Re: PL/pgSQLについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00475.html">[pgsql-jp 16861] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00471.html">[pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00476.html">[pgsql-jp 16862] Re:7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00474"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00474"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25864] Re: DB 接続頻度の限界について -->
+<!--X-From: Satoshi Nagayasu <snaga@oak.forus.or.jp> -->
+<!--X-Date: 7 May 2002 11:20:28 GMT -->
+<!--X-Message-Id: ab8d9s$a8u$1@guam.bioinfo.sfc.keio.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3CD16494.F7075D3B@jtc.daihen.co.jp -->
+<!--X-Reference-Id: aarrs3$mo$1@guam.bioinfo.sfc.keio.ac.jp -->
+<!--X-Reference-Id: 3CD76337.F80F9576@jtc.daihen.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25864] Re: DB 接続頻度の限界について </TITLE>
+<LINK REV="made" HREF="mailto:snaga@oak.forus.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00098.html">Date Prev</A>][<A HREF="msg00100.html">Date Next</A>][<A HREF="msg00088.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00099">Date Index</A>][<A HREF="threads.html#00099">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25864] Re: DB 接続頻度の限界について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Nagayasu &lt;<A HREF="mailto:snaga@oak.forus.or.jp">snaga@oak.forus.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: 7 May 2002 11:20:28 GMT</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Newsgroups</em>: <A HREF="news:local.postgres.pgsql-jp">local.postgres.pgsql-jp</A></LI>
+<LI><em>Organization</em>: Oak, ForUs, Japan</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00021.html">3CD16494.F7075D3B@jtc.daihen.co.jp</A>&gt;&lt;<A HREF="msg00024.html">aarrs3$mo$1@guam.bioinfo.sfc.keio.ac.jp</A>&gt;&lt;<A HREF="msg00088.html">3CD76337.F80F9576@jtc.daihen.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+永安です。
+
+Kenji Izumi wrote:
+&gt; &gt; 1. localhost に inet socket 経由で PQsetdb()
+&gt; &gt; 2. PQstatus() で CONNECTION_BAD を検出
+&gt; &gt; 3. PQfinish()
+&gt; &gt; 
+&gt; &gt; というのを10,000回繰り返すプログラムですが、
+&gt; &gt; 
+&gt; &gt; % time ./a.out
+&gt; &gt; 2.660u 5.820s 3:06.87 4.5%     0+0k 0+0io 183pf+0w
+&gt; &gt; %
+&gt; &gt; 
+&gt; &gt; となりました。これによると、50回/秒以上は出てるようです。
+&gt; &gt; エラーは一度も出ていません。
+&gt; 
+&gt; ↑申し訳ありませんが、出力結果の詳細な内容を教えていただけるとありがたい
+&gt; です。
+&gt; よろしくお願いいたします。
+
+上記の通り、接続して切断する、というのを繰り返しているだけですので、
+出力らしい出力はありません。エラーのときだけメッセージを表示するように
+しています。
+
+---------------------
+  for (i=0 ; i&lt;10000 ; i++) {
+        conn = PQsetdb("localhost", "5432", "", "", "snaga");
+
+        if ( PQstatus(conn)==CONNECTION_BAD ) {
+          fprintf(stderr, "Connect failed. - %s", PQerrorMessage(conn));
+          return -1;
+        }
+
+        if ( i % 1000 == 0 ) {
+          fprintf(stderr, "%d", i);
+          fflush(stderr);
+        }
+        if ( i % 100 == 0 ) {
+          fprintf(stderr, ".");
+          fflush(stderr);
+        }
+
+        PQfinish(conn);
+  }
+---------------------
+
+とやっているだけです。
+途中で、適当に回数を表示するようにはしてますが。
+
+実は、現在作っているものがありまして、PQsetdb() と PQfinish() で
+メモリリークが生じていないかを検証するために使っていたものです。
+
+PQsetdb() と PQfinish() だけを繰り返すなら、毎秒50回くらいは
+問題なく動いている、ということですね（私の環境では）。
+
+-- 
+NAGAYASU Satoshi &lt;snaga@oak.forus.or.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp: 25786] DB接続頻度の限界について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Izumi &lt;k-izumi@jtc.daihen.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00024" HREF="msg00024.html">[pgsql-jp: 25789] Re: DB 接続頻度の限界について</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00088" HREF="msg00088.html">[pgsql-jp: 25853] Re: DB 接続頻度の限界について</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Izumi &lt;k-izumi@jtc.daihen.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00098.html">[pgsql-jp: 25863] Re: dbExpe・・・ありがとう御座いました</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00100.html">[pgsql-jp: 25865] Re: .configreでエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00088.html">[pgsql-jp: 25853] Re: DB 接続頻度の限界について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp: 25792] Re: DB接続頻度の限界について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00099"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00099"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

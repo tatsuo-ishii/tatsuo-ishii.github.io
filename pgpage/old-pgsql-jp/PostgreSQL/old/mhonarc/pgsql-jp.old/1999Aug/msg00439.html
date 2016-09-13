@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10285] Re: large_object and Transaction -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 18 Aug 1999 18:33:11 +0900 -->
+<!--X-Message-Id: 199908180933.SAA29527@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 34C52640.88858138@mb.kcom.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10285] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00438.html">Date Prev</A>][<A HREF="msg00440.html">Date Next</A>][<A HREF="msg00440.html">Thread Prev</A>][<A HREF="msg00457.html">Thread Next</A>][<A HREF="index.html#00439">Date Index</A>][<A HREF="threads.html#00439">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10285] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 18 Aug 1999 18:33:11 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;今回、トランザクションを実行中にＰｏｓｔｇｒｅｓが妙な動作を
+&gt;する事があるような気がしたのでご報告します。
+&gt;
+&gt;
+&gt;具体的には、
+&gt;
+&gt;「トランザクション中にテーブルを作成し、
+&gt;ラージオブジェクトの操作に２回(lo_importとlo_export)失敗すると
+&gt;テーブル作成のクェリーが完全にロールバックされないで、
+&gt;以降、破棄されたテーブル名のテーブルが作成できなくなってしまう」
+&gt;
+&gt;と言う現象です。
+&gt;
+&gt;以下、ＳＱＬ文です。
+&gt;
+&gt;
+&gt;
+&gt;--[PostgreSQL 6.5.1 on sparc-sun-solaris2.6, compiled by gcc 2.8.1
+&gt;
+&gt;-- トランザクションを開始します。
+&gt;
+&gt;begin;
+&gt;-- 始めにテーブル「images」を作ります。
+&gt;
+&gt;CREATE TABLE images(
+&gt;   name            text,
+&gt;   raster          oid
+&gt;);
+&gt;
+&gt;-- このINSERTは失敗しなければなりません。
+&gt;
+&gt;INSERT INTO images(name, raster)
+&gt;    VALUES ('beautiful image', lo_import('/tmp/dummy'));
+&gt;
+&gt;--上記のINSERTが失敗なので、このSELECTはABORT STATEされます。
+&gt;
+&gt;SELECT lo_export(images.raster, '/tmp/my_image')
+&gt;   from images
+&gt;           WHERE name = 'beautiful image';
+&gt;
+&gt;rollback;
+&gt;
+&gt;--これ以降、テーブル「images」は、存在しないのですが、
+&gt;--ERROR:  cannot create images
+&gt;--と、作れなくなってしまいました。
+&gt;--２回このSQL文を実行すれば現象が出ると思います。
+
+ちょっと見ましたが、まだ解決していません。言えるのは、large objectを使っ
+ているかどうかに無関係に同じ現象が発生すると言うことです。
+
+例：
+
+test=&gt; begin; 
+BEGIN
+test=&gt; create table t1(i int);
+CREATE
+test=&gt; aaa; -- なんでもいいからエラーになるSQL
+ERROR:  parser: parse error at or near "aaa"
+-- この時点でt1に対応するテーブルファイルは消えている
+-- しかし、t1をアクセスするようなSQLを発行すると、t1に
+-- 対応するファイルがまた作られる
+test=&gt; select * from t1; -- (1)
+NOTICE:  (transaction aborted): queries ignored until END
+*ABORT STATE*
+test=&gt; end;
+END
+test=&gt; create table t1(i int);
+ERROR:  cannot create t1 -- 結果create tableが失敗する
+
+どうやらパーサが(1)を実行したときに t1 をheap_openし、この時にまたt1が
+createされてしまうようです。本当ならt1は無いのでheap_openが成功しては
+いけないのですが、local cache のカタログに情報が残っているようです。パー
+サに入る前にチェックをかけ、トランザクションが Abort stateなら何もしな
+い、というのも考えたのですが、これでは "end" とか "abort" まで実行でき
+なくなってしまいます:-)
+
+正しい解決方は、きちんと local cache からt1の情報を消して上げることだ
+と思うのですが、いまいち何をどこのタイミングで呼べばいいのか分かってい
+ません。とりあえず RelationPurgeLocalRelation()あたりを見てはいるので
+すが...
+
+なんかコメントありませんか? &gt; 井上さん
+---
+t-ishii@sra.co.jp	石井達夫
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00457" HREF="msg00457.html">[pgsql-jp 10303] RE: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00438.html">[pgsql-jp 10284] RE: [pgsql-jp 10271] RE: [pgsql-jp 10268]  EWS4800でのコンパイル</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00440.html">[pgsql-jp 10286] RE: [pgsql-jp 10282] Re: RollbackがABORTします</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00440.html">[pgsql-jp 10286] RE: [pgsql-jp 10282] Re: RollbackがABORTします</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00457.html">[pgsql-jp 10303] RE: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00439"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00439"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

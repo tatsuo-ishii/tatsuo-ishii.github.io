@@ -1,0 +1,239 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14610] Install postgresql&#45;cygwin32 binaries package on WNT. -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Fri, 19 May 2000 13:08:08 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.96LJ1.1b7.1000517185612.1479B&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: Pine.LNX.3.96LJ1.1b7.1000517182311.1479A&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14610] Install postgresql-cygwin32 binaries package on WNT. </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00320.html">Date Prev</A>][<A HREF="msg00322.html">Date Next</A>][<A HREF="msg00284.html">Thread Prev</A>][<A HREF="msg00344.html">Thread Next</A>][<A HREF="index.html#00321">Date Index</A>][<A HREF="threads.html#00321">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14610] Install postgresql-cygwin32 binaries package on WNT.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 19 May 2000 13:08:08 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  谷田さんの(<A HREF="http://www.s34.co.jp/~luster/pgsql/">http://www.s34.co.jp/~luster/pgsql/</A>)の
+Cygwin32-B20版PostgreSQL-7.0のバイナリをインストールしてみたの
+ですが、ちょっとてこずったのでまとめておきました。もちろん、FAQ
+やバイナリパッケージに付属のメモに目を通してください。
+SoftwareDesign6月号p.69の記事は6.5.3のバイナリパッケージについて
+でしたが、もっとわかり易いです(いずれも谷田さん著)。
+
+#  一部、記憶を頼りに書いていてあやふやなところもありますので、
+# 書かれている通りにやってみて失敗してもごかんべんを。(^^;
+
+  使用した環境はWindowsNT4.00.1381(ServicePack5)、TCP/IPのネット
+ワークを設定してあり、DHCPクライアントとなってます。(実際は、
+VMWare で動かしてます。)
+
+  ここからしばらくは前準備の作業を Administrator で行います。
+Cygwin-B20の full.exe をインストールして、 cygwin1-20.1.dll を
+cygwin1.dllにかぶせてます。ここでは、 c:\cygnus というディレクト
+リの下に展開してます。
+  「コントロールパネル」 =&gt; 「システム」 =&gt; 「環境」 でシステムの
+パスに
+	c:\cygnus\cygwin-b20/H-i586-cygwin32\bin
+と
+	c:\usr\local\pgsql\bin;c:\usr\local\pgsql\lib
+を追加しておきます。
+  また、ipc-daemon パッケージを展開し、実行モジュールをコマンドパ
+スの通ったところ(たとえば今追加したCygwin32 の bin ディレクトリ)
+に移します。
+
+	bzip2 -dc cygwin32_ipc-1.03-bin-patched.tar.bz2 | tar xvf -
+	mv cygwin32_ipc-1.03/bin/* H*/bin/
+
+
+  まず、PostgreSQLサーバ管理のために postgres ユーザアカウントを
+つくっておきます。
+# これが本当にひつようなのかどうかは定かではないのですが(^^;
+
+  bash 起動し以下の準備をしました。これは一度行うと、以後有効に
+なります。ディレクトリを準備します。/etc はユーザ postgres が
+読めるように、/usr/local/pgsql と /tmp は postgres が読み書き
+できるようにしておきます。
+(とくになにもしなかったような気もしますが。)
+
+	mkdir -p /etc 
+	mkdir -p /usr/local
+	mkdir -p /tmp
+
+ファイルシステムのマウントをします。
+
+	mount c:/root /
+	mount c:/cygnus/cygwin-b20/H-i586-cygwin32/bin /bin
+
+pgbash.exe では問題があるらしいので、sh.exe を bash.exe に置き換えます。
+
+	cd /bin
+	mv sh.exe bsh.exe
+	ln -sf bash.exe sh.exe
+
+パスワードとグループのファイルをつくります。
+
+	mkpasswd -l &gt; /etc/passwd 
+	mkgroup -l &gt; /etc/group 
+
+  mkpasswd は Postgres 管理者用のアカウントをNTにつくってから実行
+しなれば意味が無いですね。アカウントを追加したときはその都度つく
+りなおす必要があります。
+
+
+  さて、ここからの作業は postgres でログインしなおして行います。
+まず、環境変数を設定します。Bash を起動して、
+
+	export PGDATA=/usr/local/pgsql/data
+	export PGLIB=/usr/local/pgsql/lib
+	export PGHOST=127.0.0.1
+
+を実行して毎回設定するか、ファイルに入れておいて実行も良いので
+しょうが、 「コントロールパネル」 =&gt; 「システム」 =&gt; 「環境」 で
+設定しておくとそれ以後有効となります。
+
+	PGDATA	/usr/local/pgsql/data
+	PGLIB	/usr/local/pgsql/lib
+	PGHOST	127.0.0.1
+
+  PGDATA と PGLIB のパスのディレクトリ区切りは '\' でなくて、'/'
+ですのでご注意下さい。
+
+  /usr/local の下に postgresql-7.0 のパッケージを展開します。
+
+	bzip2 -dc postgresql7.0-cygwinb20.1-mb.tar.bz2 | tar xvf -
+	mv pgsql /usr/local
+
+そして、initdb コマンドでデータベースの初期化を行います。
+
+	initdb
+
+  さて、いよいよ PostgreSQL バックエンドサーバ postmaster の起動
+ですが、その前に、postmaster に必要な共有メモリを提供してくれるプ
+ロセス間通信サーバを起動しておきます。
+
+	ipc-daemon -q &amp;
+
+おまたせしました。ついに postmaster の起動のときがきました。7.0
+では起動シェルが用意されていますので、それを使って、
+
+	pg_ctl -o "-i" start
+
+とすれば、postmaster が起動されます。プロセスの状態は ps コマンド
+で見れますが、このとき、postmaster という名前のプロセスは無く、
+postgres.exe という名前で走っているはずです。起動後、
+
+&gt; DEBUG:  Data Base System is starting up at Wed May 17 18:31:10 2000
+&gt; DEBUG:  Data Base System was shut down at Wed May 17 18:30:23 2000
+&gt; DEBUG:  Data Base System is in production state at Wed May 17 18:31:10 2000
+
+とうメッセージが出ますが問題は無いようです。ここで、ipcs コマン
+ドを実行すると共有メモリがアサインされていることもわかりますし、
+また、
+	pg_ctl status
+
+を実行してもそれらしい応答が帰ってきます。
+
+  これで postgres サーバが使えるはずですが、いざ、psql コマンドを
+実行すると、ユーザ postgres のデータベースが無いと言われてしまい
+ますので、createdb コマンドでデータベースをつくります。
+
+	createdb postgres
+
+ようやく、本当に postgres が使えるようになりました。
+
+
+postgres サーバの終了は、
+
+	pg_ctl stop
+
+を実行します。このとき、
+
+&gt; FATAL 1:  The system is shutting down
+&gt; DEBUG:  Data Base System shutting down at Wed May 17 18:32:14 2000
+&gt; DEBUG:  Data Base System shut down at Wed May 17 18:32:14 2000
+&gt; NOTICE:  IpcMemoryDetach: shmdt(0x???????): Invalid argument
+&gt; NOTICE:  IpcMemoryDetach: shmdt(0x???????): Invalid argument
+&gt; NOTICE:  IpcMemoryDetach: shmdt(0x???????): Invalid argument
+
+の、ようなメッセージが出ますがと気になりますが、これで正常に終了
+しているようです。共有メモリが開放されていることは、ipcs コマンド
+を実行して確かめられます。
+  なにかに失敗して、 postgres バックエンドプロセスが落ちてしまっ
+たり、強制的に kill した場合は共有メモリーに残骸が残ってますので
+、ipcsで ID を確認し、 ipcrm で共有メモリの種類毎に掃除をします。
+共有メモリーの利用の仕方には、共有メモリ(shm)の他に、セマフォ(sem
+)とメッセージキュー(msg)というのがありますので。
+
+--
+ Jun Kuwamura
+rC Cm
+  ^
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00344" HREF="msg00344.html">[pgsql-jp 14633] Re: Install postgresql-cygwin32 binaries package on WNT.</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@marin.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00273" HREF="msg00273.html">[pgsql-jp 14562] Re: WindowsNT&amp;PostgreSQL</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00320.html">[pgsql-jp 14609] Re: PostgreSQL in SD</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00322.html">[pgsql-jp 14611] Re: 特定のポートでのみpostmasterが落ち、立ち上がらない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 14573] Re: WindowsNT&amp;PostgreSQL</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00344.html">[pgsql-jp 14633] Re: Install postgresql-cygwin32 binaries package on WNT.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00321"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00321"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

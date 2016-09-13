@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10039] (No Subject in original) -->
+<!--X-From: owner&#45;pgsql&#45;jp@sra.co.jp -->
+<!--X-Date: Wed, 4 Aug 99 08:28:07 +0900 -->
+<!--X-Message-Id: 199908032331.IAA07812@nasinsv2.nasu.toshiba.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10039] (No Subject in original) </TITLE>
+<LINK REV="made" HREF="mailto:owner-pgsql-jp@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00152.html">Date Prev</A>][<A HREF="msg00231.html">Date Next</A>][<A HREF="msg00231.html">Thread Prev</A>][<A HREF="msg00152.html">Thread Next</A>][<A HREF="index.html#00228">Date Index</A>][<A HREF="threads.html#00228">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10039] (No Subject in original)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:owner-pgsql-jp@sra.co.jp">owner-pgsql-jp@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 4 Aug 99 08:28:07 +0900</LI>
+<LI><em>Apparently-To</em>: pgsql-jp@sra.co.jp</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+***** UNDELIVERABLE MAIL sent to ota, being returned by nobunaga!ota *****
+mail: Error # 8 'Invalid recipient' encountered on system nobunaga
+
+Received: from [133.199.160.163] by mr.nasu.toshiba.co.jp via SMTP (920330.SGI/911001.SGI)
+	for ota id AA11060; Wed, 4 Aug 99 08:28:05 +0900
+Received: from inet-tsb.toshiba.co.jp by toshiba.co.jp (8.7.1+2.6Wbeta4/3.3W9-TOSHIBA-GLOBAL SERVER) id SAA06824; Tue, 3 Aug 1999 18:43:08 +0900 (JST)
+Received: from sraigw.sra.co.jp by inet-tsb.toshiba.co.jp (8.8.8/3.3W9-04/12/95)
+	id SAA03952; Tue, 3 Aug 1999 18:43:08 +0900 (JST)
+Received: from srapc451.sra.co.jp (srapc451 [133.137.44.37])
+	by sraigw.sra.co.jp (8.8.7/3.7W-sraigw) with ESMTP id SAA23062;
+	Tue, 3 Aug 1999 18:43:03 +0900 (JST)
+Received: (from t-ishii@localhost) by srapc451.sra.co.jp (8.8.8/3.5Wpl7) id SAA22564; Tue, 3 Aug 1999 18:42:42 +0900 (JST)
+Message-Id: &lt;<A HREF="msg00111.html">199908030942.SAA04493@ganymede.sunny.co.jp</A>&gt;
+To: pgsql-jp@sra.co.jp
+From: TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;
+In-Reply-To: Your message of "Tue, 03 Aug 1999 17:05:47 +0900"
+References: &lt;<A HREF="msg00104.html">37A6A2DBFA.CEB7ENAEC2@mail.asr-osk.co.jp</A>&gt;
+X-Mailer: Mew version 1.70 on Emacs 19.28.2 / Mule 2.3
+Mime-Version: 1.0
+Content-Type: Text/Plain; charset=iso-2022-jp
+Content-Transfer-Encoding: 7bit
+Date: Tue, 03 Aug 1999 18:42:37 +0900
+Reply-To: pgsql-jp@sra.co.jp
+X-Distribute: distribute [version 2.1 (Alpha) patchlevel=24]
+X-Sequence: pgsql-jp 9955
+Subject: [pgsql-jp 9955] Re: DefineQueryRewrite: rule plan string too big.
+Errors-To: owner-pgsql-jp@sra.co.jp
+Sender: owner-pgsql-jp@sra.co.jp
+
+谷山 @ Viewって何なのか良くわかってもいない私が答えていいのか？ です。(^^;
+
+&gt;&gt;&gt;&gt; On Tue, 03 Aug 1999 17:05:47 +0900,
+&gt;&gt;&gt;&gt; 	ML &lt;enaec2@asr-osk.co.jp&gt; wrote:
+
+enaec2&gt; ＰｏｓｔｇｒｅＳＱＬでCreate Viewを実行したら'DefineQueryRewrite:
+enaec2&gt; rule plan string too big.'  のメッセージが表示されViewが作成で
+enaec2&gt; きません。Viewを作成する際のSQL文の長さは決まってるのでしょう
+enaec2&gt; か？
+
+SQL文の長さ(文字列長)が直接反映されるのかはさておき、これに関連する上限
+があるのは確かです。
+
+問題のメッセージは、PostgreSQL-6.5.1だと
+
+backend/rewrite/rewriteDefine.c:
+
+if (sizeof(FormData_pg_rewrite) + strlen(actionbuf) +
+	strlen(qualbuf) &gt; MaxAttrSize)
+	elog(ERROR, "DefineQueryRewrite: rule plan string too big.");
+
+が出どころで、MaxAttrSizeで頭を押えられていることがわかります。
+
+enaec2&gt; また、決まってないとしたら回避する方法はあるのでしょうか？
+
+上記のMaxAttrSizeを追いかけていくと、
+
+/src/include/access/htup.h:
+
+#define MaxAttrSize (MaxTupleSize - MAXALIGN(sizeof(HeapTupleHeaderData)))
+
+#define MaxTupleSize	(BLCKSZ - MinTupleSize)
+
+src/include/config.h:
+/*
+ * Size of a disk block --- currently, this limits the size of a tuple.
+ * You can set it bigger if you need bigger tuples.
+ */
+/* currently must be &lt;= 32k bjm */
+#define BLCKSZ	8192
+
+というわけで、config.hのBLCKSZの値に依存することがわかります。
+
+よって、回避する方法は、「BLCKSZを増やして、コンパイルをやりなおす」で
+はないかと思います。ただ、これをやると既存のデータベースファイルとの互
+換性は取れなくなると予想されます。
+
+以前、石井さんがタプルサイズを増やすとパフォーマンスが上がる場合がある…
+というようなことを書いていらっしゃいましたね。
+
+# というわけで、私はCのコードは読めてもSQLはわからんのです。(^^;
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 10038] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00231.html">[pgsql-jp 10040] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00231.html">[pgsql-jp 10040] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 10038] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00228"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00228"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

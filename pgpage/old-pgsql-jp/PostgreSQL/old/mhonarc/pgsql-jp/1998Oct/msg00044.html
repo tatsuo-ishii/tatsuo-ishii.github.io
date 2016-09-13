@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5561] pqReadData() & pqFlush() error -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Wed, 7 Oct 1998 11:47:07 +0900 (JST) -->
+<!--X-Message-Id: 199810070247.LAA19845@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5561] pqReadData() &amp; pqFlush() error </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00043.html">Date Prev</A>][<A HREF="msg00045.html">Date Next</A>][<A HREF="msg00255.html">Thread Prev</A>][<A HREF="msg00043.html">Thread Next</A>][<A HREF="index.html#00044">Date Index</A>][<A HREF="threads.html#00044">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5561] pqReadData() &amp; pqFlush() error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 7 Oct 1998 11:47:07 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+# 新しいsnapshotが出ていますね。早速試してみよう。
+
+前の(多分)snapshotで例のwebロボットを動かしていて、今度は長持ちしたもの
+の、やはり謎のエラーで落ちてしまいましたので、こういうこともあったという
+意味で、長文ですが報告しておきます。
+いまのところ、うまく再現させることができません。
+
+まず、前と変えたこと:
+・postmasterの「-o -F」オプションを外した。
+	落ちたときに手のつけようがなく壊れる可能性があるので。
+・postmsterの「-B」オプションを外した。
+	共有メモリ不足の問題か調べるため。
+・vacuumの間隔を広げた。
+	1時間おきにしてみました。
+
+起きていたこと:
+・並行に走っている個々のロボットが
+pqReadData() -- backend closed the channel unexpectedly.
+	This probably means the backend terminated abnormally before or while pr
+ocessing the request.
+で落ちていた。
+・しかし、なぜか1つのロボットだけは生き延びていた。
+・落ちたのも生きていたのも、いつのまにか2回SQL文を発行するごとにコネクショ
+ンが切れるようになっていた。
+
+・生きているロボットも止めてから、psqlで調べようとしても、
+DBNAME=&gt; select * from getting;
+pqFlush() -- connection not open
+となってしまう。postmasterのログを見ていると、psqlが立ち上がった直後に勝
+手にそのpostgresが死んでいるようだ。何度試しても同じ。
+・しかし、直接postgresを立ち上げて検索することはできる。
+
+# しかたないので、ここでpostmasterを立ち上げ直した。
+
+・psqlがちゃんと立ち上がったので、(なぜか)別のSQL文を試してみたら、
+DBNAME=&gt; select count(*) from url;
+pqReadData() -- backend closed the channel unexpectedly.
+	This probably means the backend terminated abnormally before or while processing the request.
+We have lost the connection to the backend, so further processing is impossible.  Terminating.
+と毎度こうなる。postmasterのログを見ていると、
+FATAL 1:  palloc failure: memory exhausted
+と出ている。そんなにメモリが足りないとは思えないのだが...
+・きれに出直すかと考えて、pg_dumpしようとしたらいつまで立っても終わらない。
+出力しているファイルを覗いてみたら、最初のファイルの中身を吐いている途中
+(最後かもしれないが分からない)から、すべての列が「\N」となっている行が延
+々出力されている。こんな行は有り得ないので、あきらかにおかしい。
+・vacuumすれば直るかと思って試してみると、
+NOTICE:  Rel reference: Uninitialized page 8700 - fixing
+というような行がかなり出た後、
+NOTICE:  Index reference_to_idx: pointer to EmptyPage (blk 8700 off 1) - fixing
+NOTICE:  Index reference_to_idx: NUMBER OF INDEX' TUPLES (452659) IS NOT THE SAME AS HEAP' (452656)
+というような行がいくつか出て、
+NOTICE:  Rel url: Uninitialized page 1515 - fixing
+というような行が滝のように出て、最後はbackendが落ちてしまいました。
+
+・backendがどこで落ちるのかを調べるために、gdbからpostgresを起動してそこ
+でvacuumを起動すると、上の「fixing」と言われたものは文字どおりfixされた
+ようで二度と出ず、「NOT THE SAME」の方は相変わらず出ます。しかし、
+DEBUG:  --Relation url--
+DEBUG:  Pages 2105: Changed 0, Reapped 1389, Empty 624, New 0; Tup 78964: Vac 3635, Crash 3021, UnUsed 14949, MinLen 72, MaxLen 319; Re-using: Free/Avail. Space 6753928/6740956; EndEmpty/Avail. Pages 0/1067. Elapsed 0/0 sec.
+となったところで、CPUをがんがん使ったまま終わらなくなってしまいました。
+一旦止めてpostmasterを立ち上げ直しても同じです。
+ちなみに、たまたま止めたところのback traceは以下のような感じなので、ロッ
+ク関係ではまっているのかなという気もします。
+
+========================================================================
+SingleLockPage (lockinfo=0x2c7110, tidPtr=0xefbfb0a4, lockmode=0, 
+    action=2912528) at single.c:68
+68      {
+(gdb) bt
+#0  SingleLockPage (lockinfo=0x2c7110, tidPtr=0xefbfb0a4, lockmode=0, 
+    action=2912528) at single.c:68
+#1  0x1451a in _bt_unsetpagelock (rel=0x2c7110, blkno=0, access=0)
+    at nbtpage.c:599
+(以下略)
+========================================================================
+
+========================================================================
+SHMQueueDelete (queue=0x1e5b0c) at shmqueue.c:80
+80              SHM_QUEUE  *prevElem = (SHM_QUEUE *) MAKE_PTR((queue)-&gt;prev);
+(gdb) bt
+#0  SHMQueueDelete (queue=0x1e5b0c) at shmqueue.c:80
+#1  0xa1b56 in LockRelease (lockmethod=1, locktag=0xefbfb05c, lockmode=2)
+    at lock.c:1190
+#2  0xa3c00 in SingleLockPage (lockinfo=0x2e5af0, tidPtr=0xefbfb0a4, 
+    lockmode=2, action=0) at single.c:83
+#3  0xa0a4b in RelationUnsetSingleRLockPage (relation=0x2c7110, 
+    itemPointer=0xefbfb0a4) at lmgr.c:478
+(以下略)
+========================================================================
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 5560] 初めまして　&amp;gio</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 5562] snapshot install memo</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00255.html">[pgsql-jp 5772] Re: snapshot install memo</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 5560] 初めまして　&amp;gio</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00044"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00044"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

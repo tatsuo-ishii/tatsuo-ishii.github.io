@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20762] Re: pg_dump とdatetime型の精度 -->
+<!--X-From: Konosuke Shiomi <yukinopo@livedoor.com> -->
+<!--X-Date: Thu, 19 Apr 2001 15:08:46 +0900 -->
+<!--X-Message-Id: 3ADE80EE28B.AB36YUKINOPO@server.kansai&#45;ri.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200103281135.f2SBZwB95672@smtp.OpenBit.NET -->
+<!--X-Reference-Id: 200104081053.TAA27591@pp.iij4u.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20762] Re: pg_dump とdatetime型の精度 </TITLE>
+<LINK REV="made" HREF="mailto:yukinopo@livedoor.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00186.html">Date Prev</A>][<A HREF="msg00188.html">Date Next</A>][<A HREF="msg00045.html">Thread Prev</A>][<A HREF="msg00271.html">Thread Next</A>][<A HREF="index.html#00187">Date Index</A>][<A HREF="threads.html#00187">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20762] Re: pg_dump とdatetime型の精度</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Konosuke Shiomi &lt;<A HREF="mailto:yukinopo@livedoor.com">yukinopo@livedoor.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 19 Apr 2001 15:08:46 +0900</LI>
+<LI><em>References</em>: &lt;200103281135.f2SBZwB95672@smtp.OpenBit.NET&gt; &lt;<A HREF="msg00045.html">200104081053.TAA27591@pp.iij4u.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩見です。
+
+&gt; 小数点以下の秒の処理でとりあえず目に付いたところを、四捨五入から
+&gt; 切り捨てに変更してあります。その影響で timestamp と horology の
+&gt; regression test が通らなくなっています。
+&gt; # 切り捨ての仕様で本当に OK なのか、ちょっと不安ですが...
+
+# かなり時間が経ってしまいましたが...
+regression test してみました。
+
+%diff expected/timestamp.out results/timestamp.out (+コメント)
+...
+# INSERT INTO TIMESTAMP_TBL
+#                  VALUES ('Mon Feb 10 17:32:01.999999 1997 PST');
+# INSERT INTO TIMESTAMP_TBL 
+#                  VALUES ('Mon Feb 10 17:32:01.4 1997 PST');
+...
+# SELECT '' AS "66", d1 FROM TIMESTAMP_TBL;
+...
+203c203
+&lt;     | Mon Feb 10 17:32:02.00 1997 PST
+---
+&gt;     | Mon Feb 10 17:32:01.99 1997 PST
+
+...
+
+# SELECT '' AS "53", d1 - timestamp '1997-01-02' AS diff
+#   FROM TIMESTAMP_TBL
+#   WHERE d1 BETWEEN timestamp '1902-01-01' AND timestamp '2038-01-01';
+
+638,639c638,639
+&lt;     | @ 39 days 17 hours 32 mins 2.00 secs
+&lt;     | @ 39 days 17 hours 32 mins 1.40 secs
+---
+&gt;     | @ 39 days 17 hours 32 mins 1.99 secs
+&gt;     | @ 39 days 17 hours 32 mins 1.39 secs
+...
+# ---ここまで
+
+どちらも表示上の問題といえば、表示上の問題ですが、
+
+&gt;     | @ 39 days 17 hours 32 mins 1.39 secs
+
+こっちはまずいですね。
+データが浮遊小数点なのが、そもそも問題かもしれません。
+
+例えば、データを分けて、sec,msec,usecの部分を(usec単位のlongで)
+格納するとか。
+# で、それより上は今まで通り。
+
+そうすればusecの精度は保証できますし、普通の時間演算はせいぜい
+加減算と比較ぐらいなので、そんなにオーバーヘッドも無い様な気がします。
+
+# 表示部分のオーバーヘッドが大きい様な気はしますが。
+# 私自身は、timestampもnumeric(currency)と同じ様に誤差があるべきでは
+# ないと思っています。
+
+---
+
+ところで、この様な時間の処理は他の処理系(商用DB等)では、
+どの様にしている(なっている)のでしょうか。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp 20846] Re: pg_dump とdatetime型の精度</A></STRONG>
+<UL><LI><EM>From:</EM> Hirofumi Okuyama &lt;ok@pp.iij4u.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00045" HREF="msg00045.html">[pgsql-jp 20619] Re: pg_dump とdatetime型の精度</A></STRONG>
+<UL><LI><EM>From:</EM> Hirofumi Okuyama &lt;ok@pp.iij4u.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 20761] INSERT/UPDATE の仕様</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00188.html">[pgsql-jp 20763] Re: cache lookup failed</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 20619] Re: pg_dump とdatetime型の精度</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 20846] Re: pg_dump とdatetime型の精度</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00187"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00187"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

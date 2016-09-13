@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6053] Re: text型の最大長は？ -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 07 Dec 1998 23:10:02 +0900 -->
+<!--X-Message-Id: 199812071410.XAA00456@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19981207171822H.t&#45;isika@fdt.ts.fujitsu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6053] Re: text型の最大長は？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00077.html">Date Prev</A>][<A HREF="msg00079.html">Date Next</A>][<A HREF="msg00076.html">Thread Prev</A>][<A HREF="msg00082.html">Thread Next</A>][<A HREF="index.html#00078">Date Index</A>][<A HREF="threads.html#00078">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6053] Re: text型の最大長は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Dec 1998 23:10:02 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 石川＠ＦＤＴと申します。
+&gt; 
+&gt; 現在、PostgreSQL-v6.4 + PHP/FI2.0.1 + Apache1.2.6 を使用しております。
+&gt; 
+&gt; E-MailをWebからPostgreSQLに登録出来るようにしようと思っているのですが、
+&gt; Mail本文をTEXT型にてINSERTしようとすると、Web Browserに以下のようなメッセー
+&gt; ジが出てしまいます。
+&gt; 
+&gt; entry.phtml: Bad response to postgres95 query (PQsendQuery() -- query is too long. Maximum length is 8191 ) on line 68
+&gt; $result = pg_Exec($conn, $sql); 
+&gt; 
+&gt; TEXT型の最大長はどこで決まるのでしょうか？変えることは可能でしょうか？
+
+2箇所あります。
+
+一つは query buffer と呼ばれる部分で、ようするに 8192 バイトよりも長い
+SQL文が書けないのです。当然 insert 文で大きなデータを登録することもで
+きません。これについては単なる実装上の手抜きなので、修正は多分難しくあ
+りません。
+
+もう一つの方はちょっと深刻で、PostgreSQLでは「ページ」と呼ばれる単位で
+ディスクへの書き込みを管理しているのですが、タプルの大きさはページの大
+きさを超えることができず、またページの大きさは8192バイトになっています。
+これは一応 #define で定義されているので変えることはできそうな気もしま
+すが、試した人がいないのでなんとも言えません。
+
+# ちなみに、小さなタプルは複数個ページの中に保持されます。一番悲惨な
+# のは 8192/2 = 4096 よりもちょっとだけ大きなタプルです。この場合ペー
+# ジの中には1タプルしか入らず、残りの部分は「空き」になって永久に使わ
+# れません。タプルは複数のページを跨ることができないからです。
+
+ようするに、現状2箇所に8192バイトの「壁」があるわけです。
+
+&gt; また、大きなテキストファイルをPostgreSQLに入れたいときは、なにか他に良い方
+&gt; 法があるんでしょうか？
+
+(1) large object を使う。
+
+(2) 8192より大きなテキストは分割して格納する。
+
+位ですね。ちなみに、箕畑さん御提供の当MLの検索システムは(2)で実装され
+ていると思います。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[pgsql-jp 6065] グラフ構造は？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00083" HREF="msg00083.html">[pgsql-jp 6058] Re: text型の最大長は？</A></STRONG>
+<UL><LI><EM>From:</EM> Takashi Ishikawa (石川高志) &lt;t-isikawa@fdt.ts.fujitsu.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00082" HREF="msg00082.html">[pgsql-jp 6057] Re: text 型の最大長は？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp 6051] text型の最大長は？</A></STRONG>
+<UL><LI><EM>From:</EM> Takashi Ishikawa (石川高志) &lt;t-isikawa@fdt.ts.fujitsu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00077.html">[pgsql-jp 6052] Re: はじめまして 。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 6054] Re: Date/Time Special Constants</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 6051] text型の最大長は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00082.html">[pgsql-jp 6057] Re: text 型の最大長は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00078"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00078"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3803] Re: postmasterの終了 -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 16 Apr 1998 12:09:45 +0900 -->
+<!--X-Message-Id: 199804160309.MAA02068@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980414203746U.odaka@ptd.intec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3803] Re: postmasterの終了 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00101.html">Date Prev</A>][<A HREF="msg00103.html">Date Next</A>][<A HREF="msg00096.html">Thread Prev</A>][<A HREF="msg00114.html">Thread Next</A>][<A HREF="index.html#00102">Date Index</A>][<A HREF="threads.html#00102">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3803] Re: postmasterの終了</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 16 Apr 1998 12:09:45 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;おだか＠インテックです。
+
+&gt;い&gt; &lt;/fontfamily&gt;postmaster の 終了要因は ？
+&gt;
+&gt;い&gt; Apr 14 02:03:40 s02 /kernel: file: table is full
+&gt;
+&gt;という log の通りだと思います。
+&gt;一度にいっぱいファイルをオープンしたからではないでしょうか。
+&gt;あるいは、オープンしっぱなしとか。。
+&gt;
+&gt;kernel の configuration で、table を大きくすることができると思います。
+&gt;
+&gt;postgres というより、 freebsd の問題じゃないかな。
+
+PostgreSQL のサーバプロセス(postgres) は起動されただけで 10 個程ファイ
+ルディスクリプタを使うようです。そしてテーブルを 1 個 select しただけ
+で 更に 10個位消費します。もう 1個テーブルを select すると更に 10個。
+
+仮に 一つの postgres が 30個ファイルディスクリプタを消費したとして、
+default max user である 32 ユーザが同時にアクセスすると、30*32 = 960 
+個のファイルディスクリプタが消費されます。特にカーネルをいじっていない
+手元の FreeBSD では max files が 680 なので、これでもうアウトです。
+
+もう一つ心配なのが perl による CGI。このような状態では、web サーバから
+の応答が無くなるので、おそらくユーザはブラウザの stop ボタンを押してセッ
+ションを中断させると思います。この時に perl CGI が postgres サーバとの
+接続を切ってくれれば良いのですが、そうでないとゴミ postgres プロセスが
+残って更に状況を悪化させます。
+
+ちなみに、手元の PHP/FI(module)+Apache では、postgres が検索中にブラウ
+ザの stop ボタンを押すと、postgres プロセスがいなくなってくれるので、
+この点では安心でした。
+
+というわけで、FreeBSD の問題だけではなく、他にもいろんな要因がからんで
+いると思います。
+
+とりあえず、
+
+o browser の stop を押したときの perl CGI の振舞を調べる
+o 想定されるアクセスパターンを試し、pstat を使って 1 個の postgres が
+  消費するファイルディスクリプタの数を調べる
+o それによって file table を増やすなり、postgres の max user を減らす
+
+などの対策が有効ではないでしょうか。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[pgsql-jp 3817] Re: postmasterの終了</A></STRONG>
+<UL><LI><EM>From:</EM> 岩本佳克&lt;iwamoto.yoshikatsu@nsc.cae.ntt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00114" HREF="msg00114.html">[pgsql-jp 3815] Re: postmasterの終了</A></STRONG>
+<UL><LI><EM>From:</EM> odaka@ptd.intec.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00096" HREF="msg00096.html">[pgsql-jp 3797] Re: postmasterの終了</A></STRONG>
+<UL><LI><EM>From:</EM> odaka@ptd.intec.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00101.html">[pgsql-jp 3802] はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00103.html">[pgsql-jp 3804] Re: How to copy Automatically</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00096.html">[pgsql-jp 3797] Re: postmasterの終了</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00114.html">[pgsql-jp 3815] Re: postmasterの終了</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00102"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00102"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

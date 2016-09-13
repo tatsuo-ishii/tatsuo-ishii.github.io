@@ -1,0 +1,411 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14084] [Q]7.0beta5 BUG?(when execute SQL) -->
+<!--X-From: Yoshio Funaki <yoshio@apl.pref.akita.jp> -->
+<!--X-Date: Fri, 21 Apr 2000 17:27:16 +0900 -->
+<!--X-Message-Id: 10004210827.AA00757@mebius.apl.pref.akita.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14084] [Q]7.0beta5 BUG?(when execute SQL) </TITLE>
+<LINK REV="made" HREF="mailto:yoshio@apl.pref.akita.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00380.html">Date Prev</A>][<A HREF="msg00382.html">Date Next</A>][<A HREF="msg00572.html">Thread Prev</A>][<A HREF="msg00404.html">Thread Next</A>][<A HREF="index.html#00381">Date Index</A>][<A HREF="threads.html#00381">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14084] [Q]7.0beta5 BUG?(when execute SQL)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshio Funaki &lt;<A HREF="mailto:yoshio@apl.pref.akita.jp">yoshio@apl.pref.akita.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 Apr 2000 17:27:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+船木＠秋田県立図書館です。
+実は[pgsql-jp 14057] [Q]SQL(UNION and AND and INTERSECT)の続きなのですが
+とりあえず自分で解決しようと思って、頑張ってみたところ、不可解な現象に
+遭遇しましたので、ご教示願います。長文になります。
+以下のような２つのSQL文（違いはexplainがあるかないかだけ）をそれぞれ
+食わしてみたのですが、explainでquery planが作られるのもかかわらず
+queryは実行されません。なぜでしょうか？
+
+秋田県立図書館　船木　喜夫　yoshio@apl.pref.akita.jp
+--------------------test3.sql---------------------------
+explain
+(
+	 select title_code from a55xb where data like '秋田の歴史%' union
+	 select title_code from a577b where data like '秋田の歴史%' union
+	 select title_code from a580b where data like '秋田の歴史%' union
+	 select title_code from a59xb where data like '秋田の歴史%'
+)
+intersect
+(
+	 select title_code from a75xb where data like '新野　直吉%' union
+	 select title_code from a777b where data like '新野　直吉%' union
+	 select title_code from a79xb where data like '新野　直吉%'
+)
+intersect
+	select title_code from a770b where data like '秋田魁&amp;';
+--------------------------test4.sql------------------------------
+(
+	 select title_code from a55xb where data like '秋田の歴史%' union
+	 select title_code from a577b where data like '秋田の歴史%' union
+	 select title_code from a580b where data like '秋田の歴史%' union
+	 select title_code from a59xb where data like '秋田の歴史%'
+)
+intersect
+(
+	 select title_code from a75xb where data like '新野　直吉%' union
+	 select title_code from a777b where data like '新野　直吉%' union
+	 select title_code from a79xb where data like '新野　直吉%'
+)
+intersect
+	select title_code from a770b where data like '秋田魁&amp;';
+--------------------------test3.sqlの結果------------------------------
+psql:test3.sql:15: NOTICE:  QUERY PLAN:
+Unique  (cost=54533449.46..54542988.61 rows=381566 width=12)
+  -&gt;  Sort  (cost=54533449.46..54533449.46 rows=3815658 width=12)
+        -&gt;  Append  (cost=0.00..53898756.20 rows=3815658 width=12)
+                -&gt;  Index Scan using ia770b on a770b  (cost=0.00..4615.05 
+rows=264 width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+                -&gt;  Seq Scan on a770b  (cost=0.00..4899467.38 rows=346854 
+width=12)
+                      SubPlan
+                        -&gt;  Materialize  (cost=4.55..4.55 rows=212 width=12)
+                              -&gt;  Index Scan using ia55xb on a55xb  
+(cost=0.00..4.55 rows=212 width=12)
+                        -&gt;  Materialize  (cost=4.56..4.56 rows=163 width=12)
+                              -&gt;  Index Scan using ia75xb on a75xb  
+(cost=0.00..4.56 rows=163 width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a777b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a79xb  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=0.00..0.00 rows=1 width=12)
+                              -&gt;  Seq Scan on a577b  (cost=0.00..0.00 rows=1 
+width=12)
+                        -&gt;  Materialize  (cost=2.59..2.59 rows=127 width=12)
+                              -&gt;  Index Scan using ia580b on a580b  
+(cost=0.00..2.59 rows=127 width=12)
+                        -&gt;  Materialize  (cost=2.38..2.38 rows=269 width=12)
+                              -&gt;  Index Scan using ia59xb on a59xb  
+(cost=0.00..2.38 rows=269 width=12)
+EXPLAIN
+----------------------test4.sqlの結果----------------------
+psql:test4.sql:14: ERROR:  ExecEvalExpr: unknown expression type 501
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00404" HREF="msg00404.html">[pgsql-jp 14107] Re: [Q]7.0beta5 BUG?(when execute SQL)</A></STRONG>
+<UL><LI><EM>From:</EM> "杉原　俊介" &lt;sugihara@kawachi.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00380.html">[pgsql-jp 14083] Re: マルチバイトが使えない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00382.html">[pgsql-jp 14085] Re: [pgsql-jp 14083] Re: マルチバイトが使えない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00572.html">[pgsql-jp 14279] Re: Q.     実験解析への応用</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00404.html">[pgsql-jp 14107] Re: [Q]7.0beta5 BUG?(when execute SQL)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00381"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00381"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

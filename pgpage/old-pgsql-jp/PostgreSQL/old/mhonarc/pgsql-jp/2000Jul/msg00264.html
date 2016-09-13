@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16031] Re: PostgreSQLのリレーションについて -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 11 Jul 2000 20:19:19 +0900 -->
+<!--X-Message-Id: 20000711201919C.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NEBBKOLNHFBICBDKLACJKEIDCAAA.papachan@kt.rim.or.jp -->
+<!--X-Reference-Id: 001701bfeaeb$6c4c0a00$025011ac@nms -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16031] Re: PostgreSQLのリレーションについて </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00262.html">Date Prev</A>][<A HREF="msg00263.html">Date Next</A>][<A HREF="msg00256.html">Thread Prev</A>][<A HREF="msg00267.html">Thread Next</A>][<A HREF="index.html#00264">Date Index</A>][<A HREF="threads.html#00264">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16031] Re: PostgreSQLのリレーションについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 11 Jul 2000 20:19:19 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00249.html">NEBBKOLNHFBICBDKLACJKEIDCAAA.papachan@kt.rim.or.jp</A>&gt;&lt;<A HREF="msg00252.html">001701bfeaeb$6c4c0a00$025011ac@nms</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; リレーションシップという単語がたぶんMS-ACCESS固有のものなので、それを説明し
+&gt; ないダメかもしれませんよ・・。
+
+そうですね。私も「リレーションシップ」という単語が分からないので想像で
+書きます。
+
+# PostgreSQLの言葉で喋れとは言いません。せめてSQL92の言葉で喋ってくれ
+# れば意味が通じるのですが。他のDBでプログラミングしている人って、
+# SQL92の解説書とか読まないんですかね。自分の言葉が方言なのか標準語な
+# のかくらいは調べておいた方がいいと思うんですけど。
+
+&gt; リレーションシップは、名前から想像できますがテーブルの関係を定義するもので、
+&gt; 実体は「外部参照」と「トリガ(PostgreSQLではルールでも可？)」です。
+&gt; リレーションシップの設定画面で、「テーブル１(t1)」と「テーブル２(t2)」のキー
+&gt; の関係を １：１、１：多、多：多（実際には中間テーブルを用意し １：多 を２つ
+&gt; 作成する）で定義し、「参照整合性」「フィールドの連鎖更新」「レコードの連鎖削
+&gt; 除」が設定可能です。
+&gt; 
+&gt; ここまで書けばPostgreSQLユーザーの皆様にはおわかりかと思いますが、7.0以前で
+&gt; は「フィールドの連鎖更新」「レコードの連鎖削除」が可能で、7.0以降では「参照
+&gt; 整合性」まで可能です。
+&gt; PostgreSQLでこのリレーションシップを実行しようとすると、「参照整合性」の定義
+&gt; と、ルール(またはトリガ）の定義と２段階（更新・削除となると３段階）行なわなけ
+&gt; ればならないですが、全然手間ではありません。
+
+うーむ、良く分かりませんが、たぶん7.0では、参照整合性制約(外部キー)だ
+けでリレーションシップと言う奴が定義できると思います。これは別に
+PostgreSQLの専売特許ではなく、SQL92をまともに実装しているDBならどれで
+も同じことです。
+
+「フィールドの連鎖更新」は「ON UPDATE CASCADE」で、「レコードの連鎖削
+除」は「ON DELETE CASCADE」でできるのだと思います。以下にSoftware
+Designに掲載した例をちょっといじったサンプルを載せておきます。
+
+外していたらごめんなさい。
+
+DROP TABLE products;
+psql:a.sql:1: NOTICE:  DROP TABLE implicitly drops referential integrity trigger from table "stocks"
+DROP
+CREATE TABLE products (
+	pcode INTEGER PRIMARY KEY,	
+	pname TEXT		
+);
+psql:a.sql:5: NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index 'products_pkey' for table 'products'
+CREATE
+DROP TABLE stocks;
+DROP
+CREATE TABLE stocks (
+	shopid INTEGER,		
+	pcode INTEGER,		
+	amount INTEGER,		
+	PRIMARY KEY (shopid, pcode),
+	CONSTRAINT myconstraint FOREIGN KEY(pcode) 
+        REFERENCES products
+	ON UPDATE CASCADE
+	ON DELETE CASCADE
+);
+psql:a.sql:17: NOTICE:  CREATE TABLE/PRIMARY KEY will create implicit index 'stocks_pkey' for table 'stocks'
+psql:a.sql:17: NOTICE:  CREATE TABLE will create implicit trigger(s) for FOREIGN KEY check(s)
+CREATE
+INSERT INTO products VALUES(1, '品名1');
+INSERT 665953 1
+INSERT INTO products VALUES(2, '品名2');
+INSERT 665954 1
+INSERT INTO stocks VALUES(100,1,10);
+INSERT 665955 1
+INSERT INTO stocks VALUES(100,2,20);
+INSERT 665956 1
+INSERT INTO stocks VALUES(101,1,5);
+INSERT 665957 1
+INSERT INTO stocks VALUES(101,2,25);
+INSERT 665958 1
+SELECT * FROM products;
+ pcode | pname 
+-------+-------
+     1 | 品名1
+     2 | 品名2
+(2 rows)
+
+SELECT s.shopid,s.pcode,p.pname,s.amount FROM products p,stocks s
+WHERE s.pcode = p.pcode ORDER BY shopid;
+ shopid | pcode | pname | amount 
+--------+-------+-------+--------
+    100 |     1 | 品名1 |     10
+    100 |     2 | 品名2 |     20
+    101 |     1 | 品名1 |      5
+    101 |     2 | 品名2 |     25
+(4 rows)
+
+UPDATE products SET pcode = 11 WHERE pcode = 1;
+UPDATE 1
+SELECT s.shopid,s.pcode,p.pname,s.amount FROM products p,stocks s
+WHERE s.pcode = p.pcode ORDER BY shopid;
+ shopid | pcode | pname | amount 
+--------+-------+-------+--------
+    100 |     2 | 品名2 |     20
+    100 |    11 | 品名1 |     10
+    101 |     2 | 品名2 |     25
+    101 |    11 | 品名1 |      5
+(4 rows)
+
+DELETE FROM products WHERE pcode = 2;
+DELETE 1
+SELECT s.shopid,s.pcode,p.pname,s.amount FROM products p,stocks s
+WHERE s.pcode = p.pcode ORDER BY shopid;
+ shopid | pcode | pname | amount 
+--------+-------+-------+--------
+    100 |    11 | 品名1 |     10
+    101 |    11 | 品名1 |      5
+(2 rows)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00337" HREF="msg00337.html">[pgsql-jp 16104] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp 16038] Re: PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> Asada Michiharu &lt;mic@p1.coralnet.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00267" HREF="msg00267.html">[pgsql-jp 16034] Re: [pgsql-jp 16031] Re: PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00249" HREF="msg00249.html">[pgsql-jp 16016] PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Tomoka Tsuchida" &lt;papachan@kt.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00252" HREF="msg00252.html">[pgsql-jp 16019] Re: [pgsql-jp 16016] PostgreSQLのリレーションについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 16029] Re: 効率の良いselect 文</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp 16030] Re: 効率の良いselect 文</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00256.html">[pgsql-jp 16023] Re: [pgsql-jp 16019] Re: [pgsql-jp 16016] PostgreSQLのリレーションについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00267.html">[pgsql-jp 16034] Re: [pgsql-jp 16031] Re: PostgreSQLのリレーションについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00264"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00264"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

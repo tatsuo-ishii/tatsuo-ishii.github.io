@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18321] Re: SUM  でtotal値を計算する方法（キーが一対多の場合） -->
+<!--X-From: saesae@wa2.so&#45;net.ne.jp -->
+<!--X-Date: Wed, 25 Oct 2000 12:06:20 +0900 -->
+<!--X-Message-Id: 39F64E2C398.B402SAESAE@mail.wa2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39F4064432D.ABB7SAESAE@mail.wa2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 39F56B1D212.6927JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18321] Re: SUM  でtotal値を計算する方法（キーが一対多の場合） </TITLE>
+<LINK REV="made" HREF="mailto:saesae@wa2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00364.html">Date Prev</A>][<A HREF="msg00366.html">Date Next</A>][<A HREF="msg00359.html">Thread Prev</A>][<A HREF="msg00370.html">Thread Next</A>][<A HREF="index.html#00365">Date Index</A>][<A HREF="threads.html#00365">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18321] Re: SUM  でtotal値を計算する方法（キーが一対多の場合）</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:saesae@wa2.so-net.ne.jp">saesae@wa2.so-net.ne.jp</A></LI>
+<LI><em>Date</em>: Wed, 25 Oct 2000 12:06:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00342.html">39F4064432D.ABB7SAESAE@mail.wa2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00359.html">39F56B1D212.6927JUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐伯です。
+
+&gt; 面白そうな問題なので、レスが付くかと思ってましたが・・・
+説明の仕方が悪かったのだと思います。
+レス下さってありがとうございます。
+
+またまた説明が下手ですみませんが、以下のようにお手上げ状態になり、
+根本的にこの方法はやめました。
+
+&gt; common1 テーブル
+&gt; 
+&gt;  id|total|    date
+&gt; ---+-----+--------
+&gt; 123|  100|20001016
+&gt; 321|  100|20001016
+&gt; 
+&gt; common2 テーブル
+&gt; 
+&gt;  id|number|item_code
+&gt; ---+------+---------
+&gt; 123|     1|        0
+&gt; 123|     2|        0
+  123|     3|        1  ←※１ もし、このようなデータが入っていた場合 
+&gt; 321|     1|        1
+
+&gt; &gt; select 
+&gt; &gt;   sum(common1.total)
+&gt; &gt; where common1.id in
+&gt; &gt;   (select distinct common2.id where  common2.item_code !=1 )
+&gt; &gt; and common1.date = 20001016;
+
+distinctを使うと、確かに、
+「common2テーブルのitem_code !=1 のデータ」
+つまり「id が 123」を１つだけ取ってきます。
+で結果100でOK
+
+でも遅い
+  ←common2のレコード数が100015件のため
+    common1のレコード数が 85623件のため
+    もう４０分たつが帰ってこない・・。
+
+
+&gt; この式では distinct を使って id の重複行を無くし、チェックしていますが、
+&gt; こういう場合の多くは、相関サブクエリーを使えます。
+&gt; 
+&gt; select sum(common1.total) where not exists
+&gt;  (select * from common2 where common2.id = common1.id and
+&gt;   common2.item_code = 1);
+
+結果が返って来るのは、すごく早かったです。
+でも、common2テーブルに「※１」のようなデータが入っていた場合
+「id=123,item_code=0」のデータも取ってこれなくなってしまいました。
+
+item_codeには、0、1以外にいろいろなデータが入る可能性もあるので、
+「item_code が1でないもの」を指定しなければなりません。
+
+結局、common1.total から取って来るのは無理な話で、
+他のテーブルのデータを加工して・・計算して・・
+なんとかなりました。
+
+distinct が もっと早ければ・・もう５０分たったのに返ってきません。
+
+ありがとうございました。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00370" HREF="msg00370.html">[pgsql-jp 18326] Re: SUM  でtotal値を計算する方法（キーが一対多の場合）</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 18298] SUM でtotal値を計算する方法（キーが一対多の場合）</A></STRONG>
+<UL><LI><EM>From:</EM> saesae@wa2.so-net.ne.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00359" HREF="msg00359.html">[pgsql-jp 18315] Re: SUM  でtotal値を計算する方法（キーが一対多の場合）</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00364.html">[pgsql-jp 18320] Re: よろしくお願いします</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00366.html">[pgsql-jp 18322] Re: よろしくお願いします(曜日の表示について)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 18315] Re: SUM  でtotal値を計算する方法（キーが一対多の場合）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00370.html">[pgsql-jp 18326] Re: SUM  でtotal値を計算する方法（キーが一対多の場合）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00365"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00365"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,292 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26158] usogresの導入でハマっています -->
+<!--X-From: HAYAKAWA Hiroshi <hayakawa@sam.hi&#45;ho.ne.jp> -->
+<!--X-Date: Tue, 28 May 2002 16:18:38 +0900 -->
+<!--X-Message-Id: B9195E5E.B08D%hayakawa@sam.hi&#45;ho.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26158] usogresの導入でハマっています </TITLE>
+<LINK REV="made" HREF="mailto:hayakawa@sam.hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00392.html">Date Prev</A>][<A HREF="msg00394.html">Date Next</A>][<A HREF="msg00394.html">Thread Prev</A>][<A HREF="msg00402.html">Thread Next</A>][<A HREF="index.html#00393">Date Index</A>][<A HREF="threads.html#00393">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26158] usogresの導入でハマっています</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HAYAKAWA Hiroshi &lt;<A HREF="mailto:hayakawa@sam.hi-ho.ne.jp">hayakawa@sam.hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 May 2002 16:18:38 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>User-Agent</em>: Microsoft-Entourage/9.0.2615</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+早川＠名古屋と申します。
+
+usogresの導入でハマっています。
+
+SoftwareDesign誌の2001/11月号と、
+オフィシャルサイトにある導入方法のページ
+&lt;<A HREF="http://usogres.good-day.net/install.php3">http://usogres.good-day.net/install.php3</A>&gt;
+を参考にしています。
+
+サーバーの環境は、
+VineLinux2.5(FTP)
+PostgreSQL 7.2
+usogres-0.8.1
+です。
+
+PostgreSQLはVine2.5デフォルトのRPMのもの、
+usogres-0.8.1はオフィシャルサイト
+&lt;<A HREF="http://usogres.good-day.net/">http://usogres.good-day.net/</A>&gt;
+からダウンロードしたtarballを
+以下の手順でコンパイル＆インストールしました。
+
+$ tar zxvf usogres-0.8.1.tar.gz
+$ cd usogres-0.8.1
+$ ./configure --sysconfdir=/etc
+$ make
+$ su
+# make install
+
+とりあえず1台のマシンでテストをするため、
+usogresの設定ファイル/etc/usogresrcは基本的にデフォルトのまま、
+logdirのみ変更しました。
+また、同じものをrootのホームに.usogresrcとしてコピーしてあります。
+
+host = "127.0.0.1"
+port = 5432
+hostorg = "127.0.0.1"
+portorg = 5434
+hostcopy = "127.0.0.1"
+portcopy = 5436
+logdir = /var/log/usogreslog
+
+すでに立ち上がっているpostmasterを
+# /etc/rc.d/init.d/postgresql stop
+で停止した上で、
+以下の手順でデータベース領域を初期化しました。
+
+# mkdir /var/lib/pgsql/data1
+# mkdir /var/lib/pgsql/data2
+# chown postgres:postgres /var/lib/pgsql/data1
+# chown postgres:postgres /var/lib/pgsql/data2
+# su - postgres
+$ initdb -D /var/lib/pgsql/data1
+$ initdb -D /var/lib/pgsql/data2
+
+続いて、各データベース領域にあるpostgresql.confで、
+data1の方を、
+tcpip_socket = true
+port =5434
+とし、data2の方を、
+tcpip_socket = true
+port =5436
+としました。
+
+そしてユーザーpostgresの状態で、
+念のためPORTも指定してpostmasterを2つ起動しました。
+$ /usr/bin/postmaster -S -i -p 5434 -D /var/lib/pgsql/data1
+$ /usr/bin/postmaster -S -i -p 5436 -D /var/lib/pgsql/data2
+
+つづいてrootに戻ってusogresを起動します。
+$ exit
+# usogres
+
+〜〜〜
+ちなみにusogresをユーザーpostgresで起動すると
+/var/log/messagesに以下のようなエラーが出ます。
+May 28 14:51:10 dev usogres[11965]: UsoSem::open returns error.
+〜〜〜
+
+この時点で、プロセスは以下のように立ち上がっています。
+（ps axの結果から抜粋）
+
+12039 ?        S      0:00 /usr/bin/postmaster -S -i -p 5434 -D
+/var/lib/pgsql/d
+12040 ?        S      0:00 postgres: stats buffer process
+12041 ?        S      0:00 postgres: stats collector process
+12044 ?        S      0:00 /usr/bin/postmaster -S -i -p 5436 -D
+/var/lib/pgsql/d
+12045 ?        S      0:00 postgres: stats buffer process
+12046 ?        S      0:00 postgres: stats collector process
+12055 pts/1    S      0:00 usogres
+
+
+
+さて、ここからpsqlを使っての動作確認なのですが、
+どうもusogresがうまく動いていないようなのです。
+
+メッセージ等からgoogleで検索かけても手掛かりがみつかりません。
+何かお気づきorお心当たりの方がいらっしゃいましたら
+示唆いただけますと幸いです。
+
+
+以下、rootおよびユーザーpostgresのそれぞれで、
+ホストを明示的に指定した場合と指定しない場合、
+2つのpostmasterが動いているポート（5434,5436）と
+usogresが待機しているポート（5432）、
+およびポートを明示的には指定しない場合の組み合わせ、
+合計16通りのpsqlの確認の結果です。
+
+各データベース領域のpg_hba.confはデフォルトのままで
+local   all     ident   sameuser
+の1行のみ、
+PostgreSQLユーザーは登録していません（createuserしてません）。
+
+/tmpには以下の5つの関連ファイルができています。
+
+srwxrwxrwx    1 postgres postgres        0 May 28 15:08 .s.PGSQL.5434=
+-rw-------    1 postgres postgres       27 May 28 15:08 .s.PGSQL.5434.lock
+srwxrwxrwx    1 postgres postgres        0 May 28 15:08 .s.PGSQL.5436=
+-rw-------    1 postgres postgres       27 May 28 15:08 .s.PGSQL.5436.lock
+prwx------    1 root     root            0 May 28 15:58 .usofifo|
+
+
+
+●●●ここから●●●
+
+[root@dev /root]# psql -h localhost -p 5434 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user root, database
+template1
+
+[root@dev /root]# psql -h localhost -p 5436 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user root, database
+template1
+
+[root@dev /root]# psql -h localhost -p 5432 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user root, database
+template1
+
+[root@dev /root]# psql -h localhost -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user root, database
+template1
+
+[root@dev /root]# psql -p 5434 -l
+psql: FATAL 1:  user "root" does not exist
+[root@dev /root]# psql -p 5436 -l
+psql: FATAL 1:  user "root" does not exist
+[root@dev /root]# psql -p 5432 -l
+psql: could not connect to server: そのようなファイルやディレクトリはありま
+せん
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+[root@dev /root]# psql -l
+psql: could not connect to server: そのようなファイルやディレクトリはありま
+せん
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+
+[root@dev /root]# su - postgres
+bash-2.04$ psql -h localhost -p 5434 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user postgres,
+database template1
+
+bash-2.04$ psql -h localhost -p 5436 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user postgres,
+database template1
+
+bash-2.04$ psql -h localhost -p 5432 -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user postgres,
+database template1
+
+bash-2.04$ psql -h localhost -l
+psql: FATAL 1:  No pg_hba.conf entry for host 127.0.0.1, user postgres,
+database template1
+
+bash-2.04$ psql -p 5434 -l
+        List of databases
+   Name    |  Owner   | Encoding
+-----------+----------+----------
+ template0 | postgres | EUC_JP
+ template1 | postgres | EUC_JP
+(2 rows)
+
+bash-2.04$ psql -p 5436 -l
+        List of databases
+   Name    |  Owner   | Encoding
+-----------+----------+----------
+ template0 | postgres | EUC_JP
+ template1 | postgres | EUC_JP
+(2 rows)
+
+bash-2.04$ psql -p 5432 -l
+psql: could not connect to server: そのようなファイルやディレクトリはありま
+せん
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+bash-2.04$ psql -l
+psql: could not connect to server: そのようなファイルやディレクトリはありま
+せん
+        Is the server running locally and accepting
+        connections on Unix domain socket "/tmp/.s.PGSQL.5432"?
+
+●●●ここまで●●●
+
+
+-----
+With your dreaming, with your smile.
+Hayakawa, Hiroshi &lt;hayakawa@sam.hi-ho.ne.jp&gt;
+Nagoya,Aichi,JAPAN ☆彡
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00402" HREF="msg00402.html">[pgsql-jp: 26167] Re: usogres の導入でハマっています（解決）</A></STRONG>
+<UL><LI><EM>From:</EM> HAYAKAWA Hiroshi &lt;hayakawa@sam.hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp: 26157] Re: 日付データのDB  登録について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00394.html">[pgsql-jp: 26159] Re: 日付データのDB 登録について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00394.html">[pgsql-jp: 26159] Re: 日付データのDB 登録について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00402.html">[pgsql-jp: 26167] Re: usogres の導入でハマっています（解決）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00393"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00393"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

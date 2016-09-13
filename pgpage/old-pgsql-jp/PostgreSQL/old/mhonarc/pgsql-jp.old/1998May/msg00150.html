@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4088] Re: [Q] attr. order in select & create index etc. -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Mon, 18 May 1998 18:14:25 +0900 -->
+<!--X-Message-Id: 199805180914.SAA14480@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9805150531.AA00266@mebius.air.akita&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4088] Re: [Q] attr. order in select &amp; create index etc. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00149.html">Date Prev</A>][<A HREF="msg00151.html">Date Next</A>][<A HREF="msg00125.html">Thread Prev</A>][<A HREF="msg00155.html">Thread Next</A>][<A HREF="index.html#00150">Date Index</A>][<A HREF="threads.html#00150">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4088] Re: [Q] attr. order in select &amp; create index etc.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 18 May 1998 18:14:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。総タプル数が 1000万というのは、PostgreSQL の応用例としては最
+大規模だと思うので、興味を持っています。
+
+&gt;いつもお世話になっております。船木＠秋田県立図書館です。
+&gt;現在奮闘中の「書誌検索ＤＢ」のテスト中、不可解な現象に
+&gt;遭遇しましたので、先達からのご教示をお願いいたします。
+&gt;ちょと長文になりますが、よろしくお願いいたします。
+&gt;
+&gt;作成したテーブルはすべて
+&gt;title_code char(10),tag char(4),num char(3),data test
+&gt;という構造をしており、それぞれ出版者名用テーブル、著者名テーブル等
+&gt;約２０個のテーブルがあり、現在それぞれのテーブルには３０万〜５０万の
+&gt;タプルが入力されています。各テーブルの共通キーはtitle_codeです。
+&gt;
+&gt;＃前にも書きましたが、全部のデータを１つのテーブルに集めたら
+&gt;＃タプル数が１０００万を越えてしまったので泣く泣くこうしてます。
+&gt;
+&gt;ここで"出版社が「ほげほげ」の本を書名用テーブルから検索する"という目的で
+&gt;select l.data from d25xa l where l.tag='251A' and l.num='001' and l.title_code 
+&gt;in (select distinct m.title_code from a770b m  where m.data like 'ほげほげ%');
+&gt;＃d25xaには書名、a770bには出版社が入っています。
+&gt;
+&gt;という検索を考えました。とりあえずd25xaに対しては、常にtitle_codeをキーにして
+&gt;tag='251A',num='001'のものを検索しますので、この３つのアトリビュートの組で
+&gt;インデックスを作りました。
+&gt;lib=&gt; drop index id25xa;
+&gt;DROP
+&gt;lib=&gt; vacuum;
+&gt;VACUUM
+&gt;lib=&gt; create index id25xa on d25xa using btree(title_code,tag,num);
+&gt;CREATE
+
+vacuum と create index の順番は逆の方が良いです。
+[略]
+&gt;となってlの検索にインデックスを使うようになります。そこで質問なのですが
+&gt;１）select .... in　の場合、アトリビュートの順番を事前に考え、クエリーを
+&gt;　　書くのが普通なのでしょうか。
+&gt;２）create index ..... ( )をする場合、どの順序でセレクトするかを事前に
+&gt;　　考え（）内の順番を決めるのでしょうか。
+
+1 と 2 は関連してると思います。船木さんが
+create index id25xa on d25xa using btree(title_code,tag,num);
+で作ったインデックスは複合インデックスで、実際には title_code+tag+num
+がデータとして使われています。この場合、title_code,tag,num が同時に問
+い合わせ条件に現れると、このインデックスが使われます。問題は 
+title_code,tag,num の出現順序で、船木さんの例を見る限り、postgres は複
+合インデックスを作成した順序通りに問い合わせ対象の column が現れないと
+インデックスを使ってくれないようですね。
+他のDBではどうなのかは知りませんが。
+
+# それにしても、a770b にインデックスが定義されていないのはなぜ？
+
+&gt;３）この例のように、個別のクエリーと副問い合わせのクエリーはちがうアルゴリズム
+&gt;　　が採用されるのでしょうか。
+
+というか、問題は in だと思います。in は実際には or に展開されます。で、
+これは前から言われているのですが、postgres では or は非常に遅いです。
+遅いばかりか、or で連結される対象が多いと(私の実験では 20 以上位)、実
+用にならないくらい遅いか、あるいはメモリを使い果たしてしまいます。した
+がって、現状では in を使わないように問い合わせを書き換えるしかないと思
+います。
+
+このへんは是非改良が必要なところですが、前に同じ質問に対して開発者が答
+えて言うには、「or の実装は教科書にある Conjunctive-Normal-Form(CNF)と
+いうアルゴリズムを使っている。もっと良いアルゴリズムがあれば教えてくれ」
+といってました。
+# CNF ってなんでしょう。
+
+今一つテーブルの意味が良く分からないのですが、
+
+select l.data from d25xa l where l.tag='251A' and l.num='001' and
+l.title_code in (select distinct m.title_code from a770b m where
+m.data like 'ほげほげ%'
+
+は
+
+select distinct l.data from d25xa l,a770b m where l.tag='251A' and
+l.num='001' and l.title_code = m.title_code and m.data like 'ほげほげ%'
+
+とは書き換えられませんか？
+
+&gt;ついでといっては何ですが、追加質問として
+&gt;４）　クエリーのスピードを判断する材料はcost,size,widthのどれで、どうなると
+&gt;　　　早いんでしょうか。
+
+cost のような気がします。
+
+&gt;５）　本当は出版社が”「ほげほげ」で、副書名が「ほにゃらら」、著者が「ほにゃ」の
+&gt;　　　書名を引っ張ってくる”というクエリーが必要なんですが、postgreSQLでは
+&gt;　　　intersectをサポートしていないようなので、良い方法が思い浮かびません。
+&gt;　　　先達のご示唆をお願いいたします。
+
+前にも書きましたが、テーブルの意味が良く分からないので、なんともお答で
+きません。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp 4108] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00156" HREF="msg00156.html">[pgsql-jp 4094] Re: [Q] usage of multi select(sub query)</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00155" HREF="msg00155.html">[pgsql-jp 4093] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00119" HREF="msg00119.html">[pgsql-jp 4057] [Q] attr. order in select &amp; create index etc.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 4087] Re: InterBase for Linux is freely available</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp 4089] Re: PHP/FIで名称に漢字を含んだファイルのアップロード/ダウンロード</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 4063] [Q] speed of select .... in ( more [Q] of )</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 4093] Re: [Q] attr. order in select &amp; create index etc.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00150"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00150"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16002] Re: 配列でエラー -->
+<!--X-From: Yoshihiko Ichikawa <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Mon, 10 Jul 2000 21:39:02 +0900 -->
+<!--X-Message-Id: 20000710213902Q.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001b01bfe964$98fbbf60$0405010a@clinic2000 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16002] Re: 配列でエラー </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00234.html">Date Prev</A>][<A HREF="msg00236.html">Date Next</A>][<A HREF="msg00197.html">Thread Prev</A>][<A HREF="msg00248.html">Thread Next</A>][<A HREF="index.html#00235">Date Index</A>][<A HREF="threads.html#00235">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16002] Re: 配列でエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko Ichikawa &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 10 Jul 2000 21:39:02 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00197.html">001b01bfe964$98fbbf60$0405010a@clinic2000</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．自分では配列は使わないので何ともいえないのですが，
+ちょっと興味をそそられましたので，7.0.2 のインストールついでに調べてみました．
+
+On Sun, 9 Jul 2000 14:14:45 +0900, "H.Oka" &lt;H.Oka@netlab.club.ne.jp&gt; wrote:
+&gt; 岡と申します.
+&gt; 以下のエラー対処方法よろしくお願いします.
+&gt; 
+&gt; 配列が混ざったレコードをコピーしようとすると,
+&gt; エラーが出てコピーできません.
+&gt; 
+&gt; create table kazoku(
+&gt; stdid int4 primary key,
+&gt; jname    varchar(20)[],
+&gt; ename    varchar(20)[],
+&gt; zokugara char(4)[],
+&gt; birth    date[]
+&gt; );
+&gt; 
+&gt; /*filename --- kazoku.data*/
+&gt; 1981075,山田 次郎,Oka Hisato,'{太郎,花子,一郎}','{taro,hamako,ichiro}','{父,
+&gt; 母,兄}','{1945/10/27,1951/10/13,1970/05/22}'
+&gt; 
+&gt; /*copyの実行*/
+&gt; xxx=&gt;copy kazoku from '/home/postgres/kazoku.data' using delimiters ',';
+&gt; 
+&gt; /*エラーメッセージ*/
+&gt; ERROR:  array_in: Need to specify dimension
+&gt; 
+&gt; 
+&gt; エラーメッセージから推測するに、配列の次元を指定？みたいな
+&gt; ことを言っているみたいですけど・・・
+
+問題がいくつかあるようです:
+
+  1. まず kazoku.data のフィールドと kazoku の属性とが合ってないです．
+     上記のエラーは「山田 次郎」を読み込みにいったときに発生しています．
+
+  2. エラーメッセージにある Need to specify dimension は，読み込みに
+     いった配列表記の先頭文字が `[' でも `{' でも無いことからくる
+     エラーメッセージのようです．ちょっとわかりにくいエラーメッセージですね．
+
+  3. それから，delimiter として `,' を使うとぶつかります．
+     `#' とか `@' とかの方が無難でしょうか．`:' は下記の例にある通り，
+     問題になるケースが出てくるかも知れません．
+
+
+それで，copy できるサンプルを考えてみました:
+
+1981075#{太郎,花子,一郎}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+1981076#[1:2]={太郎,花子}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+1981077#[1]={太郎}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+1981078#[2]={太郎}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+1981079#[2:2]={花子}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+1981080#[2]={太郎,花子}#{taro,hamako,ichiro}#{父,母,兄}#{1945/10/27,1951/10/13,1970/05/22}
+
+
+久しぶりに配列使いましたが，確かに分かりにくい表記方法ですね．
+
+----
+Yoshihiko Ichikawa
+Department of Information Sciences, Ochanomizu University
+Phone: +81-3-5978-5708; Fax:   +81-3-5978-5705
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00248" HREF="msg00248.html">[pgsql-jp 16015] Re: [pgsql-jp 16002] Re: 配列でエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "H.Oka" &lt;H.Oka@netlab.club.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00197" HREF="msg00197.html">[pgsql-jp 15964] 配列でエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "H.Oka" &lt;H.Oka@netlab.club.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00234.html">[pgsql-jp 16001] テーブルの表示について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00236.html">[pgsql-jp 16003] 『PHPカンファレンス2000』開催のご案内</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00197.html">[pgsql-jp 15964] 配列でエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 16015] Re: [pgsql-jp 16002] Re: 配列でエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00235"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00235"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

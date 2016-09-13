@@ -1,0 +1,215 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12901] sample -->
+<!--X-From: shiro <takayama@shiro.com> -->
+<!--X-Date: Sat, 29 Jan 2000 16:43:47 +0900 -->
+<!--X-Message-Id: 38929A3378.0D59TAKAYAMA@smtp.ifnet.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12901] sample </TITLE>
+<LINK REV="made" HREF="mailto:takayama@shiro.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00443.html">Date Prev</A>][<A HREF="msg00445.html">Date Next</A>][<A HREF="msg00447.html">Thread Prev</A>][<A HREF="msg00461.html">Thread Next</A>][<A HREF="index.html#00444">Date Index</A>][<A HREF="threads.html#00444">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12901] sample</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: shiro &lt;<A HREF="mailto:takayama@shiro.com">takayama@shiro.com</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 29 Jan 2000 16:43:47 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+高山といいます。
+
+PostgreSQLの勉強をしています。
+
+最初のサンプルプログラムです。
+
+私にとってPostgresが分かり難いのはなんと言ってもサンプルプログラムが少なく参照しようがないということです。
+
+そこで、自分自身で、サンプル・フロー・ルーチンを考えて当てはめてみました。
+勉強のためにサンプルを作って行きたいと思います。
+
+無駄なロジックや見当違いの解釈をご指摘していただけると幸いかと思います。
+
+フローにあわせて書いてあり、見難い失礼は最初にお詫びしておきます。
+
+-----------------------------------------------------------------------------------
+【 概要 】
+PostgreSQL を知る。
+（目的）
+	（新規データと追加の方法を学ぶ）
+	
+	複数のデータを部門に別ける。ここでは２つを付けて一つのレコードとする。
+	
+	【テーブル】
+	create table tes 
+(
+	code	integer, primary key(shina),	-- 連番にしたいが方法が不明
+	bango	char(2),		-- postで送信された数値型 text
+	mono	text,					-- 品物の説明
+	kosu	int4,					-- 数
+	nedan	int4		-- 通貨型 money は使えるのか？　その方法は？
+);
+
+&lt;?
+1、	変数 [ atama ] のセット。c で言う #define 
+
+		$atama = "11";	//-------- ならば品物データとする。
+		
+2、	変数 [ atama2 ] のセット。
+
+		$atama2 = "12";	//--------- ならば値段とする。
+		
+3、	データベースの接続
+
+		$con = $connect(これは、既にある接続用の関数を呼び出すこととする）;
+		
+4、	呼び出し元であるpost からのデータがヌルであれば
+
+		if ($post == "")
+		
+	4-1、データがなし。エラーメッセージを出し処理を抜ける。
+		{
+			echo "データが入力されていません。（とほ）";
+			exit;
+		}
+		
+5、	post にデータがあった場合の処理------------ ここからが本題
+
+		else
+		{
+			$post = trim($post);	//---- 念のために前後の余分なゴミコードを抜く
+			
+	5-1、送られたデータをリターン記号で別ける（配列に入れる）
+			$tmp = split("\n",$post); //&lt;--- この関数はマニュアルには載っていない。(感謝
+-&gt;沼畑さん）
+			
+	5-2、配列の数を得る。
+			$cnt = count($tmp);	
+			
+	5-3、配列を２で割るとデータ数になるこれを表示する。
+			$jitusu = $cnt / 2;
+			
+	5-4、数を初期化する。
+			$z = 0;		//&lt;-----配列カウントを初期化
+			
+		5-4-1、送られてきたデータの処理。
+	
+			for ($i=0;$i&lt;$cnt;$i++)
+			{
+				$h = $tmp[$z];
+				$na = strlen($h);	// 文字の長さを取る（不必要な処理ですが念のため）
+				$head = substr( "$h" ,0,2); // 項目を知る
+				
+				5-4-1-3、項目を別ける
+				
+				if ($atama == $head)
+				{
+					$bango = substr("$h",2,2);
+				（これで、数字から品物名となる。）
+				
+					//$code = $cnt;	//&lt;- どうしようか連続番号付けられればその方がいい。
+					$mono = "小麦";
+					
+					$個数 = "1"; // データ数を入れる
+				
+				5-4-1-3、新規データの入力
+				
+	------- ここからが不安定となります。もっと良い方法があればご指導してください。
+			トランザクションの処理は必要か？
+			
+			//pg_exec("bigin");
+			
+				$rtn = pg_exec("insert into tes values('$code','$bango','$mono','$kosu"));
+				
+			//pg_exec("end");
+			
+				}
+			5-4-2、データの追加処理。
+			
+				else	// 頭の２桁が違う金額が入っているとするデータ
+				{
+					if ($atama2 == $head)	// 値段データです
+					{
+						$nedan = substr("$ne",2,6);	// 6桁の値段データとする
+						
+	--------------------- トランザクションの処理をする-----------------------------
+					
+						//pg_exec("begin"); //&lt;-- としたほうがいいのか？
+						
+						$rtn =pg_exec("update tes set nedan =$nedan");
+						
+						//pg_exec("end");
+					}
+					if(!$rtn)
+					{
+						echo "エラーです。";
+					}
+				}
+			$z++;
+		}
+		pg_close($con);
+	}
+?&gt;
+---------------------------------------------------------------------------------------
+というデータ入力と更新を行うサンプル・ルーチンですが、いろいろとつまずいています。
+悪いところがあれば、ご指摘してくださると助かります。
+
+なお、お邪魔メールでお騒がせしましたら、失礼をお詫びいたします。（ぺこ）
+
+高山
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00461" HREF="msg00461.html">[pgsql-jp 12918] Re: sample</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00443.html">[pgsql-jp 12900] Re: データ型の使い方？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00445.html">[pgsql-jp 12902] RE: cgiの使用でpermissionエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00447.html">[pgsql-jp 12904] Re: cgiの使用でpermissionエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00461.html">[pgsql-jp 12918] Re: sample</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00444"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00444"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23802] Re: oid が2^32を超えた場合(7.2beta2にて) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 19 Nov 2001 23:26:43 +0900 -->
+<!--X-Message-Id: 20011119232643K.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003b01c170d9$7d0bbd20$020aa8c0@win2000 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23802] Re: oid が2^32を超えた場合(7.2beta2にて) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00217.html">Date Prev</A>][<A HREF="msg00220.html">Date Next</A>][<A HREF="msg00212.html">Thread Prev</A>][<A HREF="msg00241.html">Thread Next</A>][<A HREF="index.html#00218">Date Index</A>][<A HREF="threads.html#00218">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23802] Re: oid が2^32を超えた場合(7.2beta2にて)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Nov 2001 23:26:43 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00212.html">003b01c170d9$7d0bbd20$020aa8c0@win2000</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+志村さん，石井です．詳細なテストありがとうございます．大変参考になりま
+した．
+
+&gt; 7.2beta2でoidが2^32を超えた場合にどうなるか
+&gt; 試してみました。結果をご報告します。
+&gt; 
+&gt; (1) oid再割り当て時の値
+&gt; 16385から再割り当てされる。
+&gt; (テンプレートの最大oid+1でしょうか？)
+
+include/access/transam.h に BootstrapObjectIdData = 16384 という 
+define があり，そのあたりにコメントが書いてあります．実際に OID の割り
+当てを行っているのは，GetNewObjectId()という関数です．
+
+&gt; (2) 2^32を超えた後のpostmasterの再起動
+&gt; 問題なく起動。
+&gt; 
+&gt; (3) 2^32を超えた後のpg_dump
+&gt; 問題なく完了。
+&gt; (テーブル、インデックス、ビュー、ファンクション、
+&gt;  集約関数、シーケンスなどを含むDBで確認)
+&gt; 7.1で
+&gt; oidが2^31を超える場合に発生していたエラー
+&gt; 'ERROR:  dtoi4: integer out of range'
+&gt; は発生せず。
+
+Good ですね:-)
+
+&gt; (4) oidで気付いたこと
+&gt; 7.2ではテーブルにoidを付けないようにするオプションが実装されている。
+
+はい．
+
+&gt; (5) WALのファイル名は足りるか
+&gt; 今回、char(1)型のカラムのみ からなるテーブルに
+&gt; 30時間で約43億件のレコードを作成(秒あたり約4万件)しましたが
+&gt; pg_xlog内のファイル名は最大で「0000003C00000083」でした。
+&gt; カラム数が少なかったり、単純な処理しかしていないのを差し引いても
+&gt; まず、exhaustedになることは無いと思います。
+
+単にWALセグメントの名前をできるだけ消費させたいのなら，大きなサイズの
+レコードにすべきと思います．それにしても，WALセグメントの名前は 16進で
+16桁で，1 WAL セグメントあたり16MBですから，
+
+16^16/1024/1024*16/1024/1024 = 268,435,456 (TB)
+
+のWALログを消費しないと，WALのセグメント名使い尽くすことができないので，
+まず実際には不可能ではないでしょうか:-) それとも，64ビット長のLSN(Log
+Sequence Number)を使い尽くすのが先か．
+
+&gt; 以上。
+&gt; 
+&gt; # oidの値、2^32前後でバックアップを取ってあるので
+&gt; # 他に試すケースがあればお知らせください。
+
+32ビット長のXID(トランザクションID)のwraparoundはOIDよりも深刻な問題を
+引き起こしますが，7.2で対策されました．currentのドキュメント参照．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00241" HREF="msg00241.html">[pgsql-jp 23825] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 23796] oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuhiro Shimura" &lt;tsumiki@hi-ho.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 23801] Re: 汎用アンケートシステムの分析処理・条件検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00220.html">[pgsql-jp 23804] Re: 汎用アンケートシステムの分析処理・条件検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 23796] oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00241.html">[pgsql-jp 23825] Re: oid が2^32を超えた場合(7.2beta2にて)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00218"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00218"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,186 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3635] Re: Benchmark result on HP&#45;UX B.10.20 -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 19 Mar 1998 12:00:15 +0900 -->
+<!--X-Message-Id: 199803190300.MAA24743@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199803151020.TAA23232@hyalos.is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3635] Re: Benchmark result on HP-UX B.10.20 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00199.html">Date Prev</A>][<A HREF="msg00204.html">Date Next</A>][<A HREF="msg00162.html">Thread Prev</A>][<A HREF="msg00206.html">Thread Next</A>][<A HREF="index.html#00203">Date Index</A>][<A HREF="threads.html#00203">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3635] Re: Benchmark result on HP-UX B.10.20</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 19 Mar 1998 12:00:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;市川＠お茶大です．HP-UX に 6.3 をのせてみました．
+
+特に修正は必要無かったですか？
+
+&gt;システム記述と WISC-BENCH の結果を同封します．
+&gt;6.1 に比べると少し速度が落ちているようです．
+&gt;(-g 無ですが -O はつけていないので，まだ何とも
+&gt;言えないのですが．)
+
+--enable-locale
+
+これも遅くなる要素ですが、6.1 の時も付けてましたか？
+
+P.S.	以前市川さんがレポートされてた以下の件ですが、6.3 では text や 
+char の実装が変わったらしいので、もしかして直っているのではないかと期
+待しています。検証された方いますか？
+
+&gt;Date: Wed, 28 Jan 1998 18:21:10 +0900
+&gt;From: Yoshihiko ICHIKAWA &lt;ichikawa@hyalos.is.ocha.ac.jp&gt;
+&gt;Subject: [pgsql-jp 3299] Re: はじめま
+&gt;	して
+&gt;
+&gt;市川＠お茶大です．簡単な実験で解ったことを書きます．
+&gt;何かヒントになってくれればいいのですが ...
+&gt;
+&gt;In message &lt;199801280713.QAA14070@oowashi.synergy.co.jp&gt;, Tomonori Mitsui write
+&gt;s:
+&gt;&gt; 市川さんからも御指摘いただきましたが、フィールドタイプをTEXTにすれば問題無い
+&gt;&gt; ことは判っていました。
+&gt;&gt; 
+&gt;&gt; At 14:00 98/01/28 +0900, you wrote:
+&gt;&gt; &gt; 
+&gt;&gt; &gt; 市川＠お茶大です．
+&gt;&gt; &gt; 
+&gt;&gt; &gt; もう少し調べて見ないとなんとも言えないですが，char をやめて text にするのが
+&gt;&gt; &gt; 賢明でしょうか．
+&gt;&gt;  
+&gt;&gt; ただし、どうしても可変長フィールドにしたくない目的がありましたので、みなさん
+&gt;&gt; のお知恵を借りようとしました。
+&gt;&gt; postgreのマニュアルでも、solaris x86
+&gt;&gt; の正常動作は保証してませんし、根の深い問題のような気もしますので、とりあえず
+&gt;&gt; 開発するシステムはTEXTタイプで進めます。
+&gt;&gt; CHRAの問題は、今後も調査を進めますので、皆様も何か判りましたら御連絡ください
+&gt;
+&gt;可変長データのフィールド長 (char (6) なども内部では長さフィールドを
+&gt;持つようです) のデータがおかしくなっているようです．
+&gt;
+&gt;以下のように定義したとします:
+&gt;
+&gt;	CREATE TABLE book4 (
+&gt;	 a1 char (4),
+&gt;	 a2 char (4),
+&gt;	 a3 char (6),
+&gt;	 a4 char (6),
+&gt;	 a5 text)
+&gt;
+&gt;これにタプルを一つだけ挿入し，インスタンスを表示させます:
+&gt;
+&gt;       insert into book4 values ('1', '2', '3', '4');
+&gt;       select * from book4;
+&gt;
+&gt;既にご指摘の通り core をはきますので，直接の原因になっている
+&gt;DataFill() 関数の内部で，属性値の情報を書かせてみました．
+&gt;そうすると，log には
+&gt;
+&gt;   DataumGetPointer(value[0]) = 0x801d4c98, data_length = 8 (00000008)
+&gt;   DataumGetPointer(value[1]) = 0x801d4ca0, data_length = 8 (00000008)
+&gt;   DataumGetPointer(value[2]) = 0x801d4ca8, data_length = 10 (0000000a)
+&gt;   DataumGetPointer(value[3]) = 0x801d4cb2, data_length = 655360 (000a0000)
+&gt;   /home/postgres/bin/postmaster: reaping dead processes...
+&gt;
+&gt;と出力されました．上の 4 つの行は，a1, a2, a3, a4 の値を取り扱う時の情報で，
+&gt;最後の行はこけた旨のメッセージです．ここで，data_length = .... の項目が
+&gt;ヒントを与えてくれています．
+&gt;
+&gt;これは，可変長データの長さフィールド部分を出力させているもので，
+&gt;a1, a2, a3 については，それぞれ 8, 8, 10 (データ長 + 4 バイト) が
+&gt;正しく計算されています．
+&gt;
+&gt;それに対して，a4 については，655360 (16 進 000a0000) となっています．
+&gt;また，a4 の長さを char(6) から char(4) に変えると，これが 00080000 と変化
+&gt;します．このことから，内部でデータを記録をするときに矛盾が発生しており，
+&gt;2 バイト分のずれが生じているようです．
+&gt;
+&gt;石井さん@SRA の情報によると，Sparc の Solaris2.5.1でも，また，FreeBSD
+&gt;でもキチンと動作しているという事ですので，endian の問題ではなく，
+&gt;Solaris2.5.1_x86 特有の設定でどこかに間違いがあると推測されます．
+&gt;
+&gt;... と，今日はここまでしかわかりませんでした．もう少し時間があると良いの
+&gt;ですが．
+&gt;
+&gt;# 6.1.1 の時の x86 パッチと同じで，「泰山鳴動ねずみ一匹」式の，
+&gt;# 非常にシンプルなバグのような気がしてならないのです．
+&gt;
+&gt;それから本家の ML アーカイブの探索はまだやっておりません．もしかしたら
+&gt;関連するヒントがあるかも知れないです．
+&gt;
+&gt;----
+&gt;お茶の水女子大学理学部情報科学科
+&gt;市川 哲彦
+&gt;Phone: 03-5978-5708 (ダイアルイン)
+&gt;Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+&gt;E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00206" HREF="msg00206.html">[pgsql-jp 3638] Re: Benchmark result on HP-UX B.10.20</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@hyalos.is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00162" HREF="msg00162.html">[pgsql-jp 3594] Benchmark result on HP-UX B.10.20</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@hyalos.is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00199.html">[pgsql-jp 3631] Re: Perl5 インタフェースについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00204.html">[pgsql-jp 3636] [REMOTE USER]</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 3594] Benchmark result on HP-UX B.10.20</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00206.html">[pgsql-jp 3638] Re: Benchmark result on HP-UX B.10.20</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00203"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00203"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

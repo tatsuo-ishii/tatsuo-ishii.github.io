@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3753] 何故、副問い合わせが遅いのか？ -->
+<!--X-From: Katsuya Sawamura <sawamura@ssemoka.co.jp> -->
+<!--X-Date: Wed, 08 Apr 1998 00:47:35 +0900 -->
+<!--X-Message-Id: 199804071547.AAA01577@vishost.ssemoka.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3753] 何故、副問い合わせが遅いのか？ </TITLE>
+<LINK REV="made" HREF="mailto:sawamura@ssemoka.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00050.html">Date Prev</A>][<A HREF="msg00044.html">Date Next</A>][<A HREF="msg00047.html">Thread Prev</A>][<A HREF="msg00053.html">Thread Next</A>][<A HREF="index.html#00052">Date Index</A>][<A HREF="threads.html#00052">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3753] 何故、副問い合わせが遅いのか？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Katsuya Sawamura &lt;<A HREF="mailto:sawamura@ssemoka.co.jp">sawamura@ssemoka.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 08 Apr 1998 00:47:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+沢村＠三洋シリコン電子と申します。
+
+PostgreSQL6.3から副問い合わせがサポートされたと聞き、
+早速バージョンを上げました。(PostgreSQL6.3.1)
+
+でも、通常の問い合わせは、お話しの通り400%アップしているような気がしますが、
+肝心の副問い合わせは、タップル数が多くなる程遅くなってしまいます。
+
+仕方のない事なのでしょうか？
+タップル数が増えれば増える程遅くなってしまうのでしょうか？
+
+それとも私が何か大きな勘違いをしているのでしょうか？
+宜しくご教授願います。
+
+例)
+1.次のようなクラスを定義します
+    create table product (              -- 製品情報
+        serial char(10) primary key,    -- シリアル＃
+        pname char(15) not null,        -- 製品名
+        price int2);                    -- 単価
+    create index prod_name on product using hash(pname);
+
+    create table order (
+        cust_id char(5) primary key,    -- 顧客ID
+        serial char(10) not null,       -- 注文製品のシリアル＃
+        nums int2,                      -- 個数
+        o_date date);                   -- 注文日
+    create index order_cust on order using hash(cust_id);
+
+2.クラスの関係は 1:多(product:order)
+
+3.それぞれのタップル数は次の通り
+    case A: product   13 tuples
+            order     24 tuples
+
+    case B: product 7289 tuples
+            order   6818 tuples
+
+    (※タップル数の違いが余りにも極端すぎる?)
+
+4.通常の問い合わせでのレスポンス(timeにて計測)
+    case A: 1) select * from product where serial='1234567890'
+               (1 hit)(0.03u 0.11s 0:00.49 28.5%)
+            2) select * from order where cust_id='ABCDE'
+               (1 hit)(0.02u 0.13s 0:00.50 30.0%)
+    case B: 1) select * from product where serial='1234567890'
+               (1 hit)(0.02u 0.12s 0:00.48 29.1%)
+            2) select * from order where cust_id='ABCDE'
+               (1 hit)(0.04u 0.11s 0:00.48 31.2%)
+
+5.副問い合わせでのレスポンス(timeにて計測)
+    case A: select * from product,order where product.serial=order.serial and \
+              product.serial in (select serial from order where cust_id='ABCD')
+            (2 hits)(0.06u 0.11s 0:00.67 25.3%)
+    case B: select * from product,order where product.serial=order.serial and \
+              product.serial in (select serial from order where cust_id='ABCD')
+            (2 hits)(0.06u 0.10s 0:09.87  1.6%)
+
+動作環境は、
+    - ソフトウェア   : PostgreSQL6.3.1
+                       Solaris2.5.1/sparc
+                       gcc2.8
+                       make3.75
+                       flex2.5.4
+                       bison1.25
+    - ハードウェア   : SPARCstation 5
+    - Makefile.custom: CFLAGS += -O2
+                       MB=EUC_JP
+です。
+
+
+---
+                      SANYO Silicon Electronics Co., Ltd.
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                            LSI Division Development
+                              Engineering Section
+                                        
+                   Katsuya Sawamura (sawamura@ssemoka.co.jp)
+                                        
+                        12-2, Matsuyama-cho, Moka City,
+                           Tochigi-Ken 321-43, Japan
+                                TEL:0285-82-3482
+                                FAX:0285-84-7974
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00054" HREF="msg00054.html">[pgsql-jp 3755] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00053" HREF="msg00053.html">[pgsql-jp 3754] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> Katsuya Sawamura &lt;sawamura@ssemoka.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 3751] Re: postgreSQL6.3.1 and JDBC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00044.html">[pgsql-jp 3745] postgreSQL6.3.1 and JDBC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00047.html">[pgsql-jp 3748] Re: postgreSQL6.3.1 and JDBC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 3754] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00052"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00052"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

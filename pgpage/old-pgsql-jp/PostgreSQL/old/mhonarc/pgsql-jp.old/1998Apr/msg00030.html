@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3731] Re: RDBMS and QBE -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 03 Apr 1998 16:29:39 +0900 -->
+<!--X-Message-Id: 199804030729.QAA25897@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804030644.AA00035@uchiyama.wakeup.it.matsue&#45;ct.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3731] Re: RDBMS and QBE </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00029.html">Date Prev</A>][<A HREF="msg00031.html">Date Next</A>][<A HREF="msg00028.html">Thread Prev</A>][<A HREF="msg00033.html">Thread Next</A>][<A HREF="index.html#00030">Date Index</A>][<A HREF="threads.html#00030">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3731] Re: RDBMS and QBE</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 03 Apr 1998 16:29:39 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;のようになると思います。しかし、ここで疑問なんですけれど、これら
+&gt;全部を begin transaction と end transaction （あるいは commit )で
+&gt;囲んでおけば、コマンドの直列可能性は保証されるように思います。
+&gt;しかし、上図を参照してください。デッドロック多発、あるいは、長時間
+&gt;かかって入力したデータが駄目になるような気がします。
+
+この例ではデッドロックになって当然だと思います。これを防ぐために、
+PostgreSQL 6.3 以降には lock コマンドが用意されています。
+
+begin;
+lock table_name;
+select ....
+insert ....
+end;
+
+のようにすれば deadlock は起きません。
+
+ところでちょっと気になったのですが、
+
+&gt;クライアントでのデータ更新(長時間かかる)
+
+とありますが、通常 RDBMS のトランザクションはライフタイムが短いことを
+想定されているので、トランザクションの中にユーザがインタラクションする
+ような部分をはさむのはまずいと思います。一度トランザクションを抜けてか
+らユーザ入力を受け付け、その後改めてトランザクションを開始して、その間
+に他のトランザクション(ユーザ)がデータを変更して競合状態になっていない
+かチェックするなどのロジックが必要だと思います
+
+&gt;私の記憶では、
+&gt;SQLWindows の Table Window では、そのような書き方はしなかった気が
+&gt;します。私のアプリの書き方が間抜けだっただけかも知れません。
+
+SQLWindows は良く知りませんが、トランザクションの管理方法が違うのでは
+ないでしょうか？ロックを使わない方法、たとえば「楽観的並行動作制御」方
+式を採用しているのではないかと想像します。
+
+&gt;	Access, PostODBC, PostgreSQL でこのような問題を、どう解決し
+&gt;ているのでしょうか? 心配で使えません。
+
+上記参照。
+
+&gt;	この他、PostgreSQL を業務で使っている場合、メディアクラッシュ、
+&gt;システムダウンなどに、どう対応なさっていますか? log ファイルがない、
+&gt;リカバリ機能がないというのは致命的なような気もします。
+
+PostgreSQL は write ahead log を使わない方式ですが、リカバリというか、
+クラッシュ時にトランザクションをアトミックにすることはちゃんとやってい
+ます。
+たとえば、トランザクション半ばでクラッシュした場合には、そのトランザク
+ションは実行されなかったことになります。
+逆に、クラッシュ直前に commit されたトランザクションの内容は保証されま
+す。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00033" HREF="msg00033.html">[pgsql-jp 3734] Re: RDBMS and QBE</A></STRONG>
+<UL><LI><EM>From:</EM> Toshio Uchiyama &lt;uchiyama@wakeup.it.matsue-ct.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 3729] RDBMS and QBE</A></STRONG>
+<UL><LI><EM>From:</EM> Toshio Uchiyama &lt;uchiyama@wakeup.it.matsue-ct.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 3730] Re: Primary Key in 6.3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 3732] Re: RDBMS and QBE</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 3729] RDBMS and QBE</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00033.html">[pgsql-jp 3734] Re: RDBMS and QBE</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00030"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00030"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

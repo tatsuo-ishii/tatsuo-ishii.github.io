@@ -1,0 +1,121 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3492] Re: PostgreSQL 6.3のエンディアン問題 -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Mon, 09 Mar 1998 16:17:34 +0900 -->
+<!--X-Message-Id: 199803090717.QAA26821@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980307053101W.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3492] Re: PostgreSQL 6.3のエンディアン問題 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00059.html">Date Prev</A>][<A HREF="msg00061.html">Date Next</A>][<A HREF="msg00056.html">Thread Prev</A>][<A HREF="msg00067.html">Thread Next</A>][<A HREF="index.html#00060">Date Index</A>][<A HREF="threads.html#00060">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3492] Re: PostgreSQL 6.3のエンディアン問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 09 Mar 1998 16:17:34 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;片岡＠インターウィズです。
+&gt;
+&gt;  PostgreSQL 6.3 Solaris SparcとPostODBCが接続できない問題ですが、やは
+&gt;りエンディアン問題が再発していました。
+&gt;
+&gt;  具体的に誤動作する箇所は、backend/libpq/pqcomprim.cのpqPutShort関数
+&gt;が、ビッグ・エンディアン環境において、プロトコルバージョン0のフロント
+&gt;エンドに対して正しく動作しません。
+&gt;
+&gt;  以下にとりあえず接続できるようにするパッチを添付します。今のところこ
+&gt;れで動いています。
+
+私もちょっと見てみたのですが、pqPutShort で、
+
+hton_s(integer)
+
+とやっているところがあって、integer というのが int なんですね。ところ
+が、hton_s は
+
+#define ntoh_s(n)	(uint16)(((u_char *)&amp;n)[1] &lt;&lt; 8 | ((u_char *)&amp;n)[0])
+
+のように定義されていて、n の上位2バイトのみを見るようになっています。
+ですから、int が引数で渡って来ると、大抵このマクロは 0 を返すのでおか
+しなことになるわけです。6.2 の時に、全く同じバグがあって、この時は int 
+じゃなくて、short を ntoh_s の引数に渡すように直したはずなのですが、ま
+たもや 6.3 でバグ復活ですね。
+
+もちろん片岡さんのように、0x00ff などと and を取るようにマクロの方を直
+すのも正解だと思うし、移植性を考えるとこちらの方が優れていると思います。
+当面の問題だけ考えると、ntoh_l は変える必要ないですが、後々のこと (int
+= 64 bit になったときとか)を考えると、こちらも変えてしまうのが良いです
+ね。
+
+というわけで、このパッチは本家に送ったほうが良いと思いますが、片岡さん
+が御自身で送りますか？それとも石井が代行しましょうか？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00067" HREF="msg00067.html">[pgsql-jp 3499] Re: PostgreSQL 6.3のエンディアン問題</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00051" HREF="msg00051.html">[pgsql-jp 3483] PostgreSQL 6.3のエンディアン問題</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 3491] PostgreSQL+PHP/FI Search Engine</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 3493] Re: PostgreSQL+PHP/FI Search Engine</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 3488] Re: PostgreSQL 6.3のエンディアン問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00067.html">[pgsql-jp 3499] Re: PostgreSQL 6.3のエンディアン問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00060"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00060"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

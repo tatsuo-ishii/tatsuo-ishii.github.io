@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5469] postgres proccess size (Re: ShmemCreate: cannot create region) -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Thu, 24 Sep 1998 15:30:55 +0900 (JST) -->
+<!--X-Message-Id: 199809240630.PAA28735@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809221106.UAA05223@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5469] postgres proccess size (Re: ShmemCreate: cannot create r </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00253.html">Thread Prev</A>][<A HREF="msg00261.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5469] postgres proccess size (Re: ShmemCreate: cannot create region)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 24 Sep 1998 15:30:55 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00253.html">199809221106.UAA05223@libpc01.pb.ascii.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+別問題かもしれないので、Subjectを変えました。またまた長文ですみません。
+PostgreSQLと組み合わせたwebロボットの挙動を調べていて、動き続けている
+postgresのプロセスがやたらと(100M以上!)おおきくなっていっていることに
+気づきました。
+そこで、いろいろと調べた結果、以下のようなことが分かりました。
+
+・「ERROR:  Cannot insert a duplicate key into a unique index」になるよ
+うなinsertやupdateをすると、postgresのプロセスが大きくなる。
+	insertやupdateすればするほどどんどん大きくなってゆきます。
+	各insertやupdateをbegin〜commitで囲んでも大きくなります。
+・postgresのプロセスが大きくなりすぎて実メモリの量を超えると、そのプロセ
+スは死んでしまう。
+	これは観察からの推測ですが、そのようです。
+・大きくなったpostgresのプロセスも、resetすると元の大きさに戻る。
+	上のように死んでしまう前にresetすると、postgresのプロセスは同じ
+	のままで小さくなります。ただし、resetが終わってからちょっと(数秒?)
+	間があります。
+	死んでからresetすると、新しいpostgresのプロセスができます。
+・上のようなエラーにならないinsertやupdateの場合はプロセスが大きくならない。
+	新しい行をどんどん足していっても大きくならない。
+・selectはいくらしてもプロセスが大きくならない。
+
+これは以下のような環境に依存することなのでしょうか?
+	OS:	FreeBSD 2.2.1-RELEASE/2.2.5-RELEASE
+	gcc:	version 2.7.2.1
+	PostgreSQL:	6.3.2 + 全パッチ
+
+具体的には、以下の手順で調べました(psqlでもできます)。
+まずは、次のようなスクリプトで試験用の表を作りました。
+========================================================================
+#!/bin/sh
+
+DBNAME=ptest
+
+destroydb $DBNAME
+createdb $DBNAME
+psql -e $DBNAME &lt;&lt; EOF
+create table t
+(
+        s       text
+);
+create unique index s_idx on t (s);
+EOF
+========================================================================
+
+そして、次のようなスクリプトでいろいろと試しました。
+========================================================================
+#!/usr/local/bin/perl -w
+
+$|=1;
+
+use strict;
+use Pg;
+
+use vars qw($execcnt);
+$execcnt=0;
+
+sub execSQL {
+	my($conn, $sql)=@_;
+
+#	++$execcnt;
+#	if (($execcnt%1000) == 0) {
+#		$conn-&gt;reset;
+#		print "!!! reset !!!\n";
+#		$execcnt=0;
+#	}
+	unless ($conn-&gt;status == PGRES_CONNECTION_OK) {
+		$conn-&gt;reset;
+		print "!!! reset !!!\n";
+	}
+	($conn-&gt;status == PGRES_CONNECTION_OK) || die "$sql: " . $conn-&gt;errorMessage;
+	return $conn-&gt;exec($sql);
+}
+
+my $conn;
+my $result;
+my @row;
+my $n=0;
+
+$conn=Pg::connectdb("dbname = ptest") || die "connectdb: $!";
+
+for ($n=0; $n&lt;512; ++$n) {
+	&amp;execSQL($conn, "insert into t values ('$n')';");
+}
+
+while (1) {
+	$result=&amp;execSQL($conn, "select s from t;");
+	system("top -b -Upostgres");
+	while (@row = $result-&gt;fetchrow) {
+		#&amp;execSQL($conn, "begin work;");
+		#&amp;execSQL($conn, "select * from t where s = '$row[0]';");
+		&amp;execSQL($conn, "insert into t values ('$row[0]')';");
+		#&amp;execSQL($conn, "insert into t values ('$n')';"); ++$n;
+		#&amp;execSQL($conn, "update t set s = '$row[0]' where s = '$row[0]';");
+		#&amp;execSQL($conn, "update t set s = '$row[0]';");
+		#&amp;execSQL($conn, "commit work;");
+	}
+}
+========================================================================
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00261" HREF="msg00261.html">[pgsql-jp 5470] Re: postgres proccess size (Re: ShmemCreate: cannot create region)</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00253" HREF="msg00253.html">[pgsql-jp 5462] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 5468] benchmark on Linux 2.0.35/PentiumII 450MHz/128MB</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 5470] Re: postgres proccess size (Re: ShmemCreate: cannot create region)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00253.html">[pgsql-jp 5462] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 5470] Re: postgres proccess size (Re: ShmemCreate: cannot create region)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14350] Re: pgsqlのdual CPUに載せた場合の効果について -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Mon, 08 May 2000 04:19:41 +0900 -->
+<!--X-Message-Id: 3915C1CD35C.99ABJUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000505154137X.mochid@netside.co.jp -->
+<!--X-Reference-Id: 003901bfb70c$a3a42f40$0500a8c0@98joker -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14350] Re: pgsqlのdual CPUに載せた場合の効果について </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00061.html">Date Prev</A>][<A HREF="msg00063.html">Date Next</A>][<A HREF="msg00054.html">Thread Prev</A>][<A HREF="msg00065.html">Thread Next</A>][<A HREF="index.html#00062">Date Index</A>][<A HREF="threads.html#00062">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14350] Re: pgsqlのdual CPUに載せた場合の効果について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 08 May 2000 04:19:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00031.html">20000505154137X.mochid@netside.co.jp</A>&gt; &lt;<A HREF="msg00054.html">003901bfb70c$a3a42f40$0500a8c0@98joker</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。北村です。
+
+&gt; &gt;  それで、1 接続内で「大量データの読込みや更新」をやるのならば、
+&gt; &gt; ボトルネックは CPU じゃなくて、I/O でしょう。I/O をスレッド単位で
+&gt; &gt; やれて、かつ DB の実体が複数のディスクに分散して存在しないと、
+&gt; &gt; 並列性出すのは難しいでしょうね。
+&gt; &gt;
+&gt; &gt;  "大量データの読込み" 速度が CPU の数にリニアに追従するシステムなんて...
+&gt; &gt; 無いような気がします。
+&gt; すいません。言葉を間違えました。基本的には「大量データの読込みや更新」じゃな
+&gt; くて、
+&gt; ”大量データの検索系（sortやjoin）処理”です。
+&gt; おっしゃるとおり、"大量データの読込み" だとボトルネックは I/O ですよね。
+&gt; 失礼しました。
+&gt; ただ、仮想記憶システムとしてメモリマップドファイル的なことをやってくれていれ
+&gt; ば、
+&gt; 多少関係してくるのではないかと思うのですが？
+この場合の、”大量データの読込み”と”大量データの検索系（sortやjoin）処
+理”の違いが良く分からないのですが、とりあえず、MSのお話を。
+MSのMS-SQL Server7.0では、持田さんの言われる「 "大量データの読込み" 速度
+が CPUの数にリニアに追従するシステム」を実現しているかと・・・。１つのク
+エリをサブタスクに分解し、各サブタスク(スレッド)は並列でI/O処理を行ないま
+す。ここで、各I/O処理は従来の6.5以前ではランダムアクセスが生じてコスト高
+になっていましたが、7.0では独自の Index Allocatoin Mapによって追跡されま
+す。これはディスク上での順序を反映しており、シーケンシャルアクセスないし
+は先読みが可能になっています。（ん？「読込み処理」がI/O処理ってことであれ
+ば、確かにCPUの数にリニアに追従しちゃいませんね）
+なんだか、MS派みたいな事言っちゃってますが・・・。苦笑　MSの技術白書に書
+いてあります。興味ある方はご一読を。（信じる者は(足元)すくわれる？）
+堀内さんの質問である、MSのクエリプロセッサのように大量データを扱うクエリ
+をサブタスクに分割できるのか？って話題からずれちゃいましたが・・・。
+
+持田さんのおっしゃるとおり、ボトルネックはI/Oです。そして、これもまた持田
+さんのおっしゃるとおり、DBの実体が１つのデバイス（ディスク）に存在してい
+る以上、 I/Oを並列処理したところで、さほど変化は無いでしょう。複数のデバ
+イスに振り分ける必要があると思います。インデックスだけでも別デバイスに置
+けると良いのですが。MSではSQL Server 6.0の頃から、インデックスを別セグメ
+ントに設置できるので、インデックス用セグメントを別デバイスに置くことによ
+り、これを実現していました。
+PostgreSQLだと・・・。「[pgsql-jp 13997] Re: ユーザーごとの DBをディレク
+トリ分けするには？」で石井さんが
+&gt;createdb dbname
+&gt;でDBを作ってから、
+&gt;cd $PGDATA/base
+&gt;dbname を /home/user/public_html/data/dbname に移動
+&gt;ln -s /home/user/public_html/data/dbname .
+&gt;でいけると思います。試したことはありませんが。
+とおっしゃっていますので、もしかしたら、DBディレクトリ内のインデックスファ
+イル(*_pkeyなど)の実体を別デバイス(ディレクトリ)に移動して、シンボリック
+リンク張ればＯＫなのかもしれません。試したことはありませんが。笑
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00065" HREF="msg00065.html">[pgsql-jp 14353] Re: pgsql のdual CPUに載せた場合の効果について</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@netside.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00031" HREF="msg00031.html">[pgsql-jp 14319] Re: pgsqlのdual CPUに載せた場合の効果について</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@netside.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00054" HREF="msg00054.html">[pgsql-jp 14342] Re: [pgsql-jp 14319] Re: pgsqlのdual CPUに載せた場合の効果について</A></STRONG>
+<UL><LI><EM>From:</EM> "akira" &lt;wonderful9@pop16.odn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 14349] Re: ブラウザフォームからのテーブル一括更新方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 14351] Re: 返:[Q]データベース障害に備えて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 14342] Re: [pgsql-jp 14319] Re: pgsqlのdual CPUに載せた場合の効果について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 14353] Re: pgsql のdual CPUに載せた場合の効果について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00062"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00062"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

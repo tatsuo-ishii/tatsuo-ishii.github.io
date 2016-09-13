@@ -1,0 +1,206 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6212] PostgreSQL 6.4 for Cobalt Qube -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 17 Dec 1998 16:31:45 +0900 -->
+<!--X-Message-Id: 199812170731.QAA16137@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6212] PostgreSQL 6.4 for Cobalt Qube </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00236.html">Date Prev</A>][<A HREF="msg00238.html">Date Next</A>][<A HREF="msg00329.html">Thread Prev</A>][<A HREF="msg00238.html">Thread Next</A>][<A HREF="index.html#00237">Date Index</A>][<A HREF="threads.html#00237">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6212] PostgreSQL 6.4 for Cobalt Qube</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 17 Dec 1998 16:31:45 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+以前このMLでも話題になった Cobalt Qube が自由に使えるようになったので、
+早速 PostgreSQL 6.4 を入れました。アセンブラの部分は昔 postgres95 時代
+に杉田さんが NEWS OS 用に書いたものをほとんどそのまま流用しています(パッ
+チは最後に付けておきます)。
+
+regression test の結果はおそらく問題なし。
+
+例によってベンチマークを取ってみましたが、中嶋さんの Libretto
+50CT(Pentium 75MHz)に負けてます:-)メモリが少ないせいでしょうか。
+
+o Linux 2.0.33
+o Cobalt Qube 2700J
+o MIPS R4000(多分) 150MHz
+o memory 32MB
+o jumbo patch, configure --with-mb=EUC_JP
+
+query  0:   0.018 real   0.000 user   0.000 sys
+query  1:   0.548 real   0.330 user   0.030 sys
+query  2:   2.700 real   1.520 user   0.740 sys
+query  3:   0.277 real   0.270 user   0.020 sys
+query  4:   2.531 real   1.380 user   0.810 sys
+query  5:   0.270 real   0.250 user   0.020 sys
+query  6:   1.057 real   0.950 user   0.100 sys
+query  7:   0.030 real   0.030 user   0.000 sys
+query  8:   0.602 real   0.570 user   0.030 sys
+query  9:   3.337 real   3.180 user   0.120 sys
+query 10:   7.817 real   6.870 user   0.400 sys
+query 11:   4.550 real   4.110 user   0.150 sys
+query 12:   3.530 real   3.260 user   0.220 sys
+query 13:   7.594 real   6.800 user   0.310 sys
+query 14:   4.308 real   4.130 user   0.140 sys
+query 15:   6.576 real   4.150 user   1.700 sys
+query 16:   7.770 real   7.170 user   0.310 sys
+query 17:   7.355 real   4.970 user   1.890 sys
+query 18:   5.868 real   4.960 user   0.420 sys
+query 19:   0.814 real   0.770 user   0.050 sys
+query 20:   0.001 real   0.000 user   0.000 sys
+query 21:   0.001 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.000 sys
+query 23:   0.002 real   0.000 user   0.000 sys
+query 24:   0.002 real   0.010 user   0.000 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.001 real   0.000 user   0.000 sys
+query 27:   0.078 real   0.010 user   0.000 sys
+query 28:   0.091 real   0.060 user   0.010 sys
+query 29:   0.001 real   0.000 user   0.000 sys
+query 30:   0.017 real   0.010 user   0.010 sys
+query 31:   0.053 real   0.040 user   0.010 sys
+query 32:   0.057 real   0.040 user   0.010 sys
+
+------------------------------- cut here -----------------------------
+*** postgresql-v6.4/src/backend/storage/buffer/s_lock.c.orig	Thu Dec 17 12:35:31 1998
+--- postgresql-v6.4/src/backend/storage/buffer/s_lock.c	Thu Dec 17 13:29:46 1998
+***************
+*** 117,123 ****
+  
+  #endif	 /* PPC */
+  
+! 
+  
+  #else							/* defined(__GNUC__) */
+  /***************************************************************************
+--- 117,144 ----
+  
+  #endif	 /* PPC */
+  
+! #if defined(__mips)
+! static void
+! tas_dummy()
+! {
+! 	__asm__("		\n\
+! .global	tas			\n\
+! tas:				\n\
+! 	.frame	$sp, 0, $31	\n\
+! 	ll	$14, 0($4)	\n\
+! 	or	$15, $14, 1	\n\
+! 	sc	$15, 0($4)	\n\
+! 	beq	$15, 0, fail	\n\
+! 	bne	$14, 0, fail	\n\
+! 	li	$2, 0		\n\
+! 	.livereg 0x2000FF0E,0x00000FFF	\n\
+! 	j       $31		\n\
+! fail:				\n\
+! 	li	$2, 1		\n\
+! 	j       $31		\n\
+! 	");
+! }
+! #endif	/* __mips */
+  
+  #else							/* defined(__GNUC__) */
+  /***************************************************************************
+*** postgresql-v6.4/src/include/port/linux.h.orig	Thu Dec 17 11:40:49 1998
+--- postgresql-v6.4/src/include/port/linux.h	Thu Dec 17 13:18:35 1998
+***************
+*** 15,20 ****
+--- 15,23 ----
+  #elif defined(__alpha)
+  typedef long int slock_t;
+  
++ #elif defined(__mips)
++ typedef unsigned int slock_t;
++ 
+  #else							/* i386 probably */
+  typedef unsigned char slock_t;
+  
+*** postgresql-v6.4/src/template/.similar.orig	Thu Dec 17 11:34:33 1998
+--- postgresql-v6.4/src/template/.similar	Thu Dec 17 11:35:34 1998
+***************
+*** 28,30 ****
+--- 28,31 ----
+  sparc-sun-sunos4=sunos4_gcc
+  sparc-sun-sunos5=solaris_sparc_gcc
+  sparc-unknown-linux-gnu=linux_sparc
++ mips-pc-linux-gnu=linux_mips
+*** postgresql-v6.4/src/template/linux_mips.orig	Thu Dec 17 11:36:30 1998
+--- postgresql-v6.4/src/template/linux_mips	Thu Dec 17 13:31:48 1998
+***************
+*** 0 ****
+--- 1,10 ----
++ AROPT:crs
++ CFLAGS:-O2 -mips2
++ SHARED_LIB:-fpic
++ ALL:
++ SRCH_INC:
++ SRCH_LIB:
++ USE_LOCALE:no
++ DLSUFFIX:.so
++ YFLAGS:-d
++ YACC:bison -y
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00238" HREF="msg00238.html">[pgsql-jp 6213] Re: PostgreSQL 6.4 for Cobalt Qube</A></STRONG>
+<UL><LI><EM>From:</EM> NAKAJIMA Mutsuki &lt;muc@tg-inet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00236.html">[pgsql-jp 6211] Re: サーバーに接続できない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00238.html">[pgsql-jp 6213] Re: PostgreSQL 6.4 for Cobalt Qube</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00329.html">[pgsql-jp 6304] Re: emacs to postmaster</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00238.html">[pgsql-jp 6213] Re: PostgreSQL 6.4 for Cobalt Qube</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00237"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00237"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

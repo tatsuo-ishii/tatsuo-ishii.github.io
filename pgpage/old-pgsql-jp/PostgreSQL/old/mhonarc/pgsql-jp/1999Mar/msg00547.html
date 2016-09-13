@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7803] Re: ecpg fix and 6.5 beta -->
+<!--X-From: takehi&#45;s@ascii.co.jp (SHIOZAKI Takehiko) -->
+<!--X-Date: Wed, 31 Mar 1999 13:48:26 +0900 -->
+<!--X-Message-Id: 199903310448.NAA10543@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903301358.WAA01372@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7803] Re: ecpg fix and 6.5 beta </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00546.html">Date Prev</A>][<A HREF="msg00548.html">Date Next</A>][<A HREF="msg00540.html">Thread Prev</A>][<A HREF="msg00551.html">Thread Next</A>][<A HREF="index.html#00547">Date Index</A>][<A HREF="threads.html#00547">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7803] Re: ecpg fix and 6.5 beta</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A> (SHIOZAKI Takehiko)</LI>
+<LI><em>Date</em>: Wed, 31 Mar 1999 13:48:26 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00538.html">199903301358.WAA01372@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Mar 30, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;
+&gt;ついでにお願いしますが、6.5 の beta test には、できるだけ多くの方が参
+&gt;加して下さるようにお願いします。できれば、プラットフォームごとに担当の
+&gt;方がいれば最高です。私は LinuxPPC と CobaltQube を担当できます。
+&gt;FreeBSD なら 2.2.6 にアクセスできますが、これは他にも大勢いらっしゃる
+&gt;気がするので辞退しておこうかな。
+
+では、私が前のようにFreeBSD(主に2.2.7-RELEASE)を試しましょうか。
+
+ひとまず、03/28のsnapshotでは、
+	Subject: [pgsql-jp 7506] Re: true NUMERIC type って何でしょう？ 
+で書いたfloat8の問題は残っていますが、これって問題なさそうですよね。
+expected/float8-FreeBSD.outを作ってもらった方がよいのでしょうか?
+geometryも丸め誤差のような気がします。
+後はまだ詳しく見ていません。
+
+しかし、いまだに解決していないのは、
+	Subject: [pgsql-jp 5667] Re: ShmemCreate: cannot create region
+辺りで書いた、いつの間にか
+FATAL 1:  btree: BTP_CHAIN flag was expected in reference_to_idx (access = bt_read)
+となる問題です。
+簡単なスクリプトで再現させられないのですが、実環境だと確実に出ます。
+2-3のプロセスが単にselect/insert/updateを繰り返しているだけなんですが、
+すべてのselect/insert/updateを
+	begin;
+	lock テーブル名;
+		〜
+	end;
+と囲んでも囲まなくても出ます。
+postmaster -d 2で見ても、以下のように突然起きます。
+
+========================================================================
+StartTransactionCommand
+query: insert into url values ('ewb05.pb.ascii.co.jp', 80, '/pub/TeX/CTAN/info/', '', '');
+ProcessQuery
+ERROR:  Cannot insert a duplicate key into a unique index
+AbortCurrentTransaction
+StartTransactionCommand
+query: insert into reference values ('<A HREF="http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/?M=D">http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/?M=D</A>', '<A HREF="http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/info/">http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/info/</A>');
+ProcessQuery
+CommitTransactionCommand
+StartTransactionCommand
+query: insert into url values ('ewb05.pb.ascii.co.jp', 80, '/pub/TeX/CTAN/documentation/', '', '');
+ProcessQuery
+ERROR:  Cannot insert a duplicate key into a unique index
+AbortCurrentTransaction
+StartTransactionCommand
+query: insert into reference values ('<A HREF="http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/?M=D">http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/?M=D</A>', '<A HREF="http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/documentation/">http://ewb05.pb.ascii.co.jp:80/pub/TeX/CTAN/documentation/</A>');
+ProcessQuery
+FATAL 1:  btree: BTP_CHAIN flag was expected in reference_to_idx (access = bt_read)
+========================================================================
+
+該当するインデックスは以下のような単純なものです。
+
+========================================================================
+create table reference
+(
+	f_url	text	not null,
+	t_url	text	not null
+);
+create index reference_from_idx on reference (f_url);
+create index reference_to_idx on reference (t_url);
+create unique index reference_uniq_idx on reference (f_url, t_url);
+========================================================================
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00551" HREF="msg00551.html">[pgsql-jp 7807] Re: ecpg fix and 6.5 beta</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00538" HREF="msg00538.html">[pgsql-jp 7794] ecpg fix and 6.5 beta</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00546.html">[pgsql-jp 7802] RE: [pgsql-jp 7800] : pg_logフ ァイル</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00548.html">[pgsql-jp 7804] Re: pg_log ファイル</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00540.html">[pgsql-jp 7796] Re: ecpg fix and 6.5 beta</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00551.html">[pgsql-jp 7807] Re: ecpg fix and 6.5 beta</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00547"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00547"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,145 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6741] Re: Re: LOW LEVEL LOCKINGとは？ -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 22 Jan 1999 10:29:38 +0900 -->
+<!--X-Message-Id: 199901220129.KAA15283@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000601be44d8$dc948c20$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00327.html">Date Prev</A>][<A HREF="msg00329.html">Date Next</A>][<A HREF="msg00315.html">Thread Prev</A>][<A HREF="msg00331.html">Thread Next</A>][<A HREF="index.html#00328">Date Index</A>][<A HREF="threads.html#00328">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Jan 1999 10:29:38 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt; 非常に興味のある話題なので、もう少し教えてください。
+&gt;&gt; ROW-LEVEL-LOCKINGとLOW-LEVEL-LOCKING (MVCC)の違いはなんとなく理解
+&gt;&gt; できましたが、さらにそれぞれの特徴を比較して教
+&gt;&gt; えていただけるとありがたいのですが・・・。
+&gt;&gt; www.postgresql.orgの最初のページを読むと、6.5はROW-LEVEL-LOCK
+&gt;&gt; INGも出来ると書
+&gt;&gt; いてありますね・・・。併用できるということですか・・・？　よけい分
+&gt;
+&gt;併用できないと思います。
+&gt;既存のプログラムに対して現在と同じ動作は保証しないでしょうから、
+&gt;厳密にいえば既存のプログラムは見直す必要があるはずです。
+&gt;MVCCは機能強化ではなく、実際はシステム変更なのでもっと議論
+&gt;されなければいけないと思うのですが。
+
+「併用できる」「併用できない」っていう言い方はちょっと違うのでは。
+Row-level locking は利用者が意識して(つまり明示的に何かコマンドを発行
+して)行なうものではないですから。
+
+で 6.5 においては、井上さんもおしゃっているように、書き込み時には自動
+的に Row-level locking されます。
+
+&gt;実装者であるVadim氏も、最近はLLLという言葉を使っていないようです。
+&gt;できるだけロックをかけないようにしようという思想的なものでしょうか？
+
+私もそんな気がします。
+
+&gt;１．読み込み時には基本的にロックがかからない（現在はテーブル単位の共有
+&gt;     ロックがかかる）。
+&gt;     私の場合現在のロック方式では、おちおち検索もできないという気持ちに
+&gt;     なってしまうのですが、みなさんはどうなのでしょう。
+
+検索だけならOKだけど、一つでも更新トランザクションがあるとテーブル全体
+がロックされるので困る、という意味なら私もそう思います。
+
+&gt;２．書き込み（UPDATE/INSERT/DELETE)時には基本的に行単位ロックが
+&gt;     かかる。
+
+6.4 以前との互換性については私も気になるのでちょっと触れます。
+
+1. デフォルトの isolation level は Oracle などと同じように、
+read_comitted になるようです(つまり dirty read は発生しないが、none
+repeatable read と phantom は発生する)。現在の PostgreSQL のデフォルト
+の(というかこれ以外は実装されていない)isolation level はrepeatable
+read も phantom も発生しない serializable なので、違いがあります。私の
+理解では、6.5 では set transaction isolation level 構文がサポートされ
+るはずですが、はたしてこれを使って serializable にできるのかどうか気に
+なります。
+
+2. 仮に isolation level を serializable にできたとして、この場合でも 
+読み込みはロックされないのかどうか。実装者の Vadim さんは Oracle を参
+考にしたと言っていますが、Oracle では serializable の場合でも読み込み
+はロックされないので、同じ仕様だと嬉しいのですが。
+
+# もっとも、Oracle ではこのような場合、ロールバックセグメントという内
+# 部データ領域を使い果たすとトランザクションがアボートされてしまいます。
+# PostgreSQL にはそもそもロールバックセグメントがないので、このような事
+# 態は発生しませんから、この点では Oracle よりも優れていると言えそうです。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00392" HREF="msg00392.html">[pgsql-jp 6805] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> takehi-s@ascii.co.jp (SHIOZAKI Takehiko)</LI></UL></LI>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 6744] RE: [pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00309" HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00327.html">[pgsql-jp 6740] initdbが出来ません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00329.html">[pgsql-jp 6742] Re: テーブルロックについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00315.html">[pgsql-jp 6728] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 6744] RE: [pgsql-jp 6741] Re: Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00328"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00328"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

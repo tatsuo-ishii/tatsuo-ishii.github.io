@@ -1,0 +1,155 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5682] Re: PostgreSQLの起動(rc.d/postgres.sh)	につい -->
+<!--X-From: Shigeki Mimura <mimu@msdj.com> -->
+<!--X-Date: Tue, 20 Oct 1998 19:01:36 +0900 -->
+<!--X-Message-Id: 19981020190136A.mimu@msdj.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199810200858.RAA16135@ms7.niftyserve.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5682] Re: PostgreSQLの起動(rc.d/postgres.sh)	につい </TITLE>
+<LINK REV="made" HREF="mailto:mimu@msdj.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00164.html">Date Prev</A>][<A HREF="msg00166.html">Date Next</A>][<A HREF="msg00164.html">Thread Prev</A>][<A HREF="msg00161.html">Thread Next</A>][<A HREF="index.html#00165">Date Index</A>][<A HREF="threads.html#00165">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5682] Re: PostgreSQLの起動(rc.d/postgres.sh)	につい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shigeki Mimura &lt;<A HREF="mailto:mimu@msdj.com">mimu@msdj.com</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 20 Oct 1998 19:01:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00163.html">199810200858.RAA16135@ms7.niftyserve.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Message-ID: &lt;<A HREF="msg00163.html">199810200858.RAA16135@ms7.niftyserve.or.jp</A>&gt; の記事にて
+Murata Mitsuo &lt;murata.mitsuo@nifty.ne.jp&gt; さんはこう言われております :
+
+ 
+&gt; 　FreeBSD 2.2.1(98)のもとに、主婦の友社「ＳＱＬデータベース構築入門」
+&gt; (ISBN4-07-390722-0})に従ってpostgreSQLをインストールしたのですが、「シス
+&gt; テム起動時」の設定(p149)で/usr/local/etc/rc.d/にpostgres.rcというスクリ
+&gt; プトを
+&gt; 
+&gt; #!/bin/sh
+&gt; su postgres -c "usr/local/pgsql/bin/postmaster -D/usr/local/pgsql/data -S -i"
+&gt; 
+&gt; と設定して再起動すると、
+&gt; /usr/local/pgsql/bin/postmaster does not find the database system.
+&gt; Expected to find it in the PGDATA directory "/usr/local/pgsql/data",
+&gt;  but unable to open file with pathname "/usr/local/pgsql/data/base/
+&gt; template1/pg_class".
+&gt; 
+&gt; No data directory -- can't proceed.
+&gt; 
+&gt; とエラー表示されてしまいます。PGDATAという環境変数が必要なのかと思い、
+&gt; ユーザーpostgresの.loginやrootの.cshrcに
+&gt;          setenv PGDATA /usr/local/pgsql/data
+&gt; と追加したりしてみたのですが、結果は変わりません。
+&gt; 
+&gt;   この本にはその前のページ(p148)に、コマンド入力で
+&gt;          postmaster -D/usr/local/pgsql/data -S -i
+&gt; を入力してみるように書いてあり、実行するとエラーにはならないのです。
+&gt; 
+&gt; 　上記の事を出版社に問い合わせたのですが、他に同じ事例が無いようなので、
+&gt; 私のマシンNEC PC9821/Ld (note)での固有問題だと思われます。
+&gt; 
+&gt; 　起動スクリプト作成上での一般的考慮不足、環境変数の設定、postgreSQLの
+&gt; 使い方等、原因はどれなのか特定出来ず、皆様にお尋ね致します。
+&gt; 　どうぞよろしくお願い申し上げます。
+
+
+そんなに悩むことはひょっとしたらないかも知れません。
+
+/tmp/.s.PGSQL.5432
+
+ってファイルが存在していませんか？
+これを消せばうまくいくと思いますよ。
+今のFreeBSDではブートアップ時に/tmpをclean upしてしまわないので、
+たとえば、
+
+#!/bin/sh
+[ -f /tmp/.s.PGSQL.5432 ] &amp;&amp; rm -f /tmp/.s.PGSQL.5432
+
+
+[ -d /usr/local/pgsql/lib ] &amp;&amp; /sbin/ldconfig -m /usr/local/pgsql/lib
+
+[ -x /usr/local/pgsql/bin/postmaster ] &amp;&amp; {
+        su -l pgsql -c 'exec /usr/local/pgsql/bin/postmaster -i -S -o -F \
+                -D/usr/local/pgsql/data &gt; /usr/local/pgsql/errlog'
+        echo -n ' PostgreSQL' 
+}
+
+と言うようなふうに/usr/local/etc/rc.d/postgres.rcを書き換えればいつでも
+起動するようになると思います。
+因みに、上記のスクリプトはports systemを使ってインストールした時に作成
+されるスクリプトに一行付け加えただけのものです。
+
+FreeBSDを使われているならFreeBSD-users-jpにも入った方が良いかもしれない
+ですね。
+
+#もう既に参加されているならごめんなさい。
+
+<A HREF="http://www.jp.freebsd.org/">http://www.jp.freebsd.org/</A>
+
+からMLその他FreeBSDの重要な情報にたどり着くことができます。
+
+
+#####################################
+##        Shigeki Mimura           ##
+##        MSD-JAPAN Inc.           ##
+##     E-mail:mimu@msdj.com        ##
+#####################################
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00163" HREF="msg00163.html">[pgsql-jp 5680] PostgreSQLの起動(rc.d/postgres.sh)につい</A></STRONG>
+<UL><LI><EM>From:</EM> Murata Mitsuo &lt;murata.mitsuo@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 5681] Re: PostgreSQLの起動(rc.d/postgres.sh)につい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00166.html">[pgsql-jp 5683] PostgreSQL V6.4b2で、コンパイルエラー!?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 5681] Re: PostgreSQLの起動(rc.d/postgres.sh)につい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 5678] questions?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00165"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00165"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

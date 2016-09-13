@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11271] Re: 6.5.2 でのインデックス付き検索 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 22 Oct 1999 10:15:29 +0900 -->
+<!--X-Message-Id: 199910220115.KAA01064@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991021224358.E404@halfmoon.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11271] Re: 6.5.2 でのインデックス付き検索 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00295.html">Date Prev</A>][<A HREF="msg00297.html">Date Next</A>][<A HREF="msg00290.html">Thread Prev</A>][<A HREF="msg00298.html">Thread Next</A>][<A HREF="index.html#00296">Date Index</A>][<A HREF="threads.html#00296">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11271] Re: 6.5.2 でのインデックス付き検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Oct 1999 10:15:29 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;  星です。
+&gt;  はじめまして、石井さん。よろしくおねがいします。
+
+こちらこそよろしくお願いします。
+
+&gt; Thu, Oct 21, 1999 at 04:16:37PM +0900 において
+&gt; Tatsuo Ishii さん曰く:
+&gt; 
+&gt; &gt; 本当に
+&gt; &gt; 
+&gt; &gt; select * from postalcode where 町域名 like '東山';
+&gt; &gt; 
+&gt; &gt; で index scan になってますか？多分そうではないと思うので、実際に index
+&gt; &gt; scan なのに遅い例の explain の出力と、テーブルの定義を見せて下さい。
+
+失礼しました。「町域名 like '東山'」は、「町域名 = '東山'」なので、イ
+ンデックスさえ張ってあれば必ず index scan になりますね。
+
+&gt;  何分詳しくないものでもしかすると読み間違えているのかも知れませんが、
+&gt; 以下のような形になっています。長いかも知れませんが、直接コピーしてみま
+&gt; した。
+&gt;  
+&gt; Table    = postalcode           
+&gt; +----------------------------------+----------------------------------+-------+
+&gt; |              Field               |              Type                | Length|
+&gt; +----------------------------------+----------------------------------+-------+
+&gt; | 公共団体コード                   | varchar()                        |     5 |
+&gt; | 現郵便番号                       | varchar()                        |     5 |
+&gt; | 新郵便番号                       | varchar()                        |     7 |
+&gt; | 都道府県名読み                   | text                             |   var |
+&gt; | 市町村名読み                     | text                             |   var |
+&gt; | 町域名読み                       | text                             |   var |
+&gt; | 都道府県名                       | text                             |   var |
+&gt; | 市町村名                         | text                             |   var |
+&gt; | 町域名                           | text                             |   var |
+&gt; +----------------------------------+----------------------------------+-------+
+&gt; 
+&gt;  tableは上のようになっています。
+&gt; 
+&gt;  これに対して、(この状態で全てのインデックスをdropしてあります)
+&gt; 
+&gt; postalcode=&gt; create index 町域名_idx on postalcode(町域名);
+&gt; CREATE                          
+&gt; postalcode=&gt; vacuum;            
+&gt; VACUUM                          
+&gt; postalcode=&gt; explain select * from postalcode where 町域名 like '東山';
+&gt; NOTICE:  QUERY PLAN:            
+&gt;                                 
+&gt; Index Scan using 町域名_idx on postalcode  (cost=2924.33 rows=1 width=108)
+
+私が公開している pgpost のテーブルはほぼ同じ構成なので、実際に同じよう
+な検索をやってみました。
+
+Table    = postal
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| oldcode                          | varchar()                        |     5 |
+| newcode                          | char()                           |     7 |
+| pid                              | int2                             |     2 |
+| kana_city                        | text                             |   var |
+| kana_town                        | text                             |   var |
+| city                             | text                             |   var |
+| town                             | text                             |   var |
++----------------------------------+----------------------------------+-------+
+
+postal=&gt; explain select * from postal where town = '東山';
+NOTICE:  QUERY PLAN:
+
+Index Scan using townindex on postal  (cost=51.89 rows=738 width=74)
+
+EXPLAIN
+
+御覧のように、explain の結果(コスト)がかなり違います。多分元データは同
+じ郵政省の郵便番号データベースとだと思うので、この結果は一致しなければ
+ならないのですが、おそらく違いは私の場合、vacuum ではなくて、vacuum
+analyze をやっているせいでしょう。
+
+念のため、インデックスを作成した後 vacuum analyze を実行し、もう一度検
+索してみて頂けませんか？
+
+ちなみに、手元の LinuxPPC では、
+
+インデックスあり:
+0.08user 0.04system 0:00.34elapsed 35%CPU (0avgtext+0avgdata 0maxresident)k
+
+インデックスなし:
+0.08user 0.04system 0:04.50elapsed 2%CPU (0avgtext+0avgdata 0maxresident)k
+
+圧倒的にインデックスありのほうが速くなっています。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00301" HREF="msg00301.html">[pgsql-jp 11276] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Hoshi &lt;hiro@halfmoon.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00298" HREF="msg00298.html">[pgsql-jp 11273] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> 杉原　俊介&lt;sugihara@central-lib.pref.osaka.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00290" HREF="msg00290.html">[pgsql-jp 11265] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Hoshi &lt;hiro@halfmoon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00295.html">[pgsql-jp 11270] wanted: PostgreSQL commercial products brochures</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00297.html">[pgsql-jp 11272] Re: libpq++ラージオブジェクト</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 11265] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00298.html">[pgsql-jp 11273] Re: 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00296"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00296"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

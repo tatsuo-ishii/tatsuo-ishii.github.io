@@ -1,0 +1,481 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2681] 6.2jp + Kerberos4 Auth. -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Sun, 12 Oct 1997 21:28:35 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.95LJ1.1b4.971012212525.770A&#45;100000@presy.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2681] 6.2jp + Kerberos4 Auth. </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00094.html">Date Prev</A>][<A HREF="msg00096.html">Date Next</A>][<A HREF="msg00096.html">Thread Prev</A>][<A HREF="msg00099.html">Thread Next</A>][<A HREF="index.html#00095">Date Index</A>][<A HREF="threads.html#00095">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2681] 6.2jp + Kerberos4 Auth.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 12 Oct 1997 21:28:35 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  6.2jp を Kerberos4 認証でインストールしてみました。インストールの仕方を
+まとめ直しましたのでポストします。
+--
+Kerberos4 認証の PostgreSQL-6.2 のインストール(Linux-ELF)
+
+                                                                 1997-10-12
+                                                                    桑村 潤
+
+このドキュメントは <A HREF="http://www.rccm.co.jp/~juk/pgsql/INSTALL+krb.html">http://www.rccm.co.jp/~juk/pgsql/INSTALL+krb.html</A> にあり
+ます。
+----------------------------------------------------------------------------
+
+1. ソースコードの用意
+2. コンパイルの前準備
+3. コンパイルとインストール
+4. データベースの作成と初期化
+5. Kerberos サーバに PostgreSQL サービスの登録
+6. Kerberos 化された PostgreSQL のテスト
+7. PostgreSQL に附属のテスト
+
+----------------------------------------------------------------------------
+
+1. ソースコードの用意
+
+1.1 ソースコードをダウンロードし展開します。
+
+次の場所から(ミラーサイトがありますでなるべく近くのサイトを利用して)
+
+   * <A HREF="http://postgresql.org/sites.shtml">http://postgresql.org/sites.shtml</A>
+
+postgresql-6.2.tar.gz を取得します。
+
+ソースを展開します。
+
+        % tar xvfz postgresql-6.2.tar.gz
+
+1.2 必要なパッチがあればそれを当てます。
+
+その他、必要なパッチ(日本語パッチなど)があれば、適宜当てておきます。
+
+(SRAの石井さんによる日本語パッチ 6.2jpPL1.patch.gz は、
+
+   * <A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2/6.2jpPL1.patch.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.2/6.2jpPL1.patch.gz</A>
+
+にあります。)
+
+        % zcat 6.2jpPL1.patch.gz | patch -p0
+
+2. コンパイルの前準備
+
+2.1 ドキュメントの確認
+
+README, INSTALL, README.jp などのファイルに目を通します。INSTALL ファイルに
+は、Linux-ELF 版では、以下の修正をしてもよいと書かれています。
+
+     (1) template/linux-elf で CFLAGS の設定行に " -m486" オプションを加えま
+     す。
+     (2) include/config.h に "#define HAVE_SIGSETJMP 1" を設定します。
+
+(1)は configure の実行前に行ない、(2) は configure の実行後に行なうことにご
+注意下さい。
+
+2.2 コンフィグレーション
+
+configure を実行します。kerberos 認証を行なうため configure コマンドの引数に
+"--disable-hba" を付けてバックエンドサーバが HBA(ホスト主導型認証)を行なわな
+いようにします。
+
+        % cd postgresql-6.2/src
+        % ./configure --disable-hba
+
+2.3 Makefile.global の編集
+
+Makefile.global を編集し、KRBVERS 変数に Kerberos のバージョンを指定し、この
+ファイルの終りに Kerberos 認証のためのコンパイルオプションの追加を行ないます
+。
+
+        ...
+
+        KRBVERS= 4
+        ...
+
+        ifdef KRBVERS
+           CFLAGS+=$(KRBFLAGS)
+           LDFLAGS+= $(KRBLIBS)
+        endif
+
+2.4 Makefile.custom の作成
+
+Makefile.custom を自分の環境に合わせて作成します。 例えば、私の
+Makefile.custom は以下のような内容です。
+
+     HAVE_Cplusplus= true
+     USE_TCL= true
+     TCL_INCDIR= /usr/local/include
+     TCL_LIBDIR= /usr/local/lib
+     TCL_LIB= -ltcl7.6jp
+     TK_INCDIR= /usr/local/include
+     TK_LIBDIR= /usr/local/lib
+     TK_LIB= -ltk4.2jp
+     X11_INCDIR= /usr/include
+     X11_LIBDIR= /usr/X11/lib
+     X11_LIB= -lX11
+     JP=1
+
+3. コンパイルとインストール
+
+3.1 コンパイル
+
+make を実行すると、必要な実行モジュールなどは全て作成されます。
+
+        % make
+
+3.2 インストール
+
+デフォルトでは /usr/local/pgsql/ ディレクトリの下にインストールされます。
+PostgreSQL の管理者は自分なので(su しないで)そのまま行ないます。
+
+        % make install
+
+Tcl/Tk の実行モジュールを使いたい場合は、Makefile.custom での指定の他、ソー
+スコードのあるサブディレクトリにてコンパイルとインストールをする必要がありま
+す。
+
+        % cd src/bin/pgtclsh
+        % make install
+
+3.3 共有ライブラリの再読み込み
+
+まず、ルートになって(su root して)、ELF 共有ライブラリを再読み込みさせます。
+始めてインストールした場合は、/etc/ld.so.conf に PostgreSQL のライブラリディ
+レクトリを追加:
+
+        # su
+        # echo "/usr/local/pgsql/lib" &gt;&gt; /etc/ld.so.conf
+
+し、次のように:
+
+        # /sbin/ldconfig
+        # exit
+
+ldconfig コマンドを実行します。
+
+# 本当にこれは必要なのかな? たぶん LD_LIBRARY_PATH 環境変数を設定するだけで
+もいけると思います。
+
+4. データベースの作成と初期化
+
+4.1 PostgreSQLデータベースディレクトリの初期化
+
+データベースディレクトリの初期化を initdb コマンドで行ないます。古いデータベ
+ースディレクトリがある場合は、rm コマンドで削除しておく必要があります。
+
+(以前のバージョンのデータベースからのアップデートにはダンプとリロードを行な
+います。ダンプとリロードの方法については FAQ や オンラインマニュアルを参照下
+さい。)
+
+        % setenv PGDATA /usr/local/pgsql/data
+        % setenv PGLIB /usr/local/pgsql/lib
+        % rm -rf $PGDATA
+        % initdb
+
+4.2 データベースの作成
+
+Kerberos サーバテーブルに登録します(=&gt; 5.)。
+
+バックエンドサーバを起動し、Kerberos のチケットを取得(=&gt; 6.)してから自分のデ
+ータベースを作成します。
+
+        % postmaster -S
+        % setenv PGHOST penty
+        % createdb
+
+4.3 データベースのリロード
+
+バージョンアップ等で以前のバージョンのデータベースから pg_dump コマンドによ
+るダンプデータがある場合はそのデータをリロードします。
+
+        % psql -e juk &lt; juk.dump
+        ここで、
+                juk:      データベース名
+                juk.dump: 以前のバージョンでのダンプデータ
+
+5. Kerberos サーバに PostgreSQL サービスの登録
+
+ここで、Kerberos4 システムがあらかじめインストールされているとします。私の使
+用した Kerberos4 は KTH バージョンの eBones で、
+<A HREF="http://www.pdc.kth.se/kth-krb/">http://www.pdc.kth.se/kth-krb/</A> から入手できます。
+
+Kerberos4 については、<A HREF="http://www.rccm.co.jp/~juk/krb/">http://www.rccm.co.jp/~juk/krb/</A> に少しは役立につ情報が
+あるかも知れませんので、そちらも参照下さい。
+
+5.1 Kerberos の鍵発行局にプリンシパル postgres_dbms を登録
+
+Kerberos デーモンは、Kerberos の 鍵発行局(KDC: Key Distribution Center) の役
+割をはたしますので、そのデーモンの走る Kerberos サーバマシンにて PostgreSQL
+サーバのプリンシパルとインスタンスを登録します。ここでは、PostgreSQL のプリ
+ンシパル名はデフォルトの postgres_dbms 、インスタンスは PostgreSQL サーバマ
+シンのホスト名の penty です。
+
+行末に "&lt;=" があるのは入力行です。
+
+        kdc# kdb_edit                                           &lt;=
+        Opening database...
+
+        Enter Kerberos master key: ********                     &lt;=
+
+        Current Kerberos master key version is 1.
+
+        Master key entered.  BEWARE!
+        Previous or default values are in [brackets] ,
+        enter return to leave the same, or new value.
+
+        Principal name: postgres_dbms                           &lt;=
+        Instance: penty                                         &lt;=
+
+        , Create [y] ?
+
+        Principal: postgres_dbms, Instance: penty, kdc_key_ver: 1
+        New Password: RANDOM                                    &lt;=
+        Verifying password
+        New Password: RANDOM                                    &lt;=
+
+        Random password [y] ?                                   &lt;=
+
+        Principal's new key version = 1
+        Expiration date (enter yyyy-mm-dd) [ 2000-01-01 ] ?     &lt;=
+        Max ticket lifetime (*5 minutes) [ 255 ] ?              &lt;=
+        Attributes [ 0 ] ?                                      &lt;=
+        Edit O.K.
+        Principal name:                                         &lt;=
+        kdc#
+
+# これって本当に必要なの? 次の ksrvutil コマンドの実行で出来るかも。
+
+5.2 PostgreSQL サーバに postgres_dbms の鍵を登録
+
+PostgreSQL サーバに始めて、Kerberos のアプリケーションをインストールする場合
+は、/etc/krb.conf と /etc/krb.realm の設定を行ないます。たとえば、
+
+        # cat /etc/krb.conf
+        MY.REALM.JP
+        MY.REALM.JP     kdc.my.realm.jp admin server
+
+        # cat /etc/krb.realms
+        .my.realm.jp     MY.REALM.JP
+
+のように設定します。
+
+PostgreSQL サーバの Kerberos サービステーブル(srvtab)に Kerberos 認証に必要
+な posgres_dbms の鍵の登録を行ないます。登録は PostgreSQL サーバマシンでルー
+トになって行ないます。ksrvutil コマンドを使うためには、PostgreSQL サーバマシ
+ンに Kerberos の管理コマンドがインストールされていることと、Kerberos サーバ
+マシンで Kerberos の管理デーモン(kadmind)が走っている必要があります。
+
+        penty% su
+        penty# ksrvutil add                                     &lt;=
+        Name: postgres_dbms                                     &lt;=
+        Instance: penty                                         &lt;=
+        Realm: MY.REALM.JP                                      &lt;=
+        Version number: 1
+        New principal: postgres_dbms.penty@MY.REALM.JP; version 1
+        Is this correct? (y,n) [y] y                            &lt;=
+        Password: ********
+        Verifying password Password: ********                   &lt;=
+        Key successfully added.
+        Would you like to add another key? (y,n) [y] n          &lt;=
+        Old keyfile in /etc/srvtab.old.
+        penty#
+
+(ksrvutil コマンドがインストールされていない場合、)この作業は従来 Kerberos
+サーバマシンで ext_srvtab コマンドを実行し、
+
+        kdc# ext_srvtab penty                                   &lt;=
+        Enter Kerberos master password: ********                &lt;=
+        Current Kerberos master key version is 1.
+        Master key entered.  BEWARE!
+        Generating 'penty-new-srvtab'....
+
+ジェネレートされたサービステーブルファイル(ここでは penty-new-srvtab) を
+PostgreSQL サーバに安全な方法(ネットワークを介さずフロッピーディスクなど)で
+輸送し、/etc/srvtab ファイルとしてインストールすることによって行なわれました
+。
+
+5.3 postmaster に srvtab へのアクセス権を与える
+
+PostgreSQL のバックエンド(postmaster)用に postgres というグループを作成し、
+postmaster が srvtab を読めるようにアクセス権を与えます。
+
+        penty# chgrp postgres /etc/srvtab
+        penty# chmod g+r /etc/srvtab
+        penty# ls -l /etc/srvtab
+        -rw-r-----   1 root     postgres       71 Oct  8 23:31 /etc/srvtab
+
+もちろん postmaster を起動する PostgreSQL の管理者ユーザ(juk)は postgres グ
+ループに属している必要があります。これは、管理者ユーザで id コマンドを実行す
+ると確認できます。
+
+        penty% grep postgres /etc/group
+        postgres::77:juk
+
+        penty% id
+        uid=1037(juk) gid=100(users) groups=100(users),77(postgres)
+
+6. Kerberos 化された PostgreSQL のテスト
+
+6.1 postmaster を実行し、アクセスのテストを行ないます。
+
+ここでは、postgres_dbms の登録されている Kerberos のレルムにあらかじめユーザ
+(プリンシパル) juk が登録されていることとします。(プリンシパルの登録方法は
+「MIT Kerberos4 オペレーションノート」 などを参照下さい。
+<A HREF="http://www.rccm.co.jp/~juk/krb/operation.txt">http://www.rccm.co.jp/~juk/krb/operation.txt</A> に拙訳があります。)
+
+        % postmaster -S                                         &lt;=
+
+(1) Kerberos のチケットを取得しない場合。
+
+Kerberos 化されたサービスにアクセスするには、あらかじめ発券許可証が
+(TGT:Ticket Granting Ticket)必要です。TGT がない場合は、認証に失敗し
+postmaster にはアクセスできません。
+
+        % setenv PGHOST penty                                   &lt;=
+        % psql                                                  &lt;=
+        Connection to database 'juk' failed.
+        connectDB() --  authentication failed with penty
+
+(2) チケットの取得と確認。
+
+kinit もしくは kauth コマンドで TGT を取得します。(kauth を使うとダイアルア
+ップ接続の場合にでも TGT を取得することが可能です。)
+
+        % kinit                                                 &lt;=
+        eBones International (penty)
+        Kerberos Initialization
+        Kerberos name: juk                                      &lt;=
+        Password: ********                                      &lt;=
+
+        % klist                                                 &lt;=
+        Ticket file:    /tmp/tkt1037
+        Principal:      juk@MY.REALM.JP
+
+          Issued           Expires          Principal
+        Jun 19 00:45:58  Jun 19 10:45:58  krbtgt.MY.REALM.JP@MY.REALM.JP
+
+(3) チケットを取得している場合。
+
+TGT を取得後に psql が正常に実行された場合です。
+
+        % psql                                                  &lt;=
+        Welcome to the POSTGRESQL interactive sql monitor:
+          Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+
+           type \? for help on slash commands
+           type \q to quit
+           type \g or terminate with semicolon to execute query
+         You are currently connected to the database: juk
+
+        juk=&gt; \q                                                &lt;=
+
+(4) チケットの確認。
+
+TGT を取得して psql コマンドを実行したことによって、セッションチケット
+postgres_dbms.penty@MY.REALM.JP が自動的に取得されている事に注意してください
+。
+
+        % klist                                                 &lt;=
+        Ticket file:    /tmp/tkt1037
+        Principal:      juk@MY.REALM.JP
+
+          Issued           Expires          Principal
+        Jun 19 00:45:58  Jun 19 10:45:58  krbtgt.MY.REALM.JP@MY.REALM.JP
+        Jun 19 00:46:18  Jun 19 10:46:18  postgres_dbms.penty@MY.REALM.JP
+
+7. PostgreSQL に附属のテスト
+
+7.1 regression テスト
+
+postmaster を実行し、src/test/regress ディレクトリで regression テスト を実
+行。(そのディレクトリの README を参照)
+
+        % setenv TZ PST8PDT
+        % date
+        % /usr/local/pgsql/bin/postmaster -s &amp;
+        % make all runtest
+
+SRAの石井さんによる日本語パッチには次のテストも含まれます。
+
+        % psql -e regression &lt; sql/jp.sql &gt;&amp; jp.out
+        % diff expected/jp.out jp.out
+        % mv jp.out results/
+
+7.2 Wisconsin ベンチマークテスト
+
+参考のため、src/test/bench ディレクトリで Wisconsin ベンチマークを実行します。
+
+        % make bench.out
+        % vi bench.out
+        (Linux では最後の '&gt;' 以降を削除します。)
+        % make bench.out.perquery
+--
+ Jun Kuwamura
+rC Cm			E-mail:	JuK@rcCM.Co.jp, Phone: +81-3-3785-3033
+  ^
+  ~				re7J-Kwmr@Asahi-Net.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00099" HREF="msg00099.html">[pgsql-jp 2685] Re: 6.2jp + Kerberos4 Auth.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00094.html">[pgsql-jp 2680] Re: Q) tcl/tk 8.0 JP patch</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00096.html">[pgsql-jp 2682] 6.1.1 &lt;--&gt; 6.2 communication problem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00096.html">[pgsql-jp 2682] 6.1.1 &lt;--&gt; 6.2 communication problem</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00099.html">[pgsql-jp 2685] Re: 6.2jp + Kerberos4 Auth.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00095"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00095"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

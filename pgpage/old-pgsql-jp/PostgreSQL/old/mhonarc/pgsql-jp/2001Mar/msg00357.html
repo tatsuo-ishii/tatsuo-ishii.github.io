@@ -1,0 +1,183 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20491] Re: 文字化けについて -->
+<!--X-From: Masashi Ohba <ohba@intelight.co.jp> -->
+<!--X-Date: Mon, 26 Mar 2001 20:50:45 +0900 -->
+<!--X-Message-Id: 200103261150.AA00829@titan.priv.digi&#45;netz.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010326202937M.hyoshiok@miraclelinux.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20491] Re: 文字化けについて </TITLE>
+<LINK REV="made" HREF="mailto:ohba@intelight.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00356.html">Date Prev</A>][<A HREF="msg00358.html">Date Next</A>][<A HREF="msg00356.html">Thread Prev</A>][<A HREF="msg00365.html">Thread Next</A>][<A HREF="index.html#00357">Date Index</A>][<A HREF="threads.html#00357">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20491] Re: 文字化けについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masashi Ohba &lt;<A HREF="mailto:ohba@intelight.co.jp">ohba@intelight.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 20:50:45 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00356.html">20010326202937M.hyoshiok@miraclelinux.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大場です。
+
+＃間違いあったら指摘お願いします
+
+Hiro Yoshioka wrote;
+
+&gt;ドキュメントを読んだかぎりでは、サーバ側でSJISを
+&gt;サポートしているという風には読めないのですが、
+&gt;createdb -E SJIS
+&gt;とかいけちゃいますよね。これって、サポートされている
+&gt;のでしょうか？
+
+
+ドキュメントをコピっちゃいますが
+ここから-------------------------------------------------------------
+
+  予備知識
+
+  一口に EUC_JP といっても、実際には中身は複数の文字集合から成り立って
+  います。
+
+        G0: JIS ROMAN (ASCII とほぼ同じ)
+        G1: JIS X 0208 (JIS 漢字)
+        G2: JIS X 0201 (1バイトカナ)
+        G3: JIS X 0212 (JIS 補助漢字)
+
+  一方 SJIS はこのうち基本的に G0, G1, G2 をサポートしており、G3 はサ
+  ポートしていません。したがって、SJIS は EUC_JP の部分集合とみなすこ
+  とができ、実際 PostgreSQL 6.5 まではこの考えで実装されていました。
+
+  ところが、Windows PC の SJIS の世界では、上記 JIS 規格で定義されてい
+  ない文字コードが一部利用されており、この部分 (UDC) は従来 PostgreSQL 
+  では全く考慮されていませんでした。実際 UDC を含む SJIS を EUC_JP に
+  変換するときに不正な変換が行われていました。そこで PostgreSQL 7.0 で
+  は、まずこの問題を解決することにしました。
+
+  PostgreSQL 7.0 での UDC 対応の実装
+
+  (1) ユーザ定義文字領域は JIS のユーザ定義文字領域にマッピングする。
+  SJIS と EUC_JP で1対1の対応になります。
+
+    - SJIS ユーザ定義文字領域 A (仮称)
+          95〜104 区  ←→ 日本語 EUC / G1 (JIS X 0208) 85〜95 区
+
+    - SJIS ユーザ定義文字領域 B (仮称)
+         105〜114 区  ←→ 日本語 EUC / G3 (JIS X 0212) 85〜95 区
+
+  (2) IBM 拡張文字領域 (SJIS 115〜120 区)
+
+  変換テーブルによって G1 (JIS X 0208)と、G3 (JIS X 0212)に変換されま
+  す。なお、この変換においては、SJIS --&gt; EUC_JP で変換し、再び EUC_JP --
+  &gt; SJIS に変換すると元の SJIS に戻らないことがあります。また、EUC_JP --
+  &gt; SJIS の変換では、すべての文字を変換できるわけではないので、その場
+  合は変換不能文字として「〓」に置き換えます。
+
+  *業界団体の取り決めでは、変換不能文字は「実装依存」となっていますが、
+  Solaris をはじめ、多くのシステムが「〓」を変換不能文字に採用していま
+  す。PostgreSQLもこれに合わせました。
+
+  (3) NEC 選定 IBM 拡張文字領域 (SJIS 89〜92 区)
+  
+  PostgreSQL 7.0ではすべて変換不能文字「〓」に置き換えられます。
+
+  PostgreSQL 7.0.1以降では、一旦 IBM 拡張文字領域に変換された後、G1
+  (JIS X 0208)と、G3 (JIS X 0212)に変換されます。
+
+ここまで-------------------------------------------------------------
+
+なので7.0.1以降を使うならば不能文字はあるものの
+SJIS=EUC+(1)+(2)+(3)というイメージでOKなのでは
+ないでしょうか？
+
+ただ、データベースの中身がSJISって前提を分かってて
+php.ini、HTMLのヘッダ、PerのCGIスクリプトを
+自分で何とかして使うなら問題無いと思うけど、
+文字化けで悩んでるということは「化けない条件」を
+明確に出来ないってことなわけで、
+それならば、一番リスクの少ないと思えるのは
+データベース内部ではEUCとして扱った方が
+他の物(PHP等)もそれ前提で動いてるケースが多いわけで、
+一番悩まなくて済むでしょうけど。
+
+元のメールの人の、「[pgsql-jp 20415] 文字化けについて」は
+jstrings等を使ってるか否かの記述がまったく無いので
+もしかして単にEUCの物をSJISとして表示してるだけかもしれなくて
+それで「文字化けする」といわれても、「そりゃ化けますね」
+としか言えない。
+
+PHP4なら日本語扱えるモジュールをインストールして使う
+PHP4にこだわらないならPHP3国際化版を使う
+どちらの場合でも表示の漢字コードや内部取り扱いの漢字コードに
+矛盾が無いように設定をちゃんとする
+
+ってのがスクリプトを使ってよくわからない変換するより
+まっとうな解でしょう。
+
+＃以前に「SJISで書いてるからじゃないですか」と
+＃書いたと思ったら、PHP-jpの方だった。
+＃購読層が結構ダブってるからいいか(^^;)
+
+------------------------------------------------------------
+大場正志(Masashi Ohba)
+E-Mail  ohba@intelight.co.jp
+(株) インテライト
+<A HREF="http://www.intelight.co.jp">http://www.intelight.co.jp</A>
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00356" HREF="msg00356.html">[pgsql-jp 20490] Re: 文字化けについて</A></STRONG>
+<UL><LI><EM>From:</EM> Hiro Yoshioka &lt;hyoshiok@miraclelinux.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 20490] Re: 文字化けについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00358.html">[pgsql-jp 20492] Re: pg_dump とdatetime型の精度</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 20490] Re: 文字化けについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 20499] Re: 文字化けについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00357"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00357"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

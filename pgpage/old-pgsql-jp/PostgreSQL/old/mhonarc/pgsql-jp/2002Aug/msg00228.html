@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27096] Re: システムカタログ -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Wed, 21 Aug 2002 12:33:33 +0900 (JST) -->
+<!--X-Message-Id: 20020821.123333.39174926.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200208210241.LAA10911@nikongw.nikon.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27096] Re: システムカタログ </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00227.html">Date Prev</A>][<A HREF="msg00229.html">Date Next</A>][<A HREF="msg00227.html">Thread Prev</A>][<A HREF="msg00230.html">Thread Next</A>][<A HREF="index.html#00228">Date Index</A>][<A HREF="threads.html#00228">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27096] Re: システムカタログ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 21 Aug 2002 12:33:33 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00227.html">200208210241.LAA10911@nikongw.nikon.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: 吉塚 陽子 &lt;yoshizuka.wakaba@nikon.co.jp&gt;
+Date: Wed, 21 Aug 2002 11:40:33 +0900
+
+;;; todo表（例）の属性を見るには、以下のようにしますよね。
+;;; # 〓d todo
+;;;                                  Table "todo"
+;;;    Attribute   |   Type    |                      Modifier
+;;; ---------------+-----------+------------------------------------------------
+;;; ----
+;;;  todo_id       | integer   | not null default
+;;; nextval('todo_todo_id_seq'::text)
+;;;  uname         | text      | not null
+;;;  todo_name     | text      | not null
+;;;  priority_code | integer   | not null
+;;;  end_time      | timestamp |
+;;;  memo          | lztext    |
+;;;  ended         | integer   |
+;;;  changed       | timestamp | default now()
+;;; Index: todo_pkey
+;;; 
+;;; この出力を、システムカタログを使って行いたいのですが、できるでしょうか？
+;;; デフォルト値を出力するには、pg_attdef　を
+;;; not　null　を出力するには、pg_attribute　を使用すればいいのはわかるのですが、
+;;; これらのシステムカタログでは、Tableを特定するのは、adrelid(pg_attdef）と
+;;; attrelid(pg_attribute）で、
+;;; この数値とTable名を関係つけるシステムカタログがないように思えるんですが。
+
+  psql -E と起動すると、次のようになり、表示のための SQL が分かるようになりま
+す。
+
+    ********* QUERY *********
+    SELECT relhasindex, relkind, relchecks, reltriggers, relhasrules
+    FROM pg_class WHERE relname='test'
+    *************************
+
+    ********* QUERY *********
+    SELECT a.attname, t.typname, a.attlen, a.atttypmod, a.attnotnull, a.atthasdef, a.attnum
+    FROM pg_class c, pg_attribute a, pg_type t
+    WHERE c.relname = 'test'
+      AND a.attnum &gt; 0 AND a.attrelid = c.oid AND a.atttypid = t.oid
+    ORDER BY a.attnum
+    *************************
+
+    ********* QUERY *********
+    SELECT substring(d.adsrc for 128) FROM pg_attrdef d, pg_class c
+    WHERE c.relname = 'test' AND c.oid = d.adrelid AND d.adnum = 2
+    *************************
+
+    ********* QUERY *********
+    SELECT c2.relname
+    FROM pg_class c, pg_class c2, pg_index i
+    WHERE c.relname = 'test' AND c.oid = i.indrelid AND i.indexrelid = c2.oid
+    ORDER BY c2.relname
+    *************************
+
+	      Table "test"
+     Attribute |  Type   | Modifier  
+    -----------+---------+-----------
+     a         | integer | not null
+     b         | integer | default 0
+    Index: test_pkey
+
+    =# 
+
+Kenji Sugita
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00230" HREF="msg00230.html">[pgsql-jp: 27098] Re: システムカタログ</A></STRONG>
+<UL><LI><EM>From:</EM> 吉塚 陽子&lt;yoshizuka.wakaba@nikon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00227" HREF="msg00227.html">[pgsql-jp: 27095] システムカタログ</A></STRONG>
+<UL><LI><EM>From:</EM> 吉塚 陽子&lt;yoshizuka.wakaba@nikon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00227.html">[pgsql-jp: 27095] システムカタログ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00229.html">[pgsql-jp: 27097] ODBC で接続時、エラーなのにSQLSTATEは正常値で返される</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00227.html">[pgsql-jp: 27095] システムカタログ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00230.html">[pgsql-jp: 27098] Re: システムカタログ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00228"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00228"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

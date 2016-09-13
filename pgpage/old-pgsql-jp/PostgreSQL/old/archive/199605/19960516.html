@@ -1,0 +1,317 @@
+<A NAME="1">
+<PRE><B>
+From: kanemasu@dragon.osaka.ish.cae.ntt.jp
+Date: Thu, 16 May 1996 16:39:10 JST +900
+Subject: [postgres95 445] (No Subject in original)
+Message-Id: &lt;199605160735.QAA22193@dragon.osaka.ish.cae.ntt.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+who postgres95
+end
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: kanemasu@dragon.osaka.ish.cae.ntt.jp
+Date: Thu, 16 May 1996 13:29:33 JST +900
+Subject: [postgres95 444] EXCEL VBA sample
+Message-Id: &lt;199605160426.NAA21957@dragon.osaka.ish.cae.ntt.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+
+ＮＴＴの金升です。
+
+postgres95用のODBCドライバーをEXCELでなんとか使えないものかと
+思って、EXCELのVBAからDLLのODBC関数を直接呼び出すサンプルアプリを
+作ってみました。
+ODBCドライバーのソースアーカイブに付属しているsample.c のうち
+必要な部分だけを抜き出してVBAに置き換えただけの物です。
+
+＜インストール＞
+
+postgres95用のＯＤＢＣドライバーが正しくインストールされていることを
+確認して下さい。（sample.exeが動くかどうか）
+
+EXCELを起動してモジュールシートを１枚挿入し、本メールの最後に
+あるソースをコピーして下さい。
+
+適当にボタンかメニューかツールバーに マクロ名podbc_tst を登録して下さい。
+
+＜使い方＞
+
+１．ボタン等からマクロを起動します。
+
+２．データソース名を聞いてきますのでODBC.INI に設定したデータソース名
+　　を指定して下さい。デフォルトはpodbc になっていますがソース上で
+　　変えられます。
+
+３．ユーザ名を聞いてきますので、データベースにアクセス可能なユーザ名を
+　　入力して下さい。デフォルトはpostgres になっていますがソース上で
+　　変えられます。
+
+４．ＳＱＬを入力して下さい。（間違えない様に入れて下さい。）
+　　エラー系の処理は手を抜いてます。
+
+５．問い合わせ結果をコピーするセル範囲を指定して下さい。
+　　列と行をチェックしてますので、ある程度大きめのワークシート範囲を
+　　ドラッグして下さい。
+
+＜注意＞
+
+ＯＤＢＣ関数の宣言は全てやっていません。
+あくまでこのサンプルアプリが使ってるもののみです。
+
+漢字コードの変換もしてませんので、データベース上のコードがＥＵＣだと
+いくら、日本語版のＥＸＣＥＬでも漢字の表示はできません。
+逆にデータがＳＪＩＳだとちゃんと日本語も表示できます。
+
+#漢字コード変換のＤＬＬ（フリーなやつ）ってどこかにないでしょうか？
+
+以下のソースはサンプルですので、そのまま、あるいは変更して自由に
+使用していただいてもかまいませんが、発生した不具合や不利益について
+一切の責任は負いません。あくまでご自身の責任でご使用下さい。
+
+ここから--------------------------------------------------------------
+Option Explicit
+Option Base 1
+'
+'   ODBC 関数の宣言
+'
+Public Declare Function SQLAllocEnv Lib &quot;POSTODBC.DLL&quot; _
+        (HENV As Long) As Integer
+
+Public Declare Function SQLAllocConnect Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HENV As Long, _
+               HDBC As Long) As Integer
+
+Public Declare Function SQLAllocStmt Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HENV As Long, _
+               HSTMT As Long) As Integer
+
+Public Declare Function SQLBindCol Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long, _
+         ByVal icol As Integer, _
+         ByVal fCType As Integer, _
+         ByVal rgbValue As String, _
+         ByVal cbValueMax As Long, _
+               pcbValue As Long) As Integer
+
+Public Declare Function SQLConnect Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HDBC As Long, _
+         ByVal szDSN As String, _
+         ByVal cbDSN As Integer, _
+         ByVal szUID As String, _
+         ByVal cbUID As Integer, _
+         ByVal szAuthStr As String, _
+         ByVal cbAuthStr As Integer) As Integer
+
+Public Declare Function SQLDescribeCol Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long, _
+         ByVal icol As Integer, _
+         ByVal szColName As String, _
+         ByVal cbColNameMax As Integer, _
+         pcbColName As Integer, _
+         pfSqlType As Integer, _
+         pcbColDef As Long, _
+         pidScale As Integer, _
+         pfNullable As Integer) As Integer
+
+Public Declare Function SQLError Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HENV As Long, _
+         ByVal HDBC As Long, _
+         ByVal HSTMT As Long, _
+         ByVal szSqlState As String, _
+               pfNativeError As Long, _
+         ByVal szErrorMsg As String, _
+         ByVal cbErrorMsgMax As Integer, _
+               pcbErrorMsg As Integer) As Integer
+
+Public Declare Function SQLExecDirect Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long, _
+         ByVal szSqlStr As String, _
+               cbSqlStr As Long) As Integer
+
+Public Declare Function SQLFetch Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long) As Integer
+
+Public Declare Function SQLFreeEnv Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HENV As Long) As Integer
+
+Public Declare Function SQLFreeStmt Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long, _
+         ByVal fOption As Integer) As Integer
+
+Public Declare Function SQLNumResultCols Lib &quot;POSTODBC.DLL&quot; _
+        (ByVal HSTMT As Long, _
+               pccol As Integer) As Integer
+'
+'   定数の宣言
+'
+Public Const SQL_C_DEFAULT As Integer = 99
+Public Const SQL_CLOSE As Integer = 0
+Public Const SQL_ERROR As Integer = -1
+Public Const SQL_NTS As Integer = -3
+Public Const SQL_SUCCESS As Integer = 0
+Public Const SQL_SUCCESS_WITH_INFO As Integer = 1
+'
+'   テストアプリケーション
+'
+Sub podbc_tst()
+
+    Dim HENV As Long
+    Dim HDBC As Long
+    Dim HSTMT As Long
+    Dim ret As Integer
+    Dim errormsg As String
+    Dim stmt As String
+    Dim lf As Integer
+    Dim noof_cols As Integer
+    Dim colname(100) As String
+    Dim buffers(100) As String
+    Dim cnt As Integer
+    Dim dsn As String
+    Dim username As String
+    Dim output_range As Range
+    Dim row_cnt As Integer
+    Dim col_cnt As Integer
+    Const DefaultDSN As String = &quot;podbc&quot;
+    Const DefaultUID As String = &quot;postgres&quot;
+
+    dsn = Application.InputBox(&quot;データソース名を入力して下さい。&quot;, _
+                               &quot;PODBC.XLS&quot;, DefaultDSN, , , , , 2)
+    If dsn = &quot;&quot; Then
+        Exit Sub
+    End If
+
+    username = Application.InputBox(&quot;ユーザ名を入力して下さい。&quot;, _
+                                    &quot;PODBC.XLS&quot;, DefaultUID, , , , , 2)
+    If username = &quot;&quot; Then
+        Exit Sub
+    End If
+    
+    stmt = Application.InputBox(&quot;ＳＱＬを入力して下さい。&quot;, &quot;PODBC.XLS&quot;)
+    If stmt = &quot;&quot; Then
+        Exit Sub
+    End If
+    
+    Set output_range = Application.InputBox _
+                (&quot;問い合わせ結果をコピーするセル範囲を指定して下さい&quot;, _
+                 &quot;PODBC.XLS&quot;, , , , , , 8)
+    If IsObject(output_range) = False Then
+        Exit Sub
+    End If
+ 
+    ret = SQLAllocEnv(HENV)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLAloolEnv ERROR retcode=&quot; &amp; ret
+        Exit Sub
+    End If
+    
+    ret = SQLAllocConnect(HENV, HDBC)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLAllocConnect ERROR retcode=&quot; &amp; ret
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+    
+    ret = SQLConnect(HDBC, dsn, SQL_NTS, username, SQL_NTS, &quot;&quot;, 0)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLConnect ERROR retcode=&quot; &amp; ret
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+    
+    ret = SQLAllocStmt(HDBC, HSTMT)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLAllocStmt ERROR retcode=&quot; &amp; ret
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+
+    ret = SQLExecDirect(HSTMT, stmt, SQL_NTS)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLExecDirect ERROR retcode=&quot; &amp; ret
+        ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+    
+    ret = SQLNumResultCols(HSTMT, noof_cols)
+    If ret = SQL_ERROR Then
+        MsgBox &quot;SQLNumResultCols ERROR retcode=&quot; &amp; ret
+        ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+    
+    If output_range.Columns.Count &lt; noof_cols Then
+        MsgBox &quot;コピー先セル範囲の列が足りません！ 列は&quot; _
+                &amp; noof_cols &amp; &quot;列必要です。&quot;
+        ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+        SQLFreeEnv (HDBC)
+        Exit Sub
+    End If
+
+    For cnt = 1 To noof_cols Step 1
+        colname(cnt) = Space(101)
+        buffers(cnt) = Space(101)
+    Next cnt
+
+    For lf = 1 To noof_cols Step 1
+        ret = SQLDescribeCol(HSTMT, lf, colname(lf), 100, 0, 0, 0, 0, 0)
+        If ret = SQL_ERROR Then
+            MsgBox &quot;SQLDescribeCol ERROR retcode=&quot; &amp; ret
+            ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+            SQLFreeEnv (HDBC)
+            Exit Sub
+        End If
+        output_range.Cells(1, lf).Value = colname(lf)
+        
+        ret = SQLBindCol(HSTMT, lf, SQL_C_DEFAULT, buffers(lf), 100, 0)
+        If ret = SQL_ERROR Then
+            MsgBox &quot;SQLBindCol ERROR retcode=&quot; &amp; ret
+            ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+            SQLFreeEnv (HDBC)
+            Exit Sub
+        End If
+    Next lf
+
+    row_cnt = 0
+    Do
+        ret = SQLFetch(HSTMT)
+        If ret = SQL_SUCCESS Or ret = SQL_SUCCESS_WITH_INFO Then
+            
+            row_cnt = row_cnt + 1
+            If output_range.Rows.Count &lt; row_cnt Then
+                MsgBox &quot;コピー先セル範囲の行数が足りません！ カレント行=&quot; _
+                        &amp; row_cnt
+                ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+                SQLFreeEnv (HDBC)
+                Exit Sub
+            End If
+
+            For col_cnt = 1 To noof_cols Step 1
+                output_range.Cells(row_cnt + 1, col_cnt).Value = _
+                    buffers(col_cnt)
+            Next col_cnt
+        End If
+    Loop While ret = SQL_SUCCESS Or ret = SQL_SUCCESS_WITH_INFO
+   
+    ret = SQLFreeStmt(HSTMT, SQL_CLOSE)
+    ret = SQLFreeEnv(HDBC)
+
+End Sub
+ここまで。-------------------------------------------------------
+
+-----------------------------------------------------------------
+　ＮＴＴ関西情報システムセンター　
+　金升忠男  E-mail:kanemasu@dragon.osaka.ish.cae.ntt.jp
+-----------------------------------------------------------------
+
+<HR>
+</PRE>

@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22510] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) -->
+<!--X-From: mizoguchi_reo <r&#45;mi2002@mx5.nisiq.net> -->
+<!--X-Date: Mon, 23 Jul 2001 15:17:37 +0900 -->
+<!--X-Message-Id: JP20010723151737.24133852@mx5.nisiq.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010723131120.38EC.YUTAKA@hi&#45;net.zaq.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22510] Re: PostgreSQL JDBC バグ？( ResultSet#getString() ) </TITLE>
+<LINK REV="made" HREF="mailto:r-mi2002@mx5.nisiq.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00374.html">Date Prev</A>][<A HREF="msg00376.html">Date Next</A>][<A HREF="msg00374.html">Thread Prev</A>][<A HREF="msg00376.html">Thread Next</A>][<A HREF="index.html#00375">Date Index</A>][<A HREF="threads.html#00375">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22510] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: mizoguchi_reo &lt;<A HREF="mailto:r-mi2002@mx5.nisiq.net">r-mi2002@mx5.nisiq.net</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Jul 2001 15:17:37 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00372.html">20010723131120.38EC.YUTAKA@hi-net.zaq.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+溝口です。
+
+&gt; 添付のpatch(UTF8-&gt;UNICODEへの変更)を試していただけますか？
+
+パッチを試してみました(※)。
+
+※実を言いますと、パッチというものが分からず、指定の部分を
+　手で書き直して再ビルドしてみました。
+　技術的についていけてなくてすいません。unix も java もまだ
+　数ヶ月でして……(^^;;
+
+以下の例外が発生します。
+
+
+java.sql.SQLException:
+        at org.postgresql.Connection.ExecSQL(Connection.java:535)
+        at org.postgresql.jdbc2.Statement.execute(Statement.java:294)
+        at org.postgresql.jdbc2.Statement.executeQuery(Statement.java:59)
+        at jp.co.npnet.taxi.Authentication.isAuthenticatedUser(Authentication.java:109)
+        at jp.co.npnet.taxi.Authentication.doGet(Authentication.java:45)
+        at javax.servlet.http.HttpServlet.service(HttpServlet.java:740)
+        at javax.servlet.http.HttpServlet.service(HttpServlet.java:853)
+        at org.apache.tomcat.core.ServletWrapper.doService(ServletWrapper.java:405)
+        at org.apache.tomcat.core.Handler.service(Handler.java:287)
+        at org.apache.tomcat.core.ServletWrapper.service(ServletWrapper.java:372)
+        at org.apache.tomcat.core.ContextManager.internalService(ContextManager.java:812)
+        at org.apache.tomcat.core.ContextManager.service(ContextManager.java:758)
+        at org.apache.tomcat.service.http.HttpConnectionHandler.processConnection(HttpConnectionHandler.java:213)
+        at org.apache.tomcat.service.TcpWorkerThread.runIt(PoolTcpEndpoint.java:416)
+        at org.apache.tomcat.util.ThreadPool$ControlRunnable.run(ThreadPool.java:501)
+        at java.lang.Thread.run(Thread.java:484)
+
+
+とりあえず、いま私が現状で加えている修正は以下です。
+(すいません、パッチの作り方が分かりません。
+    org.postgresql.jdbc2.ResultSet#getString(int)
+です。)
+
+  public String getString(int columnIndex) throws SQLException
+  {
+    if (columnIndex &lt; 1 || columnIndex &gt; fields.length)
+      throw new PSQLException("postgresql.res.colrange");
+
+    wasNullFlag = (this_row[columnIndex - 1] == null);
+    if(wasNullFlag)
+      return null;
+//System.out.println("getString#this_row["+(columnIndex - 1)+"]:"+new String(this_row[columnIndex - 1]));
+    String encoding = connection.getEncoding();
+//System.out.println("getString#encoding:"+encoding);
+/*  if (encoding == null) 20010721 R.MIZOGUCHI */
+    if (encoding == null || encoding.equals("UTF8") )        &lt;-- ここ
+        return new String(this_row[columnIndex - 1]);
+    else {
+        try {
+//System.out.println("getString#new String(this_row["+(columnIndex - 1)+"], \""+encoding+"\"):"+new String(this_row[columnIndex - 1], encoding));
+            return new String(this_row[columnIndex - 1], encoding);
+        } catch (UnsupportedEncodingException unse) {
+            throw new PSQLException("postgresql.res.encoding", unse);
+        }
+    }
+  }
+
+
+
+
+--
+溝口 令雄/Reo MIZOGUCHI
+北野システムコンサルタント
+ <A HREF="http://www.ksci.co.jp/">http://www.ksci.co.jp/</A>
+ mizoguchi@ksci.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00376" HREF="msg00376.html">[pgsql-jp 22511] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00372" HREF="msg00372.html">[pgsql-jp 22507] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00374.html">[pgsql-jp 22509] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00376.html">[pgsql-jp 22511] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00374.html">[pgsql-jp 22509] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00376.html">[pgsql-jp 22511] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00375"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00375"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

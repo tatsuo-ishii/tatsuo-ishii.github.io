@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8679] Re: joinの際pgReadDataでError -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Fri, 4 Jun 1999 21:22:17 +0900 -->
+<!--X-Message-Id: 000c01beae84$e27224c0$44c9e6ca@suzume.interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 375738783D4.220CSAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8679] Re: joinの際pgReadDataでError </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00110.html">Date Prev</A>][<A HREF="msg00114.html">Date Next</A>][<A HREF="msg00086.html">Thread Prev</A>][<A HREF="msg00119.html">Thread Next</A>][<A HREF="index.html#00113">Date Index</A>][<A HREF="threads.html#00113">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8679] Re: joinの際pgReadDataでError</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 4 Jun 1999 21:22:17 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt;   create table test ( n serial, c char(10) ) ;において
+&gt;
+&gt;   1.insert into test(c)('aaa'); だけを実行すると、serial型は
+&gt; 　　正常に動作し自動的にカウントアップした値を登録する。serial
+&gt;     の最終値も正常に登録される。
+&gt;
+&gt; 　2.copy文またはinsert文で serial型に値を直接代入すると、serial
+&gt; 　　の最終値は更新されない。
+
+  これはバグではなく「使い勝手が悪い」という部類です。
+
+&gt; 　3.そのため、2.の実行を行った後に、insert into test(c)('bbb');
+&gt; 　　を実行すると、serial型のキー重複エラーが発生する。
+&gt;
+&gt;   4.特に問題になるのは、pg_dump --&gt; データベースを復元 --&gt;
+&gt;     insert into test(c)('ccc');  した場合である。
+
+  pg_dumpではSEQUENCE（後述）も正しくダンプしますので問題ないと思いますが。
+
+&gt; # serial型って公式にリリースされてました？　「シーラカンス本」
+&gt; 　にも説明ないし....
+&gt;
+&gt; # 当面、serial型は使用しない方がいいのでは....
+
+  serial型というのは、PostgreSQLにおいては他の普通のデータ型とは違います
+（データ型とは言えない？）。実際、\dでテーブルのスキーマを表示してみるとわか
+ると思いますが、int4型と表示されます。
+
+  serialというのが無かったころに同様な機能を利用しようとした場合、恐らく次の
+ようになると思います。
+
+create sequence test_seq;
+create table test (
+    n int4 default nextval('test_seq'),
+    c char(10),
+    primary key (n)
+);
+
+  serial型というのはこれらを（CREATE TABLEだけで）自動的にやってくれる、便宜
+上のデータ型なのです。もし上記のSQL文を最初に見たとしたら、COPYしたときに
+SEQUENCEが自動的に更新されないというのも、納得できたりします。
+
+※でもテーブルをドロップするときに、自動的に作成されたSEQUENCEをドロップして
+くれないというのは、納得できませんが。
+
+  そんなわけで「SERIALは使わないほうが良い」というのではなく、「機能を理解し
+て使えば良い」あるいは「使い勝手が良くない」ということになるかと思います。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00119" HREF="msg00119.html">[pgsql-jp 8685] Re: joinの際pgReadDataでError</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 8647] Re: joinの際pgReadDataでError</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00110.html">[pgsql-jp 8676] Re: [pgsql-jp 8638] windows で JDBC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00114.html">[pgsql-jp 8680] RE: about serial problem?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 8647] Re: joinの際pgReadDataでError</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00119.html">[pgsql-jp 8685] Re: joinの際pgReadDataでError</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00113"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00113"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

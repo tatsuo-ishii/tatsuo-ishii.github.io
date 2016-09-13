@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25069] Re: optimizerの動作 -->
+<!--X-From: "ARAI Shunichi" <arai@mellowtone.org> -->
+<!--X-Date: Sun, 3 Mar 2002 15:37:27 +0900 -->
+<!--X-Message-Id: 005601c1c27d$e525e110$0300a8c0@lucy2k -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 03f201c1c0fa$facadb80$0300a8c0@lucy2k -->
+<!--X-Reference-Id: 20020302001503.896C.RK73@sea.plala.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25069] Re: optimizerの動作 </TITLE>
+<LINK REV="made" HREF="mailto:arai@mellowtone.org">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00045.html">Date Prev</A>][<A HREF="msg00047.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00047.html">Thread Next</A>][<A HREF="index.html#00046">Date Index</A>][<A HREF="threads.html#00046">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25069] Re: optimizerの動作</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "ARAI Shunichi" &lt;<A HREF="mailto:arai@mellowtone.org">arai@mellowtone.org</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 3 Mar 2002 15:37:27 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00005.html">03f201c1c0fa$facadb80$0300a8c0@lucy2k</A>&gt; &lt;<A HREF="msg00023.html">20020302001503.896C.RK73@sea.plala.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+新井です。
+ご回答ありがとうございます。
+
+set enable_sort to off;の場合(またはfoo.id1=?が2件以上の場合)
+
+---
+Limit  (cost=0.00..7645.59 rows=100 width=364) (actual time=27.09..785.79
+rows=100 loops=1)
+  -&gt;  Nested Loop  (cost=0.00..67848.02 rows=887 width=364) (actual
+time=27.02..785.01 rows=101 loops=1)
+        -&gt;  Index Scan Backward using bar_updated_idx on message
+(cost=0.00..12412.14 rows=33496 width=360) (actual time=3.65..255.87
+rows=4145 loops=1)
+        -&gt;  Seq Scan on foo (cost=0.00..1.64 rows=1 width=4) (actual
+time=0.05..0.12 rows=1 loops=4145)
+Total runtime: 788.22 msec
+---
+
+set enable_sort to on;
+bar.id2のindexをdropした場合。
+
+---
+Limit  (cost=3160.48..3160.48 rows=100 width=364) (actual
+time=13043.01..13043.65 rows=100 loops=1)
+  -&gt;  Sort  (cost=3160.48..3160.48 rows=887 width=364) (actual
+time=13042.94..13043.41 rows=101 loops=1)
+        -&gt;  Hash Join  (cost=1.64..3117.05 rows=887 width=364) (actual
+time=16.5
+5..2299.52 rows=17161 loops=1)
+              -&gt;  Seq Scan on bar (cost=0.00..2099.83 rows=33483 width=360)
+ (actual time=0.72..1979.48 rows=33493 loops=1)
+              -&gt;  Hash  (cost=1.64..1.64 rows=1 width=4) (actual
+time=1.05..1.05
+ rows=0 loops=1)
+                    -&gt;  Seq Scan on foo (cost=0.00..1.64 rows=1 width=4)
+ (actual time=0.92..0.97 rows=1 loops=1)
+Total runtime: 13297.21 msec
+---
+
+bar.updatedのindexもdropした場合。
+
+---
+Limit  (cost=3160.48..3160.48 rows=100 width=364) (actual
+time=8245.45..8246.73
+rows=100 loops=1)
+  -&gt;  Sort  (cost=3160.48..3160.48 rows=887 width=364) (actual
+time=8245.32..8246.43 rows=101 loops=1)
+        -&gt;  Hash Join  (cost=1.64..3117.05 rows=887 width=364) (actual
+time=28.5
+1..2038.22 rows=17161 loops=1)
+              -&gt;  Seq Scan on bar (cost=0.00..2099.83 rows=33483 width=360)
+ (actual time=1.93..1746.43 rows=33496 loops=1)
+              -&gt;  Hash  (cost=1.64..1.64 rows=1 width=4) (actual
+time=0.84..0.84
+ rows=0 loops=1)
+                    -&gt;  Seq Scan on foo (cost=0.00..1.64 rows=1 width=4)
+ (actual time=0.75..0.81 rows=1 loops=1)
+Total runtime: 12193.77 msec
+---
+
+analyzeもしていますが、やはりset enable_sort to offをしないと
+時間のかかるクエリプランになってしまうようです。
+
+-----
+新井 俊一
+arai@mellowtone.org
+<A HREF="http://www.mellowtone.org/">http://www.mellowtone.org/</A>
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp: 25070] Re: optimizerの動作</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Sugawara &lt;rk73@sea.plala.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00005" HREF="msg00005.html">[pgsql-jp: 25029] optimizerの動作</A></STRONG>
+<UL><LI><EM>From:</EM> "ARAI Shunichi" &lt;arai@mellowtone.org&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00023" HREF="msg00023.html">[pgsql-jp: 25046] Re: optimizerの動作</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Sugawara &lt;rk73@sea.plala.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00045.html">[pgsql-jp: 25068] Re: JDBC経由のラージオブジェクト</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00047.html">[pgsql-jp: 25070] Re: optimizerの動作</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp: 25046] Re: optimizerの動作</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00047.html">[pgsql-jp: 25070] Re: optimizerの動作</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00046"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00046"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

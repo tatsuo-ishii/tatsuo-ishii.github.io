@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16047] Re: apache_loggingについて -->
+<!--X-From: Toshikazu Yoshikawa <toshi@uncut00.com> -->
+<!--X-Date: Wed, 12 Jul 2000 01:30:30 +0900 -->
+<!--X-Message-Id: 4.0.1&#45;J.20000712010622.00ed3da0@ns1.uncut.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 4.0.1&#45;J.20000709235929.00fe6ee0@ns1.uncut.co.jp -->
+<!--X-Reference-Id: 20000710004510X.yasu@asuka.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16047] Re: apache_loggingについて </TITLE>
+<LINK REV="made" HREF="mailto:toshi@uncut00.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00273.html">Date Prev</A>][<A HREF="msg00279.html">Date Next</A>][<A HREF="msg00201.html">Thread Prev</A>][<A HREF="msg00202.html">Thread Next</A>][<A HREF="index.html#00280">Date Index</A>][<A HREF="threads.html#00280">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16047] Re: apache_loggingについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshikazu Yoshikawa &lt;<A HREF="mailto:toshi@uncut00.com">toshi@uncut00.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 12 Jul 2000 01:30:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00200.html">4.0.1-J.20000709235929.00fe6ee0@ns1.uncut.co.jp</A>&gt;&lt;<A HREF="msg00200.html">4.0.1-J.20000709235929.00fe6ee0@ns1.uncut.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+吉川です。遅い返事で申し訳ありません。
+
+結局contrib/apache_loggingのやり方はあきらめました・・・
+なんでできないんだろ・・・
+
+&gt; httpd.conf で
+&gt; SetEnv LD_LIBRARY_PATH /hoge/moe/lib
+&gt; か、Apacheを起動する前に設定するかのどちらかでいけませんか?
+
+すでに、上記は試していたのですが、やっぱりだめでした。
+rootから
+#su www -c "export LD_LIBRARY_PATH=/usr/local/pgsql/lig; psql www_log"
+と打つと、wwwユーザ権限でpostgresに接続できるのは確認しました。
+でも、httpd.conf内のCustomLogの指定の仕方がわからなかったので、
+結局、以下のperlスクリプトで逃げちゃいました。
+
+--log.pl--
+#!/usr/local/bin/perl
+use Pg;
+
+$conn = Pg::connectdb ("dbname=www_log user=www");
+exit if (PGRES_CONNECTION_OK ne $conn-&gt;status);
+
+while (&lt;STDIN&gt;) {
+    chop ($_);
+    @line = split (/,/, $_);
+    $line[7] = -1 if ($line[7] == '-');
+    $result = $conn-&gt;exec ("insert into access values
+                ('$line[0]', '$line[1]', '$line[2]', '$line[3]', '$line[4]',
+                '$line[5]', $line[6], $line[7], '$line[8]', '$line[9]')");
+}
+
+--httpd.conf--
+LogFormat "%v,%h,%l,%u,%{%d/%b/%Y:%H:%M:%S}t,%r,%s,%b,
+%{Referer}i,%{User-Agent}i" common （実際は1行です）
+
+CustomLog "|/usr/local/apache/bin/log.pl" common
+
+--sql--
+CREATE TABLE "access" (
+    "virtual" text,
+    "host" text,
+    "ident" text,
+    "authuser" text,
+    "accdate" timestamp,
+    "request" text,
+    "status" int2,
+    "bytes" int4,
+    "referer" text,
+    "agent" text
+);
+GRANT ALL on "access" to "www";
+
+うーん、でもなんかリソースの無駄遣いの気が・・・
+
+---
+unCut  Toshikazu Yoshikawa
+<A HREF="mailto:toshi@uncut00.com">mailto:toshi@uncut00.com</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00200" HREF="msg00200.html">[pgsql-jp 15967] apache_loggingについて</A></STRONG>
+<UL><LI><EM>From:</EM> Toshikazu Yoshikawa &lt;toshi@uncut00.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00201" HREF="msg00201.html">[pgsql-jp 15968] Re: apache_loggingについて</A></STRONG>
+<UL><LI><EM>From:</EM> HIRATA Yasuyuki &lt;yasu@asuka.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00273.html">[pgsql-jp 16040] Re: grantを2回やると、重複テーブルに見える？//drop table ERROR</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 16046] Re:ストアドの戻り値</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 15968] Re: apache_loggingについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00202.html">[pgsql-jp 15969] Re: apache_loggingについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00280"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00280"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

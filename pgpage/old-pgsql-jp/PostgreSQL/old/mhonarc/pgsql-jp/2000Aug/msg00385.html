@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16771] RE: vacuumdb  実行後、検索が遅くなる問題 -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Fri, 18 Aug 2000 16:58:32 +0900 -->
+<!--X-Message-Id: 000b01c008ea$1a46f040$2801007e@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 50158B900247D411B8120090CC01C0EC1E0582@leo.forest.synox.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16771] RE: vacuumdb  実行後、検索が遅くなる問題 </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00384.html">Date Prev</A>][<A HREF="msg00386.html">Date Next</A>][<A HREF="msg00383.html">Thread Prev</A>][<A HREF="msg00372.html">Thread Next</A>][<A HREF="index.html#00385">Date Index</A>][<A HREF="threads.html#00385">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16771] RE: vacuumdb  実行後、検索が遅くなる問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 18 Aug 2000 16:58:32 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 栗原です。
+&gt;
+&gt; 先ほどは、マルチカラムインデックスの指定方法の問題で検索が遅くなるという
+&gt; 現象でしたが、もうひとつ遅くなるクエリーのパターンがあり、再質問させてい
+&gt; ただきます。
+&gt;
+&gt; トラフィックの無駄かもしれませんが、もう一度テーブル構造等を示しておきま
+&gt; す。
+&gt; # 実行 QUERY とマルチカラムインデックスの指定の改良が変更点です。
+&gt;
+&gt; ただ、この QUERY に関しては、『&lt;&gt;』の部分が問題であると分かっています
+&gt; ので、現在のところ、『&lt;&gt;』の代わりとなる『in ()』で対応しています。
+&gt; 対処 QUERY 例と、クエリープランも明記しておきます。
+&gt;
+&gt; クエリープランの中の「？？？」っていったい？
+&gt;
+&gt;
+&gt; [クエリープラン]
+&gt;
+&gt; vacuumdb 使用前（1秒かからずに応答）
+&gt;
+&gt; Aggregate  (cost=47.10 rows=2 width=12)
+&gt;   -&gt;  Nested Loop  (cost=47.10 rows=2 width=12)
+&gt;     -&gt;  Nested Loop  (cost=45.05 rows=1 width=8)
+&gt;       -&gt;  Seq Scan on test_b b  (cost=43.00 rows=1 width=4)
+&gt;       -&gt;  Index Scan using test_a_key on test_a a  (cost=2.05 rows=2
+&gt; width=4)
+&gt;     -&gt;  Index Scan using test_c_ukey on test_c c  (cost=2.05 rows=1000
+&gt; width=4)
+&gt;
+&gt; vacuumdb --analyze 使用後（？分かかって応答）
+&gt;
+&gt; Aggregate  (cost=389.00 rows=1 width=12)
+&gt;   -&gt;  Nested Loop  (cost=389.00 rows=1 width=12)
+&gt;     -&gt;  Seq Scan on test_c c  (cost=389.00 rows=0 width=4)
+
+このrows=0がおかしい（評価がほとんど正反対）ですね。 最近 != の
+コスト評価に関するバグフィクスがありましたが多分それがこれに対
+応するものと思います。
+
+&gt;     -&gt;  Seq Scan  (cost=1473.00 rows=10000 width=8)
+&gt;       -&gt;  ???  (cost=1473.00 rows=10000 width=8)
+&gt;         -&gt;  Hash Join  (cost=1473.00 rows=10000 width=8)
+&gt;           -&gt;  Seq Scan on test_b b  (cost=394.00 rows=10000 width=4)
+&gt;           -&gt;  Hash  (cost=394.00 rows=10000 width=4)
+&gt;             -&gt;  Seq Scan on test_a a  (cost=394.00 rows=10000 width=4)
+&gt;
+
+残念ながらそのバグフィクスは6.5には適用できないようです。
+私は最新の環境しかもっていないので確かめる手段がないのですが、
+次の修正が有効かもしれません。 単にopidにget_negatorを適用する
+だけの修正です。 人柱になって試していただければ。
+
+[backend/utils/adt/selfuncs.c]
+
+float64
+neqsel(Oid opid,
+	   Oid relid,
+	   AttrNumber attno,
+	   Datum value,
+	   int32 flag)
+{
+	float64		result;
+
+	result = eqsel(opid, relid, attno, value, flag); 	         &lt;- この行を
+	result = eqsel(get_negator(opid), relid, attno, value, flag); &lt;- こう修正
+	*result = 1.0 - *result;
+	return result;
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00383" HREF="msg00383.html">[pgsql-jp 16769] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+<UL><LI><EM>From:</EM> tetsuya@synox.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 16770] Re: [pgsql-jp 16767] Re: [pgsql-jp 16762] Re: 定期的なスクリプト【便乗】</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 16772] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00383.html">[pgsql-jp 16769] RE: vacuumdb  実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00372.html">[pgsql-jp 16758] RE: vacuumdb 実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00385"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00385"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

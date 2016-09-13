@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26641] Re: 会員登録の重複 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 09 Jul 2002 23:58:47 +0900 -->
+<!--X-Message-Id: 3D2AFA27.8010505@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020709210332.88b610a9.20925@nifty.ne.jp -->
+<!--X-Reference-Id: 1026220143.3d2ae06f7be08@sv01 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26641] Re: 会員登録の重複 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00090.html">Thread Prev</A>][<A HREF="msg00081.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26641] Re: 会員登録の重複</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 09 Jul 2002 23:58:47 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00087.html">20020709210332.88b610a9.20925@nifty.ne.jp</A>&gt; &lt;<A HREF="msg00090.html">1026220143.3d2ae06f7be08@sv01</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; ja-JP; rv:1.0.0) Gecko/20020529</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Yoshitake Shinohara wrote:
+&gt; よしたけ＠YYNです。
+&gt; 
+&gt; 
+&gt;&gt;WebPageから会員情報を記入、「登録」ボタンを押すと
+&gt;&gt;・email重複チェック
+&gt;&gt;・会員テーブルinsert（pkeyはserial）
+&gt;&gt;という流れで登録処理を行うのですが、何故かたまにemailの重複した
+&gt;&gt;会員データが登録されてしまいます。
+&gt;&gt;短時間の内に、複数innsertが連続して行われるようです。
+&gt;&gt;何故このような重複が発生するか？また、回避策をアドバイスお願いします。
+&gt; 
+&gt; 
+&gt; トランザクションとロックをキーに検索される事をお薦めします。
+&gt; 具体的には、
+&gt; bigin;
+&gt; lock table 会員テーブル EXCLUSIVE MODE;
+&gt; select email from 会員テーブル where email = '&lt;new_email&gt;';
+&gt; 結果がOKなら
+&gt; insert into 会員テーブル (email) values ('&lt;new_email&gt;');
+&gt; commit;
+&gt; NGなら rollback;
+
+
+どうしても、email を UNIQUE INDEX にできないならば、
+よしたけさんの言われるとおり、LOCK TABLE しかないですね。
+
+LOCK TABLE 表名   IN   EXCLUSIVE MODE ;
+
+ただし、LOCK　TABLE　を使うと、併行性は悪くなるので、
+レスポンスタイムに十分気をつけてください。
+
+また、PostgreSQL の LOCK TABLE は、すでにロックされてい
+た場合、そこでブロックされて LOCK が解除(COMMIT/ROLLBACK)
+されるまで待ち続けます。LOCK されているか否かを知る方法は
+ないはずです。
+
+
+やはり、
+email に UHIQUE INDEX を設定するのが簡単でスマートです。
+
+何らかの理由で、email の重複を認めなければならない場合
+があるなら、本処理専用に email を primary key にした
+チェック専用の表を作って、重複チェックするなんていう
+ことも考えられるかもしれませんが。。。。。
+ＤＢ設計を見直した方がいいと思います。
+
+
+（追記）
+トランザクション中で、SELECT して重複がないことを確認
+してから INSERT しても、その間に別の処理が、同じ KEY
+を INSERT することはできます。勘違いしそうなところな
+ので注意。
+
+INSERT でなくて UPDATE ならば、他の処理が同時更新したり、
+コミット前の値を読めないようにできますが。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp
+<A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>      <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+2002-07-27(土)14:00-16;30 JPUG 業務アプリ分科会 セミナー/勉強会
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00087" HREF="msg00087.html">[pgsql-jp: 26636] 会員登録の重複</A></STRONG>
+<UL><LI><EM>From:</EM> "S.Hase" &lt;office.hase@nifty.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[pgsql-jp: 26639] Re: 会員登録の重複</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshitake Shinohara &lt;yoshi@yyn.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp: 26640]  Re: 会員登録の重複</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp: 26642] Re: 会員登録の重複</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00090.html">[pgsql-jp: 26639] Re: 会員登録の重複</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00081.html">[pgsql-jp: 26630] はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

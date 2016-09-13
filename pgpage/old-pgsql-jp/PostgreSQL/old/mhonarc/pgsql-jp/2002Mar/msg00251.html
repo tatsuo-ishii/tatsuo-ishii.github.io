@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25274] Re: Unicode マッピングの問題 -->
+<!--X-From: "Eiji Tokuya" <e&#45;tokuya@sankyo&#45;unyu.jp> -->
+<!--X-Date: Wed, 13 Mar 2002 18:35:06 +0900 -->
+<!--X-Message-Id: NFBBJAIDILPHNLPMOAGCGEMNDLAA.e&#45;tokuya@sankyo&#45;unyu.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020313093915Y.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25274] Re: Unicode マッピングの問題 </TITLE>
+<LINK REV="made" HREF="mailto:e-tokuya@sankyo-unyu.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00250.html">Date Prev</A>][<A HREF="msg00252.html">Date Next</A>][<A HREF="msg00246.html">Thread Prev</A>][<A HREF="msg00252.html">Thread Next</A>][<A HREF="index.html#00251">Date Index</A>][<A HREF="threads.html#00251">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25274] Re: Unicode マッピングの問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Eiji Tokuya" &lt;<A HREF="mailto:e-tokuya@sankyo-unyu.jp">e-tokuya@sankyo-unyu.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 13 Mar 2002 18:35:06 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>Importance</em>: Normal</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳家です。
+
+&gt; 加澤です。
+
+&gt; 上記ページでも、[pgsql-jp 21134] にも徳家さんが書かれていますが、
+&gt; このパッチを本家に merge できない、という点は非常にもどかしいです
+&gt; ね。backend が Unicode の場合、EUC_JP 系クライアントと SJIS 系
+&gt; クライアントを混在させるためには、双方 JIS 系のマッピングを使うか、
+&gt; 双方 CP932 系のマッピングを使うしかないはずで、現在 Shift JIS コ
+&gt; ンバータとして CP932 系しか選択できないとすると、上記パッチは本来
+&gt; 必須なはずです。
+
+確かにこのようなパッチがないと厳しいものがありますよね。
+# 加澤さんは、「UNICODEマッピングパッチ」を拾っていったのかな？
+かといって、石井さんの
+
+&gt; 私としては，マッピング表をUnicodeの規定するものから掛け離れたものにす
+&gt; るのは抵抗があります．本来マッピング表も含めてUnicodeの規格のはずです
+&gt; から．
+
+というのも確かでしょう・・・。
+
+&gt; ですが，マッピング(コンバータ)を複数用意するのには賛成です．ただ，現在
+&gt; のアーキテクチャでこれをやろうとすると，むやみにPostgreSQLのロードモ
+&gt; ジュールがでかくなってしまうのが難点です(ロードモジュールがでかくなっ
+&gt; ても性能には関係ないからいいという意見もあるようですが)．
+
+これも私は考えていました。
+Big5とSJISのクライアントで同じデータベースを利用しょうとしても
+現在のPostgreSQLの場合まともに利用できません。
+いっしょに使うといっても変換可能な2つのエンコーディング程度で
+事足ります。
+ですから、利用者が必要なマッピングをconfigure時に選択できるよう
+にすればロードモジュールが大きくなることもないでしょう。
+
+しかし利用者がどのエンコーディングが自分の希望する文字を扱える
+エンコーディングなのか、また開発環境によってもエンコーディングの
+呼び方が異なっては混乱することも多々あります。
+(PostgreSQLでSJIS、JavaでMS932、PHPはSJIS-winと同じCP932
+でもまちまちです。)
+CREATE CHARCTER SETを使えば他の開発環境と呼び方を統一
+できるでしょうけど、いまはまだ実装されていません。
+(ソースをいじれば、エンコーディングのaliasは追加できますが・・・・。)
+
+ですから、あまり増やしたくないというのもあります。
+
+で、README.mb.jpを再度確認すると。
+PostgreSQLの持っていたEUC_JP&lt;-&gt;SJISの仕様つまり、PostgreSQL
+におけるEUC_JPの文字はJISX0201+JISX0208+JISX0212に加えてこれ
+らに無いCP932の文字が追加になっているという内容なのです。だったら
+PostgreSQLのEUC_JPのマッピングを作る際、JIS0201.TXTとJIS0208.TXT
+とJIS0212.TXTに加えCP932.TXTも取り込めばよい事になりますね。
+このように、Unicodeのマッピングはいじらずに、PostgreSQL側の仕様を
+トコトン洗い出した方法もあります。
+これならUnicodeの仕様通りにPostgreSQLのこれまでのEUC_JPの
+データベースのデータをUnicodeのデータベースに移しても情報資産を
+正しく利用できるわけです。
+
+この発想のものは、「エンコーディング追加パッチ」に同胞されています。
+これでなんとか2002-03-06付けで本家のsnapshotに取り入れて
+もらえました。(^^)v
+# 『他の国のエンコーディングパッチに便乗した』とも
+# とれなくもないけど。(^^;)
+
+次の本家のリリースより早く必要な方は、
+<A HREF="http://www.sankyo-unyu.co.jp/Pool/PostgreSQL.htm">http://www.sankyo-unyu.co.jp/Pool/PostgreSQL.htm</A>
+のページ「エンコーディング追加パッチ」に置いてますので、どうぞ。
+ODBCの対応パッチも付属しているし、JDBCの同パッチも別途
+用意しています。
+7.2の利用者はこちらのほうが、お得です。(^^)b
+
+
+
+徳家
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00254" HREF="msg00254.html">[pgsql-jp: 25277] Re: Unicode マッピングの問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00252" HREF="msg00252.html">[pgsql-jp: 25275] Re: Unicode マッピングの問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00246" HREF="msg00246.html">[pgsql-jp: 25269] Re: Unicode マッピングの問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00250.html">[pgsql-jp: 25273] readpgenvがありません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00252.html">[pgsql-jp: 25275] Re: Unicode マッピングの問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00246.html">[pgsql-jp: 25269] Re: Unicode マッピングの問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00252.html">[pgsql-jp: 25275] Re: Unicode マッピングの問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00251"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00251"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1571] Re: I can't use "CREATE TABLE weather". -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Mon, 17 Mar 1997 11:29:19 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.91LJ1.0.4.970317105116.4711C&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199703141444.XAA23890@log.tramp.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1571] Re: I can't use "CREATE TABLE weather". </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00075.html">Date Prev</A>][<A HREF="msg00079.html">Date Next</A>][<A HREF="msg00064.html">Thread Prev</A>][<A HREF="msg00081.html">Thread Next</A>][<A HREF="index.html#00074">Date Index</A>][<A HREF="threads.html#00074">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1571] Re: I can't use "CREATE TABLE weather".</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 17 Mar 1997 11:29:19 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+On Fri, 14 Mar 1997, Mitsuhiro Maeda wrote:
+
+&gt; おみつ@Tramp です。
+&gt; 
+&gt; On Fri, 14 Mar 1997 12:11:39 GMT
+&gt; Yamashita Taiichirou &lt;yamasita@yklab.sei.co.jp&gt; wrote:
+&gt; &gt; 
+&gt; &gt; １、ユーザ pgsql の ID で、つねに postmaster をデーモンとしては知らせ
+&gt; &gt; ておくにはどのようにすれば良いのですか？crontab は一定時間おきに立ち上
+&gt; &gt; げるための物ですよね、確か？
+&gt; &gt; 
+&gt; 
+&gt; 「postmaster -Dデータのディレクトリ -S」
+&gt; ("&amp;"はいらない)
+&gt; 
+&gt; もしくは、
+&gt; 
+&gt; 「postmaster -Dデータのディレクトリ &gt; ログファイル 2&gt;&amp;1 &amp;」
+&gt; ("&amp;"付き ;-)
+&gt; 
+&gt; でデーモン(?)として動いてくれるはずですよ :-)
+&gt; # バックエンドという方が正しいんでしょうか... ??
+&gt; 
+&gt; 24時間営業のマシンでないなら、rc.local などに、
+&gt; 
+&gt; if [ -f /usr/local/pgsql/bin/postmaster ]; then
+&gt; 	echo -n " postmaster"
+&gt; 	su postgres -c "/usr/local/pgsql/bin/postmaster -D/usr/local/pgsql/data -S"
+&gt; fi
+&gt; 
+&gt; などと書いて、起動時に走らせるのがいいかもしれません。
+&gt; 
+&gt; # 私は httpd なんかと一緒にこうしてます :-)
+
+どこかのデーモン起動シェルをまねして次のようなもの(pgsqld)をつくりました：
+--
+#!/bin/sh -f
+#
+# HISTORY
+# Creation:	04/02/96
+# Auther:	Jun Kuwamura
+#
+# 1997-03-13 JuK Modified for PostgreSQL
+#
+#!/bin/sh
+# 
+POSTUSER=postgres
+POSTMASTER=/usr/local/pgsql/bin/postmaster
+PGDATA=/usr/local/pgsql/data
+PGOPT=" -B 256"
+daemoname="postmaster(PGSQL daemon)"
+
+# OSF/1
+#pid=`/bin/ps -e | grep postmaster | grep -v grep | grep -v start | sed -e 's/^  *//' -e 's/ .*//' | head -1`
+# Linux
+pid=`ps ax | grep postmaster  | grep -v grep |  sed -e 's/^  *//' -e 's/ .*//' `
+
+#
+# start or stop postmaster (postgres daemon)
+#
+case $1 in
+'start')
+	if [ -f $POSTMASTER ]; then
+		if [ "X$pid" = "X" ]; then
+		#	$POSTMASTER
+			su - $POSTUSER -c "$POSTMASTER -D$PGDATA $PGOPT -S"
+			pid=`ps ax | grep postmaster  | grep -v grep |  sed -e 's/^  *//' -e 's/ .*//' `
+			if [ "X$pid" = "X" ]; then
+				echo "$0: start failed."
+			else
+				echo "$0: $daemoname started."
+				echo "$0: Proccess ID = $pid"
+			fi
+		else
+			echo "$0: $daemoname is ALREADY running(PID = $pid)."
+		fi
+	else
+		echo "$0: $POSTMASTER does NOT exist."
+		exit 1
+	fi
+        ;;
+'stop')
+	if [ -f $POSTMASTER ]; then
+		if [ "X$pid" != "X" ]; then
+			su $POSTUSER -c "/bin/kill $pid" || (echo su failed.; exit)
+			echo "$0: $daemoname has been killed."
+		else
+			echo "$0: $daemoname is NOT running."
+		fi
+	fi
+        ;;
+*)
+        echo "usage: $0 {start|stop}"
+	if [ "X$pid" != "X" ]; then
+		echo "$0: $daemoname is ALREADY running(PID = $pid)."
+	fi
+	exit 1
+        ;;
+esac
+exit 0
+
+--
+
+  これをクローンタブで起動するのは試してませんが、httpd の方は時々落ち
+ているようなので似たようなのをクローンタブで起動かけてます。
+起動のし方は：
+
+	% pgsqld start
+
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[postgres95 1578] pgsqld(postmaster [start|stop] shell)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[postgres95 1561] Re: I can't use "CREATE TABLE weather".</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00075.html">[postgres95 1572] About postgreSQL client on Win95 and Mac.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00079.html">[postgres95 1576] Re: About postgreSQL client on Win95 and Mac.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00064.html">[postgres95 1561] Re: I can't use "CREATE TABLE weather".</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00081.html">[postgres95 1578] pgsqld(postmaster [start|stop] shell)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00074"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00074"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

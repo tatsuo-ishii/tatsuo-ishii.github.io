@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19599] Re: not exist の動きについて(旧第：外部結合を実現しようとしたが) 、結果が返らない -->
+<!--X-From: ka&#45;araki@hitachi&#45;system.co.jp (荒木 一彦) -->
+<!--X-Date: Sun, 21 Jan 2001 11:22:11 +0900 -->
+<!--X-Message-Id: 200101210222.AA00803@87001&#45;araki.hitachi&#45;system.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3A55DC3E.4080208@ctsinc.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19599] Re: not exist の動きについて(旧第：外部結合を実現しよう </TITLE>
+<LINK REV="made" HREF="mailto:ka-araki@hitachi-system.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00291.html">Date Prev</A>][<A HREF="msg00293.html">Date Next</A>][<A HREF="msg00034.html">Thread Prev</A>][<A HREF="msg00018.html">Thread Next</A>][<A HREF="index.html#00292">Date Index</A>][<A HREF="threads.html#00292">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19599] Re: not exist の動きについて(旧第：外部結合を実現しようとしたが) 、結果が返らない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:ka-araki@hitachi-system.co.jp">ka-araki@hitachi-system.co.jp</A> (荒木 一彦)</LI>
+<LI><em>Date</em>: Sun, 21 Jan 2001 11:22:11 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00034.html">3A55DC3E.4080208@ctsinc.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+隠岐さん、非常に貴重なご意見、ありがとうございました。
+また、こちらからの返信が送れまして申し訳ありません。
+結論としては、下記の通りSQLを修正することで、
+問題を解決することが出来ました。
+本当にありがとうございます。
+
+Yoshio Oki さんは書きました:
+&gt; ですから、実行時には
+&gt;
+&gt; &gt; ( SELECT * From t WHERE t.t1=1 );
+&gt;
+&gt; が、
+&gt;
+&gt; &gt; ( SELECT * From t WHERE 1=1 );
+&gt; &gt; ( SELECT * From t WHERE 2=1 );
+&gt;
+&gt; と解釈されていると思います。
+
+　なるほど、existで判定される「１行づつ読み込んで」とは、帰ってきた結果
+ではなくて、実行時の判定に使用した行そのものなんですね。
+　だから、再帰的に使用すると、全て返って来てしまう訳ですか……
+
+&gt; え〜と、一般的な方法でいえば、上記の場合、
+&gt;
+&gt;  SELECT t.* FROM t where t.t1!=1;
+&gt;
+&gt; ですよね (^^;)
+
+　確かに。１テーブルでは、相関もなにもありませんものね。（＾_＾；）
+
+&gt; ただ、[pgsql-jp 19322]で示されていた内容からすると、
+&gt; 次のような SQL 文ではどうでしょうか。
+&gt;
+&gt; select * from a where not exist ( select * from c where c2 = a.a3 );
+&gt;
+&gt; ＃ サブクエリの from に親クエリの from を全く使用しないというのが
+&gt; ＃ ポイントです。というか、私はそういう使い方しか経験がありません。
+
+　親クエリのfromのうち、[pgsql-jp 19322]で示したマスタのみをサブクエ
+リの from に指定し、*指定を、親テーブルのレコードに限定することに
+よって、目的の結果を、JDBCでも得ることができるようになりました。
+
+※具体例　サンプルデータは[pgsql-jp 19322]と同じものを使用。
+
+SELECT
+ a.a1,
+ b.b1,
+ d.d3,
+ e.e1
+FROM a,b,c,d,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND a.a5 = b.b1
+ AND a.a6 = b.b2
+ AND c.c1 = e.e1
+ AND c.c4 = e.e2
+ AND a1 = 'KEY'
+
+union all
+
+SELECT
+ a.a1,
+ b.b1,
+ null as d3,
+ e.e1
+FROM a,b,e
+
+WHERE
+     a.a1 = e.e1
+ AND a.a2 = e.e2
+ AND a.a7 Is Null
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND a1 = 'KEY'
+
+ AND not exists
+ (
+SELECT
+ a.*,c.*
+From b,e
+WHERE
+     c.c7 Is Null
+ AND a.a7 Is Null
+ AND d.d1 = c.c6
+ AND d.d2 = c.c3
+ AND c.c5 = a.a4
+ AND c.c4 = a.a2
+ AND c.c1 = a.a1
+ AND c.c2 = a.a3
+ AND a.a6 = b.b2
+ AND a.a5 = b.b1
+ AND c.c4 = e.e2
+ AND c.c1 = e.e1
+ AND a1 = 'KEY'
+)
+
+
+　非常に的を得たご助言、どうもありがとうございました。
+　至らない上に検証が遅くなってしまい、大変失礼致しました。
+
+/*-----------------------------------------------------------------*/
+/* (株)日立システムアンドサービス　荒木　一彦  　　　　　　　　　  */
+/* [E-mail] ka-araki@hitachi-system.co.jp                     　 　*/
+/*-----------------------------------------------------------------*/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00034" HREF="msg00034.html">[pgsql-jp 19341] Re: not exist 	の動きについて(旧第：外部結合を実現しようとしたが)、結果が返らない</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Oki &lt;oki@ctsinc.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00291.html">[pgsql-jp 19598] Re: 7.1 beta snapshot  のFreeBSD でのMakeについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00293.html">[pgsql-jp 19600] Re: 7.1 beta snapshot  のFreeBSD でのMakeについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 19341] Re: not exist 	の動きについて(旧第：外部結合を実現しようとしたが)、結果が返らない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 19321] &lt;no subject&gt;</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00292"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00292"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

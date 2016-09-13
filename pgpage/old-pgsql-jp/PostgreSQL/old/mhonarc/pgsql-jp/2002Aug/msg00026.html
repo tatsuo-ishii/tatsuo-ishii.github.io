@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26894] Re: UCS&#45;2 文字を利用したい -->
+<!--X-From: Eiji Tokuya <e&#45;tokuya@sankyo&#45;unyu.jp> -->
+<!--X-Date: Sat, 3 Aug 2002 14:43:23 +0900 -->
+<!--X-Message-Id: 20020803144323.677d025b.e&#45;tokuya@sankyo&#45;unyu.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OF50EE6D1D.0D2F422B&#45;ON49256C09.00333FDA@notes.nidec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26894] Re: UCS-2 文字を利用したい </TITLE>
+<LINK REV="made" HREF="mailto:e-tokuya@sankyo-unyu.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00025.html">Date Prev</A>][<A HREF="msg00027.html">Date Next</A>][<A HREF="msg00020.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00026">Date Index</A>][<A HREF="threads.html#00026">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26894] Re: UCS-2 文字を利用したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Eiji Tokuya &lt;<A HREF="mailto:e-tokuya@sankyo-unyu.jp">e-tokuya@sankyo-unyu.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 3 Aug 2002 14:43:23 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: K.K. Sankyo Transportation Service</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00020.html">OF50EE6D1D.0D2F422B-ON49256C09.00333FDA@notes.nidec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳家です。
+
+&gt; 以前は説明しなかったのですが、
+&gt; PostgreSQL＋JSP＋ApacheでWebから
+
+&gt; そこで、文字コードの流れを抑えることが重要なのですが、
+&gt; 今までは、
+&gt; （ユーザ入力文字　EUC_JP）　⇒　（JSPで文字取得　その際、EUC_JP⇒Unicodeに変
+&gt; 換 *1）　⇒
+&gt; （postgreSQLにinsert　Unicode）【PostgreSQLエンコード＝Unicode】　 ⇒　（Web
+&gt; 表示 PostgreSQLから取得した文字をEUC_JPとして表示）
+&gt; 
+&gt; と考え、現にたいていの文字はうまくいきました。
+&gt; 
+&gt; *1 Javaソース
+&gt; String(s.getBytes("8859_1"),"EUC_JP")　といった感じで。
+
+JavaでEUC-JPに変換しているのですね。
+しかも、8859_1は半角文字だし…。(..;)
+# いつも思うのですが、日本語を使うのにナゼ8859-1などが
+# 登場するのか疑問です。(^^;;;;
+
+Javaのエンコード変換は、EUC-JPでは全くIBM拡張漢字に
+対応していません。
+
+PostgreSQL話題とは全くの無関係状態の話ですね。
+JavaソースのエンコードがUCS-2かUTF-8と思っていたもので…。
+
+&gt; そこで教えていただきたいのですが、今回のパッチというのは、ユーザがどのよう
+&gt; なコードでIBM拡張文字を入力しても、
+&gt; postgreSQLできちんと解釈してくれるものと都合よく解釈してしまっているのです
+&gt; が、間違いでしょうか？
+
+菅原さんの言ってるのはエンコードの自動判別ですよね。
+それなら違いますね。
+エンコードの自動判別には正しく判別するのには、ある程度長い文字列が必要です。
+DBは短い文字列だけで利用することも多いので、自動判別には向きません。
+よって、利用する文字集合を明確に設定して使います。
+
+PostgreSQLの場合はエンコーディングの設定にはDB本体のエンコーディング
+ともう１つ、ユーザーがpsqlで表示したり、JavaやCなど各言語でPostgreSQLを
+利用したアプリケーションを構築する時に表記使うエンコーディングを指定
+します。これを『クライアントエンコーディング』といいます。
+つまり、PostgreSQLはコード変換機能を内蔵しているのです。
+
+JavaのソースをEUC-JPで記述したなら、PostgreSQLのクライアントエンコー
+ディングをEUC_JPにしてあげればいいのです。
+*1のようなコード変換はJavaでは行わなくて結構です。
+
+&gt; このパッチファイルでどのようなことができるのでしょうか？
+&gt; 重ね重ね申し訳ないのですが、よろしくお願いいたします。
+
+パッチなしでは、UNICODE&lt;-&gt;EUC_JPの変換をJIS規格の最低限の文字の範囲
+で変換します。機種依存文字は全く変換しません。
+よって、IBM拡張漢字はもちろん外字も、囲み文字も対応していません。
+業務などの利用では、『(株)』などの囲み文字はよく使いますが、
+UNICODEでは存在するものの、それらは機種依存文字なのでよって
+UNICODE&lt;-&gt;EUC_JPでは対応していません。
+
+PostgreSQLは、7.0よりEUC_JPでもWindowsの機種依存文字が使えます。
+ですから以前よりDBをEUC_JPで利用することを推奨していましたが、
+このパッチで、DBをUNICODEで利用してもDBをEUC_JPで使っていたとき
+と同等に使えるようになるのです。
+これで、EUC_JPからUNICODEへのステップアップも簡単になります。
+『だからなんなの?』と思われるかもしれませんが、業務で使うDBの
+価値は歴然と違います。
+
+UNICODE(UTF-8)の方が文字数が多くて便利と思っていても、EUC_JPの
+DBで登録したデータが酷く破損してしまっては意味が無いので、
+UNICODEにステップアップを控えているPostgreSQL利用者も多いと思います。
+
+このパッチはそれらを解消します。
+
+パッチをあてると、そのデータの破損を最低限(絶対とは言えませんが)
+におさえます。
+(株)や(有)などの囲み文字も安心して利用できます。
+
+勿論、後にUTF-8でクライアントアプリケーションを構築すると
+マルチリンガルなDBになり引続き利用できるのです。
+要するに中国や韓国の漢字も利用可能になるので、無いと諦めていた
+人名漢字の殆どが入力可能になります。
+
+パッチは日本語に関しては、文字化けや文字の欠落などによる、データ
+の破損を防ぐのが第一の目的です。
+利用のOSやフォント、構築されたアプリケーションが対応しているか
+どうかはパッチもPostgreSQLとも関係ありません。
+
+
+徳家
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp: 26895] Re: UCS-2 文字を利用したい</A></STRONG>
+<UL><LI><EM>From:</EM> MORIGUCHI Hirokazu &lt;kito@mutt.freemail.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp: 26888] Re: UCS-2 文字を利用したい</A></STRONG>
+<UL><LI><EM>From:</EM> "SEIJI SUGAHARA/NIDEC" &lt;SEIJI_SUGAHARA@notes.nidec.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp: 26893] Re: 文字列中の数字ソート</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00027.html">[pgsql-jp: 26895] Re: UCS-2 文字を利用したい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp: 26888] Re: UCS-2 文字を利用したい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp: 26895] Re: UCS-2 文字を利用したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00026"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00026"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

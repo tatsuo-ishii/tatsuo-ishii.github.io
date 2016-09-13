@@ -1,0 +1,223 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7743] Re: vacuum -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Fri, 26 Mar 1999 17:28:22 +0900 -->
+<!--X-Message-Id: 36FB452628.4B45SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36FA0C70316.DE70SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199903251452.XAA00466@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7743] Re: vacuum </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00486.html">Date Prev</A>][<A HREF="msg00488.html">Date Next</A>][<A HREF="msg00482.html">Thread Prev</A>][<A HREF="msg00488.html">Thread Next</A>][<A HREF="index.html#00487">Date Index</A>][<A HREF="threads.html#00487">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7743] Re: vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Mar 1999 17:28:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00475.html">36FA0C70316.DE70SAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00482.html">199903251452.XAA00466@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Thu, 25 Mar 1999 23:52:37 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さん wrote:
+&gt; 石井です。
+&gt; 
+&gt; &gt; 　環境およびテスト条件は次です。insert1万回ごとのcommitから
+&gt; &gt; 1回ごとのcommitに変えてみましたが結果は同じでした。
+&gt; 
+&gt; 単なる insert ではなくて、
+&gt; 
+&gt; begin;
+&gt; insert ....;
+&gt; end;
+&gt; 
+&gt; ですか？ということは、begin/end の処理に問題があるのかな...
+
+  begin;insert;end;commit;とすると、実行時に毎回次のNOTICE:
+を出力します。
+
+　NOTICE: BeginTransactionBlock and not in default state
+　NOTICE: EndTransactionBlock and not inprogress/abort state
+
+　また、end;(exec sql end transaction;)とcommit;(exec sql 
+commit;)は全く同じ機能です。（展開Cソースを見るとECPGルーチ
+ンコールが全く同じでいずれも commit を実行してます）
+
+  ecpgでは、vacuum(exec sql vacuum;)も含めてInsertなどの全て
+の更新命令は、「無条件」にトランザクション処理になっているよ
+うです。
+
+　従いまして、insert;commit; は意味的には begin;insert;end;
+と全く同等です。begin;を書くとNOTICE が出力されますので、結
+局、ecpgでは「begin/endは不要」で、commit; さえ書けばいいの
+だと判断しました。
+
+# ECPGルーチンとbackendとの間のbegin/end処理が、どうなってい
+　るのかはわかりません。
+
+
+&gt; &gt; 
+&gt; &gt; 　「insert+commit」のペアを67606回実行すると、sqlca.sqlcode
+&gt; &gt; が-12、 sqlca.sqlerrm.sqlerrmcが"out of memory"でした。67605
+&gt; &gt; 件は正常に登録されています。
+&gt; 
+&gt; ちょっと ecpg は使い込んでいないので良く分かりませんが、もしかしてバッ
+&gt; クエンドではなく、フロントエンド(ecpg で作成したアプリケーション)の方
+&gt; が out of memory になっている、ということはありませんか？
+&gt; 
+
+  frontend側アプリは非常に単純で、文字列操作や配列およびmalloc
+()などメモリを壊しそうな部分はありません。
+
+  また、frontend側のアプリがエラーストップしたのではなくinsert
+の結果 (sqlcodeの値とsqlエラーメッセージ)を表示してプログラム
+を正常に停止させましたので、frontend側アプリのエラーではないと
+思います。
+
+  こちらは、6.4.2で最新パッチではありませんが、最新パッチで解
+決する可能性はありますか？
+
+# frontend側アプリにリンクされるECPGライブラリ(libecpg.a)や
+  libpq.aについては調査していません。
+
+# postmaster -S -i -B 300 -o "-S 2048"などしましたが変わらな
+  かったので、現在は postmaster -S -i だけです。どういうわけ
+　かわからないのですが、10万件が登録できたときもありました。
+　しかし、postmaster再起動、destroydb,createdb を実行した後の
+　テストでは確実にエラーでした。
+
+
+&gt; &gt;   ・Bマシン
+&gt; &gt;     P2B + (Pentium��450MHz,PC100CL2 SDRAM, DPT UltraWide RAID
+&gt; &gt;     SCSI(40MB/s,4MBキャッシュ付,RAID1)、7200回転,7.5msディスク
+&gt; &gt; 
+&gt; &gt; 　　[commit間隔]  Aマシン     Bマシン
+&gt; &gt;    　  1件ごと    1時間20分   9分30秒
+&gt; &gt;     ...途中省略...
+&gt;
+&gt; PostgreSQL の insert が特に速いとは思いませんので、マシンを誉めるべき
+&gt; でしょう:-)
+&gt; 
+&gt; それはともかく、A と B で、どうして1時間20分 vs. 9分30秒 ほどの差が付
+&gt; くのか興味深いですね。
+
+  Bマシンの場合、おそらく DPT社製RAIDボードの4MBキャッシュが
+有効に働いているのでしょう
+
+
+&gt; &gt; 　質問があやふやでしたね。最初に書いたスキーマを例にとりますと、
+&gt; &gt; 
+&gt; &gt;   1.100万件登録した後にvacuum を行う。
+&gt; &gt; 　2.その後 1000件追加書き込みを行う。
+&gt; &gt; 　3.そして、vacuumをせずに
+&gt; &gt; 　　select * from test_vacuum where Aid &gt; xxx1 and Aid &lt; xxx2;
+&gt; &gt; 　　とする。（但し、xxx1,xxx2は追加書き込み範囲の値）。
+&gt; &gt; 
+&gt; &gt; 　このとき select は、次のどのように検索しますか？
+&gt; &gt; 
+&gt; &gt; 　1.Aidの索引は全く使用せずに、テーブル本体のファイルを最初
+&gt; &gt; 　　から最後まで読み込んで検索(この意味をsequential scanとい
+&gt; &gt;     いました）する。
+&gt; &gt; 　2.Aidの索引は使用するが、範囲にないので、全件のsequential
+&gt; &gt;     scanを行う。
+&gt; &gt;   3.Aidの索引は使用するが、範囲にないので、追加書込みの部分
+&gt; &gt; 　  だけテーブル本体のファイルを読みこみ検索(部分 sequential
+&gt; &gt;     scan)する。
+&gt; &gt; 　4.一度vacuumを行っているから追加書き込みであっても Aidの索
+&gt; &gt;     引を使用して検索する。
+&gt; &gt;   5.それ以外?
+&gt; 
+&gt; 4 だと思いますが、もしかしたら追加データ量によって 1 になるかもしれま
+&gt; せん。私はすっかり 4 だと思っていたのですが(実際追加データが少ない場合
+&gt; はそうだった)、40万件程のデータを最初に insert/vacuum し、その後時々 
+&gt; 1000 件程追加するようなことを繰り返して数ヵ月たったある日、索引を見て
+&gt; くれなくなっていたことに気が付きました。ですから、
+&gt; 
+&gt; o 一度 vacuum すればしばらくは追加データがあっても有効
+&gt; 
+&gt; o しかし、それも程度問題で、あんまりデータを追加しすぎると vacuum の統
+&gt;   計データが無効になる
+&gt; 
+&gt; ということではないかと思っていますが、コードを調べて確認したわけではあ
+&gt; りませんので、もしかしたら私の思い過ごしかも知れません。
+
+　わかりました。ずっと、４ならば最高ですね。
+
+# 100万件(現実的には20テーブルで平均5万件=100万件)で vacuum,
+  selectがそれなりのスピードならば、もう言うこと無しですが、
+　Updateがある場合の100万件のvacuumはそれほど速くはないので
+  しょうね？　テストしたかったのですが、20x5もちょっと大変そ
+  うなので.....しばらく保留です。
+
+--
+Personal Software, Inc.
+境田雅明( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00489" HREF="msg00489.html">[pgsql-jp 7745] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00488" HREF="msg00488.html">[pgsql-jp 7744] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00475" HREF="msg00475.html">[pgsql-jp 7731] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00482" HREF="msg00482.html">[pgsql-jp 7738] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00486.html">[pgsql-jp 7742] Re: i can not install 6.4.2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00488.html">[pgsql-jp 7744] Re: vacuum</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00482.html">[pgsql-jp 7738] Re: vacuum</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00488.html">[pgsql-jp 7744] Re: vacuum</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00487"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00487"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

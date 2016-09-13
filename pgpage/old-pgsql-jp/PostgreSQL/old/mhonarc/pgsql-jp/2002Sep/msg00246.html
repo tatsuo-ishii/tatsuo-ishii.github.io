@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27473] Re: 項目があったりなかったりするテーブル設計について。 -->
+<!--X-From: "Takashi Adachi" <adachi@ikic.co.jp> -->
+<!--X-Date: Fri, 27 Sep 2002 03:34:37 +0900 -->
+<!--X-Message-Id: 01a801c2658b$5e4f25a0$0200a8c0@IKITKY1.ikic.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020926132639.CDE3.INAGAKI@root&#45;sea.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27473] Re: 項目があったりなかったりするテーブル設計について。 </TITLE>
+<LINK REV="made" HREF="mailto:adachi@ikic.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00245.html">Date Prev</A>][<A HREF="msg00247.html">Date Next</A>][<A HREF="msg00240.html">Thread Prev</A>][<A HREF="msg00247.html">Thread Next</A>][<A HREF="index.html#00246">Date Index</A>][<A HREF="threads.html#00246">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27473] Re: 項目があったりなかったりするテーブル設計について。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Takashi Adachi" &lt;<A HREF="mailto:adachi@ikic.co.jp">adachi@ikic.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 27 Sep 2002 03:34:37 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00240.html">20020926132639.CDE3.INAGAKI@root-sea.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+伊藤さん、こんにちは。
+
+&gt; ・回答テーブルに通常なら選択された値をレコードに
+&gt; 　格納するだけだが、
+&gt; 　ひとつ項目が増える事もイレギュラー的に発生するので、
+&gt; 　回答テーブルどう設計するか。
+
+ここがどういう意味かよくわからないのですが
+１つの質問に対して複数の回答がある場合があるということでしょうか？
+
+↑と仮定して
+
+&gt; クライアントがレイアウトした(内容も含む)フォームを公開し、
+&gt; クライアントの顧客がそれに答えて送信する。
+&gt; 送信されたデータを取り込む。
+
+とするとこんなのは如何でしょうか？
+
+
+質問目的T　（アンケートの実施目的）
+　　・質問目的ID（PK）
+　　・質問目的内容
+
+質問T　（アンケートの質問内容）
+　　・質問目的ID（PK）　←　質問目的Tの同項目
+　　・質問ID（PK）
+　　・質問内容
+
+回答選択肢T　（アンケートの質問に対する回答選択肢）
+　　・質問目的ID　←　FK：質問Ｔの同項目
+　　・質問ID（PK）　←　FK：質問Ｔの同項目
+　　・選択肢ID（PK）
+　　・選択肢内容
+　　・選択肢区分　←　１：選択のみ、２：テキスト（ユーザーが任意入力可）
+
+回答T
+　　・回答者ID（PK）
+　　・回答日時（PK）
+　　・質問目的ID（PK）　←　FK：質問Tの同項目
+　　・質問ID（PK）　←　FK：質問Tの同項目
+　　・回答SEQ（PK）
+　　・回答ID　←　回答選択肢T．選択肢IDと存在チェック
+　　・任意入力内容　←　回答選択肢T．選択肢区分が２の時のみ使用
+
+
+回答Tは
+
+　　・回答IDもPK（FK：回答選択肢T．選択肢ID）にしてしまう。
+　　　→　この場合FKは全部回答選択肢Tからですね。
+　　　　　この方が回答IDは参照整合性でチェックできるから楽といえば楽ですね。
+
+　　・回答Tを２つに分けて任意入力内容のみを保持するテーブルを作っておく。
+
+ってのもありかと。
+
+
+言うまでもないと思いますがお気楽気分で気の向くままに書いたので
+これでいいかは精査して下さいね。
+
+＃テーブル設計なので「唯一解」というのはないと思いますし
+＃これがすっきりしているかと問われると疑問だし・・・
+
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00247" HREF="msg00247.html">[pgsql-jp: 27474] Re: 項目があったりなかったりするテーブル設計について。</A></STRONG>
+<UL><LI><EM>From:</EM> yuka_i &lt;inagaki@root-sea.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00240" HREF="msg00240.html">[pgsql-jp: 27467] 項目があったりなかったりするテーブル設計について。</A></STRONG>
+<UL><LI><EM>From:</EM> yuka_i &lt;inagaki@root-sea.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00245.html">[pgsql-jp: 27472] Re: エラーの意味を教えてください。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00247.html">[pgsql-jp: 27474] Re: 項目があったりなかったりするテーブル設計について。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00240.html">[pgsql-jp: 27467] 項目があったりなかったりするテーブル設計について。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp: 27474] Re: 項目があったりなかったりするテーブル設計について。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00246"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00246"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

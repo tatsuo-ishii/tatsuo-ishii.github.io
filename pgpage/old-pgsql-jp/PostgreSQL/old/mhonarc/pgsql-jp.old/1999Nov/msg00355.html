@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11783] Re: FreeBSD 3.3 で postmaster が消失 -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Mon, 15 Nov 1999 21:14:59 +0900 -->
+<!--X-Message-Id: 199911151215.VAA13616@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199911050208.LAA06447@sraigw.sra.co.jp -->
+<!--X-Reference-Id: 199911050423.NAA09874@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11783] Re: FreeBSD 3.3 で postmaster が消失 </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00354.html">Date Prev</A>][<A HREF="msg00356.html">Date Next</A>][<A HREF="msg00162.html">Thread Prev</A>][<A HREF="msg00060.html">Thread Next</A>][<A HREF="index.html#00355">Date Index</A>][<A HREF="threads.html#00355">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11783] Re: FreeBSD 3.3 で postmaster が消失</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 15 Nov 1999 21:14:59 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00150.html">199911050208.LAA06447@sraigw.sra.co.jp</A>&gt;&lt;<A HREF="msg00162.html">199911050423.NAA09874@srapc451.sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) SEMI/1.13.3 (Komaiko) FLIM/1.12.5 (Hirahata) MULE/2.3 (SUETSUMUHANA) (based on Emacs 19.34)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+ちょうど postmaster 消失のスレッドを参考に…という話が出まし
+たので…
+
+件のスレッドで、具体的にどのようにしたか、が話だけで出ていな
+いので、今こちらで手を入れた箇所のパッチを添付しておきます。
+(注：6.5.2 で diff を取りましたので、バージョンが違う場合は 
+offset が出るかもしれません)
+スレッド中でも書きましたが、errno が EINTR で返ってくる場合
+以外に、ECHILD で返ってきた場合もそのまま処理を続行させるよ
+うになっています。
+
+これをあてたあとは、postmaster が消失したことはなく、高負荷
+でも安定した稼働が行なえています。
+
+
+Fri, 05 Nov 1999 13:23:04 +0900 頃、
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さんは言いました :
+&gt; 
+佐藤&gt; とりあえず、select はディスクリプタのステータスチェックなの
+佐藤&gt; で、と割り切って、EINTR と同様に ECHILD が返ってきた場合も
+佐藤&gt; そのまま continue するように postmaster.c を変えてみて、様子
+佐藤&gt; を見てみることにしました。
+&gt; 
+&gt; とりあえずそれでもいいと思います。後は、
+&gt; 
+&gt; o reapler() の中で呼ばれたときの errno を退避、復元する
+&gt; 
+&gt; o SIGCHLD をハンドリングしなくて済むようにロジックを変更する
+&gt; 
+&gt; という方法もありますが、ちょっと面倒です。
+&gt; 
+&gt; 今開発中の 7.0 では postmaster.c が大幅に書き換えられつつありますが、
+&gt; それが落ち着いたら本格的な対処方法を考えてみます。
+
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+
+
+*** src/backend/postmaster/postmaster.c.orig	Thu Jul  8 02:17:48 1999
+--- src/backend/postmaster/postmaster.c	Wed Nov 10 04:38:03 1999
+***************
+*** 709,719 ****
+  		if (select(nSockets, &amp;rmask, &amp;wmask, (fd_set *) NULL,
+  				   (struct timeval *) NULL) &lt; 0)
+  		{
+! 			if (errno == EINTR)
+  				continue;
+! 			fprintf(stderr, "%s: ServerLoop: select failed: %s\n",
+  					progname, strerror(errno));
+! 			return STATUS_ERROR;
+  		}
+  
+  		/*
+--- 709,729 ----
+  		if (select(nSockets, &amp;rmask, &amp;wmask, (fd_set *) NULL,
+  				   (struct timeval *) NULL) &lt; 0)
+  		{
+! 			switch(errno) {
+! 			case EINTR:
+  				continue;
+! 				break;
+! 			case ECHILD:
+! 				fprintf(stderr, "%s: ServerLoop: ignoring ECHILD\n",
+! 					progname);
+! 				continue;
+! 				break;
+! 			default:
+! 				fprintf(stderr, "%s: ServerLoop: select failed: %s\n",
+  					progname, strerror(errno));
+! 				return STATUS_ERROR;
+! 				break;
+! 			}
+  		}
+  
+  		/*
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00162" HREF="msg00162.html">[pgsql-jp 11588] Re: FreeBSD 3.3 でpostmaster が消失</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00354.html">[pgsql-jp 11782] Re: ibpqを用いたプログラミング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 11784] Re: ibpqを用いた プログラミング</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 11588] Re: FreeBSD 3.3 でpostmaster が消失</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00060.html">[pgsql-jp 11485] RE: [pgsql-jp 11474] Re: 自己紹介＆日付が化けるんです</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00355"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00355"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

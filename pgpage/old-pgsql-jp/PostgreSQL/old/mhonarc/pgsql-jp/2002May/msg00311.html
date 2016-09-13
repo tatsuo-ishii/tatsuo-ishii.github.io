@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26076] Re: 7.2 のvacuum -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 22 May 2002 16:50:23 +0900 (JST) -->
+<!--X-Message-Id: 20020522.165023.78704092.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205220752.17279@digitune.org -->
+<!--X-Reference-Id: 20020522.113848.34764323.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200205221230.44872@digitune.org -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26076] Re: 7.2 のvacuum </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00310.html">Date Prev</A>][<A HREF="msg00312.html">Date Next</A>][<A HREF="msg00310.html">Thread Prev</A>][<A HREF="msg00312.html">Thread Next</A>][<A HREF="index.html#00311">Date Index</A>][<A HREF="threads.html#00311">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26076] Re: 7.2 のvacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 22 May 2002 16:50:23 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00302.html">200205220752.17279@digitune.org</A>&gt;&lt;<A HREF="msg00306.html">20020522.113848.34764323.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00308.html">200205221230.44872@digitune.org</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; table 本体の物理サイズ (FS 上のファイルのサイズ) は、?????.5 までいって
+&gt; いましたから 5GBytes 以上、またその table に関連する pg_toast_?????
+&gt; table がやはり ?????.7 までありましたので 7Gbytes 以上ありました。
+
+なるほど．ということは，仮に合計15GBとして，15*1024*1024*1024/8192 = 1966080
+ページですね．余裕を見て2000000位にmax_fsm_pagesを設定する必要がありそ
+うです．
+
+&gt; max_fsm_pages のサイズを大きくすることの副作用は何かありますか？一応、メ
+&gt; インメモリは常態でだいたい 512Mbytes 程度の余裕があります。
+
+free space mapは共有メモリに取られるので，その分共有メモリに余裕が必要
+になります．私の計算では，max_fsm_pages = 2000000 とすると，7756(ペー
+ジ数に関わらないオーバヘッド)+6.25(1ページあたりに必要なメモリ)
+*1048576 = 12507756バイト = 12MBほど共有メモリが必要になります．細かい
+数字はOSによって変わると思いますが，だいたいこんなものでしょう．つまり，
+12MBほど共有メモリに余裕があれば必要なfree space mapが確保できることに
+なります．
+
+&gt; ご指摘感謝です。ピーク時には query/update 合わせて 360 transaction/sec
+&gt; 程度の負荷がかかっているのですが、その状態で平行して vacuum をかけても大
+&gt; 丈夫なものなのでしょうか？
+
+こればっかりはやってみないと分かりませんね．
+
+&gt; &gt; ところで，問題になっているテーブルに類似したテーブルが他にもたくさんあ
+&gt; &gt; る，ということはないですよね？その場合は max_fsm_pages をもっと増やす
+&gt; &gt; 必要があります．
+&gt; 
+&gt; update が同じくらい (daily で数百万以上) 頻繁な table、という意味では他
+&gt; にもいくつかありますが、１ レコードの大きさが大きいテーブルはこれだけです。
+&gt; 他は大抵 int4 型が 3〜4 つと timestamp 型、というような構成です。
+
+問題はテーブルの物理的なサイズです．他のテーブルが，問題になっているテー
+ブルと比べて無視できるほど小さければ良いのですが，そうでなければもっと
+max_fsm_pageを増やす必要があります．
+
+&gt; 本当に、いつも貴重な情報感謝します。
+
+どういたしまして．結果がどうだったかお知らせ下されば幸です．私もこんな
+に大きなテーブルのケースを試したことがないもので:-)
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00312" HREF="msg00312.html">[pgsql-jp: 26077] Re: 7.2 の vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00302" HREF="msg00302.html">[pgsql-jp: 26067] 7.2 の vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00306" HREF="msg00306.html">[pgsql-jp: 26071] Re: 7.2 のvacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00308" HREF="msg00308.html">[pgsql-jp: 26073] Re: 7.2 の vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00310.html">[pgsql-jp: 26075] Re: 7.2 のvacuum</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00312.html">[pgsql-jp: 26077] Re: 7.2 の vacuum</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00310.html">[pgsql-jp: 26075] Re: 7.2 のvacuum</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00312.html">[pgsql-jp: 26077] Re: 7.2 の vacuum</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00311"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00311"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

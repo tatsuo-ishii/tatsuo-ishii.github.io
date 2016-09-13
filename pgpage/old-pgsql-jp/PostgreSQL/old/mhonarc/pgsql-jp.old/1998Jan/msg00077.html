@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3290] Re: はじめまして -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Wed, 28 Jan 1998 14:00:14 +0900 -->
+<!--X-Message-Id: 199801280500.OAA14945@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199801280417.NAA07732@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3290] Re: はじめまして </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00076.html">Date Prev</A>][<A HREF="msg00078.html">Date Next</A>][<A HREF="msg00075.html">Thread Prev</A>][<A HREF="msg00079.html">Thread Next</A>][<A HREF="index.html#00077">Date Index</A>][<A HREF="threads.html#00077">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3290] Re: はじめまして</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 Jan 1998 14:00:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00075.html">199801280417.NAA07732@srapc451.sra.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+In message &lt;<A HREF="msg00075.html">199801280417.NAA07732@srapc451.sra.co.jp</A>&gt;, t-ishii@sra.co.jp writes
+&gt; &gt;&gt;＊インストール環境＊
+&gt; &gt;&gt;日本語Solaris2.5.1　for x86
+
+同じ環境ですがこけてしまいました．log には，
+
+/home/postgres/bin/postmaster: reaping dead processes...
+/home/postgres/bin/postmaster: CleanupProc: pid 25409 exited with status 139
+/home/postgres/bin/postmaster: CleanupProc: reinitializing shared memory and semaphores
+
+となりますので，server がこけています．
+
+backend は接続の度に folk() しますので，再接続すれば処理は継続できますが，
+子供のプロセス自身は core をはいています．data/base/DB名/core に
+残っています．
+
+ご参考までに，gdb で core を見た結果を添付します．memmove() でこけているので，
+server の bug だと思います．
+
+それから，psql の メッセージが 「unrecognized chararacter 云々」で紛らわしい
+のですが，これは単に，socket からの getc が EOF (-1) を返すため，libpq の
+レベルでははプロトコルエラーとして検出される，ということです．
+
+もう少し調べて見ないとなんとも言えないですが，char をやめて text にするのが
+賢明でしょうか．
+
+# ちょっと時間がないので今はこれ以上は追っ掛けられないです．
+
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+
+
+--------------- gdb /home/postgres/bin/postgres core -------- 
+(gdb) where
+#0  0x800db7be in memmove ()
+#1  0x8060eab in DataFill (data=0x81d05d8 "", tupleDesc=0x818d048, value=0x8193960, nulls=0x8045760 " ", 
+    infomask=0x81d05d3 "\0020", bit=0x0) at heaptuple.c:173
+#2  0x80621f6 in heap_formtuple (tupleDescriptor=0x818d048, value=0x8193960, nulls=0x8045760 " ") at heaptuple.c:864
+#3  0x809aa4c in ExecTargetList (targetlist=0x818cfa8, nodomains=1, targettype=0x818d048, values=0x8193960, 
+    econtext=0x81cecc8, isDone=0x8045807 "\001") at execQual.c:1567
+#4  0x809aaf9 in ExecProject (projInfo=0x81ce8a8, isDone=0x8045807 "\001") at execQual.c:1634
+#5  0x809ac16 in ExecScan (node=0x81ce860, accessMtd=0x80a2008 &lt;SeqNext&gt;) at execScan.c:141
+#6  0x80a20c6 in ExecSeqScan (node=0x81ce860) at nodeSeqscan.c:138
+#7  0x8099059 in ExecProcNode (node=0x81ce860, parent=0x81ce860) at execProcnode.c:240
+#8  0x80984aa in ExecutePlan (estate=0x81cec40, plan=0x81ce860, parseTree=0x81cd880, operation=CMD_SELECT, numberTuples=0, 
+    direction=ForwardScanDirection, printfunc=0x806346c &lt;printtup&gt;) at execMain.c:747
+#9  0x8097e05 in ExecutorRun (queryDesc=0x818cff8, estate=0x81cec40, feature=3, count=0) at execMain.c:215
+#10 0x80f2bed in ProcessQueryDesc (queryDesc=0x818cff8) at pquery.c:331
+#11 0x80f2c71 in ProcessQuery (parsetree=0x81cd880, plan=0x81ce860, argv=0x0, typev=0x0, nargs=0, dest=Remote)
+    at pquery.c:377
+#12 0x80f1000 in pg_eval_dest (query_string=0x8045bd8 "select a5 from book8;", argv=0x0, typev=0x0, nargs=0, dest=Remote)
+    at postgres.c:749
+#13 0x80f0eba in pg_eval (query_string=0x8045bd8 "select a5 from book8;", argv=0x0, typev=0x0, nargs=0) at postgres.c:651
+#14 0x80f24b3 in PostgresMain (argc=5, argv=0x8047c34) at postgres.c:1564
+#15 0x80ac18d in main (argc=5, argv=0x8047c34) at main.c:77
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp 3288] Re: はじめまして</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 3289] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 3291] Re: About SQL query.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 3288] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 3292] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00077"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00077"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

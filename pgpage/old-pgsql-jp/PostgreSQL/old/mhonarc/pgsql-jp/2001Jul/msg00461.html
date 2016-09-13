@@ -1,0 +1,219 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22598] 郵便番号による住所判定 -->
+<!--X-From: HOTTA Michihide <hotta@net&#45;newbie.com> -->
+<!--X-Date: Fri, 27 Jul 2001 10:44:05 +0900 -->
+<!--X-Message-Id: 20010727104405.25984872.hotta@net&#45;newbie.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22598] 郵便番号による住所判定 </TITLE>
+<LINK REV="made" HREF="mailto:hotta@net-newbie.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00460.html">Date Prev</A>][<A HREF="msg00462.html">Date Next</A>][<A HREF="msg00469.html">Thread Prev</A>][<A HREF="msg00464.html">Thread Next</A>][<A HREF="index.html#00461">Date Index</A>][<A HREF="threads.html#00461">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22598] 郵便番号による住所判定</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HOTTA Michihide &lt;<A HREF="mailto:hotta@net-newbie.com">hotta@net-newbie.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 27 Jul 2001 10:44:05 +0900</LI>
+<LI><em>Organization</em>: Linux Users KYushu  -- るぅきぃ</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+堀田＠諫早市％オフ会メール歓迎:-)です。
+
+住所録みたいなテーブルから、住所（都道府県名 or 都道府県名＋
+市町村名）による絞り込みを行おうとしています。住所録の住所フ
+ィールドはあまり信用できないと考え、郵便番号により住所を特定
+しようとしています。
+
+--  住所録テーブル
+CREATE  TABLE   applier  (
+    seq         serial      --  シリアル番号（自動付番）
+        primary key,
+    edate       datetime    --  エントリ受付日時
+        default 'now',
+    zip         text,       --  郵便番号(XXX-YYYY)
+    kn_addr     text,       --  住所（カナ）
+    kj_addr     text,       --  住所（漢字）
+    kn_name     text,       --  氏名（カナ）
+    kj_name     text,       --  氏名（漢字）
+    (以下略)
+};
+--  郵便番号テーブル
+CREATE  TABLE   zip  (
+    no          int,        --  全国地方公共団体コード(JIS X0401、X0402)
+    head        text,       --  現郵便番号(5桁)
+    zip         text,       --  新郵便番号(7桁)
+    kn_kenmei   text,       --  都道府県名（カナ）
+    kn_shimei   text,       --  市区町村名（カナ）
+    kn_chomei   text,       --  町域名（カナ）
+    kj_kenmei   text,       --  都道府県名（漢字）
+    kj_shimei   text,       --  市区町村名（漢字）
+    kj_chomei   text,       --  町域名（漢字）
+    no1         int,        --  複数郵便番号表示(*1)
+    no2         int,        --  小字表示(*2)
+    no3         int,        --  丁目表示(*3)
+    no4         int,        --  町域またがり表示(*4)
+    no5         int,        --  更新表示(*5)
+    no6         int         --  変更理由(*6)
+);
+CREATE INDEX zip_kenshi_idx    ON zip(kj_kenmei, kj_shimei);
+CREATE INDEX zip_kenshicho_idx ON zip(kj_kenmei, kj_shimei, kj_chomei);
+CREATE INDEX zip_zip_idx       ON zip(zip);
+
+test=# select version();
+                           version                           
+-------------------------------------------------------------
+ PostgreSQL 7.1.2 on i686-pc-linux-gnu, compiled by GCC 2.96
+(1 row)
+
+test=# vacuum analyse;
+VACUUM     
+
+test=# select count(*) from applier ;
+ count 
+-------
+  1407
+(1 row)
+
+test=# select count(*) from zip ;
+ count  
+--------
+ 120615
+(1 row)
+
+
+Q1). 北海道だけが遅い?
+
+explain select * from applier 
+        where translate(applier.zip, '-', '') 
+        in (select zip from zip where zip.kj_kenmei = '長崎県') 
+        order by seq
+
+とやると、
+
+NOTICE:  QUERY PLAN:
+Sort  (cost=3302091.93..3302091.93 rows=1407 width=193)
+ -&gt;  Seq Scan on applier  (cost=0.00..3302018.35 rows=1407 width=193)
+     SubPlan
+     -&gt;  Materialize  (cost=2346.79..2346.79 rows=822 width=12)
+         -&gt;  Index Scan using zip_kenshicho_idx on zip
+             (cost=0.00..2346.79 rows=822 width=12)
+
+となり、抽出結果は 1242 件で、実行には約４秒かかります。ところが
+SQL 文中の「長崎県」を「北海道」に変えると、
+
+Sort  (cost=5871126.99..5871126.99 rows=1407 width=193)
+ -&gt;  Seq Scan on applier  (cost=0.00..5871053.42 rows=1407 width=193)
+     SubPlan
+     -&gt;  Materialize  (cost=4172.69..4172.69 rows=8221 width=12)
+         -&gt;  Seq Scan on zip  (cost=0.00..4172.69 rows=8221 width=12)
+
+と Seq Scan になり、抽出結果は 1 件で、実行時間は約42秒となります。
+どうも北海道だけはインデックスが使われないようなのですが、これは
+zip テーブル中のデータ件数で判断されているんでしょうか?
+
+Q2). どうにかして、上記の絞り込みがもう少し速くならないでしょうか(^^; 
+     都道府県別だけと割り切ってしまえば、前もって都道府県別の zip 
+     テーブルを作っておけばいいような気もするのですが、市町村まで
+     となると躊躇してしまいます。
+
+Q3). zip テーブル中に「都道府県＋市町村」レベルでタプルが何件ある
+     かという SQL 文は、どう書けばいいでしょうか。つまり、全国の
+     全市町村数は? ということになります。
+
+なお、都道府県を特定する際、最初は各都道府県の開始／終了郵便番号
+だけを知っていれば特定できるものと思っていましたが、事はそう単純
+でもないようです。
+
+test=# select kj_kenmei,min(zip),max(zip) from zip 
+group by kj_kenmei order by min(zip);
+
+ kj_kenmei |   min   |   max   
+-----------+---------+---------
+ 北海道    | 0010000 | 0996506
+ 秋田県    | 0100000 | 0192742
+ 青森県    | 0185501 | 0395312
+ 岩手県    | 0200000 | 0295701
+ 東京都    | 1000000 | 2080035
+ 神奈川県  | 1990100 | 2591335
+ 千葉県    | 2600000 | 2995506
+ 茨城県    | 3000000 | 3193705
+ 栃木県    | 3114411 | 3491221
+ 埼玉県    | 3300001 | 3691912
+ 群馬県    | 3700000 | 3890121
+ 長野県    | 3800801 | 9498321
+ 新潟県    | 3892261 | 9594616
+ 山梨県    | 4000000 | 4093867
+ 静岡県    | 4100000 | 4390037
+ 愛知県    | 4314121 | 4980068
+ 三重県    | 4980000 | 6471325
+ 岐阜県    | 5000000 | 5099232
+ 和歌山県  | 5195600 | 6497216
+ 滋賀県    | 5200000 | 5291851
+(以下略)
+
+-- 
+堀田　倫英                          Web : <A HREF="http://www.net-newbie.com">http://www.net-newbie.com</A>   
+Official : hotta@18software.co.jp / Private : hotta@net-newbie.com
+  Outlook Express をお使いの方 or ML 初心者の方へ：
+    <A HREF="http://www.net-newbie.com/netiquette/outlook.html">http://www.net-newbie.com/netiquette/outlook.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00466" HREF="msg00466.html">[pgsql-jp 22603] Re: 郵便番号による住所判定</A></STRONG>
+<UL><LI><EM>From:</EM> SATO Mitsuo &lt;satou@daiwakantei.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00465" HREF="msg00465.html">[pgsql-jp 22602] Re: 郵便番号による住所判定</A></STRONG>
+<UL><LI><EM>From:</EM> Takahito Ito &lt;takahito@po.jah.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00464" HREF="msg00464.html">[pgsql-jp 22601] Re: 郵便番号による住所判定</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00460.html">[pgsql-jp 22597] Re: ＩＮＳＥＲＴのずれについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00462.html">[pgsql-jp 22599] Re: serial のシーケンス値はpostgresアカウントのみアクセス可能か？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00469.html">[pgsql-jp 22606] Re: OID が2^31を超えたテーブルへのCREATE RULE が失敗する</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00464.html">[pgsql-jp 22601] Re: 郵便番号による住所判定</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00461"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00461"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

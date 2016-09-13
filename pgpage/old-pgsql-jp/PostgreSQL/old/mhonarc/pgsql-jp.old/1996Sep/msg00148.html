@@ -1,0 +1,236 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 780] Re: Hajimemasite -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Fri, 27 Sep 1996 23:48:34 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.91LJ1.0.4.960927225037.233C&#45;100000@penty.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9609270427.AA00113@ji1993.tpe.iec.toshiba.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 780] Re: Hajimemasite </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00146.html">Date Prev</A>][<A HREF="msg00145.html">Date Next</A>][<A HREF="msg00140.html">Thread Prev</A>][<A HREF="msg00122.html">Thread Next</A>][<A HREF="index.html#00148">Date Index</A>][<A HREF="threads.html#00148">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 780] Re: Hajimemasite</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 27 Sep 1996 23:48:34 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+&gt; はじめまして、田所＠東芝と申します。
+&gt; Postgres95のことは今月号（11月号）のInterface誌で知りました。
+&gt; 前からデータベースには興味があったのですが、なかなか手を出す
+&gt; 機会がありませんでした。これからちょいと勉強してみようと思い
+&gt; ますので宜しくお願いします。
+
+  ぼくも University Ingres や Postgres がなければ、DBMS を自分で使って
+見ようなどとおもいもしませんでした。Postgres に移ったのは排他制御がしっ
+かりしていたこととオブジェクト・リレーショナルと言う言葉に意味も分から
+ず興味を持った為でした。Postgres95 で SQL 対応になってからは加速度がつ
+いて興味が湧いて来ました。たしか、Access を買ったことがあるのですが(今
+はほとんど使っていないソフトのおまけについてきた)、全然使ってませんで
+した。僕も Postgres95 を題材に少しずつ勉強しています。
+
+  ところで、Interface が出たついでに、(中村さん頑張ってますね) PHP/FI 
+との連携ですが、なかなか面白いです。来月は、データの入力とそのついでに
+ファイルのアップロード機能なんかも取り上げてくれるといいな。
+
+  まねして、次のようなものを作って見ました。指定されたデータベースのテー
+ブルを調べてその内容を表示するものです。
+
+
+phptest.phtml
+~~~~~~~~~~~~~
+	...
+
+&lt;FORM METHOD="GET" ACTION="phptest1.phtml"&gt;
+データベース名を入力して下さい。&lt;p&gt;
+&lt;INPUT TYPE="TEXT" NAME="DB_NAME" SIZE=20 VALUE="postgres"&gt;
+&lt;INPUT TYPE="SUBMIT"&gt;
+&lt;/FORM&gt;
+	...
+
+phptest1.phtml
+~~~~~~~~~~~~~~
+	...
+
+&lt;h3&gt;データベース名： &lt;? echo $DB_NAME; &gt;&lt;/h3&gt;
+テーブルを選んで下さい。&lt;p&gt;
+&lt;?
+   $dbhost = "localhost";
+   $dbport = "5432";
+   $dbname = $DB_NAME;
+        
+   $conn = pg_Connect($dbhost, $dbport, "", "", $dbname);
+   if (!$conn);
+      echo "An error occured to Connect DB($dbname).\n";   
+      exit;
+   endif;
+
+   $sqlcmd =
+        "SELECT usename, relname, relkind, relhasrules"
+        + "     FROM pg_class, pg_user"
+        + "     WHERE ( relkind = 'r' OR relkind = 'i')"
+        + "     and relname !~ '^pg_'"
+        + "     and relname !~ '^Inv[0-9]+'"
+        + "     and usesysid = relowner  ORDER BY relname";
+
+   $result = pg_Exec($conn, $sqlcmd);
+
+   if (!$result);
+      echo "An error occured to Exec query($sqlcmd).\n";
+      exit;
+   endif;
+
+   $nr = pg_NumRows($result);
+   $nf = pg_NumFields($result);
+&gt;
+&lt;FORM METHOD="GET" ACTION="phptest2.html"&gt;
+&lt;SELECT NAME="TBL_NAME"&gt;
+&lt;?
+   $i=0;
+   $tblname = "relname";
+   while ($i &lt; $nr);
+&gt;
+      &lt;OPTION VALUE="&lt;? echo pg_Result($result, $i, $tblname); &gt;"&gt;
+&lt;?
+      echo pg_Result($result, $i, $tblname);
+      $i++;
+   }
+&gt;
+&lt;/SELECT&gt;
+&lt;INPUT TYPE="SUBMIT" VALUE="DETAIL"&gt;
+&lt;/FORM&gt; 
+&lt;?
+   pg_FreeResult($result);
+   pg_Close($conn);
+&gt;
+	...
+
+phptest2.html
+~~~~~~~~~~~~~
+	...
+
+&lt;?
+   echo "&lt;h3&gt;$TBL_NAME&lt;/h3&gt;";
+
+   $dbhost = "localhost";
+   $dbname = "juk";
+   $dbport = "5432";
+   $conn = pg_Connect($dbhost, $dbport, "", "", $dbname);
+   if (!$conn);
+      echo "An error occured to Connect DB($dbname).\n";
+      exit;
+   endif;
+
+   $sqlcmd = "select * from $TBL_NAME";
+   $result = pg_Exec($conn, $sqlcmd);
+   if (!$result);
+      echo "An error occured to Exec query($sqlcmd).\n";
+      exit;
+   endif;
+
+   $nf = pg_NumFields($result);
+   echo "&lt;TABLE CELLPADDING = 3 BORDER = 2 COLS = 3&gt;";
+
+   echo "&lt;TR&gt;";
+   $j = 0;
+   while ($j &lt; $nf);
+      $fldname[] = pg_FieldName($result, $j);
+      echo "&lt;TH&gt;";
+      echo $fldname[$j];
+      echo "&lt;/TH&gt;";
+      $j++;
+   endwhile;
+   echo "&lt;/TR&gt;";
+
+   $nr = pg_NumRows($result);
+   $i = 0;
+   while ($i &lt; $nr);
+      echo "&lt;TR&gt;";
+      $j = 0;
+      while ($j &lt; $nf);
+         echo "&lt;TD&gt;";
+         echo pg_Result($result, $i, $fldname[$j]);
+         echo "&lt;/TD&gt;";
+         $j++;
+      endwhile;
+      echo "&lt;/TR&gt;";
+      $i++;
+   endwhile;
+   echo "&lt;/TABLE&gt;";
+
+   pg_FreeResult($result);
+   pg_Close($conn);
+&gt;
+	...
+
+
+長くなるのでこのへんで。
+(検索条件を付けていないので、大きなテーブルには使わない方がいいです。)
+
+--
+ Jun Kuwamura
+rC Cm			E-mail:	JuK@RcCM.Co.jp, Phone: +81-3-3785-3033
+  ^
+  ~
+P.S. pg_Retule =&gt; pg_Result の誤植だとおもいます。(Interface 1996/11 p.180)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00140" HREF="msg00140.html">[postgres95 770] Hajimemasite</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsunori Tadokoro &lt;tadokoro@tpe.iec.toshiba.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00146.html">[postgres95 776] [PG95]: pgb95 with postgres95-1.06 (fwd)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00145.html">[postgres95 775] Re: SQL book</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00140.html">[postgres95 770] Hajimemasite</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00122.html">[postgres95 752] Re: How to field connect ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00148"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00148"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

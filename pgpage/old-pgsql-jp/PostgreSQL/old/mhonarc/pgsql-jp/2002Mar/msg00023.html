@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25046] Re: optimizerの動作 -->
+<!--X-From: Masaru Sugawara <rk73@sea.plala.or.jp> -->
+<!--X-Date: Sat, 02 Mar 2002 00:15:10 +0900 -->
+<!--X-Message-Id: 20020302001503.896C.RK73@sea.plala.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 03f201c1c0fa$facadb80$0300a8c0@lucy2k -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25046] Re: optimizerの動作 </TITLE>
+<LINK REV="made" HREF="mailto:rk73@sea.plala.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00022.html">Date Prev</A>][<A HREF="msg00024.html">Date Next</A>][<A HREF="msg00005.html">Thread Prev</A>][<A HREF="msg00046.html">Thread Next</A>][<A HREF="index.html#00023">Date Index</A>][<A HREF="threads.html#00023">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25046] Re: optimizerの動作</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaru Sugawara &lt;<A HREF="mailto:rk73@sea.plala.or.jp">rk73@sea.plala.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 02 Mar 2002 00:15:10 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00005.html">03f201c1c0fa$facadb80$0300a8c0@lucy2k</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すがわら/ＲＫ７３です。
+
+Message-ID:&lt;<A HREF="msg00005.html">03f201c1c0fa$facadb80$0300a8c0@lucy2k</A>&gt;  
+Mail-Count:    Date&amp;Time:2002/03/01 17:27:46
+ARAI Shunichi &lt;arai@mellowtone.org&gt;さんのφ(..@)について
+
+
+&gt; table foo (id1 integer, id2 integer)
+&gt; table bar (id2 integer, updated timestamp)
+&gt; 
+&gt; というようなテーブルがあります。(全て索引付き)
+&gt; 
+&gt; SELECT updated FROM foo,bar WHERE id1=? AND foo.id2=bar.id2
+&gt; ORDER BY updated DESC LIMIT 100;
+&gt; 
+&gt; そこで、上のようなクエリを発行します。
+&gt; 
+&gt; すると、foo.id1 = ?に一致するレコードが1件しかない場合と2件以上の
+&gt; 場合で、クエリプランが大きく変わります。
+&gt; 
+&gt; 1件しかない場合、
+&gt; Limit  (cost=2779.06..2779.06 rows=100 width=377)
+&gt;   -&gt;  Sort  (cost=2779.06..2779.06 rows=1130 width=377)
+&gt;         -&gt;  Nested Loop  (cost=0.00..2721.75 rows=1130 width=377)
+&gt;               -&gt;  Seq Scan on foo ...
+&gt;               -&gt;  Index Scan using bar_id2_idx on bar ...
+&gt; 2件以上の場合、
+&gt; Limit  (cost=0.00..1278.44 rows=100 width=377)
+&gt;   -&gt;  Nested Loop  (cost=0.00..63872.07 rows=4996 width=377)
+&gt;         -&gt;  Index Scan Backward using bar_updated_idx on bar ...
+&gt;         -&gt;  Seq Scan on foo  (cost=0.00..1.60 rows=6 width=4)
+&gt; となります。
+
+
+ 上記のプランを見ると...以下が削除されてしまっているので
+ はっきりわかりませんが、効率的なインデックスを使っていない
+ ようです。id2に作ったインデックスを削除してしてから実行し
+ てみていただけないでしょうか。それでもだめなら、updateに
+ 張ったインデックスも削除してみていただけないでしょうか。
+ id1のインデックスのみ残します。
+ また、ver7.2なので、explain analyzeの方がよりわかりやすく
+ なるかと思います。
+
+
+ 以下のようなプランが生成されると、CPUのパワーにもよりますが
+ 一般的に高速になるのですが...  
+ 
+    -&gt;  Hash Join
+        -&gt;  Seq Scan on bar
+        -&gt;  Hash
+               -&gt;  Index Scan using foo_id1_idx on foo
+
+
+&gt; 
+&gt; とうぜん全件をソートしない後者のほうがずっと高速です。
+&gt; 実際にかなりの速度差が出てしまい、仕方なくenable_sortをオフにして
+&gt; 使っています。(すると、全て後者のようになり、高速に動作します。)
+&gt; 
+&gt; これは私のテーブル設計やクエリの立て方に問題があるのでしょうか?
+&gt; それともオプティマイザの仕様であって、enable_sortをオフにして使えば
+&gt; 良いのでしょうか。
+&gt; 
+&gt; バージョンはpostgres 7.2です。
+
+
+
+--------------------------------
+  Masaru Sugawara
+  e-mail:rk73@sea.plala.or.jp
+ -------------------------------
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00046" HREF="msg00046.html">[pgsql-jp: 25069] Re: optimizerの動作</A></STRONG>
+<UL><LI><EM>From:</EM> "ARAI Shunichi" &lt;arai@mellowtone.org&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00005" HREF="msg00005.html">[pgsql-jp: 25029] optimizerの動作</A></STRONG>
+<UL><LI><EM>From:</EM> "ARAI Shunichi" &lt;arai@mellowtone.org&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00022.html">[pgsql-jp: 25045] posgres 7.2 pg_attribute.attnelems 変更</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00024.html">[pgsql-jp: 25047] Re: HDDサイズ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00005.html">[pgsql-jp: 25029] optimizerの動作</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00046.html">[pgsql-jp: 25069] Re: optimizerの動作</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00023"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00023"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

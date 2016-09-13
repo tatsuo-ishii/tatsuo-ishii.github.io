@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10389] Re: large_object and Transaction -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 24 Aug 1999 08:48:07 +0900 -->
+<!--X-Message-Id: 37C1DDB7AA.70E1NKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37C12EE478.4BECSAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199908231216.VAA00835@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10389] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00540.html">Date Prev</A>][<A HREF="msg00542.html">Date Next</A>][<A HREF="msg00637.html">Thread Prev</A>][<A HREF="msg00542.html">Thread Next</A>][<A HREF="index.html#00541">Date Index</A>][<A HREF="threads.html#00541">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10389] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 24 Aug 1999 08:48:07 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00534.html">37C12EE478.4BECSAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00535.html">199908231216.VAA00835@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+On Mon, 23 Aug 1999 21:16:02 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt; 石井です。
+
+。。。略。。。
+
+&gt; これは多分「トランザクションバッファ」のようなものがあって、まだコミッ
+&gt; トされていないデータはそこに蓄えられるというイメージだと思うのですが、
+&gt; 私の理解ではそのようなものはPostgreSQLにはないと思います。
+&gt; 
+&gt; # あまりに大きなトランザクションを実行すると、商用データベースでは、ロー
+&gt; # ルバックセグメントを使い果たすことになるのかな？
+
+参考迄に。
+
+Informix ONLINE ( Dynamic Serverの前身 )では、ロッ
+ク数を設定して、共有メモリーにロックフラグのような
+領域を確保するようになっています。 1ロック 数バイト
+の小さなサイズです。この設定数を超える行ロックが発生
+すると long transaction となって、自動的に ROLLBACK
+されます。10万件目位で発生すると、 ROLLBACK 終了まで
+結構時間がかかります。大量の更新の時は、TABLE LOCK に
+して、行ロックしないようにして処理してました。
+
+あと、DISK に設定するログファイルの容量が不足すると処
+理が止ります。普通は、数百MB以上たっぷりとるので問題
+ないし、常時 M/T に自動退避する方法も選択できるので、
+ログファイルで問題になることはあまりありません。
+
+Informix ではロールバックセグメントという名前のものは
+なくて、主記憶のログバッファと DISK のログファイルが
+それに近いものかな。ROLLBACK で更新前の状態に戻すのに
+使われているようです。バックアップMTで復元してそこから
+FORWARD で復元するのにも使います。
+
+Oracle では、よくロールバックセグメントが足りなくて
+。。。という話を聞きますね。
+
+。。。略。。。
+
+&gt; 確かに、大きなトランザクションを実行すると PostgreSQL がメモリを喰うこ
+&gt; とがありますが、これはメモリリークとか、また別の原因によるものだと思い
+&gt; ます。
+
+暇ができたら試してみます。
+
+&gt; ちなみに、私の場合10万タプルを1回のトランザクションをinsertしたことが
+&gt; ありますが、特に問題は起きませんでした。また、copyで大量データを挿入す
+&gt; るとどうでしょう？copyもトランザクション扱いなのですが...
+
+COPY もトランザクション扱いなんですか。TABLE LOCK
+を使っているんですかね。
+
+26バイト/行 のデーターを 100万件一度に COPY で挿入
+しましたが、正常に終了しました。
+TurboLinux3.0 PostgreSQL 6.4 主記憶 128 MB.
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00542" HREF="msg00542.html">[pgsql-jp 10390] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00534" HREF="msg00534.html">[pgsql-jp 10382] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00535" HREF="msg00535.html">[pgsql-jp 10383] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00540.html">[pgsql-jp 10388] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00542.html">[pgsql-jp 10390] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00637.html">[pgsql-jp 10487] Re: pgbashの仕様　</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00542.html">[pgsql-jp 10390] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00541"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00541"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

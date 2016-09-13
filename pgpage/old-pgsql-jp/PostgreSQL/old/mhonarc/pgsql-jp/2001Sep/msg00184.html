@@ -1,0 +1,143 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23143] Re: BLOB のバックアップとリストア -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Mon, 17 Sep 2001 15:41:16 +0900 -->
+<!--X-Message-Id: 3BA59B0C.3B0CE6BB@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3BA21682.4066AC44@kinol.co.jp -->
+<!--X-Reference-Id: 3BA5494F.42316CAE@tpf.co.jp -->
+<!--X-Reference-Id: 3BA5871F.F308B301@kinol.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23143] Re: BLOB のバックアップとリストア </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00183.html">Date Prev</A>][<A HREF="msg00185.html">Date Next</A>][<A HREF="msg00183.html">Thread Prev</A>][<A HREF="msg00198.html">Thread Next</A>][<A HREF="index.html#00184">Date Index</A>][<A HREF="threads.html#00184">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23143] Re: BLOB のバックアップとリストア</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 17 Sep 2001 15:41:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00173.html">3BA21682.4066AC44@kinol.co.jp</A>&gt; &lt;<A HREF="msg00182.html">3BA5494F.42316CAE@tpf.co.jp</A>&gt; &lt;<A HREF="msg00183.html">3BA5871F.F308B301@kinol.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+Minoru Fukuda wrote:
+&gt; 
+&gt; 福田です。
+&gt; 
+&gt; 井上さんありがとうございました。
+&gt; おっしゃるようにパッチを当ててやってみたのですが
+&gt; pg_restore が以下のようなエラーを表示して終わって
+&gt; しまうのです。
+&gt; 
+&gt; Archiver(db): error while updating attr gazou of table t_shouhin (result = 7). E
+&gt; xplanation from backend 'ERROR:  Unable to identify an operator '=' for types 'o
+&gt; id' and 'lo'
+&gt;         You will have to retype this query using an explicit cast
+
+あれまcontribのlo型を使っているのではないのですね。
+その場しのぎですが、とりあえず次のパッチを試してく
+ださい。
+それにしても両方に通用するパッチはどうして作ったら
+いいんだろう？
+
+Hiroshi Inoue
+
+*** pg_backup_db.c.orig2        Mon Sep 17 09:41:55 2001
+--- pg_backup_db.c      Mon Sep 17 15:05:46 2001
+***************
+*** 655,661 ****
+                 * seems to be broken in 7.0.2 (weird optimizer
+strategy)
+                 */
+                appendPQExpBuffer(tblQry, "UPDATE \"%s\" SET \"%s\" = ",
+tablename, attr);
+!               appendPQExpBuffer(tblQry, " (SELECT x.newOid FROM \"%s\"
+x WHERE
+ x.oldOid = \"%s\".\"%s\")",
+                                                  BLOB_XREF_TABLE,
+tablename, attr);
+                appendPQExpBuffer(tblQry, " where exists"
+                                  "(select * from %s x where x.oldOid =
+\"%s\".\"%s\");",
+--- 655,661 ----
+                 * seems to be broken in 7.0.2 (weird optimizer
+strategy)
+                 */
+                appendPQExpBuffer(tblQry, "UPDATE \"%s\" SET \"%s\" = ",
+tablename, attr);
+!               appendPQExpBuffer(tblQry, " (SELECT x.newOid FROM \"%s\"
+x WHERE
+ x.oldOid = \"%s\".\"%s\")::int4",
+                                                  BLOB_XREF_TABLE,
+tablename, attr);
+                appendPQExpBuffer(tblQry, " where exists"
+                                  "(select * from %s x where x.oldOid =
+\"%s\".\"%s\");",
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00198" HREF="msg00198.html">[pgsql-jp 23158] Re: BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Fukuda &lt;fukuda@kinol.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 23132] BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Fukuda &lt;fukuda@kinol.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00182" HREF="msg00182.html">[pgsql-jp 23141] Re: BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00183" HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Fukuda &lt;fukuda@kinol.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 23144] Re: VARCHAR(n)のn</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00183.html">[pgsql-jp 23142] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp 23158] Re: BLOB のバックアップとリストア</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00184"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00184"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

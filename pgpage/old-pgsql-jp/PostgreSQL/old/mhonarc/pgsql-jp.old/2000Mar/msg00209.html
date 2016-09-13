@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13515] Re: １文字違いを検索する方法 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Wed, 15 Mar 2000 15:04:46 +0900 -->
+<!--X-Message-Id: 38CF27FD.B02529E7@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 006401bf8c0e$96005c20$3118b4cb@urawa.cabletv.ne.jp -->
+<!--X-Reference-Id: 20000313165603R.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 004101bf8da2$3dcc97e0$3118b4cb@urawa.cabletv.ne.jp -->
+<!--X-Reference-Id: 004301bf8dc3$007e9ca0$42e1c7d2@zaq.ne.jp -->
+<!--X-Reference-Id: 007201bf8e31$da6a3b40$3118b4cb@urawa.cabletv.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13515] Re: １文字違いを検索する方法 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00208.html">Date Prev</A>][<A HREF="msg00210.html">Date Next</A>][<A HREF="msg00208.html">Thread Prev</A>][<A HREF="msg00211.html">Thread Next</A>][<A HREF="index.html#00209">Date Index</A>][<A HREF="threads.html#00209">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13515] Re: １文字違いを検索する方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 15 Mar 2000 15:04:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00155.html">006401bf8c0e$96005c20$3118b4cb@urawa.cabletv.ne.jp</A>&gt; &lt;<A HREF="msg00161.html">20000313165603R.t-ishii@sra.co.jp</A>&gt; &lt;<A HREF="msg00196.html">004101bf8da2$3dcc97e0$3118b4cb@urawa.cabletv.ne.jp</A>&gt; &lt;<A HREF="msg00201.html">004301bf8dc3$007e9ca0$42e1c7d2@zaq.ne.jp</A>&gt; &lt;<A HREF="msg00208.html">007201bf8e31$da6a3b40$3118b4cb@urawa.cabletv.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Taro Yamamoto wrote:
+&gt; 
+&gt; 山本太郎です。
+&gt; 杉原さん、レスありがとうございす。
+&gt; 
+&gt; ----- Original Message -----
+&gt; From: "杉原　俊介" &lt;sugihara@central-lib.pref.osaka.jp&gt;
+&gt; To: &lt;pgsql-jp@sra.co.jp&gt;
+&gt; Sent: Tuesday, March 14, 2000 11:38 PM
+&gt; Subject: [pgsql-jp 13507] Re: １文字違いを検索する方法
+&gt; 
+&gt; &gt; インデックスをどうしても使用したいのであれば、
+&gt; &gt; select * from table where item ~ '^.xxxxxxxxx$'
+&gt; &gt; union select * from table where item ~ '^x.xxxxxxxx$'
+&gt; &gt; union select * from table where item ~ '^xx.xxxxxxx$'
+&gt; &gt; ....
+&gt; &gt; union select * from table where item ~ '^xxxxxxxxx.$';
+&gt; &gt;
+&gt; &gt; ではどうでしょうか？
+&gt; 
+&gt; そんな方法もあったのですね。
+&gt; SQL は奥が深いです...
+&gt; で、早速試してみたのですが何故か前の方法のが速いようです(^^;
+&gt; データの量とかにもよるのでしょうか？現在は 800 件強しかないんですけど(^^ゞ
+
+このスレッドにはお世話になったので、1万件のテストデ−タ−
+を作って time で計ってみました。件数が少ないので、あまり
+参考にはならないかもしれませんが、item に dupe key が
+少なければ、十分 INDEX の効果があります。 
+該当件数は、1万件中 4件 です。
+演算子(  ~ )  より  LIKE の方が若干早いようです。
+
+PostgreSQL 6.5.3  Linux Vine 1.1
+PentiumII 266MHz  主記憶 384 MB
+
+create  table test4(id integer, item char(10)) ;
+create index test4_idx on test4(item);
+copy test4 from '/tmp/t.tsv' ;
+vacuum verbose analyze test4;
+
+以下テスト結果です。time での測定です。
+
+time psql idb &lt;&lt; //eof//
+select * from test4 where item  ~  
+'(^.xxxxxxxxx$|^x.xxxxxxxx$|^xx.xxxxxxx$|^xxx.xxxxxx$|^xxxx.xxxxx$|^xxxxx.xxxx$|^xxxxxx.xxx$|^xxxxxxx.xx$|^xxxxxxxx.x$|^xxxxxxxxx.$)';
+//eof//
+## real 0m6.610s user   0m0.040s sys    0m0.000s
+## real 0m6.627s user   0m0.030s sys    0m0.020s
+
+
+time psql idb &lt;&lt; //eof//
+      select * from test4 where item ~ '^.xxxxxxxxx$'
+union select * from test4 where item ~ '^x.xxxxxxxx$'
+        。。。。略。。。。
+union select * from test4 where item ~ '^xxxxxxxxx.$';
+//eof//
+## real 0m0.567s user   0m0.030s sys    0m0.010s
+## real 0m0.544s user   0m0.040s sys    0m0.000s
+
+        
+time psql idb &lt;&lt; //eof//
+      select * from test4 where item LIKE '_xxxxxxxxx'
+union select * from test4 where item LIKE 'x_xxxxxxxx'
+        。。。。略。。。。
+union select * from test4 where item LIKE 'xxxxxxxxx_';
+//eof//
+## real 0m0.467s user   0m0.020s sys    0m0.010s
+## real 0m0.470s user   0m0.020s sys    0m0.000s
+
+
+参考：テストデ−タ−作成方法
+#include &lt;stdio.h&gt;
+main()
+{
+    int         ocnt, ii;
+    char        otxt[10+1];
+    static char list[]="xABxCDxEFxGHxIJxKLxMNxOPxQRxSTxUVxWXxYZx";
+    for(ocnt=0; ocnt&lt;10000; ++ocnt){
+        for(ii=0; ii&lt;10; ++ii){otxt[ii] = list[random()%25];}
+        otxt[ii] = 0;
+        printf("%d\t%s\n", ocnt, otxt);
+    }
+}
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+        <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+PostgreSQL 汎用ＤＢ検索フリーソフト(2000-02-18 版)公開
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00211" HREF="msg00211.html">[pgsql-jp 13517] Re: １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00155" HREF="msg00155.html">[pgsql-jp 13445] １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00161" HREF="msg00161.html">[pgsql-jp 13452] Re: １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00196" HREF="msg00196.html">[pgsql-jp 13502] Re: １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00201" HREF="msg00201.html">[pgsql-jp 13507] Re: １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "杉原　俊介" &lt;sugihara@central-lib.pref.osaka.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00208" HREF="msg00208.html">[pgsql-jp 13514] Re: １文字違いを検索する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Taro Yamamoto" &lt;taro@urawa.cabletv.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 13514] Re: １文字違いを検索する方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 13516] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 13514] Re: １文字違いを検索する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 13517] Re: １文字違いを検索する方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00209"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00209"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

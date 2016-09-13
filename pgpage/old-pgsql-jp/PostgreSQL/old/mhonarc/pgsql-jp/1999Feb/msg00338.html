@@ -1,0 +1,259 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7213] PHP3 漢字Patch -->
+<!--X-From: uchida@yrd.suzuki.co.jp (Uchida Hitoshi) -->
+<!--X-Date: Thu, 25 Feb 1999 14:52:51 +0900 -->
+<!--X-Message-Id: 19990225145251G.uchida@yrd.suzuki.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7213] PHP3 漢字Patch </TITLE>
+<LINK REV="made" HREF="mailto:uchida@yrd.suzuki.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00337.html">Date Prev</A>][<A HREF="msg00339.html">Date Next</A>][<A HREF="msg00349.html">Thread Prev</A>][<A HREF="msg00337.html">Thread Next</A>][<A HREF="index.html#00338">Date Index</A>][<A HREF="threads.html#00338">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7213] PHP3 漢字Patch</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:uchida@yrd.suzuki.co.jp">uchida@yrd.suzuki.co.jp</A> (Uchida Hitoshi)</LI>
+<LI><em>Date</em>: Thu, 25 Feb 1999 14:52:51 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+内田です。
+
+PostgreSQL の話題でなくて恐縮ですが....
+
+以前こちらにも書きましたが、PHP 3.0.6 漢字 Patch を当ると、GD がうまく動
+かなかったり、readfile() 等を使ったバイナリファイルの出力がうまく行かな
+い問題の Patch を作ってみました。
+
+当初、出力ファイルのバイナリ／非バイナリの自動判別を試みたのですが、どう
+もうまく行きませんので、自動判別とマニュアル両方で、コード変換ルーチンを
+バイパスするようにしています。
+
+php-3.0.6-kanji.patch, php-3.0.6-kanji-fix1.patch の後で当てください。
+
+修正点 :
+
+  (1) SetKanjiOutput() の中で、EUC|SJIS|JIS だけでなく NONE を指定できる
+     ようにした。NONE を指定すると漢字変換ルーチンをバイパスする
+
+  (2) php3_kanji_write() 等の漢字 Patch 出力ルーチンでは、出力バッ
+      ファの内容を EUC に決めうちしていたが、_kanjicode() を使って
+      EUC とみなして構わないかどうかのチェックを入れた
+
+
+------ PATCH ここから -----
+*** php-3.0.6_kanji+kanji-gd.ORG/functions/kanjiconv.c	Thu Feb 25 09:18:19 1999
+--- php-3.0.6_kanji+kanji-gd/functions/kanjiconv.c	Thu Feb 25 10:19:59 1999
+***************
+*** 12,17 ****
+--- 12,18 ----
+  /*                                                                      */
+  /* ARGS                                                                 */
+  /*    &lt;mode&gt;  : EUC | SJIS | JIS                                        */
++ /*                               or NONE  : by Uchida, H.               */
+  /*                                                                      */
+  /* EXAMPLE                                                              */
+  /*   SetKanjiOutput("EUC");                                             */
+***************
+*** 1056,1062 ****
+      }
+      else if(!strcasecmp(str-&gt;value.str.val,"SJIS")){
+  	KANJI_GLOBAL(output_kanji_code)=SJIS;
+!     }
+      else {
+  	KANJI_GLOBAL(output_kanji_code)=EUC;
+      }
+--- 1057,1066 ----
+      }
+      else if(!strcasecmp(str-&gt;value.str.val,"SJIS")){
+  	KANJI_GLOBAL(output_kanji_code)=SJIS;
+!     } 
+!     else if(!strcasecmp(str-&gt;value.str.val,"NONE")){ /* Kanji conversion OFF */
+! 	KANJI_GLOBAL(output_kanji_code)=NONE;        /*      Uchida, H.      */
+!     } 
+      else {
+  	KANJI_GLOBAL(output_kanji_code)=EUC;
+      }
+***************
+*** 1067,1078 ****
+  {
+    unsigned char *ret;
+  
+!   ret=(unsigned char*)emalloc(2*strlen(str)+1);
+  
+!   (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+  
+!   php3_apache_puts(ret);
+!   efree(ret);
+  
+    return (1);
+  }
+--- 1071,1089 ----
+  {
+    unsigned char *ret;
+  
+!   /* Switch KANJI conversion.  : by Uchida, H. */
+!   if ( KANJI_GLOBAL(output_kanji_code) != NONE &amp;&amp; _kanjicode(str) == EUC ) {
+! 
+!     ret=(unsigned char*)emalloc(2*strlen(str)+1);
+  
+!     (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+  
+!     php3_apache_puts(ret);
+!     efree(ret);
+! 
+!   } else {
+!     php3_apache_puts(str);
+!   }
+  
+    return (1);
+  }
+***************
+*** 1080,1095 ****
+  int
+  php3_kanji_write(char *str, size_t n)
+  {
+    unsigned char *ret;
+    size_t retlen;
+  
+! 	*(str+n)='\0';
+!   ret=(unsigned char*)emalloc(2*strlen(str)+1);
+  
+!   (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+  
+!   retlen = rwrite((ret),strlen(ret),GLOBAL(php3_rqst));
+!   efree(ret);
+  
+    return retlen;
+  }
+--- 1091,1117 ----
+  int
+  php3_kanji_write(char *str, size_t n)
+  {
++ 
+    unsigned char *ret;
+    size_t retlen;
+  
+!   /* Switch KANJI conversion.  : by Uchida, H. */
+!   if ( KANJI_GLOBAL(output_kanji_code) != NONE &amp;&amp; _kanjicode(str) == EUC ) {
+! 
+!     *(str+n)='\0';
+!     ret=(unsigned char*)emalloc(2*strlen(str)+1);
+! 
+!     (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+! 
+!     retlen = rwrite((ret),strlen(ret),GLOBAL(php3_rqst));
+  
+!     efree(ret);
+  
+!   } else {
+! 
+!     retlen = rwrite((str),(n),GLOBAL(php3_rqst));
+! 
+!   }
+  
+    return retlen;
+  }
+***************
+*** 1097,1113 ****
+  int
+  php3_kanji_fwrite(char *str, size_t s, size_t n, FILE *fp)
+  {
+    unsigned char *ret;
+    size_t retlen;
+  
+!   ret=(unsigned char*)emalloc(2*strlen(str)+1);
+  
+!   (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+  
+!   retlen = fwrite((ret),strlen(ret),1,fp);
+  
+!   efree(ret);
+  
+    return retlen;
+  }
+  
+--- 1119,1144 ----
+  int
+  php3_kanji_fwrite(char *str, size_t s, size_t n, FILE *fp)
+  {
++ 
+    unsigned char *ret;
+    size_t retlen;
+  
+!   /* Switch KANJI conversion.  : by Uchida, H. */
+!   if ( KANJI_GLOBAL(output_kanji_code) != NONE &amp;&amp; _kanjicode(str) == EUC ) {
+  
+!       ret=(unsigned char*)emalloc(2*strlen(str)+1);
+  
+!       (*kfunction_table[KANJI_GLOBAL(output_kanji_code)][EUC])(ret,str);
+  
+!       retlen = fwrite((ret),strlen(ret),1,fp);
+  
++       efree(ret);
++ 
++   } else {
++ 
++       retlen = fwrite((str),(n),1,fp);
++ 
++   }
+    return retlen;
+  }
+  
+
+========================================================
+内田　仁	スズキ株式会社	技術研究所　ＫＩグループ
+(E-Mail:uchida@yrd.suzuki.co.jp)
+PGP Key fingerprint : 87 F3 B2 6C C1 D8 E7 38  AB 0C A7 9C 66 CC DF F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00337.html">[pgsql-jp 7212] RE: postgresPerl-1.3.tar.gz　について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00339.html">[pgsql-jp 7214] Re: テーブル・ロックについ て</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 7224] Re: DBからユニークなIDを取得する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00337.html">[pgsql-jp 7212] RE: postgresPerl-1.3.tar.gz　について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00338"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00338"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

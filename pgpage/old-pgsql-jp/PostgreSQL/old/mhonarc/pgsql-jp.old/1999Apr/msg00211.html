@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8020] 6.5beta1 regression on Sun Ultra 5 -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Wed, 14 Apr 1999 19:05:48 +0900 -->
+<!--X-Message-Id: v0401010ab33a18fc43ae@str.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8020] 6.5beta1 regression on Sun Ultra 5 </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00210.html">Date Prev</A>][<A HREF="msg00212.html">Date Next</A>][<A HREF="msg00270.html">Thread Prev</A>][<A HREF="msg00250.html">Thread Next</A>][<A HREF="index.html#00211">Date Index</A>][<A HREF="threads.html#00211">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8020] 6.5beta1 regression on Sun Ultra 5</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Apr 1999 19:05:48 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。
+
+  6.5beta1 の仮インストールと、regression testを行いました。
+・環境
+  Solaris 2.6
+  Sun Ultra 5 (270MHz UltraSPARC-IIi)
+  128MB Memory
+  gcc 2.7.2.1
+  bison  1.25
+  make 3.76.1
+  flex 2.5.4
+・configure オプション
+  ./configure --with-mb=EUC_JP
+
+
+  インストールは、「[pgsql-jp 7946] Re: 6.5beta1 released」 と
+同じ手順で、6.3.2 をどかして行いました。
+　gmake install でエラーが出ました。
+
+-- ここから --
+postgres@bash-2.02$ gmake install
+gmake lexverify
+gmake[1]: Entering directory `/home/postgres/pgsql6.5b1/src'
+gmake -C lextest all
+gmake[2]: Entering directory `/home/postgres/pgsql6.5b1/src/lextest'
+gmake[2]: Nothing to be done for `all'.
+gmake[2]: Leaving directory `/home/postgres/pgsql6.5b1/src/lextest'
+gmake[1]: Leaving directory `/home/postgres/pgsql6.5b1/src'
+gmake -C utils install
+gmake[1]: Entering directory `/home/postgres/pgsql6.5b1/src/utils'
+gmake[1]: Nothing to be done for `install'.
+gmake[1]: Leaving directory `/home/postgres/pgsql6.5b1/src/utils'
+gmake -C backend install
+gmake[1]: Entering directory `/home/postgres/pgsql6.5b1/src/backend'
+mkdir /usr/local/pgsql/lib
+mkdir: cannot make directory `/usr/local/pgsql/lib': ファイルもディレクトリもあ
+りません。
+gmake[1]: *** [/usr/local/pgsql/lib] Error 1
+gmake[1]: Leaving directory `/home/postgres/pgsql6.5b1/src/backend'
+gmake: *** [install] Error 2
+postgres@bash-2.02$
+-- ここまで --
+
+　前にも出ていたような、、、。/usr/local/pgsql/ というディレクトリが
+ない状態で、/usr/local/pgsql/lib/ を作ろうとして失敗しているので、
+/usr/local/pgsql/ を手作業で作って再度gmake install。で、OK と。
+/usr/local/pgsql/ が存在する状態でgmake all したあとに、このディレ
+クトリを移動したのが敗因でしょうか？
+
+　で、regression test の結果です。
+
+-- ここから --
+postgres@bash-2.02$ grep fail regress.out
+destroydb: database destroy failed on regression.
+geometry ..  failed
+abstime ..  failed
+tinterval ..  failed
+horology ..  failed
+triggers ..  failed
+misc ..  failed
+postgres@bash-2.02$
+-- ここまで --
+
+　ベンチマークですが、一回目にやったら「temp」関連のエラーが
+出たため、「[pgsql-jp 7938] Re: 6.5beta1 released」
+にあった、新しい予約語「temp」対策のパッチを当てて、あとは
+make clean の後、
+<A HREF="http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/bench/howtobench.html">http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/bench/howtobench.html</A>
+に従って行いました。が、sh create.sh $PGDATA を実行すると
+createdb でbench が既に存在するメッセージが出て、
+sh runwisc.sh $PGDATA &gt;&amp;bench.out を実行すると、bench がない
+旨のメッセージが出ます。
+
+-- ここから --
+postgres@bash-2.02$ sh create.sh $PGDATA
+=============== destroying old bench database... =================
+=============== creating new bench database... =================
+ERROR:  createdb: database 'bench' already exists
+ERROR:  createdb: database 'bench' already exists
+postgres@bash-2.02$ cat bench.out | head
+=============== vacuuming benchmark database... =================
+FATAL 1:  Database 'bench' does not exist.
+        We know this because the directory '/usr/local/pgsql/data/base/bench' do
+es not exist.
+        You can create a database with the SQL command CREATE DATABASE.
+        To see what databases exist, look at the subdirectories of '/usr/local/p
+gsql/data/base/'.
+FATAL 1:  Database 'bench' does not exist.
+        We know this because the directory '/usr/local/pgsql/data/base/bench' do
+es not exist.
+        You can create a database with the SQL command CREATE DATABASE.
+        To see what databases exist, look at the subdirectories of '/usr/local/p
+gsql/data/base/'.
+=============== running benchmark... =================
+postgres@bash-2.02$
+-- ここまで --
+
+「[pgsql-jp 8009] Re: 6.5beta1 released」で報告されているのと
+同じやつかな。解決法法を自力でさぐってまでやる時間はちょっと
+とれないです。
+
+--
+
+
+
+
+
+
+　
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内52170)
+　〒250-0872　小田原市中里322-2　日立システムプラザ　ソ技セ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00250" HREF="msg00250.html">[pgsql-jp 8059] Re: 6.5beta1 regression on Sun Ultra 5</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 8019] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 8021] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 8079] Re: JDBC applet error (Re: PostgreSQLと WWWサーバの連動（Pert-2)について)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 8059] Re: 6.5beta1 regression on Sun Ultra 5</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00211"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00211"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

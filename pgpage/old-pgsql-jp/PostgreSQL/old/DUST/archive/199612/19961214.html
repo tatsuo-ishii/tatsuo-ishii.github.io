@@ -1,0 +1,187 @@
+<A NAME="1">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Sat, 14 Dec 1996 14:01:54 +0900
+Subject: [postgres95 1165] Re: Re of Re:introduction&amp;questions 
+Message-Id: &lt;199612140501.OAA04065@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+おみつ@Tramp です。
+
+From: Yoshio Funaki &lt;yoshio@Air.akita-u.ac.jp&gt;
+Subject: [postgres95 1159] Re of Re:introduction&amp;questions 
+Date: Fri, 13 Dec 1996 11:57:06 +0900
+
+&gt; 保存形式は、DOSで言うところのCVS(comma separated value ?)形式です。
+&gt; 適当なフィルターを作ればTAB区切りに変更は簡単なので、けっこう楽に
+&gt; 変換できるかもしれませんね。DOS上なんでMifesとかでもできそうだし・・
+&gt; 
+フィールドにコンマが入ってないのなら、
+
+   copy &lt;テーブル名&gt; from &lt;ファイル名&gt; using delimiters ',';
+
+で大丈夫ですね。
+
+&gt; あ、ということはpostgres95のファイル形式は、データをTABで区切った
+&gt; 形をしてるんでしょうか？
+
+おもいっきりバイナリでした :-)
+# 当たり前か ...
+
+&gt; 英文マニュアルを読んだ限りではBinaryがどうのASCIIがどうのと書いてあって
+&gt; なんだかよく分からなかったものですから。
+
+copy でのキーワード binary は、単にバイナリのデータを読むというのではなく、
+Postgres の「copy binary 用」とでもいうような形式のファイルを読み込みます。
+# だったと思います ;-)
+
+あまり際だった長所は見当たらないように思います。
+
+&gt; 実際、検索対象になるのは１０項目位なんですがよく考えてやらないと
+&gt; 大変なことは確かです。
+&gt; 
+何に関しても設計が大切ですよね :-)
+
+スピードに関しても、前に、
+インスタンス数 30,000件のクラス a と8,000 件のクラス b とで
+
+  select a.VNAME, b.SIZE from a 
+     where a.DATE&gt;='1-1-1996' 
+       and a.VNAME ~* b.VNAME
+
+なんてことをしてみたら、20分くらいかかってしまいまして、
+( 一時はシステムが止まったかとも心配するくらい ... :-)
+設計の大切さを痛感しました。
+
+&gt; 現在の構想としては、DBASEとかと同じように、ユニークなデータ
+&gt; （たとえば資料番号）と、検索項目のみを持つファイルを作って、それにINDEXを
+&gt; かけ（つまり検索項目別にファイルを作って）、検索した結果出てくるユニークデータ
+&gt; でもって各ファイルをリンクするような形をとれば検索が速いんではないか
+&gt; と思っていますがいかがでしょうか？
+&gt; 
+ユニークなデータというのが、データベース登録以前に設定されていれば
+大丈夫ですが、現在の Postgres95 では、ユニークな項目を指定できないです。
+
+# 来月早々にリリース予定の PostgreSQL v6.0 では使えるらしき
+# アナウンスもありましたが... きちんと読んでないのでいいかげんです :-)
+
+動的に変化しないものを Web にリンクするなら、
+ファイルへのパスをカラムに入れて、
+それを読み込むのはスピード的には速いと思います。
+
+私も静的なものに関しては、ファイルへのパスを置いておいて、
+PHP/FI から、
+  &lt;? include($filepath) &gt; 
+なんてやってます。
+
+== おみつ
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Atsushi Mano &lt;a_mano@habitat1.brnj.com&gt;
+Date: Sat, 14 Dec 1996 17:38:51 +0900
+Subject: [postgres95 1164] Re:**3 introduction&amp;questions
+Message-Id: &lt;199612140838.RAA22140@habitat1.brnj.com&gt;
+</A>
+</B></PRE>
+<PRE>
+
+ベアネット＠真野です。
+
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Subject: [postgres95 1158] Re: Re: introduction&amp;questions
+Date: Fri, 13 Dec 96 12:54:59 JST
+
+&gt;  &gt; &gt; ２：Netscape等のビューワーから送られる検索対象文字はSJIS,JIS,EUCと
+&gt;  &gt; &gt; 　　多彩になることが考えられるが、どの時点でEUCに変換してpostgres95
+&gt;  &gt; &gt; 　　にSQLをかけるようにすればもっとも効率がよいか。
+&gt;  &gt; CGI などに渡して、nkf などをフィルタさせてやるのが現実的でしょうか...
+&gt; 
+&gt; CGIでperlを使うならjcode.plとかもありですね。
+
+私は、PHP/FI ではなく CGI.pm という Perl5 CGI ライブラリ
+(&quot;http://www-genome.wi.mit.edu/ftp/pub/software/WWW/cgi_docs.html&quot;)
+を用いているのですが、その場合には、Perl スクリプトは、
+
+  use CGI;
+  $query = new CGI;
+  require 'jcode.pl';
+  $query_string=$query-&gt;param('query_string');
+  &amp;jcode'convert(*query_string,'euc');
+
+てな感じでしょうか。
+
+また、クライアントに出力される文字列を JIS 等に統一したい場
+合は、Perl スクリプトの先頭で、
+  open(NKF, &quot;|nkf -j&quot;);
+  select(NKF);
+とやれば OK ですね。
+
+
+これとは別ですが、Perl CGI スクリプトへの引数渡しでは、２バ
+イト文字(漢字)がうまく渡されません。&quot;真&quot;,&quot;淳&quot;等がだめですが、
+平仮名は大丈夫です。また、パス情報を渡す方法では、全然だめで
+す。CGI でない通常の Perl スクリプトだと、うまくゆきます。引
+数等が Web サーバに戻ったときに化けるようです。
+
+日本語を引数で渡す場面としては、例えば住所録データベースで、
+５０音を表示させて各文字にハイパーリンクを張り、その文字をク
+リックすると、その文字が CGI に渡されて、その文字を頭文字と
+する読みを検索する等があります。
+
+この場合、私は、mewencode や uuencode/uudecode 等のツールで、
+引数に対して base64 符号化／復号をしています。
+
+ただし、文字列中の半角スペースは引数の区切りとみなされてしま
+うため、base64 符号化する前に '_' 等に変換して渡し、受信後に
+元に戻しています。
+
+また、base64 コードには、引数の区切りに対応する '+' 記号が含
+まれるため、'*' 等に変換しておき、受信後に元に戻しています。
+更に、base64 コードに含まれるパディング用記号 '=' もうまく渡
+されないので、'%' 等に変換しておき、受信後に元に戻しています。
+
+で、次のような感じでしょうか。ただし、引き渡す文字列は１行に
+納まるほどに短いと仮定しています。長い場合は、改行を chop す
+る等の作業が必要になります。
+
+&lt;Encoding&gt;
+  $send_string =~ s/\s/_/g;   # $send_string 中の スペース -&gt; &quot;_&quot;
+  open(B64, &quot;echo $send_string|mewencode -b|&quot;); # base64 符号化
+  $_=&lt;B64&gt;;
+  close B64;
+  chop;			# 改行の除去
+  s/\+/\*/g;		# 符号中の &quot;+&quot; -&gt; &quot;*&quot;
+  s/\=/\%/g;		# 符号中の &quot;=&quot; -&gt; &quot;%&quot;
+  $encoded_string=$_;   # これが引数
+
+  use CGI;
+  $query = new CGI;
+  print $query-&gt;header;
+  print $query-&gt;start_html();
+  print &quot;&lt;A HREF=\&quot;$CGI_BIN/test.pl?$encoded_string\&quot;&gt;&lt;I&gt; TEST &lt;/I&gt;&lt;/A&gt;&quot;;
+  print $query-&gt;end_html;
+
+
+&lt;Decoding&gt;
+  $received_string=$ARGV[0];	  # 引数の取出し
+  $received_string =~ s/\*/\+/g;  # 符号中の &quot;*&quot; -&gt; &quot;+&quot;
+  $received_string =~ s/\%/\=/g;  # 符号中の &quot;%&quot; -&gt; &quot;=&quot;
+  open(B64, &quot;echo $received_string|mewencode -b -d|&quot;); # 復号
+  $_=&lt;B64&gt;;
+  close B64;
+  chop;
+  s/_/ /g;			  # &quot;_&quot; -&gt; スペース
+  $send_string=$_;
+  require 'jcode.pl';
+  &amp;jcode'convert(*send_string,'euc');
+---
+------------------------------------------------------------- 
+ATSUSHI MANO / BearNet Inc. ceo
+E-mail		a_mano@brnj.com
+------------------------------------------------------------- 
+<HR>
+</PRE>

@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4101] [Q] 二重登録防止の手段について -->
+<!--X-From: "K.Ishikawa" <kaz@c&#45;cube&#45;g.co.jp> -->
+<!--X-Date: Tue, 19 May 1998 17:31:45 +0900 -->
+<!--X-Message-Id: 199805190833.RAA06941@iris.u&#45;machine.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4101] [Q] 二重登録防止の手段について </TITLE>
+<LINK REV="made" HREF="mailto:kaz@c-cube-g.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00201.html">Thread Prev</A>][<A HREF="msg00164.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4101] [Q] 二重登録防止の手段について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "K.Ishikawa" &lt;<A HREF="mailto:kaz@c-cube-g.co.jp">kaz@c-cube-g.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 May 1998 17:31:45 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石川＠シーキューブです。
+　日々勉強をしているはずなのですが、ＭＬの皆さんのレベルがかなり遠くに
+感じる今日この頃です。質問ばかりで恐縮ですが、よろしくお願いいたします。
+
+
+[Q]　テキストフォームに入れたデータが登録されるシステムでの質問です。
+
+　同一データの二重登録の防止機能を付加したいと思い、"INSERT"前に同一
+データのチェックをするようにしたまではよかったのですが、複数人が同時にサ
+ブミットすると、全部登録されるという状況が対処できずに悩んでおります。
+
+　過去のＭＬを調べてみる限りでは、１人目の登録が完了するまで２人目以降は
+ロールバックするトランザクションの機能が使えそうだと判断しました。
+　「"BEGIN","END"で明示的に・・・」などと過去のＭＬには書かれていましたが、
+恥ずかしい話、トランザクション処理の構文の使い方がよくわからない次第です。
+
+　そこで、PHP/FIの例文もしくは参考になるページなどがありましたら、教えてい
+ただけませんでしょうか。
+
+	環境　・Solaris 2.5.1
+	　　　・Apache-1.2.6 + postgreSQL-6.3.1 + PHP/FI-2.0b12
+
+
+　作ったものは、基本的に以下のようなものです。どこに"BEGIN"や"END"を加
+えたらいいのでしょうか？
+　よろしくお願いいたします。
+
+
+---- create database ----
+createdb test_db
+create table test_db(name varchar(10))
+insert into test_db values ('guest');
+-------------------------
+
+
+---- input.html ----
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;input&lt;/title&gt;
+&lt;/head&gt;
+&lt;/body&gt;
+&lt;form action=result.phtml method=post&gt;
+&lt;input type="text" name="name" value="" size=20&gt;(半角１０文字まで)
+&lt;input type="submit" value="登録"&gt;
+&lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+--------------------
+
+
+---- result.phtml ----
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;result&lt;/title&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+&lt;?
+	$con = pg_connect("localhost", "5432", "", "", "test_db");
+	if(!$con){
+	echo "データベースに接続できませんでした。\n";
+	exit;
+	}
+	$query = "select name from test_db where name = '$name'";
+	$insert_string = "INSERT INTO test_db(name) values ('$name')";
+	$rtn = pg_exec($con, $query);
+	if(!$rtn){
+	echo "テーブルの検索に失敗しました。\n";
+	pg_close($con);
+	exit;
+	}
+	$b = pg_numrows($rtn);
+	if($b != "0"){
+		echo "同一データが存在します。";
+		pg_close($con);
+		echo "&lt;form action=./input.html&gt;";
+		echo "&lt;input type=submit value=　戻る　&gt;";
+		echo "&lt;/form&gt;";
+		exit;
+	}else{
+		pg_exec($con, $insert_string);
+		echo "登録完了";
+		pg_close($con);
+		echo "&lt;form action=./input.html&gt;";
+		echo "&lt;input type=submit value=　戻る　&gt;";
+		echo "&lt;/form&gt;";
+		exit;
+	}
+&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+-----------------------
+
+
+
+-------------------------------------------------------
+  Kazunori Ishikawa
+    E-mail : kaz@c-cube-g.co.jp
+    Corpration : C-CUBE co,.ltd.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp 4104] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00164" HREF="msg00164.html">[pgsql-jp 4102] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@cni.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 4100] bench on FMV4100</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 4102] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 4139] Re: Document Translation</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 4102] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

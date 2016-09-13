@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6730] Re: 6.4.2でpg_dump できない -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 21 Jan 1999 14:56:25 +0900 -->
+<!--X-Message-Id: 199901210556.OAA25468@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901210431.NAA24540@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6730] Re: 6.4.2でpg_dump できない </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00316.html">Date Prev</A>][<A HREF="msg00318.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00324.html">Thread Next</A>][<A HREF="index.html#00317">Date Index</A>][<A HREF="threads.html#00317">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6730] Re: 6.4.2でpg_dump できない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 21 Jan 1999 14:56:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt;　阿部＠ネクストです。
+&gt;&gt;
+&gt;&gt;　v6.4.2に石井さんの最新パッチを当ててFreeBSD2.2.7で動かしています。
+&gt;&gt;以前pg_upgradeというv6.4.2付属のツールを使ってv6.3のデータを全部
+&gt;&gt;移植したのですが、今日初めてv6.4.2でpg_dumpをやってみたら、大きい
+&gt;&gt;データベースでcore dumpedが起こってしまいました。小さめのデータベース
+&gt;&gt;なら問題ないみたいです。
+&gt;&gt;
+&gt;&gt;　このpg_dumpでエラーになったデータベースは、v6.3でpg_dumpをして
+&gt;&gt;v6.4.2でpsql -eで読み込むと
+&gt;&gt;
+&gt;&gt;pgWait() -- connection not open
+&gt;&gt;PQendcopy: resetting connection
+&gt;&gt;Copy failed.
+&gt;&gt;
+&gt;&gt;のようなエラーで止まっていました。今回全く同じ現象が出ています。
+&gt;&gt;ただし、今回はv6.4.2上で現に動いているデータベースでのpg_dump
+&gt;&gt;なので、明らかにおかしいような気がします。何かメモリの容量とかが
+&gt;&gt;関係しているのでしょうか。
+&gt;
+&gt;前にも言ったと思いますが、テーブル中のデータがおかしい可能性大です。デー
+&gt;タベースの大小とかメモリはおそらく関係ないでしょう。
+&gt;
+&gt;pg_upgrade で 6.3 のデータを 6.4.x に持って来た場合、ユーザテーブルは
+&gt;そのまま使い回しされますので、6.3 で壊れているデータは 6.4.x でも直っ
+&gt;ていないわけです。
+&gt;
+&gt;-g オプション付で recompile してバックエンドが落ちたときのトレースバッ
+&gt;クを見せて頂けば対処方法が分かるかもしれません。
+
+とりあえずマルチバイト文字の途中で切れているデータがあるのだろうと検討
+を付けて 6.4.2 用のパッチを作ってみました。cut here 以下を 
+/tmp/copy.patch にでもコピーし、
+
+src/backend/commands/ で
+
+$ patch -p0 &lt; /tmp/copy.patch
+
+でパッチを当ててから postmaster を停止し、src/backend にて make;make
+install して postmaster を再起動して下さい。そして pg_dump をやってみ
+ます。
+
+これで駄目ならいよいよデバッガの出番ですから、その時はまたご相談と言う
+ことで。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+------------------------------- cut here ----------------------------
+*** copy.c.orig	Thu Jan 21 13:58:29 1999
+--- copy.c	Thu Jan 21 13:59:02 1999
+***************
+*** 1152,1158 ****
+  
+  #ifdef MULTIBYTE
+  	for (; (mblen = pg_encoding_mblen(encoding, string)) &amp;&amp;
+! 		 ((c = *string) != '\0'); string += mblen)
+  #else
+  	for (; (c = *string) != '\0'; string++)
+  #endif
+--- 1152,1159 ----
+  
+  #ifdef MULTIBYTE
+  	for (; (mblen = pg_encoding_mblen(encoding, string)) &amp;&amp;
+! 		 ((c = *string) != '\0') &amp;&amp; strlen(string) &gt;= mblen;
+! 		 string += mblen)
+  #else
+  	for (; (c = *string) != '\0'; string++)
+  #endif
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp 6737] Re: 6.4.2でpg_dump できない</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00313" HREF="msg00313.html">[pgsql-jp 6726] Re: 6.4.2でpg_dump できない</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 6729] Re: 6.4.2でpg_dump できない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00318.html">[pgsql-jp 6731] 6.4.2から6.3.１への接続はＯＫ？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 6729] Re: 6.4.2でpg_dump できない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp 6737] Re: 6.4.2でpg_dump できない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00317"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00317"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7413] Q) date -->
+<!--X-From: Takeshi Yamada <ken@tydfam.machida.tokyo.jp> -->
+<!--X-Date: Wed, 10 Mar 1999 21:02:17 +0900 -->
+<!--X-Message-Id: 19990310210217A.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7413] Q) date </TITLE>
+<LINK REV="made" HREF="mailto:ken@tydfam.machida.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00165.html">Date Prev</A>][<A HREF="msg00167.html">Date Next</A>][<A HREF="msg00167.html">Thread Prev</A>][<A HREF="msg00181.html">Thread Next</A>][<A HREF="index.html#00166">Date Index</A>][<A HREF="threads.html#00166">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7413] Q) date</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Yamada &lt;<A HREF="mailto:ken@tydfam.machida.tokyo.jp">ken@tydfam.machida.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 10 Mar 1999 21:02:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  山田＠町田市です。
+
+  SQLについての質問です。
+  一般に業務システムなどでは、毎日のトランザクションを月単位のデータとしてして、
+過去モンのデータベースを作っているケースがある思うのですが、この時「年月」はどの
+ようなデータタイプを使うのですか？
+  date では特定の日付が含まれるので、適当ではないし、char(6) かな、と思って
+自分のDBではそのようにして見たのですが、これだと date型とchar(6)の比較が必要
+になるケースが出て来てしまうのですが、、、。
+
+  これを処理しようと下のような date2yyyymm(date) というのを 
+contrib/datetime_fiunctions.c を見ながら作って見たのですが、下のような
+エラーが出て落ちてしまいます。
+
+  基本的なデータ構造からの修正でも、下の c の function が動くようにでも良い
+のですが、どなたかサポートをお願い致します。
+
+
+---------- error.log  ------------
+FindExec: found "/usr/local/pgsql/bin/postgres" using PATH
+binding ShmemCreate(key=52e2c1, size=831176)
+StartTransactionCommand
+query: select * from temp3 ;
+ProcessQuery
+CommitTransactionCommand
+StartTransactionCommand
+query: select date2yyyymm('today'::date);
+ProcessQuery
+DEBUG:  mem = 199903   &lt;--- ここまでは問題無い
+
+FATAL 1:  palloc failure: memory exhausted &lt;-- あー！！
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+----------------end of log--------------------
+
+----- create function ---------
+create function date2yyyymm(date) returns int4
+  as '/usr/local/pgsql/lib/modules/datetime_functions.so' 
+  language 'c';
+-------------------------------
+
+/****   datetime_functions.c ****/
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;limits.h&gt;
+#ifdef HAVE_FLOAT_H
+#include &lt;float.h&gt;
+#endif
+
+#include "postgres.h"
+#include "miscadmin.h"
+#include "utils/builtins.h"
+#include "utils/nabstime.h"
+#include "utils/datetime.h"
+#include "access/xact.h"
+
+#include "datetime_functions.h"
+
+/* Constant to replace calls to date2j(2000,1,1) */
+#define JDATE_2000	2451545
+char *
+date2yyyymm(DateADT val)
+{
+	int			year,
+				month,
+				day;
+	char			*mem = palloc(6);
+
+	j2date(val + JDATE_2000, &amp;year, &amp;month, &amp;day);
+	sprintf( mem, "%d%02d", year,month );
+	elog(DEBUG, "mem = %s\n", mem);
+
+	return (mem);
+}
+/**** end of file ****/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00181" HREF="msg00181.html">[pgsql-jp 7428] Re: Q) date</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00165.html">[pgsql-jp 7412] Re: Why PostgreSQL?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00167.html">[pgsql-jp 7414] RE: Why PostgreSQL?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00167.html">[pgsql-jp 7414] RE: Why PostgreSQL?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00181.html">[pgsql-jp 7428] Re: Q) date</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00166"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00166"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,128 @@
+<A NAME="1">
+<PRE><B>
+From: &quot;Takashi Mega&quot; &lt;mega@rodan.misc.hit-u.ac.jp&gt;
+Date: Tue, 17 Sep 1996 20:46:40 +0900
+Subject: [postgres95 706] Re: [Q] GRANT and REVOKE. 
+Message-Id: &lt;199609171146.UAA00442@rodan.misc.hit-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+一橋大の妻鹿です。
+
+おみつさん、こんにちは。
+
+&gt; 「revoke ALL on sample from public;」
+&gt; とすると、createuser のときの2つの質問の組合せで、
+&gt; 
+&gt; どうも、pg_user の usesuper が 「t」になっていると制御が効かないようですね。
+
+なるほど、そうだったのですか？実は、ユーザmegaにユーザ登録及びデータベース
+作成の権限を与えていまして、それが原因かと一瞬思ったのですが、「さすがにそ
+んなことはありえないだろう。」とか思っていました。また、postgresを載せてい
+るマシンでは僕は管理者ではないため実験用にアカウントを作ることもできず、ま
+た、一度destroyuser megaをしてしまうとユーザmegaで作ったデータが消えてしま
+うかと思い、実験できずにいたのです。
+
+ユーザmegaで作ったデータはどうせ各種実験や遊び用のものでしたので、
+destroyuser megaして実験してみました。なるほど、確かにrevokeできました。
+
+# 今思うと、pg_user表を適当に変えればよかったのですね (^^;。
+# 素人の悲しさでつい先程destroyuserした後に気付きました。
+
+これはやはり、「createuserできる人間は一種の管理者であるから全権を与える。」
+という意図した仕様なのでしょうか？それとも一種のバグなのでしょうか？
+
+確かにcreateuserできるということは、そのデータベースシステムの管理者なので
+しょうけど、データベース管理者が複数いる時は不都合が生じませんかね？例えが
+不適切かもしれませんが、あたかも、複数のシステム管理者が、suしなくてもROOT
+権限で全てのファイルにアクセス可能であるようなものだと思うのですが…。
+
+こうなると、Aさん、Bさんという２人のデータベース管理者がいて、Aさんがrevoke 
+all on sample from B;してもBさんはsampleにアクセス可能なわけですが、ここでB
+さんのusesuperをfにしたらちゃんとBさんはsampleにアクセス不可能になるかどう
+か…。本来不可能になるべきでしょうが、後述のようにちょっとその辺の連動が適
+切に処理されるかどうかは怪しいように思われるのです。
+
+&gt; それから、一度「revoke ALL on sample from public;」とやってから、
+&gt; 「grant SELECT on sample to group etc;」
+&gt;        ( etc には、{501,507}が入っていて、USERID:507=kazuの場合。
+&gt;          kazu は、データベースをつくることはでき、
+&gt;          ユーザーをつくることはできない)
+&gt; とすると、当然 kazu は SELECT 可能なんですが、そのあとに
+&gt; 「revoke ALL on sample from kazu;」としても、
+&gt; なぜか SELECT できてしまいます。
+&gt; 「revoke ALL on sample from etc;」としてみると、
+&gt; きちんと SELECT できなくなります。
+
+私もユーザmegaはデータベースを作ることはでき、ユーザを作ることはできないよ
+うにcreateuser megaした後に、同様の実験を試みました。以前のメールにてグルー
+プadminにユーザpostgresを入れ、グループetcにユーザmegaを入れた旨書きました
+が、その設定が(一度destroyuser megaした後にも)残っていました。
+
+ちなみに、グループadmin,etc双方に２人のユーザを入れていたのですが、試しにそ
+のうちの１人、利用してはいないがユーザ登録されている人をdestroyuserしてみま
+したが、やはり指定したグループにその人のUIDが残っていました。つまり、「一度
+ユーザ抹消してもそのユーザがもう一度ユーザ登録されたらグループに復活させる。」
+のではなく、「destroyuserとグループが連動されていない」ようなのです。
+
+この時点では、おみつさんが仰るように、ユーザとグループは連動していなくて、
+それが原因でrevoke all on sample from kazu;が効かないのかと思ったのですが、
+revoke all on sample from group etc;もrevoke all on sample from mega;もどち
+らも有効でした。
+
+おみつさんのところのPostgres 95はどのバージョンでしょうか？僕は1.01です。お
+そらく僕の方のバージョンの方が古いでしょうから、新しいバージョンではこの辺
+の仕様を変えたのでしょうか？ただ、古いバージョンだとrevoke all on sample
+from user;できて、新しいバージョンだとできないといった&quot;改悪&quot;を意図してやる
+とも思えませんが…。
+
+以上、原因はよく分からないのですが、自分のところの動作実験の結果です。
+
+
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: &quot;K.Suzuki&quot; &lt;a0690191@dlep1.itg.ti.com&gt;
+Date: Mon, 16 Sep 1996 23:16:35 -0500 (CDT)
+Subject: [postgres95 705] Re: POSTODBC Ver 0.20
+Message-Id: &lt;199609170416.XAA29921@dlep1.itg.ti.com&gt;
+</A>
+</B></PRE>
+<PRE>
+
+At 16:13 96/09/13 +0900, you wrote:
+加藤＠トーテックさん、ご指摘の通りでした。うまくいきました。
+ありがとうございます。
+
+たぶんまた質問すると思いますが、みなさまどうぞ宜しくお願いいたします。
+
+&gt; たぶん、szk@t3.rim.or.jp さんも同じだと思います。
+&gt; ＃ 設定間違い or 設定忘れ
+&gt; Postgres95 をリモートアクセスで利用する場合には、
+&gt; data/pg_hba に、使用する端末 or ネットワークを設定しなければ
+&gt; いけません。私の場合は、記述を間違えていました。
+&gt; 正しい記述例です。
+&gt; IPアドレスがAAA.BBB.CCC.DDDのマシンから使用可能にする場合は、
+&gt;   # &lt;name&gt;        &lt;address&gt;         &lt;mask&gt;
+&gt;   all             127.0.0.1         0.0.0.0
+&gt;   all             AAA.BBB.CCC.DDD   0.0.0.0
+&gt; 
+&gt; IPアドレスがAAA.BBB.CCC.0 のネットワーク全体から使用可能にするは、
+&gt;   # &lt;name&gt;        &lt;address&gt;         &lt;mask&gt;
+&gt;   all             127.0.0.1         0.0.0.0
+&gt;   all             AAA.BBB.CCC.0     0.0.0.255
+&gt; 
+&gt; 私は mask の意味を取り違えていて、
+&gt;   # &lt;name&gt;        &lt;address&gt;         &lt;mask&gt;
+&gt;   all             127.0.0.1         0.0.0.0
+&gt;   all             AAA.BBB.CCC.DDD   255.255.255.0
+&gt; としていて、認証に失敗していたのでした。
+ 
+Best Regards K.Suzuki
+szk@t3.rim.or.jp
+
+<HR>
+</PRE>

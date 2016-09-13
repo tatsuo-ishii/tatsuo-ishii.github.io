@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25220] Re: Windows上JDBC でのエンコーディング -->
+<!--X-From: Ryouichi Matsuda <r&#45;matuda@sra.co.jp> -->
+<!--X-Date: Mon, 11 Mar 2002 17:18:30 +0900 -->
+<!--X-Message-Id: 20020311171521.D5CF.R&#45;MATUDA@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020311014327.14CF.YTP@vc&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25220] Re: Windows上JDBC でのエンコーディング </TITLE>
+<LINK REV="made" HREF="mailto:r-matuda@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00196.html">Date Prev</A>][<A HREF="msg00198.html">Date Next</A>][<A HREF="msg00217.html">Thread Prev</A>][<A HREF="msg00176.html">Thread Next</A>][<A HREF="index.html#00197">Date Index</A>][<A HREF="threads.html#00197">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25220] Re: Windows上JDBC でのエンコーディング</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ryouichi Matsuda &lt;<A HREF="mailto:r-matuda@sra.co.jp">r-matuda@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 11 Mar 2002 17:18:30 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00185.html">20020311014327.14CF.YTP@vc-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松田亮一です。
+
+On Mon, 11 Mar 2002 01:59:01 +0900, YTP wrote:
+&gt; Postgreが提供するJDBCの内部でのデコードは、
+&gt; プラットフォームに合わせたデフォルトエンコーディングを使って
+&gt; 処理するようにはできないでしょうか、ということなんです。
+
+PostgreSQL7.0のころのJDBCドライバは、そのように実装されていた
+と記憶しています。
+
+次の環境の場合：
+  ・PostgreSQLのデータベースはEUC_JP
+  ・LinuxからJDBCで接続（デフォルトエンコーディングはEUC_JP）
+  ・WindowsからJDBCで接続（デフォルトエンコーディングはMS932）
+Linuxは問題ありませんが、Windowsは文字エンコーディングの不一致
+により、文字化けします。
+
+上記環境に以下を追加した場合：
+  ・環境変数PGCLIENTENCODINGにSJISを設定
+Windowsは問題なくなりますが、逆にLinuxでは文字化けします。
+
+このような問題があったので、PostgreSQL7.1のJDBCドライバからは、
+Javaのデフォルトエンコーディングではなくて、データベースの文字
+エンコーディングに合わせるように変更された、と思っております。
+
+しかし、本当はデータベースの文字エンコーディングではなくて、環
+境変数PGCLIENTENCODINGで指定される、通信に使用される文字エンコー
+ディングに合わせた方が良かったと、私は思います。7.2のJDBCのソー
+スを読むと、そのように変更されそうですね。
+
+ちなみに、文字エンコーディングは手動で設定することも出来ます。
+
+  conn = DriverManager.getConnection(
+  "jdbc:postgresql://host/db?charSet=MS932",user,pass);
+
+
+&gt; (現状では、サーバ上のエンコーディング指定で決め打ちしている
+&gt; ように見え、結果的にSJISになってしまうと思います)
+
+それは、環境変数PGCLIENTENCODINGにSJISを設定した場合の事です。
+普通は設定しないと思っていたのですが、設定する人は多いのかな？
+（日本語Windowsだけを考えるのなら、その設定は楽なんだけどね）
+
+
+&gt; &gt;SJIS&lt;-&gt;MS932のエンコーディングの微妙な違いは確かに随所で問題になっていま
+&gt; &gt;すが、扱うエンコーディングがどちらかに決定していれば問題はないはずです。
+&gt; 
+&gt; これもおっしゃる通りです。
+&gt; プラットフォームのデフォルトエンコーディングに
+&gt; 決定していて欲しい、ということなんです。
+
+同じデータベースに、WindowsとLinuxとSoralisとMacなどから同時に
+接続するなんてのは普通にあるので、100% Pure Javaである同じJDBC
+ドライバでは、それは無理ですよ。
+
+___________________________________________________________
+ Ryouichi Matsuda  (<A HREF="http://www.sra.co.jp/people/r-matuda/">http://www.sra.co.jp/people/r-matuda/</A>)
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00185" HREF="msg00185.html">[pgsql-jp: 25208] Windows上JDBCでのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> YTP &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00196.html">[pgsql-jp: 25219] Re: Windows上JDBC  でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00198.html">[pgsql-jp: 25221] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00217.html">[pgsql-jp: 25240] Re: Windows上JDBC でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00176.html">[pgsql-jp: 25199] Q) JDBC Driver and Examples</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00197"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00197"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

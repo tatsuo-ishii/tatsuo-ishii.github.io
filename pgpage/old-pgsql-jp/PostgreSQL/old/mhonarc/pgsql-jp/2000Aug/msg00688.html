@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17084] Re: テーブル設計 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 28 Aug 2000 13:09:41 +0900 -->
+<!--X-Message-Id: 39A9E605.E8944601@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000701c00ea8$ddf3a240$5ec08acb@g6&#45;300&#45;&#45; -->
+<!--X-Reference-Id: 20000826104425I.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Reference-Id: 39A79BA1.A112867D@murata.co.jp -->
+<!--X-Reference-Id: 002601c00f57$97c95760$0400a8c0@desktop1 -->
+<!--X-Reference-Id: 39A9DA74.C762B7F4@murata.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17084] Re: テーブル設計 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00687.html">Date Prev</A>][<A HREF="msg00689.html">Date Next</A>][<A HREF="msg00685.html">Thread Prev</A>][<A HREF="msg00701.html">Thread Next</A>][<A HREF="index.html#00688">Date Index</A>][<A HREF="threads.html#00688">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17084] Re: テーブル設計</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 28 Aug 2000 13:09:41 +0900</LI>
+<LI><em>References</em>: &lt;000701c00ea8$ddf3a240$5ec08acb@g6-300--&gt; &lt;<A HREF="msg00643.html">20000826104425I.kgotoh@cic-kk.co.jp</A>&gt; &lt;<A HREF="msg00664.html">39A79BA1.A112867D@murata.co.jp</A>&gt; &lt;<A HREF="msg00666.html">002601c00f57$97c95760$0400a8c0@desktop1</A>&gt; &lt;39A9DA74.C762B7F4@murata.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+hirohito wrote:
+&gt; 
+&gt; ひろひとです。こんにちわ。
+&gt; 
+&gt; &gt; 　検査サンプル数が不定なので配列を利用したいとのことですが、正規化した場合に
+&gt; &gt; はデータベースの集計機能が使えてより便利だと思いますが。もちろんサンプル数が
+&gt; &gt; 不定であるために無駄が生じることもありません。
+&gt; 
+&gt; これは、たとえば、
+&gt; 
+&gt; CREATE TABLE "購入"     ( "購入番号" int4 NOT NULL,"品名" text );
+&gt; CREATE TABLE "検査_幅"  ( "購入番号" int4 NOT NULL,"幅" float4 );
+&gt; CREATE TABLE "検査_高さ"( "購入番号" int4 NOT NULL,"高さ" float4 );
+&gt; CREATE TABLE "検査_強度"( "購入番号" int4 NOT NULL,"強度" float4 );
+&gt; 
+&gt; とすると良いよ、と言われているのでしょうか？
+
+pgsql-jp 1705 の hirohito さんの投稿では、
+| サンプリング方式で検査を行うのですが、購入した数により、
+| サンプル数が変わるのです。
+とあるだけで、検査項目が変動するとは書いてないので、
+そのとおりだとすると、次のようになります。
+
+CREATE TABLE  購入  (
+    購入番号       int4 NOT NULL PRIMARY KEY,
+    品名コード     int4 references 品名マスタ,
+    発注先         int4 references 業者マスタ,
+    検査日時       timestamp,
+    ...... その他必要なもの ....
+);
+CREATE TABLE  購入検査 (
+    購入番号        int4 NOT NULL references 購入,
+    サンプル番号    int4 NOT NULL,
+    幅              float4,
+    高さ            float4,
+    強度            float4,
+    primary key(購入番号, サンプル番号)
+);
+
+このようにしておけば、特定購入番号あるいは、
+特定の品番(品名コード)、発注先で、期間の範囲
+を指定したりといった各種条件をつけて、幅、高さ、
+強度の 平均値、最高、最低とか、一定の規格を
+外れた発注先の一覧表とか、RDB 得意の各種 SQL
+文が自由に使えるメリットがあります。
+
+&gt; 確かに集計も使えて良いのですが、私の感覚では
+&gt; 構造が複雑すぎると感じます。
+&gt; 
+&gt; CREATE TABLE "購入" ( "品名" text, 幅 float4[], 高さ float4[], 強度 float4[] );
+&gt; 
+&gt; とした方が、すっきりしませんか？
+
+これは、目的によりけりです。上記の配列の表で、先に
+述べた、各種条件での集計をすることを考えてください。
+しかも、各種条件を、SQL を知らないエンドユーザーに、
+簡単な釦や、リストボックスからの選択などで、指定で
+きるような応用まで考えてみてください。
+
+勿論そういう必要がなければ、配列の方がすっきりす
+る場合もあります。
+
+ただ、システムは、うまく動くと、どんどん要求が膨らんで
+きますので、正規化していないと、膨らんでくる要求に対応
+困難になってきます。
+
+Relational Data Base 関係データーベースとは、文字とおり、
+単純な構造である表の 関係(Relation)によって、実世界の
+複雑な情報を表そうとする手法です。関係が複雑(この例だと
+ちっとも複雑じゃないけど)になるのは当然です。メリット
+は、関係だけ定義すれば、データー構造に手を加えなくても
+複雑な実体を表せることです。
+
+MUMPS 等ツリー型の DB とか、ネットワーク型などと比べて
+みるのも RDB 理解の参考になるかもしれません。
+
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+ (株)ソフト工房     近藤直文     Email:  nkon@shonan.ne.jp 
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00701" HREF="msg00701.html">[pgsql-jp 17097] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> hirohito &lt;hirohito@murata.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00643" HREF="msg00643.html">[pgsql-jp 17038] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00664" HREF="msg00664.html">[pgsql-jp 17059] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> hirohito &lt;hirohito@murata.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00666" HREF="msg00666.html">[pgsql-jp 17061] Re: [pgsql-jp 17059] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> 中西　健&lt;nakanisi@mahoroba.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00687.html">[pgsql-jp 17083] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00689.html">[pgsql-jp 17085] Re: PQCompoの応用 (PGm)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00685.html">[pgsql-jp 17081] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00701.html">[pgsql-jp 17097] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00688"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00688"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

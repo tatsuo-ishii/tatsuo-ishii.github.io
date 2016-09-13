@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2364] Re: How table size of xtosho is -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Thu, 21 Aug 1997 17:57:56 +0900 -->
+<!--X-Message-Id: 199708210857.RAA12113@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9708210742.AA01308@wakeup1.wakeup.it.matsue&#45;ct.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2364] Re: How table size of xtosho is </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00089.html">Date Prev</A>][<A HREF="msg00091.html">Date Next</A>][<A HREF="msg00089.html">Thread Prev</A>][<A HREF="msg00092.html">Thread Next</A>][<A HREF="index.html#00090">Date Index</A>][<A HREF="threads.html#00090">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2364] Re: How table size of xtosho is</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Thu, 21 Aug 1997 17:57:56 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;内山 @ 情報工学科.松江高専と申します。
+&gt;
+&gt;	現在、informix-SE と HTTPd を用いて、web 上の蔵書 *検索*
+&gt;システムのプロトタイプを作成しています。しかし、性能が悪くて
+&gt;使い物になりません。テーブルは、蔵書 *管理* システムのテーブル
+&gt;を借りてきています。
+&gt;
+&gt;create table 蔵書
+&gt;       (
+&gt;        キー書籍        integer,
+&gt;        登録番号        integer,
+&gt;        書名            char(120),
+&gt;        書名_読み       char(160),
+&gt;        双書名          char(60),
+&gt;        双書名_読み     char(30),
+&gt;        著者１          char(30),
+&gt;        著者１_読み     char(30),
+&gt;        著者２          char(30),
+&gt;        著者２_読み     char(30),
+&gt;        巻号            integer,
+&gt;        版              integer,
+&gt;        出版年          integer,
+&gt;        出版社          integer,
+&gt;        ページ数        integer,
+&gt;        大きさ          integer,
+&gt;        和_洋           char(2),
+&gt;        備品区分        char(2),
+&gt;        分類番号        integer,
+&gt;        著者記号        char(8),
+&gt;        巻冊複本数      char(10),
+&gt;        禁貸区分        char(2),
+&gt;        キーワード１    char(20),
+&gt;        キーワード２    char(20),
+&gt;        キーワード３    char(20),
+&gt;        設置場所        integer,
+&gt;        定価            integer,
+&gt;        登録日          date,
+&gt;        貸与日          date
+&gt;)
+&gt;
+&gt;このテーブルに 10 万件のデータを入れて、キーワードが'*データ
+&gt;ベース*' の検索を行うと 22 件ヒットするのですが、70 秒もかかっ
+&gt;てしまいます。
+
+この位の規模のデータベースになると、索引の付け方、SELECT 文の書き方な
+どで天と地程の性能の開きが出ます。この辺の情報が無いので想像で書きます。
+
+まず確認ですが、この場合の検索キーワードは「データベース」そのものです
+か、それとも正規表現的なものなのですか？もし正規表現的なものなら、普通
+は索引を見に行かないので遅くなって当然です。
+
+仮に正規表現的なものではないとして...
+
+この場合の SQL 文はおそらく
+
+select * from 蔵書 where キーワード1 = 'データベース' or
+キーワード2 = 'データベース' or
+キーワード3 = 'データベース'
+
+のようなものだと思いますが、これは or 結合ですから、これまた遅くなって
+当然です。
+
+ここはスキーマ定義を見直した方が良いでしょう。蔵書テーブルの「キー書籍」
+が主キーだとして、キーワード1〜3 を別テーブルに出し、
+
+create table キーワードたち (
+        キー書籍        integer,
+        キーワード      char(20),
+);
+
+として「キーワード」に索引を付け、
+
+select a.* from 蔵書 a, キーワードたち b where
+b.キーワード = 'データベース' and b.キー書籍 = a.キー書籍;
+
+で検索すれば１桁以上速くなると思います。
+
+&gt;	sra さんでお使いの xtosho では、どの程度のテーブルに
+&gt;何件入れて、どのくらいのスピードで検索できるのでしょうか?
+&gt;場合によっては検索エンジンを PostgreSQL に変えることも考えて
+&gt;います。
+&gt;	以上、勝手なお願いで恐縮ですが、検索性能をお教え頂け
+&gt;れば幸いです。
+
+データ件数が 4000 件程度ですから、全然参考にならないです。スピードを気
+にしてないから正規表現で検索してるし。
+# データが 1 万超えたらまじめに考えようかな。多分私が会社にいる間には
+# ならないと思うけど:-)
+
+&gt;# マシンは SS10 + 48MB RAM + 16GB HDD です。
+&gt;# テーブルの一行を短くすれば早くなるでしょうか?
+
+遅くはなりませんが、あんまり変わらないでしょう。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00092" HREF="msg00092.html">[pgsql-jp 2366] Re: How table size of xtosho is</A></STRONG>
+<UL><LI><EM>From:</EM> Toshio Uchiyama &lt;uchiyama@wakeup.it.matsue-ct.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00089" HREF="msg00089.html">[pgsql-jp 2363] How table size of xtosho is</A></STRONG>
+<UL><LI><EM>From:</EM> Toshio Uchiyama &lt;uchiyama@wakeup.it.matsue-ct.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 2363] How table size of xtosho is</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 2365] Re: Re^2: Create Function - Suceeded!</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 2363] How table size of xtosho is</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00092.html">[pgsql-jp 2366] Re: How table size of xtosho is</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00090"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00090"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

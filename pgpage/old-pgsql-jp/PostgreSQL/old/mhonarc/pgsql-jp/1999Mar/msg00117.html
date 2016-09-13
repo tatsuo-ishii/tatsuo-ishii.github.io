@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7364] 6.4.2 patches added -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 08 Mar 1999 12:11:49 +0900 -->
+<!--X-Message-Id: 199903080311.MAA24902@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7364] 6.4.2 patches added </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00116.html">Date Prev</A>][<A HREF="msg00118.html">Date Next</A>][<A HREF="msg00118.html">Thread Prev</A>][<A HREF="msg00115.html">Thread Next</A>][<A HREF="index.html#00117">Date Index</A>][<A HREF="threads.html#00117">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7364] 6.4.2 patches added</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 08 Mar 1999 12:11:49 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。またまた 6.4.2 のパッチを追加しました。
+
+large object 用のパッチを修正したほか、以下のパッチが追加されています。
+
+10. shmem.6.4.patch: 本家MLから拾ったパッチ。共有メモリの管理がまずく、
+    同時ユーザ数が多い場合に問題が起きるバグを修正。
+
+11. mb_fix2.patch: multibyte サポートの typo 修正。
+
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.4.2/patches/">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.4.2/patches/</A> でどうぞ。
+
+10 のパッチは結構重要です。作者の Tom Lane さんは「十分テストできてい
+ない」という理由でオフィシャルにしてませんが、とりあえず私が試した限り
+では問題ありませんでした。本家の ML に流れたメールを転載します
+("Read on, if you have a strong stomach" ってあたりが緊張感をあおって
+ます:-)。
+---
+t-ishii@sra.co.jp	石井達夫
+
+----------------------------------------------------------------------
+To: pgsql-hackers@postgreSQL.org
+Subject: [HACKERS] Re: Anyone understand shared-memory space usage? 
+In-reply-to: Your message of Mon, 22 Feb 1999 12:40:52 -0500 
+             &lt;9867.919705252@sss.pgh.pa.us&gt; 
+Date: Mon, 22 Feb 1999 19:49:29 -0500
+Message-ID: &lt;10605.919730969@sss.pgh.pa.us&gt;
+From: Tom Lane &lt;tgl@sss.pgh.pa.us&gt;
+Sender: owner-pgsql-hackers@postgreSQL.org
+Precedence: bulk
+X-UIDL: 9f2d86ed88986b12a377fd18ca1b84fa
+
+I wrote:
+&gt; I would like someone to check my work; if the code was really as
+&gt; broken as I think it was, we should have been seeing more problems
+&gt; than we were.
+
+I spent an hour tracing through startup of 6.4.x, and I now understand
+why the thing doesn't crash despite the horrible bugs in ShmemInitHash.
+Read on, if you have a strong stomach.
+
+First off, ShmemInitHash allocates too small a chunk of space for
+the hash header + directory (because it computes the size of the
+directory as log2(max_size) *bytes* not longwords).  Then, it computes
+the wrong address for the directory --- the expression
+	infoP-&gt;dir = (long *) (location + sizeof(HHDR));
+looks good until you remember that location is a pointer to long not
+a pointer to char.  Upshot: the address computed for "dir" is typically
+168 bytes past the end of the space actually allocated for it.
+
+Why is this not fatal?  Well, the very next ShmemAlloc call is always
+to create the first "segment" of the hashtable; this is always for 1024
+bytes, so the dir pointer is no longer pointing to nowhere.  It is in
+fact pointing at the 42'nd entry of its own first segment.  (HHGTTG fans
+can find deep significance in this.)  In other words entry 42 of the
+hash segment points back at the segment itself.
+
+When you work through the logic in dynahash.c, you discover that the
+upshot of this is that (a) the segment appears to be the first item on
+its own 42'nd hash-bucket chain, and (b) the 0'th and 42'nd hash-bucket
+chains are therefore the same list, or more accurately the 0'th chain is
+the cdr of the 42'nd chain since it doesn't appear to contain the
+segment itself.
+
+As long as no searched-for hash key with a hash value of 0 or 42
+happens to match whatever the first few words of the segment are,
+things pretty much work.  The only way you'd really notice is that
+hash_seq() will report some of the hashtable records twice, and will
+also report one completely bogus "record" that is the hash segment.
+Our uses of hash_seq() are apparently robust enough not to be bothered.
+
+Things don't go to hell in a handbasket until and unless the hashtable
+is expanded past 256 entries.  At that point another segment is allocated
+and its pointer is stored in slot 43 of the old segment, causing all the
+table entries that were in hashbucket 43 to instantly disappear from
+view --- they can't be found by searching the table anymore.  Also,
+hashchain 43 now appears to be the same as hashchain 256 (the first 
+of the new segment), but that's not going to bother anyone any worse
+than the first duplicated chain did.
+
+I think it's entirely likely that this set of bugs can account for flaky
+behavior seen in installations with more than 256 shared-memory buffers
+(postmaster -B &gt; 256), more than 256 simultaneously held locks (have no
+idea how to translate that into user terms), or more than 256 concurrent
+backends.  I'm still wondering whether that might describe Daryl
+Dunbar's problem with locks not getting released, for example.
+
+			regards, tom lane
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 7363] Re: Kanji patches for PHP-3.0.7</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00118.html">[pgsql-jp 7365] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00118.html">[pgsql-jp 7365] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 7362] 初めまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00117"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00117"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

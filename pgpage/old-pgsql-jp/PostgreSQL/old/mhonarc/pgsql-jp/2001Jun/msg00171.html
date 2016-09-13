@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21792] Re: PostgreSQL&#45;7.1.2 でWALを使わない方法 -->
+<!--X-From: tmori@tech.isac.co.jp -->
+<!--X-Date: Wed, 13 Jun 2001 12:59:15 +0900 (JST) -->
+<!--X-Message-Id: 20010613130807U.tmori@tech.isac.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010612121951.8AFFF6AFBC@mail.suyama.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21792] Re: PostgreSQL-7.1.2 でWALを使わない方法 </TITLE>
+<LINK REV="made" HREF="mailto:tmori@tech.isac.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00170.html">Date Prev</A>][<A HREF="msg00172.html">Date Next</A>][<A HREF="msg00163.html">Thread Prev</A>][<A HREF="msg00173.html">Thread Next</A>][<A HREF="index.html#00171">Date Index</A>][<A HREF="threads.html#00171">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21792] Re: PostgreSQL-7.1.2 でWALを使わない方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:tmori@tech.isac.co.jp">tmori@tech.isac.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 13 Jun 2001 12:59:15 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00163.html">20010612121951.8AFFF6AFBC@mail.suyama.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+森＠アイザックです。
+
+&gt;&gt;&gt; 陶山　泰 &lt;yasushi@suyama.net&gt; wrote :
+    at Tue, 12 Jun 2001 21:19:51 +0900 ...
+
+&gt; tmori&gt; 問題は、ディスク領域が不足することではなくて、それだけ
+&gt; tmori&gt; 大量のI/Oが発生してしまう、ということであり、checkpointで
+&gt; tmori&gt; ログをtruncateしてくれるだけでは解決にならないのです。
+&gt; 
+&gt; 　大量のログが正常なＷＡＬログであれば、それは問題ではないと思います。
+&gt; 　（バグで大量のログを吐き出すのでしたら、それは問題ですが）
+&gt; 　CHECKPOINT 間隔を短くするのが正道だと思います。
+
+checkpointでログファイルを消すかどうかはともかく、
+本来checkpointとは、ログバッファをHDDにフラッシュすることですよね。
+checkpoint間隔を短くすると、返ってディスクI/Oが増加すると思いますが。
+
+現状はdefaultで試しています。
+# checkpoint_segments = 3
+# checkpoint_timeout = 600
+
+
+&gt; 　CHECKPOINT で同期をとって、ＷＡＬログを削除するという動作にバグがあっ
+&gt; て仕様とおりに動作していないということですか？
+
+本家MLによると、ドキュメントの記述違いらしいです。
+
+[9.3章の当該個所]
+After a checkpoint has been made, any log segments 
+written before the redo record are removed, 
+                   ^^^^^^^^^^^
+
+「redo record」が誤りで「undo record」だとのことです。
+これなら、動作に納得できます。
+
+
+&gt; 　（本家のＭＬで流れていた情報の意味がよくわかりませんでした）
+
+済みません。patchの話を持ち出そうと、
+引用したメールがよくなかったです。
+
+５月〜６月の本家MLを、WALとかcheckpointとかで
+検索して頂ければ判ると思うのですが、
+同様の現象についてかなり話題に挙がっています。
+
+このMLではお目にかかったことがないのですが、
+皆さん、どうやってこの現象を回避しているのでしょう？
+ローディングの際にはindexをdropしているのでしょうか？
+
+
+&gt; 　あと単なるアイデアで現実的かどうかはわかりませんが、
+&gt; 　ＷＡＬを使わないんであれば、pg_xlog をヌルデバイスにリンクさせてはど
+&gt; うでしょうか。（素人の単なる思い付きです）
+
+pg_xlogはディレクトリで、その中に16MBのログセグメントファイルが、
+連番ファイル名で生成されます。ですので、それは無理なようです。
+
+実際、
+$ ln -s /dev/null pg_xlog
+$ pg_ctl -w start
+
+とやってみたら、postmasterが起動しませんでした。
+（pg_ctlが終了しない）
+
+--
+tmori@tech.isac.co.jp
+森 真史 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 21794] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00163" HREF="msg00163.html">[pgsql-jp 21784] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> 陶山　泰&lt;yasushi@suyama.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00170.html">[pgsql-jp 21791] Re: syslog をPosgreSQLで記録</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00172.html">[pgsql-jp 21793] Re: syslog をPosgreSQLで記録</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 21784] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 21794] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00171"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00171"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

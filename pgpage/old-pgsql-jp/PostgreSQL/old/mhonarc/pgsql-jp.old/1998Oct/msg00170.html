@@ -1,0 +1,128 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5687] out of free buffers: time to abort ! -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Wed, 21 Oct 1998 11:57:12 +0900 (JST) -->
+<!--X-Message-Id: 199810210257.LAA05868@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5687] out of free buffers: time to abort ! </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00169.html">Date Prev</A>][<A HREF="msg00171.html">Date Next</A>][<A HREF="msg00172.html">Thread Prev</A>][<A HREF="msg00169.html">Thread Next</A>][<A HREF="index.html#00170">Date Index</A>][<A HREF="threads.html#00170">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5687] out of free buffers: time to abort !</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Oct 1998 11:57:12 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+relname.dataの不具合にパッチを当てて動かしてみたところ、
+FATAL 1:  btree: BTP_CHAIN flag was expected in url_server_idx (access = bt_read)
+というような文句は何度も言われるものの、動き続けるようになりました。
+ところが、そのうちに
+
+ERROR:  out of free buffers: time to abort !
+
+TRAP: Failed Assertion("!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) )):", File: "transsup.c", Line: 361)
+
+!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) )) (0) [Inappropriate ioctl for device]
+
+と言われて、abortしてしまいました。
+しかも、postmasterは走っているのに、
+Connection to database 'ptest' failed.
+connectDB() failed: Is the postmaster running and accepting connections at 'UNIX Socket' on port '5432'?
+という風に接続できなくなってしまいました。
+
+これは、単にinclude/miscadmin.hの
+#define NDBUFS 64
+の値を増やせばよいだけなのでしょうか? それとも何かバグに当たってますか?
+ちなみに、abortしたときのback traceは以下のとおりです。
+
+Program received signal SIGABRT, Aborted.
+0x81f68b1 in kill ()
+(gdb) #0  0x81f68b1 in kill ()
+#1  0x81f6183 in abort ()
+#2  0xf75f8 in ExcAbort (excP=0x126f74, detail=0, data=0x0, 
+    message=0x2d854 "!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) ))") at excabort.c:26
+#3  0xf7557 in ExcUnCaught (excP=0x126f74, detail=0, data=0x0, 
+    message=0x2d854 "!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) ))") at exc.c:171
+#4  0xf75aa in ExcRaise (excP=0x126f74, detail=0, data=0x0, 
+    message=0x2d854 "!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) ))") at exc.c:188
+#5  0xf6dda in ExceptionalCondition (
+    conditionName=0x2d854 "!(( ((buffer) &lt; 0) ? ((buffer) &gt;= -NLocBuffer &amp;&amp; LocalRefCount[-(buffer) - 1] &gt; 0) : ( ((buffer&lt;1) || (buffer&gt;(NBuffers))) ? ((char) 0) : (PrivateRefCount[(buffer) - 1] &gt; 0) ) ))", exceptionP=0x126f74, 
+    detail=0x0, fileName=0x2d849 "transsup.c", lineNumber=361) at assert.c:74
+#6  0x2da93 in TransBlockNumberSetXidStatus (relation=0x18b990, 
+    blockNumber=2165, xid=70970786, xstatus=1 '\001', failP=0xefbfaac3 "")
+    at transsup.c:361
+#7  0x2d4cf in TransactionLogUpdate (transactionId=70970786, status=1)
+    at transam.c:216
+#8  0x2d6ad in TransactionIdAbort (transactionId=70970786) at transam.c:581
+#9  0x2e72e in RecordTransactionAbort () at xact.c:725
+#10 0x2e941 in AbortTransaction () at xact.c:972
+#11 0x2eb7c in AbortCurrentTransaction () at xact.c:1180
+#12 0xc9023 in PostgresMain (argc=6, argv=0xefbfcba8, real_argc=5, 
+    real_argv=0xefbfd498) at postgres.c:1548
+#13 0xa9e7c in DoBackend (port=0x180000) at postmaster.c:1528
+#14 0xa98f6 in BackendStartup (port=0x180000) at postmaster.c:1299
+#15 0xa8bf6 in ServerLoop () at postmaster.c:757
+#16 0xa849f in PostmasterMain (argc=5, argv=0xefbfd498) at postmaster.c:563
+#17 0x65527 in main (argc=5, argv=0xefbfd498) at main.c:93
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00169.html">[pgsql-jp 5686] How to backup of large object</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00171.html">[pgsql-jp 5688] RE: [pgsql-jp 5685] Re: PostgreSQL V6.4b2で、コンパイルエラ ー!?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00172.html">[pgsql-jp 5689] Re: RE: [pgsql-jp 5685] Re: PostgreSQL V6.4b2で、コンパイルエラ ー!?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00169.html">[pgsql-jp 5686] How to backup of large object</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00170"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00170"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

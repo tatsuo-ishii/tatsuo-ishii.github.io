@@ -1,0 +1,192 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2650] Re: カナのソート -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Thu, 09 Oct 1997 14:12:48 +0900 -->
+<!--X-Message-Id: 199710090512.OAA05371@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710011554.AAA24743@mail.ca2.so&#45;net.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2650] Re: カナのソート </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00063.html">Date Prev</A>][<A HREF="msg00066.html">Date Next</A>][<A HREF="msg00013.html">Thread Prev</A>][<A HREF="msg00083.html">Thread Next</A>][<A HREF="index.html#00064">Date Index</A>][<A HREF="threads.html#00064">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2650] Re: カナのソート</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Thu, 09 Oct 1997 14:12:48 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;田中久太郎＠三鷹市です。
+&gt;
+&gt;質問です。
+&gt;
+&gt;カナの並べ替えをしたいのですが、
+&gt;yomi text というような列に
+&gt;ハダカ、バイク、ハタキ、ハイク
+&gt;といったレコードがあった場合、
+&gt;ハイク、バイク、ハダカ、ハタキ
+&gt;と並べたいと考えています。
+&gt;＃通常の text の order by だと、
+&gt;＃ハイク、ハタキ、ハダカ、バイクと並んでしまう。
+&gt;
+&gt;おそらくは、よみがな専用の型を作り、order by をそのような
+&gt;並び方になるように実装するのがいいんだろうな、というのは
+&gt;わかります。
+
+もう少し手軽な方法もあります。ハダカ→ハタカにするような関数を C で書
+いて、
+	select func(kana) as kana2 from kana_table order by kana2
+
+とかすればいいですね。
+
+&gt;ですが、C のことはよくわからないのし、order by の書き方も
+&gt;よくわからないので、参考になりそうなソースを探しています。
+&gt;
+&gt;どなたか御存じの方がいらっしゃいましたらご教授ください。
+&gt;＃できれば、そのものズバリがあるといいんですが。(^^;
+
+というわけで、いい加減な関数を作ってみました。添付のソースを contrib 
+の下で展開すると、kana というディレクトリができます。そこで make した
+後、kana.sql を psql から実行し、次に kanatest.sql を psql 実行して下
+さい。参考までに、実行結果を付けておきます。6.2 + MkLinux でテストしま
+した。
+
+psql -e test &lt; kanatest.sql 
+QUERY: drop table kanatest;
+QUERY: create table kanatest (kana text);
+QUERY: insert into kanatest values('ハダカ');
+QUERY: insert into kanatest values('バイク');
+QUERY: insert into kanatest values('ハタキ');
+QUERY: insert into kanatest values('ハイク');
+QUERY: select * from kanatest;
+kana  
+------
+ハダカ
+バイク
+ハタキ
+ハイク
+(4 rows)
+
+QUERY: select kana,katakana_del_dakuon(kana) as kana2 from kanatest order by kana2,kana;
+kana  |kana2 
+------+------
+ハイク|ハイク
+バイク|ハイク
+ハダカ|ハタカ
+ハタキ|ハタキ
+(4 rows)
+
+---------------------------- cut here ----------------------
+begin 644 kana.tar.gz
+M'XL("&amp;9D/#0``VMA;F$N=&amp;%R`.T8:U,;UY6ONK_B1J:15A)H5TC(EL`3&amp;00E
+M57!&amp;$FDFCD&lt;1T@I6R%IE=TGLNOHQ=NYF/+43.PXX8.S@!ALP)!C'2&gt;R^,IU^
+M2-,ZS0?2Z;2=-M-S[NY*PH-CSR3@R51GX.S5&gt;=VSY[5[=RI?S0&lt;[=A=H6(Q&amp;
+M(K2#TIX&gt;J0&gt;O4C0BXM4!D=+&gt;L!05&gt;T-2J`?88D\HVD$CN^P7AVG=R&amp;N4=AA=
+MBCZI*`^5.S:A[84[&gt;PU3F/_G\E-R2:G(N[2')(J]X?##\Q\1&gt;YS\2Z(4!79(
+M#/=T4'&amp;7_-D&amp;_^?Y)YGTP.!(NI]V=P?A3]&lt;*A"C50F6Z*--.K\44&amp;@72/5%1
+MQ_,50@:&amp;4HGAC+\?9*QE+I,2:-=(4\4V0D@VD1Y.9C/]%$NMTSN8RHP-#8V\
+M*/#?W?JK:"V53(P.C:22ED5;0R`D7ZG$8MLH/T&amp;-&amp;(6+.JT59.+2CM&amp;N$NU\
+M)DY?)JZ!_E=JKQ=?X6M=+M(NF;KU6.[PH6=_/IB+=78.Q";&lt;R,.JLWF./\!N
+M^H9B?;2SCQX$RX04*G*^&amp;J.-S1K^4%^W2IYT"K\7\/[GF2CLVAZ/Z/]P;[/_
+M0S`"@"U%Q-YV_^\%!'V$^NB1V@2T55&gt;Y1D.1`_N/4K=YUEQC&amp;^;54U?,53=E
+MZXMG5L^S6?856[[\-5MBBS/W%O_.5MC\J3=079&lt;K&lt;L&amp;`AC;R6$JYHES)%?-3
+MTVK5B[\%RC;8E^Q-MCZWS.Y&lt;W63OL&gt;4/_G5Q@6VA\K5+L%I?NSTSS^;9?;;*
+MSIXZO&lt;UH-1]XN.6\SB5"M*2IQ_C2D'6#JEI1UNCX"8L90!Q'HXXC31&lt;^G%VX
+MC[^L&gt;^4NK+&amp;;;..CVS?NL/6%57:&amp;?&gt;[&lt;)VJ&lt;_A4Z?/7+C_[+;IG+H/.9&gt;9^M
+MS'\"6DMLF3'0WV`KITZS=R%^#G_KQKD;_V#K:`-N\PSL=MO\Q+QK_M;\`]NR
+M`H`[\ZAN7;]Y&lt;&lt;D)!?L31/DM6*^`CW]F;W(_^(V@^;OFW\P+YE_,/[+UF7NH
+MLO3/RU_/G69;:_^9^184N.-7;O-;^NO[R^P\7E%[[HMY$\RN-8-Q\0JDEUFW
+M*1TX$`U*8O``O;9YX8NE-V[&gt;I79W/*-K,"C4[G(-Y(*$[',&gt;%&gt;Z:JAL3FJQW
+M3[H)"?KV%&gt;%Y497I8/+0V'`NF\QD07R?4@)R"XTX8C48]&amp;J!'N,7LD^N%I42
+M:7"?2[R8^UEB-)'+'DKE4LE15X08)VHRVM(-;1J*Y"2A5)]4-8/JTI$'Q8_&amp;
+MF]S03MPZ??;Y`;4H9_/C%3E."$P$0RFT$INE;8Q7I"-':3_?\N1)CWG6$_"8
+M;R$ZC^@=1.]ZZ@%@G&lt;/UVX@N(+J(:,93KP=LU5DDO(=H'M$"HJN6ZB5&lt;SR&amp;Z
+MC.@*HO=;5!&gt;1\&amp;M$UQ$M(UJU5*_A^@-$-Q"M(+K9HGH+"1\C^A31/42_LU0W
+M&lt;7T'T6&gt;(?H/H]Z!*ZA`5^;@A:U5JP-7EVZDAD4-]D!&amp;A&amp;4,K[(::TV4%1.PL
+M"`2CIU0-6I&amp;K$$M=^86LEKS;@BP$;6I+&amp;@3,9&amp;M:?%.@_?0VO;AM60F4P0U*
+M2ZI&amp;O&gt;5^,5[N@\WB9;]?X+FS.0IPE+X'BR*N-,7`7(EZIXZ4CW9#^2B0&gt;W`8
+MF2Y--J:UJLV2@,7]0Z@3!^._+:&lt;#NX[-@3VV0P!C?.H9&amp;HS;F&lt;^A=[]B]V$,
+M+UJCV!I6B#^&lt;A7[=:'`:DY/W;I!86?CN_/#P6XD$W]#IPF1&gt;&lt;_GT6L!7K-D1
+M=&amp;&amp;X7$$?7?YVX];:W,*_-[YA&amp;]?GV2SNTF@H):"K/,X8)'0&gt;HF/O)-#1L53*
+M":,5!+R_N!T6U/!:!?!"(IT9&gt;2F)!N`M$G_^=#"=&gt;4F@??U4?+@%H-"6[:PI
+MXFTUQC/B$$!&lt;&gt;&amp;`S/AIJ%G$PD4TTB,56(BHB\?5)&gt;`&gt;FZ'-7E^,5WL537@@=
+M?9J*Q_&gt;+0K-N()9^/Y@!IM]OE4:=RA5=;DCHBL.F?7UT?[Q)_N4V-2"I(-GL
+M(Z51:LXF('#P8--$"QG]*I4&lt;!G&lt;^OD-]4EX*=;+#F&amp;Z9\[I1K"CC?,J_IBI%
+M&amp;-E*U=LL*'#:*2&gt;K.=UY\URY7#;?-C?9Q^Q3\Y(YZW9:U&amp;Y^0X.%=TK@9:3O
+MG%!&gt;#GZ0X_?-8ZX[@:YI8*SD==L/D5)&gt;J;Q&lt;==L!DH\KAE&lt;2G(J!S0JU$]Y&amp;
+MMH7`U+82T&gt;T"X?M1/[J(;&amp;&gt;+&lt;1F&amp;A@S'#QUVL%4=7KX$\S%&amp;;9ZSPTZ-J`L"
+M'P7V&lt;^Z)OO\UW_^M`]5N[/&amp;H\W\H)#7._Y+4B^?_2$^X_?Z_%S"8/OP\'1H;
+M'&lt;B.'![=Z:ED=2,VYT`ZF&lt;@F'T&gt;8N-+)[%AZ-,-G`G$E,M1C'\)YK34/W1[B
+M2B5&amp;A\&lt;2PTGJ*7A(_,=]FO[Q0:/_\=B$WU9V88]']7\X&amp;G'Z7XQ*8&gt;S_:$1J
+M]_]&gt;0%%3:]2PSSA6%&lt;1)09-A]0"9\A,WM:&gt;!4M5E&gt;/^#1Y_:E'@M7YF6=2^&lt;
+M,&lt;QK&lt;#!ZI-BFR&gt;#4]!C6%N&amp;$]1ABMC7[RX%O^S&gt;!!OV'^Z+PI)/7AC:TH0UM
+9:$,;VM"&amp;-K2A#6UHPV/"_P"@9;8'`"@``(%O
+`
+end
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00118" HREF="msg00118.html">[pgsql-jp 2704] Re: カナのソート</A></STRONG>
+<UL><LI><EM>From:</EM> Tanaka-Qtaro-Yasuhiro &lt;tanaq@ca2.so-net.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00083" HREF="msg00083.html">[pgsql-jp 2669] Re: カナのソート</A></STRONG>
+<UL><LI><EM>From:</EM> Tanaka-Qtaro-Yasuhiro &lt;tanaq@ca2.so-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00013" HREF="msg00013.html">[pgsql-jp 2598] カナのソート</A></STRONG>
+<UL><LI><EM>From:</EM> Tanaka-Qtaro-Yasuhiro &lt;tanaq@ca2.so-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 2649] Re: implicit create command</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00066.html">[pgsql-jp 2652] Benchmark Result on Linux 2.0.30</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 2598] カナのソート</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00083.html">[pgsql-jp 2669] Re: カナのソート</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00064"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00064"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2908] Re: update from MS&#45;Access -->
+<!--X-From: kataoka@interwiz.koganei.tokyo.jp (片岡裕生) -->
+<!--X-Date: Thu, 06 Nov 1997 02:58:44 +0900 -->
+<!--X-Message-Id: 199711051758.CAA18103@matsu.interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199711051419.XAA15596@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2908] Re: update from MS-Access </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00036.html">Thread Prev</A>][<A HREF="msg00044.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2908] Re: update from MS-Access</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A> (片岡裕生)</LI>
+<LI><em>Date</em>: Thu, 06 Nov 1997 02:58:44 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00036.html">199711051419.XAA15596@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+From: t-ishii@sra.co.jp
+Subject: [pgsql-jp 2907] Re: update from MS-Access 
+Date: Wed, 05 Nov 1997 23:19:12 +0900
+Message-ID: &lt;<A HREF="msg00036.html">199711051419.XAA15596@srashd.sra.co.jp</A>&gt;
+
+&gt; 石井です。全然ODBCは分かりませんが、
+
+（引用省略）
+
+&gt; &gt;MS-Access から PostgreSQL テーブルをリンクする際に、途中で「固有レコー
+&gt; &gt;ド識別子」の指定画面が出ましたでしょうか。この画面が出た場合は、どれか
+&gt; &gt;１フィールドを選択してください（２フィールド以上選択するとおかしくなり
+&gt; &gt;ます）。どのフィールドでも良いのではなく、全レコード中に重複する値が存
+&gt; &gt;在しないフィールドを選択しなければなりません。このようなフィールドが無
+&gt; &gt;い場合は、その PostgreSQL テーブルは参照のみでしかリンクできません
+&gt; 
+&gt; &gt;２フィールド以上選択するとおかしくなり
+&gt; &gt;ます）
+&gt; 
+&gt; この点ですが、これは以前おっしゃっていたたくさんの OR (AND でしたっけ？)
+&gt; を持つSQL文が生成され、PostgreSQL が処理できなくなる問題ですよね？後学
+&gt; のためにお伺いしたいのですが、
+
+●まず最初のご質問
+
+&gt; 1. どうしてこのようなSQL文が生成されるのか？
+
+MS-Access が（おそらく）処理速度の向上のために、1度の ODBC 呼び出しで
+複数のレコードを読み出そうとするためです。
+
+例えば、1レコードを確定するために3個のフィールドの AND が必要だったと
+した場合、かつ、一度の ODBC 呼び出しで10レコードを読み出そうとした場合、
+MS-Access は、
+
+	SELECT ....
+	 WHERE field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+		:
+		:
+	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx';
+
+という SQL 文を送りつけてきます。
+
+●次に２番ですが
+
+&gt; 2. これは PostgreSQL または PostODBC 固有の問題か？
+
+上記のように、MS-Access が考えていることは決しておかしなことではないよ
+うに思います。多くの場合においては効率的なんだろうと思います。PostODBC 
+は MS-Access から受け取った SQL 文を大体そのまま PostgreSQL に渡します。
+これって、PostgreSQL の固有の問題と考えていいのでしょうか。
+
+●最後に３番
+
+&gt; 3. 将来 PostgreSQL が複合 primary key をサポートすれば解決する問題なの
+&gt;    か？
+
+要するに、一度にできるだけ多くのレコードを読み出そうとして作成された 
+SQL 文が問題なく動作すればいいのだと思います。将来 PostgreSQL が複合 
+primary key をサポートした場合に、MS-Access がより単純な SQL 文を生成
+してくれればいいのですが、これにはおそらく PostODBC の対応が必要でしょ
+う。PostODBC 日本語版の場合、処理しようとしているテーブルに UNIQUE
+INDEX があればそれを利用するように ODBC アプリケーションにアドバイスす
+るように改良してあります。これを primary key にまで適応すればいいのだ
+とは思っています。
+
+もう一つの方法としては、PostODBC が、oid を有効に利用するように ODBC 
+アプリケーションにアドバイスできれば非常にすっきりします。すごくすっき
+りするのですが、よい実装方法が見つかっていません。というか現在の 
+PostODBC 日本語版でもレコードの識別に oid が使えることを ODBC アプリケー
+ションにアドバイスできる様になっているのですが、なぜか使ってくれないの
+です（レコードの識別にもっとも良いフィールドをアドバイスする ODBC API 
+を実装してあるのですが、少なくとも MS-Access は呼んでくれない）。
+
+# こう書いているうちにひらめいてしまいました。oid をテーブルの UNIQUE
+# INDEX だと、ODBC アプリケーションに偽って教えてしまえばいいかもしれま
+# せん。これって、PostgreSQL としては何も問題ないですよね？
+
+# oid を使った検索ってインデックスより速いの・遅いの・同じなの？
+
+でも、PostgreSQL がダンマリになってしまわないのが一番うれしいです。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00044" HREF="msg00044.html">[pgsql-jp 2915] Re: update from MS-Access</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00036" HREF="msg00036.html">[pgsql-jp 2907] Re: update from MS-Access</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 2907] Re: update from MS-Access</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp 2909] Re: PostgreSQL + MS-Access + PostODBC and Authentication</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 2907] Re: update from MS-Access</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00044.html">[pgsql-jp 2915] Re: update from MS-Access</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16160] DATE型とTIMESTAMP型の検索効率の違いについて -->
+<!--X-From: masahiro AMANO <masaa825@fh.freeserve.ne.jp> -->
+<!--X-Date: Sat, 15 Jul 2000 14:12:35 +0900 -->
+<!--X-Message-Id: 20000715132337.072F.MASAA825@mb.freeserve.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16160] DATE型とTIMESTAMP型の検索効率の違いについて </TITLE>
+<LINK REV="made" HREF="mailto:masaa825@fh.freeserve.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00392.html">Date Prev</A>][<A HREF="msg00394.html">Date Next</A>][<A HREF="msg00399.html">Thread Prev</A>][<A HREF="msg00392.html">Thread Next</A>][<A HREF="index.html#00393">Date Index</A>][<A HREF="threads.html#00393">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16160] DATE型とTIMESTAMP型の検索効率の違いについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: masahiro AMANO &lt;<A HREF="mailto:masaa825@fh.freeserve.ne.jp">masaa825@fh.freeserve.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 15 Jul 2000 14:12:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+天野です
+
+# なんか、届いていないようなので、再送します。
+
+Postgres　7.02 にて、DATE型とTIMESTAMP型の扱い
+の違いについてちょっと予想とは違った現象に
+あったので、皆様の知恵を拝借したく、投稿いたしました。
+
+DATE型は4バイトで、TIMESTAMP型(旧　DATETIME型)は8バイト
+だったので、DATE型のほうが、日、月単位のデータ集計には
+効率がよいと思い、同じ日時のデータを、
+DATE型の　qa_date と　TIMESTAMP型 のcall_time とに分け、
+重複にデータを登録していました。
+
+ですが、最近　date_part 関数等で月単位、日単位でデータを
+集計しても、効率が同じなんじゃないかと、ふと思い、
+いろいろSQLを作成して実験した結果、あまり大差が出ない
+ことに気が付きました。
+
+が、下記のように条件指定すると、僕の安直な思い込みとは
+逆に、TIMESTAMP型の方が、効率よく検索できるようです。
+
+
+対象データ　約12万件　検索結果:164件
+
+index　は、DATE型　qa_date　のみで作り検索
+そのインデックスをdrop後、TIMESTAMP型　call_time
+のみで、index　を再作成しました。
+
+DATE型で検索:
+
+　explain select count(*) from t_qa_info where qa_date='19
+　98/10/1'
+　
+　NOTICE:  QUERY PLAN:
+　Aggregate  (cost=104.80..104.80 rows=1 width=4)
+  　-&gt;  Index Scan using qa_idx on t_qa_info  (cost=0.00..104.72
+ 　　rows=32 width=4)
+
+TIMESTAMP型で検索:
+
+　explain select count(*) from t_qa_info where call_time b
+　etween '1998/10/1' and '1998-10-2';
+
+　NOTICE:  QUERY PLAN:
+　Aggregate  (cost=13.59..13.59 rows=1 width=4)
+  　-&gt;  Index Scan using qa_idx on t_qa_info  (cost=0.00..13.58
+　rows=4 width=4)
+
+と、TIMESTAMP型の方が、効率がいいという結果になっています。
+おそらく、TIMESTAMP型　のインデックスの方が重複が少ないことが
+原因なのではと思っています。感覚的にはDATE型のほうが
+インデックス作成も早いので、検索も早いような気がするのですが、
+10倍近くコストが違うので、何かほかに原因があると思い、
+心当たりのある方は、ぜひ教えていただきたく、投稿いたしました。
+
+また、EXPLAIN　のcostの表示が、前と、後ろにデータが分かれて
+表示されるように変更されたみたいですが、どういった意味を持
+っているのでしょう。
+
+-- masahiro AMANO
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 16159] postgreSQL+ODBC+VBを電話回線でのインターネット経由接続</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00394.html">[pgsql-jp 16161] Re: postgreSQL+ODBC+VBを電話回線でのインターネット経由接続</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00399.html">[pgsql-jp 16166] RE:postgreSQL+ODBC+VBを電話回線でのインターネット経由接続</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00392.html">[pgsql-jp 16159] postgreSQL+ODBC+VBを電話回線でのインターネット経由接続</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00393"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00393"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

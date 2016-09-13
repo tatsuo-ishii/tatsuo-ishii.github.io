@@ -1,0 +1,245 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3758] Re: 何故、副問い合わせが遅いのか？ -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Wed, 08 Apr 1998 13:29:41 +0900 -->
+<!--X-Message-Id: 199804080429.NAA05084@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199804080406.NAA07231@vishost.ssemoka.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3758] Re: 何故、副問い合わせが遅いのか？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00056.html">Date Prev</A>][<A HREF="msg00058.html">Date Next</A>][<A HREF="msg00056.html">Thread Prev</A>][<A HREF="msg00058.html">Thread Next</A>][<A HREF="index.html#00057">Date Index</A>][<A HREF="threads.html#00057">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3758] Re: 何故、副問い合わせが遅いのか？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 08 Apr 1998 13:29:41 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;t-ishii&gt; この 0:09.87 が妥当かどうかですが、とりあえず
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; explain select * from product,order where product.serial=order.serial and \
+&gt;t-ishii&gt;               product.serial in (select serial from order where cust_id='ABCD')
+&gt;t-ishii&gt;             
+&gt;t-ishii&gt; でどのような query plan が生成されているか見たいですね。
+&gt;
+&gt;早速、実行してみました。
+&gt;
+&gt;NOTICE:  QUERY PLAN:
+&gt;
+&gt;Hash Join  (cost=905.60 size=742 width=110)
+&gt;  -&gt;  Seq Scan on order  (cost=296.13 size=6822 width=36)
+&gt;  -&gt;  Hash  (cost=0.00 size=0 width=0)
+&gt;        -&gt;  Seq Scan on product  (cost=357.86 size=742 width=74)
+&gt;              SubPlan
+&gt;                -&gt;  Index Scan on order  (cost=2.05 size=1 width=12)
+&gt;
+&gt;EXPLAIN
+&gt;
+&gt;となりました。
+
+うーむ。
+
+&gt;  -&gt;  Seq Scan on order  (cost=296.13 size=6822 width=36)
+
+とか、
+
+&gt;        -&gt;  Seq Scan on product  (cost=357.86 size=742 width=74)
+
+が遅い原因かな。どうも query plan がおかしいような気がします。
+6.3/6.3.1 で optimizer にバグが混入し、ある場合に同じ問い合わせが 
+6.2.1 よりもずっと遅くなることがあるらしいです。うまくいくかどうか分か
+りませんが、添付のパッチを当ててみては如何でしょう。
+
+# ちなみに、もうじき mega official patch もしくは 6.3.2 が出るそうです
+# が、その中にこのパッチも含まれるはずです。
+
+&gt;ここで御了承願いたいのは、(const=xxx ...)中の数値は実DBでの結果で
+&gt;productやorderと言うクラスの結果ではありません。
+&gt;従って、前回(pgsql-jp 3754)定義したクラスとは、size, widthが異るかも
+&gt;しれません。
+&gt;前回(pgsql-jp 3754)のレスポンス・タイムも実DBでの結果です。
+&gt;但し、基本的なクラスの構造や主キーの割り当て、インデックスの作成は
+&gt;実DBに限りなく近いです。
+
+確認ですが、実DBで order と product のレコード数が非常に違う(たとえば1
+桁以上)、ってことはないですよね？
+
+P.S.
+ところで、問題の query を
+select * from product,order where order.cust_id='ABCD' \
+	and order.serial=product.serial;
+と書き換えるとずっと速くなるような気がします。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+--------------------------------------------------------------------
+Date: Thu, 02 Apr 1998 15:39:50 +0800
+From: "Vadim B. Mikheev" &lt;vadim@sable.krasnoyarsk.su&gt;
+Organization: ITTS (Krasnoyarsk)
+X-Mailer: Mozilla 4.04 [en] (X11; I; FreeBSD 2.2.5-RELEASE i386)
+MIME-Version: 1.0
+To: boersenspiel@vocalweb.de
+CC: PostgreSQL Hackers &lt;hackers@postgreSQL.org&gt;
+Subject: Re: [HACKERS] Reminder: Indices are not used
+References: &lt;199803311034.MAA03631@binky.de.uu.net&gt;
+Content-Type: multipart/mixed; boundary="------------CE9BBCF04BCADB40BCECD4B0"
+Sender: owner-pgsql-hackers@hub.org
+Precedence: bulk
+
+This is a multi-part message in MIME format.
+--------------CE9BBCF04BCADB40BCECD4B0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Thanks for help!
+
+This is patch for src/backend/optimizer/path/prune.c.
+Access pathes of pruned joinrels were not merged and better
+pathes were lost, sometimes...
+
+Vadim
+--------------CE9BBCF04BCADB40BCECD4B0
+Content-Type: text/plain; charset=us-ascii; name="DF"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename="DF"
+
+*** prune.c.orig	Thu Apr  2 14:56:54 1998
+--- prune.c	Thu Apr  2 15:16:17 1998
+***************
+*** 61,99 ****
+  static List *
+  prune_joinrel(Rel *rel, List *other_rels)
+  {
+! 	List	   *cur = NIL;
+! 	List	   *return_list = NIL;
+  
+! 	/* find first relation that doesn't match */
+! 	foreach(cur, other_rels)
+  	{
+! 		Rel		   *other_rel = (Rel *) lfirst(cur);
+! 
+! 		if (!same(rel-&gt;relids, other_rel-&gt;relids))
+! 			break;
+! 	}
+! 
+! 	/* we now know cur doesn't match, or is NIL */
+! 	return_list = cur;
+! 
+! 	/*
+! 	 * remove relations that do match, we use lnext so we can remove
+! 	 * easily
+! 	 */
+! 	while (cur != NIL &amp;&amp; lnext(cur) != NIL)
+! 	{
+! 		Rel		   *other_rel = (Rel *) lfirst(lnext(cur));
+! 
+  		if (same(rel-&gt;relids, other_rel-&gt;relids))
+  		{
+  			rel-&gt;pathlist = add_pathlist(rel,
+  										 rel-&gt;pathlist,
+  										 other_rel-&gt;pathlist);
+- 			lnext(cur) = lnext(lnext(cur));		/* delete it */
+  		}
+! 		cur = lnext(cur);
+  	}
+! 	return return_list;
+  }
+  
+  /*
+--- 61,85 ----
+  static List *
+  prune_joinrel(Rel *rel, List *other_rels)
+  {
+! 	List	   *i = NIL;
+! 	List	   *result = NIL;
+  
+! 	foreach(i, other_rels)
+  	{
+! 		Rel	   *other_rel = (Rel *) lfirst(i);
+! 		
+  		if (same(rel-&gt;relids, other_rel-&gt;relids))
+  		{
+  			rel-&gt;pathlist = add_pathlist(rel,
+  										 rel-&gt;pathlist,
+  										 other_rel-&gt;pathlist);
+  		}
+! 		else
+! 		{
+! 			result = nconc(result, lcons(other_rel, NIL));
+! 		}
+  	}
+! 	return (result);
+  }
+  
+  /*
+
+--------------CE9BBCF04BCADB40BCECD4B0--
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00058" HREF="msg00058.html">[pgsql-jp 3759] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> Katsuya Sawamura &lt;sawamura@ssemoka.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00056" HREF="msg00056.html">[pgsql-jp 3757] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+<UL><LI><EM>From:</EM> Katsuya Sawamura &lt;sawamura@ssemoka.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 3757] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 3759] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 3757] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 3759] Re: 何故、副問い合わせが遅いのか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00057"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00057"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

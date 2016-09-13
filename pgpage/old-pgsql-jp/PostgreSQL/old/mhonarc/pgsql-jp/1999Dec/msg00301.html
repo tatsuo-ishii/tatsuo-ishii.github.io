@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12295] compile failed PostgreSQL on OpenBSD 2.6 -->
+<!--X-From: SONE Toshihiko <tsone@cc.rim.or.jp> -->
+<!--X-Date: Fri, 17 Dec 1999 22:21:59 +0900 -->
+<!--X-Message-Id: 199912172217.HAA24325@mail&#45;relay.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12295] compile failed PostgreSQL on OpenBSD 2.6 </TITLE>
+<LINK REV="made" HREF="mailto:tsone@cc.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00299.html">Date Prev</A>][<A HREF="msg00302.html">Date Next</A>][<A HREF="msg00336.html">Thread Prev</A>][<A HREF="msg00305.html">Thread Next</A>][<A HREF="index.html#00301">Date Index</A>][<A HREF="threads.html#00301">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12295] compile failed PostgreSQL on OpenBSD 2.6</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SONE Toshihiko &lt;<A HREF="mailto:tsone@cc.rim.or.jp">tsone@cc.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 17 Dec 1999 22:21:59 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+今晩は、曽根俊彦です。
+
+標題のとおり、最近 OpenBSD を 2.5 から 2.6 へ upgrade したところ、
+PostgreSQL 6.5.3 のコンパイル時に以下のようなメッセージを出して make
+に失敗します。
+
+...
+
+gmake[2]: Leaving directory `/usr/local/src/pgsql/postgresql-6.5.3/src/backend/utils'
+gcc -o postgres access/SUBSYS.o bootstrap/SUBSYS.o catalog/SUBSYS.o commands/SUBSYS.o executor/SUBSYS.o lib/SUBSYS.o libpq/SUBSYS.o main/SUBSYS.o parser/SUBSYS.o nodes/SUBSYS.o optimizer/SUBSYS.o port/SUBSYS.o postmaster/SUBSYS.o regex/SUBSYS.o rewrite/SUBSYS.o storage/SUBSYS.o tcop/SUBSYS.o utils/SUBSYS.o ../utils/version.o -L/usr/local/lib -lcompat -lm -lreadline -lhistory -ltermcap -lcurses 
+storage/SUBSYS.o: Undefined symbol `_TAS' referenced from text segment
+collect2: ld returned 1 exit status
+gmake[1]: *** [postgres] Error 1
+gmake[1]: Leaving directory `/usr/local/src/pgsql/postgresql-6.5.3/src/backend'
+gmake: *** [all] Error 2
+
+環境は以下の通りです。
+
+PostgreSQL 6.5.3 + rtree.patch
+
+OS: OpenBSD 2.6
+カーネルは
+
+option          SYSVMSG         # System V-like message queues
+option          SYSVSEM         # System V-like semaphores
+option          SYSVSHM         # System V-like memory sharing
+
+を付けて再構築しています。
+
+GNU Make version 3.77
+
+flex version 2.5.4
+
+Makefile.custom は
+
+X_CFLAGS= -I/usr/X11R6/include/
+X_LIBS=-L/usr/X11R6/lib/
+X11_LIBS=-lX11 -lm -lc
+CFLAGS+= -I/usr/local/include
+
+のように編集して
+
+$ ./configure --with-mb=EUC_JP --with-tcl
+--with-tclconfig=/usr/local/lib --with-libraries=/usr/local/lib
+--with-includes="/usr/local/include /usr/local/include/readline
+
+$ gmake all
+
+としています。
+
+configure スクリプトの 617 行目以降に
+
+tas_file=dummy.s
+case "$host_os" in
+ solaris*)
+	case "$host_cpu" in
+	  sparc) os=solaris_sparc need_tas=yes tas_file=solaris_sparc.s ;;
+	   i386) os=solaris_i386 need_tas=yes tas_file=solaris_i386.s ;;
+	esac ;;
+   sunos*) os=sunos4 need_tas=no ;;
+   (途中省略)
+     aux*) os=aux need_tas=no ;;
+   linux*) os=linux need_tas=no ;;
+    bsdi*) os=bsdi need_tas=no ;;
+ freebsd1*|freebsd2*) os=freebsd need_tas=no ;;
+ freebsd*) os=freebsd need_tas=no elf=yes ;;
+  netbsd*)
+	os=bsd need_tas=no
+	case "$host_cpu" in
+	  powerpc) elf=yes ;;
+	esac ;;
+  openbsd*) os=bsd need_tas=no ;;
+	    (以下省略)	    
+*) echo ""
+   echo "*************************************************************"
+   echo "configure does not currently recognize your operating system,"
+   echo "therefore you must do a manual configuration of:"
+   echo "$host_os"
+   echo "Please contact scrappy@hub.org to see about rectifying this, "
+   echo "including the above 'checking host system type...' line "
+   echo "*************************************************************"
+   echo ""
+   exit;;
+esac
+
+という個所があり、openbsd の場合、need_tas=no となっているはずなのに
+、これが有効になっていないのが原因なのでしょうか？ 残念ながら、私には
+これ以上どこをどう調べればよいのか判断できません。
+
+この件について解決方法を御存知の方がいらっしゃいましたら、御教示いただ
+ければ幸いです。何か不足している情報がありましたら、指摘していだければ
+と思います。よろしくお願いします。
+---
+曽根俊彦(SONE Toshihiko)
+&lt;tsone@cc.rim.or.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00305" HREF="msg00305.html">[pgsql-jp 12299] Re: compile failed PostgreSQL on OpenBSD 2.6</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 12293] 自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00302.html">[pgsql-jp 12296] Re: SJIS gaiji</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00336.html">[pgsql-jp 12330] Re: What? snap.shot.tar.gz</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 12299] Re: compile failed PostgreSQL on OpenBSD 2.6</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00301"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00301"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

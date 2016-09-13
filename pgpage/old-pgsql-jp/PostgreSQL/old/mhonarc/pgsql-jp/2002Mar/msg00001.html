@@ -1,0 +1,282 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25025] Re: HDDサイズ -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Fri, 01 Mar 2002 11:13:55 +0900 (JST) -->
+<!--X-Message-Id: 20020301.111355.106282895.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003c01c1ba85$33e5cf00$7d05d2a3@is.hitachizosen.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25025] Re: HDDサイズ </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00000.html">Date Prev</A>][<A HREF="msg00002.html">Date Next</A>][<A HREF="msg00065.html">Thread Prev</A>][<A HREF="msg00024.html">Thread Next</A>][<A HREF="index.html#00001">Date Index</A>][<A HREF="threads.html#00001">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25025] Re: HDDサイズ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 01 Mar 2002 11:13:55 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;003c01c1ba85$33e5cf00$7d05d2a3@is.hitachizosen.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: "Hiroyuki Yamada" &lt;hiroyuki@rh.is.hitachizosen.co.jp&gt;
+Subject: [pgsql-jp: 24875] HDDサイズ
+Date: Thu, 21 Feb 2002 12:09:34 +0900
+
+;;; 山田＠京都です。
+;;; 　みなさん、こんにちは。
+;;; 　150GB程の情報をPostgreSQL7.1.2等で管理出来ないかとおもっているのですが、大
+;;; 体、どの位の容量のHDDを考えておけば
+;;; いいのかご教授ねがいませんでしょうか？
+;;; （テーブル数は、いまのところ１つ、レコード数250万なのですが、検索など出来る
+;;; のか少し心配なので、なにかアドバイスがあれば、よろしくお願いします。）
+
+        PostgreSQL(ポストグレス・キュー・エル)についてよくある質問とその解答(FAQ)
+     
+        4.7) 一般的なテキストファイルからデータを保存するには、データベースのディ
+             スク容量はどのくらい必要です？ 
+
+  上記のソースコード内の doc/FAQ_japanese に説明がありますが、少し詳しく調べた
+メモです。まだ不正確な部分もあると思うので、御指摘願います。
+
+================================================================
+* 圧縮のない場合のテーブルサイズの概算見積もり方法
+
+    int4 の 1 フィールドのテーブルで 10 万レコードの場合の見積もりは以下のよう
+    になります。
+
+	32 + 4 + 4 + 4 = 44 … レコードサイズ。
+
+	    各行のヘッダ 32 バイト
+	    + フィールド数 32 で、NULL 値がある場合の NULL ビットマスク
+	    + ページ内のタプルへのポインタ
+	    + int4 のサイズ 
+
+	8192 / 40 = 187 … ブロックあたりのレコード数。
+
+	    データベースページ数 /レコードサイズ。 
+
+	100000 / 187 = 535   … ブロック数。
+
+	    レコード数 / ブロックあたりのレコード数。 
+
+	535 * 8192 = 4382720 … テーブルファイルサイズ。
+
+	    ブロック数 * ブロックサイズ。
+
+    実測例を以下に示します。
+
+        レコード数  テーブルファイルサイズ
+        ==========  ======================
+	100000       4022272  
+	200000       8036352 (+4014080)
+	300000      12050432 (+4014080)
+	400000      16064512 (+4014080)
+	500000      20078592 (+4014080)
+
+    約 -8% の誤差は、ページ内のページ管理情報とNULL 値のための NULL ビットマス
+    クが全行に必要として見積もったため。
+
+    圧縮のある場合には、以降の「データ圧縮」の項を適用します。
+
+    フィールドが NULL 値かどうかを判断するNULL ビットマスクによって、NULL 値の
+    場合には値を格納する領域はタプル内に取られません。従って、ビットフラグが存
+    在し、すべてのフィールドについてタプル内に格納領域が必要として見積もりをす
+    るならば、実測値を下回る可能性は少なくなります。
+
+    NULL ビットマスクサイズは全フィールドが NULL の場合には 0 で、32 フィール
+    ドごとに 4 バイトずつ増加します。つまり、1〜32 フィールドで 4 バイト、33〜
+    64フィールドで 8 バイトとなります。
+
+* インデックスサイズの見積もり
+
+    レコード辺りのオーバーヘッドが 12 としテーブルと同様に算出します。
+
+	12 + 4 =  16
+	8192 / 16 = 512
+	100000 / 512 = 195
+	195 * 8192 = 1597440
+
+    実測例を以下に示します。  
+
+        レコード数  インデックスファイルサイズ
+        ==========  ==========================
+	100000      1810432
+	200000      3612672 +1802240
+	300000      5406720 +1794048
+	400000      7200768 +1794048
+	500000      8994816 +1794048
+
+    約 +10% の誤差があります。この誤差は、インデックスファイル内のインデックペー
+    ジが 100% 埋まることがないために発生します。
+
+* 主なデータ型の格納サイズ
+
+    データ型名              データベース上のバイト数
+    ----------------------  -------------------------------
+    smallint                2 
+    integer                 4
+    bigint                  8
+    decimal                 圧縮 (サイズは値の桁数に依存)
+    numeric                 圧縮 (同上)
+    real                    4
+    double precision        8
+    serial                  4 (7.2 では 8 の serial あり)
+
+    boolean                 4
+
+    character(n)            圧縮
+    character varying(n)    圧縮
+    text                    圧縮
+
+    timestamp               8
+    time with time zone     8
+    interval                12
+    date                    4
+    time                    8
+    time with time zone     12
+
+* データ圧縮
+
+    以下の 3 つのデータ型の圧縮率は同一です。
+
+	character(n)
+	character varying(n)
+	text
+
+    以下の 2 つのデータ型の圧縮率は同一です。また、圧縮率は値の桁数の 1/2 の長
+    さの text の圧縮率とほぼ同等です。
+
+	decimal
+	numeric
+
+    text の圧縮率の例は以下の通りです。
+
+        ランダムな 1000 文字の漢字文字列 (圧縮率約 1/30)
+
+	    レコード数  テーブルファイルサイズ
+	    ==========  ======================
+	    10000       688128 
+	    20000       1368064 +679936
+	    30000       2048000 +679936
+	    40000       2736128 +688128
+	    50000       3416064 +679936
+
+	ランダムな 2000 文字の英字文字列 (圧縮率約 1/30)
+
+	    レコード数  テーブルファイルサイズ
+	    ==========  ======================
+	    10000       688128 
+	    20000       1368064 +679936
+	    30000       2048000 +679936
+	    40000       2736128 +688128
+	    50000       3416064 +679936
+
+* データベースのサイズに影響する主な要因
+
+    データベースのサイズは以下の要因により動的に変化します。
+
+	1) 更新の頻度 (テーブルファイルとインデックスファイルに影響)
+	2) ソートを必要とするクエリーのワークファイル
+	3) テンポラリテーブルの使用の有無
+	4) WAL ファイルサイズ
+	5) REINDEX のワークファイル
+	6) バックアップ領域などの付随的なワーク領域
+
+    従って、静的なサイズの見積もりに加え、運用シナリオを作成し、実験を行ってディ
+    スク使用量を見積もります。特に 1) は PostgreSQL の追記型という特徴を反映し
+    た影響を受けるので、VACUUM の適用と合わせて運用設計を行います。
+
+* 参考資料
+
+    1) データ圧縮
+
+        「PostgreSQL 完全攻略ガイド 第 3 版」の P.94〜95。
+
+	    7.2 では octet_length の戻り値が変更され圧縮された値でなく、データ
+            の実際のバイト数となっていることに注意。
+
+    2) データのデータベース上のバイト数
+
+        「PostgreSQL 7.1.3 ユーザーズガイド」の「3. データ型」を参照。
+
+    3) doc/FAQ_japanese
+
+	PostgreSQL(ポストグレス・キュー・エル)についてよくある質問とその解答(FAQ)
+
+        4.7) 一般的なテキストファイルからデータを保存するには、データベースの
+        ディスク容量はどのくらい必要です？
+
+    4) 次の資料の P. 39〜P. 41。
+
+        <A HREF="http://candle.pha.pa.us/main/writings/pgsql/performance.pdf">http://candle.pha.pa.us/main/writings/pgsql/performance.pdf</A>
+================================================================	 
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp: 25050] Re: HDDサイズ</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00024" HREF="msg00024.html">[pgsql-jp: 25047] Re: HDDサイズ</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00000.html">[pgsql-jp: 25024] Re: FOREIGN KEY CONSTRAINTS</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp: 25026] Re: FOREIGN KEY CONSTRAINTS</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp: 25088] Re: 日付について（ゴミ２）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00024.html">[pgsql-jp: 25047] Re: HDDサイズ</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00001"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00001"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

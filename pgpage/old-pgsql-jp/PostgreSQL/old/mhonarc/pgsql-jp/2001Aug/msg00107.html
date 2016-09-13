@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22770] 7.1.2 のクエリプランナ -->
+<!--X-From: yosimura@pez.semicon.sony.co.jp (YOSHIMURA hideaki) -->
+<!--X-Date: Tue, 14 Aug 2001 12:03:50 +0900 -->
+<!--X-Message-Id: 200108140303.MAA29961@pezplus.pez.semicon.sony.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22770] 7.1.2 のクエリプランナ </TITLE>
+<LINK REV="made" HREF="mailto:yosimura@pez.semicon.sony.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00106.html">Date Prev</A>][<A HREF="msg00108.html">Date Next</A>][<A HREF="msg00121.html">Thread Prev</A>][<A HREF="msg00106.html">Thread Next</A>][<A HREF="index.html#00107">Date Index</A>][<A HREF="threads.html#00107">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22770] 7.1.2 のクエリプランナ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yosimura@pez.semicon.sony.co.jp">yosimura@pez.semicon.sony.co.jp</A> (YOSHIMURA hideaki)</LI>
+<LI><em>Date</em>: Tue, 14 Aug 2001 12:03:50 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:yosimura@pez.semicon.sony.co.jp">yosimura@pez.semicon.sony.co.jp</A> (YOSHIMURA hideaki)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしむら＠ソニーです。
+
+7.1.2の評価を行なっているのですが、クエリプランナの動作に疑問があります。
+
+7.0.3では問題なく動作していた以下のクエリが、7.1.2では非常に時間がかかるように
+なってしまいました。
+
+select *
+from lot_info L, lot_wafer W, type_wcct T, wafer_pass_summary P, lot_wafer W2
+where L.lot_id=W.lot_id
+        and T.type_name=L.type_name
+        and P.object_id=W.wafer_id
+        and L.lot_id=W2.lot_id
+        and L.end_date between to_timestamp('2001 08 09 00 00 00', 'YYYY MM DD HH24 MI SS')
+                and to_timestamp('2001 08 10 23 59 59', 'YYYY MM DD HH24 MI SS')
+        and not exists ( select * from lot_map where lot_name=L.lot_name )
+        and L.lot_name like 'LOT%';
+
+重要な点として、ここで使われているwafer_pass_summaryは以下のような
+viewであるということです。また、bin_summaryとobject_masterはどちらも
+比較的大きなテーブルですが、それぞれobject_idのindexを作成してあり、
+object_idで検索する分には充分高速です。
+
+tecs=&gt; \d wafer_pass_summary
+   View "wafer_pass_summary"
+ Attribute |  Type   | Modifier
+-----------+---------+----------
+ object_id | integer |
+ bin_count | integer |
+View definition: SELECT s.object_id, s.bin_count FROM bin_summary s, object_master m WHERE ((((s.object_id = m.object_id) AND (m.object_class = 3)) AND (s.bin_class = 2)) AND (s.bin_number = 1));
+
+＃object_idはoidとは全く関係ありません
+
+
+7.0.3までは、以下のようにきれいにindexを使うプランを示していました。
+
+Nested Loop  (cost=0.00..57.96 rows=1 width=148)
+  -&gt;  Nested Loop  (cost=0.00..55.93 rows=1 width=132)
+        -&gt;  Nested Loop  (cost=0.00..50.90 rows=1 width=128)
+              -&gt;  Nested Loop  (cost=0.00..40.00 rows=1 width=116)
+                    -&gt;  Nested Loop  (cost=0.00..15.06 rows=5 width=108)
+                          -&gt;  Index Scan using lot_info_lot_name_key on lot_info l  (cost=0.00..4.16 rows=1 width=96)
+                                SubPlan
+                                  -&gt;  Index Scan using lot_map_pkey on lot_map  (cost=0.00..2.02 rows=1 width=36)
+                          -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w  (cost=0.00..10.86 rows=3 width=12)
+                    -&gt;  Index Scan using bin_summary_pkey on bin_summary s  (cost=0.00..4.97 rows=1 width=8)
+              -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w2  (cost=0.00..10.86 rows=3 width=12)
+        -&gt;  Index Scan using object_master_pkey on object_master m  (cost=0.00..5.01 rows=1 width=4)
+  -&gt;  Index Scan using type_wcct_pkey on type_wcct t  (cost=0.00..2.01 rows=1 width=16)
+
+
+7.1.2での実行計画は以下のようになりました。
+どうも、view内のjoinを優先して行なっているように見えます。
+
+Nested Loop  (cost=239286.62..239299.64 rows=1 width=148)
+  -&gt;  Nested Loop  (cost=239286.62..239297.62 rows=1 width=132)
+        -&gt;  Merge Join  (cost=239286.62..239286.79 rows=1 width=120)
+              -&gt;  Sort  (cost=15.03..15.03 rows=5 width=108)
+                    -&gt;  Nested Loop  (cost=0.00..14.97 rows=5 width=108)
+                          -&gt;  Index Scan using lot_info_lot_name_key on lot_info l  (cost=0.00..4.16 rows=1 width=96)
+                                SubPlan
+                                  -&gt;  Index Scan using lot_map_pkey on lot_map  (cost=0.00..2.02 rows=1 width=36)
+                          -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w  (cost=0.00..10.79 rows=2 width=12)
+              -&gt;  Sort  (cost=239271.59..239271.59 rows=6 width=12)
+                    -&gt;  Nested Loop  (cost=0.00..239271.51 rows=6 width=12)
+                          -&gt;  Seq Scan on bin_summary s  (cost=0.00..132363.24 rows=21269 width=8)
+                          -&gt;  Index Scan using object_master_pkey on object_master m  (cost=0.00..5.01 rows=1 width=4)
+        -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w2  (cost=0.00..10.79 rows=2 width=12)
+  -&gt;  Index Scan using type_wcct_pkey on type_wcct t  (cost=0.00..2.01 rows=1 width=16)
+
+
+viewを使用している部分を展開して試してみると、7.0.3とほぼ同じ実行計画を示しました。
+
+select *
+from lot_info L, lot_wafer W, type_wcct T, bin_summary P, lot_wafer W2, object_master O
+where L.lot_id=W.lot_id
+        and T.type_name=L.type_name
+        and P.object_id=W.wafer_id
+        and P.bin_class=2
+        and P.bin_number=1
+        and O.object_id=P.object_id
+        and O.object_class=3
+        and L.lot_id=W2.lot_id
+        and L.end_date between to_timestamp('2001 08 09 00 00 00', 'YYYY MM DD HH24 MI SS')
+                and to_timestamp('2001 08 10 23 59 59', 'YYYY MM DD HH24 MI SS')
+        and not exists ( select * from lot_map where lot_name=L.lot_name )
+        and L.lot_name like 'LOT%';
+
+Nested Loop  (cost=0.00..57.79 rows=1 width=160)
+  -&gt;  Nested Loop  (cost=0.00..52.76 rows=1 width=152)
+        -&gt;  Nested Loop  (cost=0.00..50.73 rows=1 width=136)
+              -&gt;  Nested Loop  (cost=0.00..39.91 rows=1 width=124)
+                    -&gt;  Nested Loop  (cost=0.00..14.97 rows=5 width=108)
+                          -&gt;  Index Scan using lot_info_lot_name_key on lot_info l  (cost=0.00..4.16 rows=1 width=96)
+                                SubPlan
+                                  -&gt;  Index Scan using lot_map_pkey on lot_map  (cost=0.00..2.02 rows=1 width=36)
+                          -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w  (cost=0.00..10.79 rows=2 width=12)
+                    -&gt;  Index Scan using bin_summary_pkey on bin_summary p  (cost=0.00..4.97 rows=1 width=16)
+              -&gt;  Index Scan using lot_wafer_pkey on lot_wafer w2  (cost=0.00..10.79 rows=2 width=12)
+        -&gt;  Index Scan using type_wcct_pkey on type_wcct t  (cost=0.00..2.01 rows=1 width=16)
+  -&gt;  Index Scan using object_master_pkey on object_master o  (cost=0.00..5.01 rows=1 width=8)
+
+
+まだ細かく検証していないのですが、7.1はviewを使用すると遅くなる可能性があるのでは
+ないでしょうか？
+現象としては、[pgsql-jp 22204] Re: 複数の tableを結合した viewに対する検索速度
+Message-Id: &lt;20010704180528.5279.K_IKAGAWA@augus.co.jp&gt; で五十川さんが示された
+ものと同一ではないかと思います。
+
+他、チェックすべき点などありましたら御指摘ください。
+
+また、postgresql.confの設定で7.0.3と同じ実行計画にすることは可能でしょうか？
+
+よろしくおねがいします。
+
+quit
+-- 
+YOSHIMURA,hideaki
+「デステネイだよ、これも君のデステネイだ。」
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00106.html">[pgsql-jp 22769] 行値コンストラクタのIN句指定</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00108.html">[pgsql-jp 22771] Re: まとめてupdate</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 22784] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00106.html">[pgsql-jp 22769] 行値コンストラクタのIN句指定</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00107"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00107"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

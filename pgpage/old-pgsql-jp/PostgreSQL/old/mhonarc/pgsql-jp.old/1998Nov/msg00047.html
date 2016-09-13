@@ -1,0 +1,198 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5828] Re: DISTINCT -->
+<!--X-From: t&#45;ishii@sra.co.jp (Tatsuo Ishii) -->
+<!--X-Date: Sun, 8 Nov 1998 08:51:20 +0900 -->
+<!--X-Message-Id: 199811072353.IAA29302@meshsv26.tk.mesh.ad.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19981107164102P.minakaji@osaka.email.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5828] Re: DISTINCT </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00046.html">Date Prev</A>][<A HREF="msg00048.html">Date Next</A>][<A HREF="msg00046.html">Thread Prev</A>][<A HREF="msg00048.html">Thread Next</A>][<A HREF="index.html#00047">Date Index</A>][<A HREF="threads.html#00047">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5828] Re: DISTINCT</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A> (Tatsuo Ishii)</LI>
+<LI><em>Date</em>: Sun, 8 Nov 1998 08:51:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+At 4:41 PM 98.11.7 +0900, Mikio Nakajima wrote:
+&gt;  中島＠あさひねっとです。
+&gt;
+&gt;  DISTINCT と ORDER BY を組み合わせると、DISTINCT で期待したフィルタリ
+&gt;ングが上手く動いていないように思えるのですが、気のせいでしょうか？
+&gt;PostgreSQL のバージョンは 6.4 です。
+&gt;
+&gt;使ったのはこういうテーブルです。
+&gt;
+&gt;skk=&gt; \d minakaji_private_jisyo
+&gt;
+&gt;Table    = minakaji_private_jisyo
+&gt;+----------------------------------+----------------------------------+-------+
+&gt;|              Field               |              Type                | Length|
+&gt;+----------------------------------+----------------------------------+-------+
+&gt;| okuriari                         | int2 not null                    |     2 |
+&gt;| yomi                             | varchar() not null               |    50 |
+&gt;| kanji                            | text not null                    |   var |
+&gt;| okurigana                        | varchar()                        |     4 |
+&gt;| date                             | abstime not null                 |     4 |
+&gt;+----------------------------------+----------------------------------+-------+
+&gt;Index:    minakaji_private_yomi_index
+&gt;
+&gt;skk=&gt;  SELECT DISTINCT yomi from minakaji_private_jisyo WHERE yomi LIKE 'な%' a
+&gt;nd okuriari = 0;
+&gt;yomi                      
+&gt;--------------------------
+&gt;な                        
+&gt;ない                      
+&gt;ないしょ                  
+&gt;ないじ                    
+&gt;.....
+&gt;(107 rows)
+&gt;
+&gt;skk=&gt;  SELECT DISTINCT yomi from minakaji_private_jisyo WHERE yomi LIKE 'な%' a
+&gt;nd okuriari = 0 ORDER BY date;
+&gt;yomi                      
+&gt;--------------------------
+&gt;な                        
+&gt;な                         &lt;- あらら...
+&gt;な                         &lt;- あらら...
+&gt;ない                      
+&gt;ないしょ                  
+&gt;...
+&gt;(125 rows)
+&gt;
+&gt;一応 select のマニュアルは読んだのですが、
+&gt;
+&gt;       --Retrieve all employee names in sorted order
+&gt;       --
+&gt;       select distinct name
+&gt;          from emp
+&gt;          order by name using &lt;
+&gt;
+&gt;なんて例も出ていて上手く動きそうなものなのですが。
+
+こちらでも再現しました。ポイントは、target list にないカラムで order by
+を指定する、ということのようです。その点、中島さんが取り上げている
+マニュアルの例では、targt list に出ている name が order by にも
+出現しているので破綻していないのでしょうね。
+
+私の試したサンプルを示します。想像するに、target list にないカラムで
+order by しようとすると、PostgreSQL は、勝手に target list に
+order by で指定したカラムを内部的に追加するのではないでしょうか。
+中島さんの例で言うと、実際には yomi ではなく、yomi+date で distinct
+されているのではないかと。したがって、同じyomi でも、date が違うと、
+distinct で統合されないのだと思います。
+
+これが果して(SQL92的に)正しい動作なのかどうか分かりませんが、
+本家に聞いてみます。
+
+drop table dtest;
+ERROR:  Relation dtest Does Not Exist!
+create table dtest (i text, j date, k int);
+CREATE
+insert into dtest values ('a', '1998/12/1', 1);
+INSERT 215243 1
+insert into dtest values ('a', '1998/12/2', 2);
+INSERT 215244 1
+insert into dtest values ('a', '1998/12/3', 3);
+INSERT 215245 1
+select * from dtest;
+i|         j|k
+-+----------+-
+a|12-01-1998|1
+a|12-02-1998|2
+a|12-03-1998|3
+(3 rows)
+
+select distinct i from dtest;
+i
+-
+a
+(1 row)
+
+select distinct i from dtest order by j;
+i
+-
+a
+a
+a
+(3 rows)
+
+select distinct i from dtest order by k;
+i
+-
+a
+a
+a
+(3 rows)
+
+EOF
+--
+Tatsuo Ishii
+t-ishii@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00048" HREF="msg00048.html">[pgsql-jp 5829] Re: DISTINCT</A></STRONG>
+<UL><LI><EM>From:</EM> Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00046" HREF="msg00046.html">[pgsql-jp 5827] DISTINCT</A></STRONG>
+<UL><LI><EM>From:</EM> Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 5827] DISTINCT</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 5829] Re: DISTINCT</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 5827] DISTINCT</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 5829] Re: DISTINCT</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00047"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00047"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,214 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9613] Re: pgbash -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Fri, 23 Jul 1999 15:20:10 +0900 -->
+<!--X-Message-Id: 3798099A302.39D6SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37969D382D0.125CSAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199907222144.GAA23942@mail.cx.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9613] Re: pgbash </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00415.html">Date Prev</A>][<A HREF="msg00418.html">Date Next</A>][<A HREF="msg00409.html">Thread Prev</A>][<A HREF="msg00421.html">Thread Next</A>][<A HREF="index.html#00416">Date Index</A>][<A HREF="threads.html#00416">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9613] Re: pgbash</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 23 Jul 1999 15:20:10 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00392.html">37969D382D0.125CSAKAIDA@mail.psn.ne.jp</A>&gt; &lt;<A HREF="msg00409.html">199907222144.GAA23942@mail.cx.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On 23 Jul 1999 06:42:09 +0900
+KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt; さん wrote:
+&gt; 久保＠伊勢原市(引越し予定)です。
+&gt; 
+&gt; SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt; writes:
+&gt; 
+&gt; &gt; &gt; Orabash では
+&gt; &gt; &gt;     extern SHELL_VAR *bind_variable __P((char *, char *));
+&gt; &gt; &gt;     extern SHELL_VAR *bind_array_variable __P((char *, int, char *));
+&gt; &gt; &gt; を用いています。
+(snip)
+&gt; 
+&gt; 使い方ですが、
+(snip)
+&gt;
+
+  ご説明ありがとうございます。今あまり時間がありませんので、後
+で確認してみます。
+
+&gt; &gt; (1) "pq"より"pg"の略語の方が多く使われているようですので、pqbash
+&gt; &gt;     より pgbash の方が良いのではないかと思います。
+&gt; &gt; 
+&gt; &gt;     pqbash --&gt; pgbash
+&gt;
+&gt; 賛成。
+
+　賛成していただきましたので、このメールから件名を pgbash に変
+更します。
+
+
+&gt; &gt; (2) enable -f (組込みコマンドのロード) は、".bash_login"に記述
+&gt; &gt; 　　すればいいと思うのですが、それにしても、コマンド数が多くて 
+&gt; &gt; 　　enable -f文が長くなります。できれば、コマンドは exec_sqlに
+&gt; &gt; 　　統一したいと思います。
+&gt; &gt; 
+&gt; &gt; 　　enable -f pgbash.so exec_sql
+&gt; 
+&gt; うーん、orabash では、
+&gt;       enable -f orabash.so zura zura zura .....
+&gt; と書いたファイルを用意して、orabash_setup という名前で保存して、
+&gt;       . /usr/local/lib/orabash_setup
+&gt; としてました。
+
+  そう言われてみれば... setup コマンドを用意すればいいだけの話
+しですね(^^;;
+
+&gt; 
+&gt; けどまあ、libpq の API ではなく、埋め込み SQL の EXEC SQL の API を参
+&gt; 考にするってんなら、それでも良いでしょうね。
+&gt; # 埋め込み SQL はある程度標準化されてますよね、確か。
+
+# "埋め込みSQL"のような形式ですが、会話型の環境で直接にSQLを実
+　行できますので、ここでは"直接SQL"という言葉を使用するものとし
+　ます。
+
+　今までわかったようで実はわかっていなかったのですが、pgbashの
+実現方式には次の２つがあるのですね。
+
+　a) 直接SQLの機能を、bash組込みコマンド(exec_sql)で実現する。
+　　(会話モード重視型)
+
+　例:exec_sql "connect to $DBNAME"
+     exec_sql "insert into test values( 1,'aaa' )"
+     exec_sql "select * from test"  &lt;=== 直接表示
+     exec_sql -cursor CUR "select * from test limit 100" 
+     exec_sql -fetch  $CUR ROWS     &lt;=== シェル変数に読込
+
+  b) libpq インターフェイスを、bash組みコマンド(PQsetdb, PQstatus,
+     PQexec, PQresultStatus, PQclear, ...) にする。
+   （プログラミング重視型）
+     
+  例:pqsetdb $DBNAME CUR
+　　 if [ $(PQstatus $CUR) -eq CONNECTION_BAD ]; then
+        ...
+     fi
+     pqexec  $CUR "insert into test values( 1, 'aaa')"
+     pqexec  $CUR "declare c cursor for select * from test"
+     if [ $(PQresultStatus $CUR) -eq PGRES_COMMAND_OK ]; then
+        pqfetch $CUR ROWS            &lt;=== シェル変数に読込
+     fi
+
+　それぞれ一長一短がありますが、はて、どちらが良いのでしょう？
+
+
+&gt; 問題は、誰が API を設計するか。
+&gt; 面倒なので、libpq の API をそのまま用いて逃げるつもりでした...(^^;)
+&gt; 
+
+　直接SQL(exec_sql)の場合は、psql の不要な部分をばっさり削って、
+psql を exe_sql に仕立てるような感じになりますので、APIを改めて
+設計する必要は無いと思っていました。
+
+# psqlは、libpqを使用して libpq の上位ルーチンを作成しています。
+
+　しかし、psql の上位ルーチンのまとめ方が悪いと、そのまま使用で
+きないこともあり、ある程度は新規の API を検討する必要はあるかも
+しれません。
+
+
+&gt; &gt; (3) 会話モードの場合、pqexec実行結果が表示されないために、SQLの
+&gt; &gt;     エラーが発生してもわかりません。それで、実行結果を表示する
+&gt; &gt;     状態(psqlと同じ)をデフォルトにしたいと思います。
+&gt; &gt; 
+&gt; &gt;     exec_sql    "create table test(id int)" --&gt; 実行結果を表示する。
+&gt; &gt;     exec_sql -n "create table test(id int)" --&gt; 実行結果を表示しない
+&gt; 
+&gt; 実行成功のときはなにも表示せず、エラーのときのみ表示したほうが shell
+&gt; command らしいのでは？
+&gt; 
+
+　・create table, insert , update などは、実行成功のときは何も表
+　　示せず、 select のときは結果を表示する状態をデフォルトにする。
+
+  ・SQL エラーのときは、すべての SQLに対してエラー表示をする方を
+　　デフォルトにする。
+
+　としたらいかがでしょうか？
+
+# lsコマンドも直接結果を表示しますし(^^)
+
+
+&gt; エラーのときに標準出力に出すのか、標準エラー出力に出すのか、どっちが正
+&gt; しい流儀なのかは知らないけど、
+
+  これは、私もよく悩みます。いろんな要求があるとは思うのですが、
+今のところ、SQL エラーなどの一般的なエラーは"標準出力"に出し、
+例えば、"標準出力"のリダイレクションしている場合であっても、ユ
+ーザに必ず伝えなければならないというエラー（主にシステム異常）
+を"標準エラー出力"に出せば良いではないかと考えています。
+
+--
+SAKAIDA Masaaki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00392" HREF="msg00392.html">[pgsql-jp 9589] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00409" HREF="msg00409.html">[pgsql-jp 9606] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 9612] PgAccess Unsupported frontend protocol Error</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00418.html">[pgsql-jp 9615] Re: ^u齎鐺LXgt@Cフbnox</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 9606] Re: pqbash</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00421.html">[pgsql-jp 9618] Re: pgbash</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00416"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00416"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,206 @@
+『Plamo Linux 版 PostgreSQL-6.3.2b3 のインストールの仕方』
+
+							1998-06-25
+						桑村 潤(juk@rccm.co.jp)
+
+
+  始めに、この文書は、PostgreSQL-6.3.2b3 パッケージについて書いてい
+ます。
+
+  Plamo Linux 版 PostgreSQL-6.3.2b3 パッケージは PostgreSQL6.3.2 にマ
+ルチバイト関連のパッチ mb_b3.patch を当てたものとなっています。そして、
+ベースとなる基本パッケージの pgsql632.tgz とテストや例題などのパッケー
+ジの pgexp632.tgz に分けています。が、基本パッケージのみで PostgreSQL 
+の利用は可能となります(*1)。また Plamo Linux 用には、この PostgreSQL を
+WEB に釣り上げるための Apache WEB サーバを、そのインターフェースとなる 
+PHP/FI モジュールとともに用意してあります。
+
+  本来、PostgreSQL のインストールは次のような手順で行ないます。
+  まず、 http://postgresql.org/ 等のサイトからアーカイブと必要なパッチ
+をダウンロードし、アーカイブをて展開して必要なパッチを当てます。そして、
+基本的には配布に含まれる README ファイルや INSTALL ファイル等のドキュメ
+ントに従って作業を行ないますが、日本語 PostgreSQL メーリングリストのウェ
+ブサイト http://www.sra.co.jp/people/t-ishii/PostgreSQL/ などにもインス
+トールに関するページがありますので一読をお奨めします。
+  次に、src ディレクトリにて configure を実行し、サイト特有の設定を
+src/Makefile.custom ファイル等に行なった後、make をしてから PostgreSQL 
+管理アカウント(UNIX の root ではない管理用のアカウントを用意しておく)に
+なって(su して) make install を行ないます。それから、データベースディレク
+トリと雛型データベースをつくるために initdb を実行します。これで、バック
+エンドサーバを走らせることが可能となりますので、"postmaster -S" のような
+コマンドラインで DBMS サーバを起動します。
+  最後に、createuser と createdb を実行して必要に応じて PostgreSQL ユーザ
+とそのユーザのデータベースを作成することにより、実際にユーザからの利用が
+可能となります。
+  本パッケージでは管理アカウント(ユーザID: postgres) の作成と雛型データ
+ベース(template1)および管理者アカウントのデータベース(postgres)の作成ま
+でを行なっています。
+
+  とは言っても初めての方には意味不明のことも多いかと思われますので、ここ
+から後の記述を参考にインストールを行なって下さい。
+
+
+(*1)
+  PostgreSQL-6.3 のパッケージではドキュメント類は別にまとめていました。
+例えば、以前の PostgreSQL-6.3p7mbPL2 のパッケージ化では、pgsql63.tgz, 
+pgexp63.tgz, pgdoc63.tgz の３つのアーカイブに分けていました。
+  また、PostgreSQL-6.2.1p7jpPL2 以前では、日本語 regex ライブラリの
+ライセンス規定の都合上、その部分だけを別のアーカイブとしてまとめてい
+ました。それらのパッケージでは regex_jp.tgz をインストールしておく必
+要があります。PostgreSQL-6.2.1p7jpPL2 のパッケージは、pg621p7jp.tgz,
+pgperl5.tgz, regex_jp.tgz の３つのアーカイブに分けていました。
+  このようにリリースと供にパッケージの構成が異なってますのでインストー
+ルの際にはご注意下さい。なるべく新しいパッケージをインストールされる
+ことをお奨めします。
+
+
+
+1. pgsql632.tgz のインストール
+
+  /usr/local/ の下に 3MB 程度の空き領域を確認して下さい。ただし、実際に
+データベースに沢山のデータを登録したい場合には、もう一桁くらいは余裕をみ
+て下さい。たとえば、データベースパッケージとして用意している日本全国の新
+旧郵便番号データベース検索システム pgpost(SRAの石井達夫さんによる)の登録
+には約 40MB のディスク空間が必要となります。ご自分のデータベースにインデッ
+クスの作成も予定しているのなら、そのデータの大きさの 10 倍くらいの容量を
+確保しておいた方が良いでしょう。
+
+  インストールは root アカウントにて(su root して)、
+
+	# installpkg pgsql632.tgz
+
+を実行します。この実行によって、postgres ユーザアカウント、postgres グルー
+プおよび、PostgreSQL の実行環境が出来上がります。/usr/local/pgsql/ の下に
+その本体が、/usr/doc/pgsql/ の下にそのドキュメントがインストールされ、
+pgsqld シェルコマンドによって PostgreSQL バックエンドサーバ(postmaster) が
+起動され、PostgreSQL の利用が可能となります。
+
+
+
+2. PostgreSQL の利用
+
+  1.を行なった状態で、PostgreSQL は利用可能となっているはずです。
+
+	# su - postgres
+
+で、postgres 管理ユーザとなって利用することが可能です。キャラクタ端末ベース
+のフロントエンドプログラムに psql がありますので、試すことができます(*2)。
+
+	% psql
+	Welcome to the POSTGRESQL interactive sql monitor:
+	  Please read the file COPYRIGHT for copyright terms of POSTGRESQL
+	
+	   type \? for help on slash commands
+	   type \q to quit
+	   type \g or terminate with semicolon to execute query
+	 You are currently connected to the database: postgres
+	
+	postgres=> 
+
+たとえば、
+
+	postgres=> \?
+
+で psql のヘルプコマンドを探して、
+
+	postgres=> \dS
+
+でシステムテーブル／インデックスを表示し、その内の一つを、
+
+	postgres=> select * from pg_user;
+
+のようにして表示させてみることもできます。
+
+
+(*2)
+  ただし、このキャラクタベースのフロントエンドプログラム psql を利用する
+には、GNU readline 共有ライブラリがインストールされていいる必要があります。
+
+
+
+3. PostgreSQL の一般ユーザからの利用のための準備
+
+  なお、一般ユーザアカウントから postgres 管理ユーザアカウントとなりたい
+場合には、ユーザ postgres に対するパスワードを、root にて、
+
+	# passwd postgres
+
+と実行し、プロンプトに従って設定して下さい。
+
+  一般ユーザ(例えば kuu)から PostgreSQL データベースを使いたい場合には、
+postgres 管理ユーザとなり、
+
+	% createuser kuu
+
+を実行し、プロンプトに従ってユーザ登録を(<= 印が入力)、
+
+	Enter user's postgres ID or RETURN to use unix user ID: 10001 -> <=
+	Is user "kuu" allowed to create databases (y/n) n<=
+	Is user "kuu" allowed to add users? (y/n) n<=
+	createuser: kuu was successfully added
+	don't forget to create a database for kuu
+
+のようにして、そのユーザ(ここでは kuu)のデータベースを、
+
+	% createdb kuu
+
+を実行して作成します。
+
+
+
+4. pgexp632.tgz のインストール
+
+	# pkginstall pgexp632.tgz
+
+を実行します。この実行によって、/usr/local/pgsql/ の下に examples と
+contrib というサブディレクトリがつくられ、その下にそれぞれ テストプログ
+ラム類とコトリビューション・ファンクション類が展開されます(*3)。
+
+  examples ディレクトリの下、テストプログラム類は、test ディレクトリの下
+でさらにそれぞれのサブディレクトリにわかれていますので、そこにあるそれぞ
+れのMakefile や readme ファイルを参考に実行が可能だと思われます。とくに、
+bench に関しては SRA の石井さん主催のによる日本語 PostgreSQL メーリング
+リスト(pgsql-jp ML)で集計をされていますのでふるってご参加下さい。この ML 
+へのご案内は http://www.sra.co.jp/people/t-ishii/PostgreSQL/ にあります。
+  examples/tutorial/ の下には PostgreSQL を使い始めるに当たって基本となる
+ような SQL 類が収められています。
+  examples/interfaces/ の下には他言語インターフェースの例がそれぞれサブ
+ディレクトリにわかれて収められてます。（ただし、JDBC については今回収め
+られていません。/usr/doc/pgsql/interfaces/jdbc/ ディレクトリを御覧下さい。）
+
+  コントリビューション・ファンクション類は contrib ディレクトリの下にそ
+れぞれサブディレクトリにわかれています。C 言語のファンクションが主です。
+登録は、
+
+	psql -e < [function].sql
+
+のようにしてできるようにし、/usr/local/pgsql/lib/modules/ の下にそれぞれ
+のファンクションのローダブルオブジェクトを配置してあります。利用にあたっ
+ては附属のドキュメントやソースそのものを参照して下さい。
+  ファンクション類の登録を雛型データベース(template1) に登録しておくと
+それ以後に createdb で作成されるデータベースでも利用可能となります。
+
+
+
+5. ローカルネットワークからアクセスする方法
+
+  このパッケージが正常にインストールされると、~/data/pg_hba.conf の最後の
+行にパスワード認証の設定例:
+
+#host         all         192.168.200.0 255.255.255.0     password  pgpasswd
+
+ができますので、まず、このコメントをはずします。
+  次に、~/data/ ディレクトリで、
+
+	% pg_passwd pgpasswd
+
+を実行して、ユーザのパスワードを設定します。このとき指定するユーザのデータ
+ベースが作成されていることが必要です。
+  最後に、このユーザで psql コマンドを使ってアクセスするには、
+
+	% psql -u [database name]
+
+のように '-u' オプションをつけて実行します。その他のクライアントについては
+それぞれのフォーマットに従って下さい。
+
+------------------------------------------------------------------------

@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6541] Re: 6.3.2 でバックエンドが落ちる件 -->
+<!--X-From: Takuya Abe <abet@tk.airnet.ne.jp> -->
+<!--X-Date: Sun, 10 Jan 1999 00:14:48 +0900 -->
+<!--X-Message-Id: v04010500b2bd140e71ec@tk.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010140b2bbb5170c9a@homes.co.jp -->
+<!--X-Reference-Id: 199901091044.TAA00430@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件 </TITLE>
+<LINK REV="made" HREF="mailto:abet@tk.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00126.html">Date Prev</A>][<A HREF="msg00462.html">Date Next</A>][<A HREF="msg00121.html">Thread Prev</A>][<A HREF="msg00135.html">Thread Next</A>][<A HREF="index.html#00128">Date Index</A>][<A HREF="threads.html#00128">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takuya Abe &lt;<A HREF="mailto:abet@tk.airnet.ne.jp">abet@tk.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 10 Jan 1999 00:14:48 +0900</LI>
+<LI><em>References</em>: Your message of Fri, 08 Jan 1999 22:14:08 +0900.            &lt;<A HREF="msg00111.html">v04010140b2bbb5170c9a@homes.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　阿部＠ネクストです。
+
+At 7:44 PM +0900 99.1.9, Tatsuo Ishii wrote:
+&gt; 石井です。朗報です:-)
+&gt;
+&gt; &gt; &gt; &gt; [エラーメッセージ]
+&gt; &gt; &gt; &gt; NOTICE:  SIAssignBackendId: discarding tag 2147430138
+&gt; &gt; &gt; &gt; Connection databese 'request' failed.
+&gt; &gt; &gt; &gt; FATAL 1:  Backend cache invalidation initialization failed
+&gt; &gt; &gt; &gt;
+&gt; &gt; &gt; &gt; 　統計をとってみると、やはり複数人同時アクセスのときにこの
+&gt; &gt; &gt; &gt; エラーが出るようです。自分が作っているCGIでは1アクセスにつき
+&gt; &gt; &gt; &gt; データベースが8個同時に開かれるようになっているのですが、
+&gt; &gt; &gt; &gt; 多すぎるせいでこのエラーが出ているのでしょうか。それとも
+&gt; &gt; &gt; &gt; postmasterの-Bオプションの数字が128だと少ないのでしょうか。
+&gt; &gt; &gt;
+&gt; &gt; &gt; 同時に8個ですか。FreeBSD をお使いとのことですが、ファイルテーブルのエ
+&gt; &gt; &gt; ントリは足りているのでしょうか。これが一番心配です。
+&gt;
+&gt; NOTICE: SIAssignBackendId: discarding tag 2147430138 がなぜ出るのか分
+&gt; かりました。阿部さんの推測通り、PostgreSQL の同時ユーザ数(正確には同時
+&gt; コネクション数)が MaxBackendId (src/include/storage/sinvaladt.h で定義)
+&gt; を超えたときに出るようです。実は、メッセージを出す原因となったモジュー
+&gt; ルでは、同時コネクション数が MaxBackendId を超えることを想定していませ
+&gt; ん。本来、postmaster がコネクションを受け付けるときに、すでに存在する
+&gt; コネクション数をチェックすべきだと思うのですが、その処理がどこにも見当
+&gt; たりません。そこで、添付のパッチを作成してみました。お試し下さい。
+
+　なんと！そういう理由だったんですね。今までずっと謎のままで、
+もう6.4.2にバージョンアップするしかないなと思っていました。さすが
+石井さんです！パッチまで作っていただいて・・・でも僕は6.4.2に
+移行してしまったので、6.3.2を使っている人に役立ったら嬉しいです。
+
+&gt; &gt; 　v6.4.2にひとまず移行したのでこの問題は出なくなったのですが、
+&gt;
+&gt; これは、MaxbackendId が 6.3.2 では 32 なのに、6.4 以降で 64 になったせ
+&gt; いで単に目立たなくなっただけだと思われます。
+
+　なるほど、そういうことだったんですね。
+
+&gt; &gt; ファイルテーブルのエントリというのは何でしょうか。
+&gt;
+&gt; 開いたファイルの情報を管理する kernel のテーブルです。FreeBSD では、
+&gt; pstat -T で確認できます。
+&gt;
+&gt; &gt; 　それから、なぜか今度はpostmasterが頻繁に落ちるようになりました。
+&gt; &gt; どうも同時アクセスで負荷がかかると落ちてしまうようです。なかなか
+&gt; &gt; うまくいかないものですね(^^;)。
+&gt;
+&gt; これは多分ファイルテーブルを使い果たしているのだと思います。
+&gt;
+&gt;        file: table is full
+&gt;
+&gt; のようなメッセージがコンソールに出てませんか？6.3.2 の時は、ファイルテー
+&gt; ブルを使い果たす前に NOTICE: SIAssignBackendId:...  が出てしまっていた
+&gt; ので、現象が起こらなかったのでしょう。対策ですが、limit コマンドを使っ
+&gt; てバックエンドが使えるファイルディスクリプタ数を制限するのが確実です。
+&gt; 具体的には、postmaster を起動するときに、csh の limit コマンドを使って
+&gt; 20 程度に設定します(PostgreSQL がチェックするので、19以下には設定でき
+&gt; ません)。
+
+　あ、そういえば以前6.3.2のときに出ていました。それでlimitコマンドで
+datasizeを128mにしたり、同時に開くファイル数をカーネルで増やして
+みたりしたらそれは出なくなったんですよ。datasizeの128mってちょっと
+多すぎるでしょうか。
+
+&gt; これと前述のパッチを組み合わせれば、
+&gt;
+&gt; 	20 x 64 = 1280
+&gt;
+&gt; のファイルテーブルエントリを PostgreSQL 用に確保しておくことによって、
+&gt; NOTICE: SIAssignBackendId:... とか、postmaster が死んだりすることはな
+&gt; くなるはずです。pstat で見てみて 1280 確保できていない場合は、
+&gt; MaxBackendId を小さくして PostgreSQL を再インストールするか、カーネル
+&gt; を作り直してファイルテーブルを増やして下さい。
+
+　了解しました。早速やってみたいと思います。
+
+&gt; P.S. 以上の対策で、市川さんのところのように多数の学生が同時に
+&gt; PostgreSQL を使う環境でも、安定して使えるようになれば良いのですが..
+
+　そうですね。特に業務に使用しているようなところなど（僕のところも
+そうですけど）は、多くの同時アクセスに耐えられるようなシステムを
+目指さなければいけないですよね。もしそうなったら完全に実用的な
+フリーのソフトですよね。
+
+　石井さん、本当にいつもありがとうございます！なんだかとても
+勉強になりました。これからもPostgreSQLは使い続けるつもりなので、
+もっといろいろ使ってみたいと思います。
+
+/--------------------------------
+  Takuya Abe in Y O K O H A M A
+       abet@tk.airnet.ne.jp
+  --------------------------------/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00135" HREF="msg00135.html">[pgsql-jp 6548] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 6524] Re: 6.3.2でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abe@homes.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00121" HREF="msg00121.html">[pgsql-jp 6534] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 6539] Re: 教えてください。日本語が使えません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00462.html">[pgsql-jp 12740] Re: pg_class_relname_indexについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 6534] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 6548] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00128"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00128"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

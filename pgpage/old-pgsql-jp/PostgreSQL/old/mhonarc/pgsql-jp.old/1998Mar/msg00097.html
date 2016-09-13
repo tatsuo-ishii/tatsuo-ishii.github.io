@@ -1,0 +1,604 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3529] Re: Sony newsos6 porting -->
+<!--X-From: midbook@hiroshima&#45;cdas.or.jp (Tsukasa Matsubara) -->
+<!--X-Date: Wed, 11 Mar 1998 17:23:21 +0900 -->
+<!--X-Message-Id: 199803110827.RAA13036@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199803110618.PAA02062@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3529] Re: Sony newsos6 porting </TITLE>
+<LINK REV="made" HREF="mailto:midbook@hiroshima-cdas.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00095.html">Date Prev</A>][<A HREF="msg00096.html">Date Next</A>][<A HREF="msg00091.html">Thread Prev</A>][<A HREF="msg00099.html">Thread Next</A>][<A HREF="index.html#00097">Date Index</A>][<A HREF="threads.html#00097">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3529] Re: Sony newsos6 porting</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:midbook@hiroshima-cdas.or.jp">midbook@hiroshima-cdas.or.jp</A> (Tsukasa Matsubara)</LI>
+<LI><em>Date</em>: Wed, 11 Mar 1998 17:23:21 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00091.html">199803110618.PAA02062@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松原です。
+data/baseの下の情報とデバッグモードでの情報です。
+
+(1)
+createdb あ
+
+----- query is:
+insert into pg_database (datname, datdba, datpath) values ('あ', '3100', 'あ');
+
+ls -lb ~/data/base/
+template1/
+あ/
+
+(2)
+createdb あいう
+----    query is:
+insert into pg_database (datname, datdba, datpath) values ('あい, '3100', 'あい);
+                                                               ^^             ^^
+                                                                変です。
+ls -lb ~/data/base/
+template1/
+あ/
+あい\244/      &lt;---- 「う」の2バイト目が落ちれてる？
+
+となります。
+
+From: t-ishii@sra.co.jp
+Subject: [pgsql-jp 3523] Re: Sony newsos6 porting 
+Date: Wed, 11 Mar 1998 15:18:35 +0900
+
+&gt; まさかとは思いますが、
+&gt; 
+&gt; psql test &lt; test.sql
+&gt; 
+&gt; のように、EUCファイルにSQL文を書いて psql に食わせてもだめですか？
+&gt; 
+
+cat  test.sql
+create table 計算機用語 (用語 text, 分類コード varchar, 備考1Aだよ char(16));
+insert into 計算機用語 values('コンピュータディスプレイ','機A01上');
+
+psql あ &lt; test.sql
+create table 計算機用語 (用語 text, 分類コード varchar, 備考1Aだよ char(16));
+CREATE
+insert into 計算機用語 values('コンピュータディスプレイ','機A01上');
+ERROR:  : Table does not exist.
+
+EOF
+
+上記のcreate文からすると成功しているようにみえますが、data/base/あ の下には
+「計算機用語」っていうものはありません。
+
+&gt; NEWS OS 6 は良く分からないのですが...
+&gt; 
+&gt; まず、PostgreSQL では、データベースは、
+&gt; 
+&gt; /usr/local/pgsql/data/base/データベース名/
+&gt; 
+&gt; というディレクトリ名、テーブルは 
+&gt; 
+&gt; /usr/local/pgsql/data/base/データベース名/テーブル名
+&gt; 
+&gt; というファイルの形で実現されます。エラーメッセージが出ないということは、
+&gt; mkdir() や create() はちゃんと日本語が通っているということでしょう。た
+&gt; だ、アクセスするとエラーになるわけですね。
+&gt; とりあえず、ls で /usr/local/pgsql/data/base/ を確認し、データベースや
+&gt; テーブル名に対応する日本語のディレクトリやファイルができているかどうか
+&gt; 確認されては如何でしょう。
+&gt; 
+mkdir あいうえ  や fopen()とかで確認しましたがOS自体には制限はないように
+思えるのですが。
+  
+&gt; また、もし patch を分けていただければ、こちらの NEWS OS 6.0.2 でテスト
+&gt; してみてもいいですけど。
+
+すみません。お手数かけます。
+ちょっとはずかしいけど patch も添付します。patchのとり方これでよいのでしょうか？
+
+----- ここから
+diff -crN src.orig/Makefile.custom src/Makefile.custom
+*** src.orig/Makefile.custom	Thu Jan  1 09:00:00 1970
+--- src/Makefile.custom	Mon Mar  9 16:32:12 1998
+***************
+*** 0 ****
+--- 1,2 ----
++ MB=EUC_JP
++ 
+diff -crN src.orig/backend/libpq/hba.c src/backend/libpq/hba.c
+*** src.orig/backend/libpq/hba.c	Thu Feb 26 13:31:49 1998
+--- src/backend/libpq/hba.c	Mon Mar  9 14:40:10 1998
+***************
+*** 27,33 ****
+--- 27,35 ----
+  #include &lt;libpq/libpq.h&gt;
+  #include &lt;libpq/pqcomm.h&gt;
+  #include &lt;libpq/hba.h&gt;
++ #ifndef HAVE_INET_ATON 
+  #include &lt;port/inet_aton.h&gt;		/* For inet_aton() */
++ #endif
+  #include &lt;storage/fd.h&gt;
+  
+  /* Some standard C libraries, including GNU, have an isblank() function.
+diff -crN src.orig/backend/libpq/pqcomprim.c src/backend/libpq/pqcomprim.c
+*** src.orig/backend/libpq/pqcomprim.c	Thu Feb 26 13:31:54 1998
+--- src/backend/libpq/pqcomprim.c	Mon Mar  9 16:29:17 1998
+***************
+*** 34,45 ****
+--- 34,53 ----
+  #else
+  #if BYTE_ORDER == BIG_ENDIAN
+  
++ /*
+  #define ntoh_s(n)	(uint16)(((u_char *)&amp;n)[1] &lt;&lt; 8 \
+  			  | ((u_char *)&amp;n)[0])
+  #define ntoh_l(n)	(uint32)(((u_char *)&amp;n)[3] &lt;&lt; 24 \
+  			  | ((u_char *)&amp;n)[2] &lt;&lt; 16 \
+  			  | ((u_char *)&amp;n)[1] &lt;&lt;  8 \
+  			  | ((u_char *)&amp;n)[0])
++ */
++ #define ntoh_s(n)	(uint16)((((uint16)n &amp; 0x00ff) &lt;&lt;  8) | \
++ 				 (((uint16)n &amp; 0xff00) &gt;&gt;  8))
++ #define ntoh_l(n)	(uint32)((((uint32)n &amp; 0x000000ff) &lt;&lt; 24) | \
++ 				 (((uint32)n &amp; 0x0000ff00) &lt;&lt;  8) | \
++ 				 (((uint32)n &amp; 0x00ff0000) &gt;&gt;  8) | \
++ 				 (((uint32)n &amp; 0xff000000) &gt;&gt; 24))
+  #define hton_s(n)	(ntoh_s(n))
+  #define hton_l(n)	(ntoh_l(n))
+  
+diff -crN src.orig/backend/parser/gram.c src/backend/parser/gram.c
+*** src.orig/backend/parser/gram.c	Fri Feb 27 11:40:36 1998
+--- src/backend/parser/gram.c	Wed Mar 11 16:52:20 1998
+***************
+*** 210,216 ****
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /usr/local/cvsroot/pgsql/src/backend/parser/gram.c,v 2.3 1998/02/27 02:40:36 scrappy Exp $
+   *
+   * HISTORY
+   *	  AUTHOR			DATE			MAJOR EVENT
+--- 210,216 ----
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /usr/local/cvsroot/pgsql/src/backend/parser/gram.y,v 2.5 1998/02/25 13:07:08 scrappy Exp $
+   *
+   * HISTORY
+   *	  AUTHOR			DATE			MAJOR EVENT
+***************
+*** 3753,3759 ****
+      -1,    -1,    -1,   172
+  };
+  /* -*-C-*-  Note some compilers choke on comments on `#line' lines.  */
+! #line 3 "/usr/share/misc/bison.simple"
+  
+  /* Skeleton output parser for bison,
+     Copyright (C) 1984, 1989, 1990 Free Software Foundation, Inc.
+--- 3753,3759 ----
+      -1,    -1,    -1,   172
+  };
+  /* -*-C-*-  Note some compilers choke on comments on `#line' lines.  */
+! #line 3 "/usr/local/share/bison.simple"
+  
+  /* Skeleton output parser for bison,
+     Copyright (C) 1984, 1989, 1990 Free Software Foundation, Inc.
+***************
+*** 3946,3952 ****
+  #endif
+  #endif
+  
+! #line 196 "/usr/share/misc/bison.simple"
+  
+  /* The user can define YYPARSE_PARAM as the name of an argument to be passed
+     into yyparse.  The argument should have type void *.
+--- 3946,3952 ----
+  #endif
+  #endif
+  
+! #line 196 "/usr/local/share/bison.simple"
+  
+  /* The user can define YYPARSE_PARAM as the name of an argument to be passed
+     into yyparse.  The argument should have type void *.
+***************
+*** 9401,9407 ****
+      break;}
+  }
+     /* the action file gets copied in in place of this dollarsign */
+! #line 498 "/usr/share/misc/bison.simple"
+  
+    yyvsp -= yylen;
+    yyssp -= yylen;
+--- 9401,9407 ----
+      break;}
+  }
+     /* the action file gets copied in in place of this dollarsign */
+! #line 498 "/usr/local/share/bison.simple"
+  
+    yyvsp -= yylen;
+    yyssp -= yylen;
+diff -crN src.orig/backend/parser/scan.c src/backend/parser/scan.c
+*** src.orig/backend/parser/scan.c	Sat Feb 21 15:31:52 1998
+--- src/backend/parser/scan.c	Wed Mar 11 16:50:23 1998
+***************
+*** 1,7 ****
+  /* A lexical scanner generated by flex */
+  
+  /* Scanner skeleton version:
+!  * $Header: /usr/local/cvsroot/pgsql/src/backend/parser/scan.c,v 1.15 1998/02/21 06:31:52 scrappy Exp $
+   */
+  
+  #define FLEX_SCANNER
+--- 1,7 ----
+  /* A lexical scanner generated by flex */
+  
+  /* Scanner skeleton version:
+!  * $Header: /home/daffy/u0/vern/flex/RCS/flex.skl,v 2.91 96/09/10 16:58:48 vern Exp $
+   */
+  
+  #define FLEX_SCANNER
+***************
+*** 547,553 ****
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /usr/local/cvsroot/pgsql/src/backend/parser/scan.c,v 1.15 1998/02/21 06:31:52 scrappy Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+--- 547,553 ----
+   *
+   *
+   * IDENTIFICATION
+!  *	  $Header: /usr/local/cvsroot/pgsql/src/backend/parser/scan.l,v 1.36 1998/02/18 07:22:40 thomas Exp $
+   *
+   *-------------------------------------------------------------------------
+   */
+diff -crN src.orig/backend/port/dynloader/newsos6.c src/backend/port/dynloader/newsos6.c
+*** src.orig/backend/port/dynloader/newsos6.c	Thu Jan  1 09:00:00 1970
+--- src/backend/port/dynloader/newsos6.c	Mon Mar  9 14:16:22 1998
+***************
+*** 0 ****
+--- 1,4 ----
++ /* Dummy file used for nothing at this point
++  *
++  * see newsos6.h
++  */
+diff -crN src.orig/backend/port/dynloader/newsos6.h src/backend/port/dynloader/newsos6.h
+*** src.orig/backend/port/dynloader/newsos6.h	Thu Jan  1 09:00:00 1970
+--- src/backend/port/dynloader/newsos6.h	Mon Mar  9 14:17:22 1998
+***************
+*** 0 ****
+--- 1,34 ----
++ /*-------------------------------------------------------------------------
++  *
++  * port-protos.h--
++  *	  port-specific prototypes for sony-newsos 6
++  *
++  *
++  * Copyright (c) 1994, Regents of the University of California
++  *
++  * port-protos.h,v 1.2 1995/03/17 06:40:18 andrew Exp
++  *
++  *-------------------------------------------------------------------------
++  */
++ #ifndef PORT_PROTOS_H
++ #define PORT_PROTOS_H
++ 
++ #include &lt;dlfcn.h&gt;
++ #include "fmgr.h"				/* for func_ptr */
++ #include "utils/dynamic_loader.h"
++ 
++ /* dynloader.c */
++ /*
++  * Dynamic Loader on SunOS 4.
++  *
++  * this dynamic loader uses the system dynamic loading interface for shared
++  * libraries (ie. dlopen/dlsym/dlclose). The user must specify a shared
++  * library as the file to be dynamically loaded.
++  *
++  */
++ #define pg_dlopen(f)	dlopen(f,1)
++ #define pg_dlsym		dlsym
++ #define pg_dlclose		dlclose
++ #define pg_dlerror		dlerror
++ 
++ #endif							/* PORT_PROTOS_H */
+diff -crN src.orig/backend/tcop/postgres.c src/backend/tcop/postgres.c
+*** src.orig/backend/tcop/postgres.c	Thu Feb 26 13:36:31 1998
+--- src/backend/tcop/postgres.c	Wed Mar 11 17:06:08 1998
+***************
+*** 1442,1448 ****
+--- 1442,1452 ----
+  	struct timezone tz;
+  
+  	getrusage(RUSAGE_SELF, &amp;Save_r);
++ #ifdef GETTIMEOFDAY1
++ 	gettimeofday(&amp;Save_t);
++ #else
+  	gettimeofday(&amp;Save_t, &amp;tz);
++ #endif
+  	ResetBufferUsage();
+  /*	  ResetTupleCount(); */
+  }
+***************
+*** 1457,1463 ****
+--- 1461,1471 ----
+  	struct rusage r;
+  
+  	getrusage(RUSAGE_SELF, &amp;r);
++ #ifdef GETTIMEOFDAY1
++ 	gettimeofday(&amp;elapse_t);
++ #else
+  	gettimeofday(&amp;elapse_t, &amp;tz);
++ #endif
+  	memmove((char *) &amp;user, (char *) &amp;r.ru_utime, sizeof(user));
+  	memmove((char *) &amp;sys, (char *) &amp;r.ru_stime, sizeof(sys));
+  	if (elapse_t.tv_usec &lt; Save_t.tv_usec)
+diff -crN src.orig/backend/utils/adt/date.c src/backend/utils/adt/date.c
+*** src.orig/backend/utils/adt/date.c	Thu Feb 26 13:36:57 1998
+--- src/backend/utils/adt/date.c	Mon Mar  9 15:14:07 1998
+***************
+*** 1287,1294 ****
+  	char		buf[500];
+  	text	   *tm;
+  	int			len = 0;
+! 
+  	gettimeofday(&amp;tp, &amp;tpz);
+  	strftime(templ, sizeof(templ), "%a %b %d %H:%M:%S.%%d %Y %Z",
+  			 localtime((time_t *) &amp;tp.tv_sec));
+  	sprintf(buf, templ, tp.tv_usec);
+--- 1287,1297 ----
+  	char		buf[500];
+  	text	   *tm;
+  	int			len = 0;
+! #ifdef GETTIMEOFDAY1
+! 	gettimeofday(&amp;tp);
+! #else
+  	gettimeofday(&amp;tp, &amp;tpz);
++ #endif
+  	strftime(templ, sizeof(templ), "%a %b %d %H:%M:%S.%%d %Y %Z",
+  			 localtime((time_t *) &amp;tp.tv_sec));
+  	sprintf(buf, templ, tp.tv_usec);
+diff -crN src.orig/configure src/configure
+*** src.orig/configure	Mon Mar  2 23:55:42 1998
+--- src/configure	Mon Mar  9 14:09:21 1998
+***************
+*** 599,604 ****
+--- 599,605 ----
+  nextstep*) os=nextstep need_tas=no ;;
+    ultrix*) os=ultrix4 need_tas=no ;;
+      irix*) os=irix5 need_tas=no ;;
++  newsos6*) os=newsos6 need_tas=no ;;
+      hpux*) os=hpux need_tas=yes tas_file=hpux.s ;;
+       osf*) os=alpha need_tas=no ;;
+       sco*) os=sco need_tas=no ;;
+diff -crN src.orig/include/port/newsos6.h src/include/port/newsos6.h
+*** src.orig/include/port/newsos6.h	Thu Jan  1 09:00:00 1970
+--- src/include/port/newsos6.h	Wed Mar 11 14:24:37 1998
+***************
+*** 0 ****
+--- 1,21 ----
++ #define USE_POSIX_TIME
++ #define USE_POSIX_SIGNALS
++ #define NO_EMPTY_STMTS
++ #define SYSV_DIRENT
++ 
++ #define HAS_TEST_AND_SET 
++ #include &lt;abi_mutex.h&gt;
++ typedef abilock_t slock_t;
++ 
++ 
++ /* #undef _XOPEN_SOURCE_EXTENDED */
++ 
++ /* #define HAVE_INT_TIMEZONE */
++ 
++ #define HAVE_GETRUSAGE
++ #define GETTIMEOFDAY1		/* like samba */
++ #include &lt;sys/types.h&gt;
++ 
++ void bcopy(const void *, void *, size_t);
++ int bcmp(const void *, const void *, size_t);
++ void bzero(void *, size_t);
+diff -crN src.orig/include/storage/s_lock.h src/include/storage/s_lock.h
+*** src.orig/include/storage/s_lock.h	Sun Mar  1 13:47:24 1998
+--- src/include/storage/s_lock.h	Wed Mar 11 14:27:31 1998
+***************
+*** 63,69 ****
+  
+  
+  
+! #if defined(__sgi)
+  /*
+   * SGI IRIX 5
+   * slock_t is defined as a struct abilock_t, which has a single unsigned long
+--- 63,69 ----
+  
+  
+  
+! #if defined(__sgi) || defined(newsos6)
+  /*
+   * SGI IRIX 5
+   * slock_t is defined as a struct abilock_t, which has a single unsigned long
+diff -crN src.orig/interfaces/ecpg/lib/Makefile src/interfaces/ecpg/lib/Makefile
+*** src.orig/interfaces/ecpg/lib/Makefile	Thu Jan  1 09:00:00 1970
+--- src/interfaces/ecpg/lib/Makefile	Wed Mar 11 14:30:28 1998
+***************
+*** 0 ****
+--- 1,73 ----
++ # Generated automatically from Makefile.in by configure.
++ SRCDIR= ../../..
++ include $(SRCDIR)/Makefile.global
++ 
++ PQ_INCLUDE=-I$(SRCDIR)/interfaces/libpq
++ 
++ SO_MAJOR_VERSION=1
++ SO_MINOR_VERSION=0
++ 
++ PORTNAME=newsos6
++ 
++ ifdef KRBVERS
++ CFLAGS+= $(KRBFLAGS)
++ endif
++ 
++ # Shared library stuff
++ shlib := 
++ install-shlib-dep :=
++ ifeq ($(PORTNAME), linux)
++   ifdef LINUX_ELF
++     install-shlib-dep := install-shlib
++     shlib := libecpg.so.$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
++     LDFLAGS_SL = -shared
++     CFLAGS += $(CFLAGS_SL)
++   endif
++ endif
++ ifeq ($(PORTNAME), bsd)
++   ifdef BSD_SHLIB
++     install-shlib-dep := install-shlib
++     shlib := libecpg.so.$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
++     LDFLAGS_SL = -x -Bshareable -Bforcearchive
++     CFLAGS += $(CFLAGS_SL)
++   endif
++ endif
++ #ifeq ($(PORTNAME), i386_solaris)
++ #  install-shlib-dep := install-shlib
++ #  shlib := libecpg.so.$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
++ #  LDFLAGS_SL = -G -z text
++ #  CFLAGS += $(CFLAGS_SL)
++ #endif
++ ifeq ($(PORTNAME), univel)
++   install-shlib-dep := install-shlib
++   shlib := libecpg.so.1
++   LDFLAGS_SL = -G -z text
++   CFLAGS += $(CFLAGS_SL)
++ endif
++ 
++ all: libecpg.a $(shlib)
++ 
++ $(shlib): ecpglib.o typename.o
++ 	$(LD) $(LDFLAGS_SL) -o $@ ecpglib.o typename.o 
++ 	ln -sf $@ libecpg.so
++ 
++ clean:
++ 	rm -f *.o *.a core a.out *~ $(shlib) libecpg.so
++ 
++ install: libecpg.a $(shlib) $(install-shlib-dep)
++ 	$(INSTALL) $(INSTLOPTS) libecpg.a $(DESTDIR)$(LIBDIR)
++ 
++ install-shlib:
++ 	$(INSTALL) $(INSTLOPTS) $(shlib) $(DESTDIR)$(LIBDIR)
++ 	ln -sf $(shlib) $(DESTDIR)$(LIBDIR)/libecpg.so
++ 
++ uninstall::
++ 	rm -f $(DESTDIR)$(LIBDIR)/libecpg.a $(DESTDIR)$(LIBDIR)/$(shlib)
++ 
++ # Rules that do something
++ libecpg.a : libecpg.a(ecpglib.o) libecpg.a(typename.o)
++ 
++ ecpglib.o : ecpglib.c ../include/ecpglib.h ../include/ecpgtype.h
++ 	$(CC) $(CFLAGS) -I../include $(PQ_INCLUDE) -c ecpglib.c
++ typename.o : typename.c ../include/ecpgtype.h
++ 	$(CC) $(CFLAGS) -I../include $(PQ_INCLUDE) -c typename.c
+diff -crN src.orig/makefiles/Makefile.newsos6 src/makefiles/Makefile.newsos6
+*** src.orig/makefiles/Makefile.newsos6	Thu Jan  1 09:00:00 1970
+--- src/makefiles/Makefile.newsos6	Wed Mar 11 14:25:02 1998
+***************
+*** 0 ****
+--- 1,6 ----
++ #CFLAGS+= -I/usr/ucbinclude
++ LDFLAGS+= -L/usr/ucblib -lucb -lmutex
++ 
++ %.so: %.o
++ 	$(LD) -G -Bdynamic -shared -o $@ $&lt; 
++ 
+diff -crN src.orig/template/newsos6-gcc src/template/newsos6-gcc
+*** src.orig/template/newsos6-gcc	Thu Jan  1 09:00:00 1970
+--- src/template/newsos6-gcc	Wed Mar 11 14:28:30 1998
+***************
+*** 0 ****
+--- 1,10 ----
++ AROPT:crs
++ CFLAGS:-O2 -g -D__STDC__=0 -D_SONYILS_H -D_XOPEN_SOURCE_EXTENDED=1 -Dnewsos6
++ SHARED_LIB:-fPIC
++ ALL:
++ SRCH_INC:
++ SRCH_LIB:
++ USE_LOCALE:no
++ DLSUFFIX:.so
++ YFLAGS:-d
++ YACC:
+diff -crN src.orig/test/regress/sql/tests src/test/regress/sql/tests
+*** src.orig/test/regress/sql/tests	Wed Feb 18 16:30:33 1998
+--- src/test/regress/sql/tests	Tue Mar 10 16:30:42 1998
+***************
+*** 60,62 ****
+--- 60,63 ----
+  select_views
+  alter_table
+  portals_p2
++ euc_jp
+
+
+------ ここまで
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00099" HREF="msg00099.html">[pgsql-jp 3531] Re: Sony newsos6 porting</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00091" HREF="msg00091.html">[pgsql-jp 3523] Re: Sony newsos6 porting</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00095.html">[pgsql-jp 3527] Re: PostgreSQL6.3+6.3mbPL2.patch+SunOS4.1.3でコンパイルエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00096.html">[pgsql-jp 3528] Re: PostgreSQL6.3+6.3mbPL2.patch+SunOS4.1.3でコンパイルエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 3523] Re: Sony newsos6 porting</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00099.html">[pgsql-jp 3531] Re: Sony newsos6 porting</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00097"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00097"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

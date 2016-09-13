@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2736] Re: (No Subject in original) -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Mon, 20 Oct 1997 21:59:46 +0900 -->
+<!--X-Message-Id: 199710201259.VAA25401@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710201154.UAA01541@libra.map.chiba&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2736] Re: (No Subject in original) </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00149.html">Date Prev</A>][<A HREF="msg00151.html">Date Next</A>][<A HREF="msg00149.html">Thread Prev</A>][<A HREF="msg00156.html">Thread Next</A>][<A HREF="index.html#00150">Date Index</A>][<A HREF="threads.html#00150">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2736] Re: (No Subject in original)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 20 Oct 1997 21:59:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00147.html">199710201154.UAA01541@libra.map.chiba-u.ac.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+In message &lt;<A HREF="msg00147.html">199710201154.UAA01541@libra.map.chiba-u.ac.jp</A>&gt;, Atsushi Abe writes:
+&gt; 2つのテーブルTABLE1とTABLE2があります。
+&gt; 
+&gt; TABLE1の定義
+&gt; 
+&gt; Field			Type
+&gt; -----------------------------
+&gt; key			name
+&gt; value			text
+&gt; 
+&gt; 
+&gt; TABLE2の定義
+&gt; 
+&gt; Field			Type
+&gt; -----------------------------
+&gt; key			name
+&gt; value			text
+&gt; 
+&gt; そして実際に値は
+&gt; 
+&gt; TABLE1				TABLE2
+&gt; 
+&gt; key	value			key	value
+&gt; -------------			-------------
+&gt; aaa	aaa_value		bbb	value1
+&gt; bbb	bbb_value		ccc	value2
+&gt; ccc	ccc_value		ddd	value3
+&gt; ddd	ddd_value
+&gt; eee	eee_value
+&gt; 
+&gt; といった具合に入っています。
+&gt; 
+&gt; この2つのテーブルよりTABLE1.keyにあってTABLE2.keyにないものつまり
+&gt; 
+&gt; TABLE_ANSWER
+&gt; 
+&gt; answer
+&gt; -------
+&gt; aaa
+&gt; eee
+&gt; 
+&gt; を取り出すSQLをかくことは可能でしょうか？
+&gt; 
+&gt; サブクエリーを使えば出来るのは分かっていますがPostgres6.1.1のSQLやSQL関数
+&gt; の範囲で実現することが出来るでしょうか？
+
+
+つまり，
+
+  select * from table t1                            (1)
+  where not exists (select * from table2 t2
+                    where t2.key = t1.key)
+
+をやる方法ですね．function を使うには，not exists をタプル数を
+数える方法に置き換えるのが簡単です:
+
+  select * from table t1                            (2)
+  where (select count(*) from table2 t2
+         where t2.key = t1.key) = 0
+
+あとは単純です．まずは数を数える関数を作ります:
+
+  create function f(text) returns int4              (3)
+  as 'select count(*) from table2 where key = $1'
+  language 'sql'
+
+すると問合せは機械的に置き換えができます:
+
+  select * from table1 where f(value) = 0           (4)
+
+述語を作ってしまうという方法もあります．たとえばこんな風に
+
+  create function p(text) returns bool              (5)
+  as 'select count(*) = 0 from table2 where key = $1'
+  language 'sql'
+
+同じ問合せは以下のように書けます:
+
+  select * from table1 where p(value)               (6)
+
+あ．いま，別な方から，
+
+&gt; 佐々木＠ＳＭＡＴです
+...ざっくり...
+&gt; 私も以前に同じ様な質問をここにしました。
+&gt; そのメールは2609〜2611までにありますが、参考までに私が現在している方法は
+&gt; 以下の通りです。
+&gt; 
+&gt; SELECT * INTO TABLE tmp1 FROM TABLE1;
+&gt; DELETE FROM tmp1 WHERE key=TABLE2.key;
+
+というのが入りました．どちらがいいかは好みの問題と，速度の問題に
+なると思います．理想論を言えば，「(1)-(6) のような使い方をした時に，
+利用上の統計データなどを用いて，一時テーブルを使ったものに内部的に
+置き換えて処理してくれる」，がベストです．実際には，関数を使うと速度
+ががくっと落ちることがありますので，一次テーブルの利用も有効かと
+思います．これに対して，(1)-(6) の方式では table1, table2 のデータ更新
+に自動的に (4), (6) の検索が追随するというメリットがあります．
+
+ちなみに，学生さんには副問合せで設計をしてから関数にばらすという
+方法を教えています．機械的にできるのでスカラー副問合せの多くはうまく
+行くようです．(``for all'' は結局タプル数を数える事になりますし．）
+
+# すいません．変に論文調になってしまいました．
+
+----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp 2758] Re: (No Subject in original)</A></STRONG>
+<UL><LI><EM>From:</EM> Atsushi Abe&lt;atsushi@hike.te.chiba-u.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00156" HREF="msg00156.html">[pgsql-jp 2742] Re: (No Subject in original)</A></STRONG>
+<UL><LI><EM>From:</EM> Naoki Sasaki &lt;m-sasaki@magical.egg.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00147" HREF="msg00147.html">[pgsql-jp 2733] (No Subject in original)</A></STRONG>
+<UL><LI><EM>From:</EM> Atsushi Abe&lt;atsushi@hike.te.chiba-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 2735] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp 2737] Greetings all</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 2735] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00156.html">[pgsql-jp 2742] Re: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00150"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00150"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

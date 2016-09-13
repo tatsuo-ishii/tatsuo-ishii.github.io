@@ -1,0 +1,207 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12583] SQL関数で複数の列を返したい -->
+<!--X-From: masahiro AMANO <masaa825@mb.mailbank.ne.jp> -->
+<!--X-Date: Sat, 08 Jan 2000 05:14:32 +0900 -->
+<!--X-Message-Id: 387649281BB.8F6DMASAA825@mailsv.fjb.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12583] SQL関数で複数の列を返したい </TITLE>
+<LINK REV="made" HREF="mailto:masaa825@mb.mailbank.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00243.html">Date Prev</A>][<A HREF="msg00131.html">Date Next</A>][<A HREF="msg00135.html">Thread Prev</A>][<A HREF="msg00132.html">Thread Next</A>][<A HREF="index.html#00130">Date Index</A>][<A HREF="threads.html#00130">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12583] SQL関数で複数の列を返したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: masahiro AMANO &lt;<A HREF="mailto:masaa825@mb.mailbank.ne.jp">masaa825@mb.mailbank.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 08 Jan 2000 05:14:32 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+始めまして、天野と申します
+
+SQL関数を使用して複数の列を返したいのですが、方法が分かりません。
+会社IDから、会社名を取り出す、というような処理はよくやると思われますが
+その処理を関数にして簡単に取り出そうと思ったのですが、1つのカラムを
+取り出す関数を
+
+create table m_corporation(
+	corporation_id int not null,
+	corporation_name text,
+	primary key (corporation_id)
+);
+create table m_customer(
+	corporation_id int not null,	
+	customer_id text not null,
+	customer_name text,
+
+	primary key (corporation_id,customer_id)
+);
+insert into m_corporation values(10,'OX株式会社');
+insert into m_customer values(10,'0001','本店');
+insert into m_corporation values(20,'XXX株式会社');
+insert into m_customer values(20,'0001','支店');
+
+
+create function id2name4m_corporation(int)
+returns setof text as 
+'select corporation_name from m_corporation where corporation_id= $1'
+language 'sql';
+
+create function id2name4m_customer(int,text)
+returns setof text as 
+'select customer_name from m_customer where corporation_id= $1 and customer_id= $2'
+language 'sql';
+
+
+のように定義するとうまくいくのですが、その処理をまとめてするSQL関数を
+作りたいのですが、返り値の設定方法が分からず、おもいつきで
+
+create function f_id2name(int,text)
+returns setof text,text as 
+--            ^^^^^^^^^
+'select corporation_name,customer_name from m_corporation,m_customer
+ where m_corporation.corporation_id=m_customer.corporation_id
+ and m_customer.corporation_id= $1 and m_customer.customer_id= $2'
+language 'sql';
+
+とやってみましたが、
+ERROR:  parser: parse error at or near ","
+となってしまったため、POSTGRESのお怒り覚悟で
+
+returns setof text as 
+
+とすると
+ERROR:  function declared to return text returns multiple values in final retrieve
+直訳すると「テキスト返すって宣言されてるけど、そんな宣言じゃ複数の値を
+返せやせんぜ!!(訳に自信はありません)」とお怒りの為、確か、テーブルを
+作ると、それが自動的に型、登録されると、シーラカンス本で読んだ記憶が
+あるので
+
+create table m_id2name(
+	corporation_name text,
+	customer_name text
+);
+
+こんなテーブルを作成し、
+
+create function f_id2name(int,text)
+returns setof m_id2name as
+--            ^^^^^^^^^
+'select corporation_name,customer_name from m_corporation,m_customer
+ where m_corporation.corporation_id=m_customer.corporation_id
+ and m_customer.corporation_id= $1 and m_customer.customer_id= $2'
+language 'sql';
+
+と、返り値を設定したところ、うまく作成できたのですが、psqlで
+呼び出してみたところ、名前は返ってこないで
+
+test=&gt; select f_id2name(10,'0001');
+ ?column?
+---------
+136900960
+(1 row)
+
+という意味不明な数字が返されます。oid のことかな、と思い
+select しようとしたのですが、テーブル名に何を指定していいものか
+分からず、できませんでした。oid のみでデータを引っ張ってくる
+ほうほうってあるものでしょうか?
+
+ちなみに
+test=&gt; select oid,id2name4m_corporation(10) from m_customer;
+   oid|?column?
+------+----------
+288176|OX株式会社
+(1 row)
+
+test=&gt; select oid,id2name4m_customer(10,'0001') from m_corporation;
+   oid|?column?
+------+--------
+288175|本店
+(1 row)
+
+と普通にデータが返ってきます。oid とも関係ないようなので、行き詰まって
+しまいました。
+代用する方法はいろいろあるとおもうのですが、そもそもSQL関数で複数カラムを
+返す事はできないのでしょうか?
+
+また、
+
+select id2name4m_corporation(m_corporation.corporation_id),
+id2name4m_customer(m_corporation.corporation_id,customer_id)
+&gt;from m_corporation,m_customer;
+
+?column?  |?column?
+----------+--------
+OX株式会社|本店
+(1 row)
+
+となってしまいます。僕としては
+
+?column?   |?column?
+-----------+--------
+OX株式会社 |本店
+XXX株式会社|支店
+
+となってほしいのですが、このような処理はできないのでしょうか?
+
+大変長文になってしまったのですが、何かお気づきの点がありましたら
+教えてください。
+では
+
+-- masahiro AMANO
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00132" HREF="msg00132.html">[pgsql-jp 12585] Re: SQL関数で複数の列を返したい</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00243.html">[pgsql-jp 12696] Re: OpenLinux2.3へのインストールの仕方を教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00131.html">[pgsql-jp 12584] Re: view でのsum の動作がおかしい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 12588] copyコマンドについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 12585] Re: SQL関数で複数の列を返したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00130"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00130"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

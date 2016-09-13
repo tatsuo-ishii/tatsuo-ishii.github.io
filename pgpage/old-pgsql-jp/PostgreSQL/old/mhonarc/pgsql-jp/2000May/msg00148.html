@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14437] Re: oidからのデータ取得方法について -->
+<!--X-From: "kawaba@hitachi&#45;ul.co.jp" <kawaba@hitachi&#45;ul.co.jp> -->
+<!--X-Date: Fri, 12 May 2000 19:12:25 +0900 -->
+<!--X-Message-Id: 391BD909.C52FD765@hitachi&#45;ul.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 391B8849.20E8F3B0@hitachi&#45;ul.co.jp -->
+<!--X-Reference-Id: 391BB73628.F926JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14437] Re: oidからのデータ取得方法について </TITLE>
+<LINK REV="made" HREF="mailto:kawaba@hitachi-ul.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00147.html">Date Prev</A>][<A HREF="msg00149.html">Date Next</A>][<A HREF="msg00146.html">Thread Prev</A>][<A HREF="msg00150.html">Thread Next</A>][<A HREF="index.html#00148">Date Index</A>][<A HREF="threads.html#00148">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14437] Re: oidからのデータ取得方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "<A HREF="mailto:kawaba@hitachi-ul.co.jp">kawaba@hitachi-ul.co.jp</A>" &lt;<A HREF="mailto:kawaba@hitachi-ul.co.jp">kawaba@hitachi-ul.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 12 May 2000 19:12:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00145.html">391B8849.20E8F3B0@hitachi-ul.co.jp</A>&gt; &lt;<A HREF="msg00146.html">391BB73628.F926JUN-N@mail.ga2.so-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村さん、早速の御教示誠にありがとうございます。川畑です。
+
+&gt; 全DB内ってのが、1つのDB内の全テーブルって意味なのか、複数あるDB全てって意
+&gt; 味なのか・・。
+すみません、私自身、ＳＱＬデータベースに関して全くの素人なので、うまく説
+明できませんでした。
+詳しく説明させていただきますと、以下の通りです。
+
+以下のような２つのテーブル（shun,shinamono）がtestDBという名称に存在した
+とします。
+
+testdb=&gt; select oid,* from shun;
+  oid|hinmei|kisetsu
+-----+------+-------
+38519|kuri  |aki
+38520|mikan |fuyu
+38521|meron |natsu
+38522|suika |natsu
+38523|ringo |aki
+(5 rows)
+
+testdb=&gt; select oid,* from shinamono;
+  oid|hinmei|nedan
+-----+------+-----
+38506|mikan |  100
+38507|ringo |  150
+38508|meron |   80
+(3 rows)
+
+ここで、各データに付くoidは、ユニークになっています。
+例えば、shunテーブル→（38521|meron |natsu）のoidが既知のデータであった
+場合、これ（oid）をキーにtestDB内からデータ取得をしたいのですが、可能で
+しょうか？
+（oid=38521のみが、既知のデータであり、どのテーブルに属しているか？は分
+からない・・）
+
+&gt; 1DB内の全テーブルならば出来ます。
+&gt; select oid,* from pg_class where oid=xxxxx;
+&gt; ってやれば、(テーブルだけじゃないですが）oidによるテーブル名の取得は出来
+&gt; ますよ。
+実行してみましたが、結果を見ても（以下）、ちょっと理解できませんでした。
+勉強不足ですみません…
+
+testdb=&gt; select oid,* from pg_class where oid=38521;
+oid|relname|reltype|relowner|relam|relpages|reltuples|…
+(0 rows)
+
+&gt; テーブルやビューだけってのなら、pg_tablesっていうビュー（システムテーブル
+&gt; （ビュー））がありますので、それを
+&gt; \d pg_tables
+実行してみました。結果は、以下のようになりました。
+
+SELECT "c"."relname" AS "tablename", "pg_get_userbyid"("c"."relowner")
+AS "tableowner", "c"."relhasindex" AS "hasindexes", "c"."relhasrules" AS
+"hasrules", ("c"."reltriggers" &gt; '0'::"int4") AS "hastriggers" FROM
+"pg_class" "c" WHERE ((("c"."relkind" = 'r'::"char") OR ("c"."relkind" =
+'s'::"char")) AND (NOT (EXISTS (SELECT "pg_rewrite"."rulename" FROM
+"pg_rewrite" WHERE (("pg_rewrite"."ev_class" = "c"."oid") AND
+("pg_rewrite"."ev_type" = '1'::"char"))))));
+
+&gt; ってやって出てきたSQL文に、oidを加えれたものを独自のビューにして使えばOK
+&gt; だと思います。
+何所の部分にoid判定を加えるべきなのか？分かりませんでした。
+宜しければ、もう少し詳しく御教示頂けますか？
+
+&gt; 複数ある全DBのテーブル名となると、oidがDB毎に重複しない事が前提ですが、ど
+&gt; うなんでしょう。たぶん重複するでしょう。（oidが32bit-integerなのでしばら
+&gt; （省略）
+過去のＭＬ「[pgsql-jp 11648] Re: 同じOIDは作られるんでしょうか？」の石井
+さんの御回答では、
+
+ＭＬ参照先：
+<A HREF="http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2804">http://datula.mio.org/~iwakiri/pgsql_jp/get_document.cgi?document=2804</A>
+
+という回答でした。（御参考まで）
+
+以上、たびたび申し訳ありませんが、御教示の程、宜しくお願い致します。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00152" HREF="msg00152.html">[pgsql-jp 14441] Re: oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 14439] Re: oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00145" HREF="msg00145.html">[pgsql-jp 14434] oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> "kawaba@hitachi-ul.co.jp" &lt;kawaba@hitachi-ul.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00146" HREF="msg00146.html">[pgsql-jp 14435] Re: oidからのデータ取得方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00147.html">[pgsql-jp 14436] 香りも記録できるデータベース</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00149.html">[pgsql-jp 14438] Re: [pgsql-jp 14436] 香りも記録できるデータベース</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 14435] Re: oidからのデータ取得方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 14439] Re: oidからのデータ取得方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00148"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00148"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

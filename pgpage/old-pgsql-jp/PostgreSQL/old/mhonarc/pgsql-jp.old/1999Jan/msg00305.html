@@ -1,0 +1,125 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6718] Re: LOW LEVEL LOCKINGとは？ -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 20 Jan 1999 23:30:28 +0900 -->
+<!--X-Message-Id: 199901201430.XAA00432@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36A5B7CD.32CC1568@ca2.so&#45;net.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6718] Re: LOW LEVEL LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00304.html">Date Prev</A>][<A HREF="msg00306.html">Date Next</A>][<A HREF="msg00304.html">Thread Prev</A>][<A HREF="msg00308.html">Thread Next</A>][<A HREF="index.html#00305">Date Index</A>][<A HREF="threads.html#00305">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6718] Re: LOW LEVEL LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 20 Jan 1999 23:30:28 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 相場＠ＩＳＯＬです。
+&gt; 
+&gt; そうですよね。LOW LEVEL に関してはなんとなくそう思っていました。でも 6.5
+&gt; での新(予定)機能が "LOW-LEVEL LOCKING" と書かれていたので（ちょっと正確
+&gt; ではないかも）考え込んでしまったのでした。なぜ「待望」の機能なのだろう
+
+まず、私は LLL(Low-Level Locking) ということばを本家のMLの議論で知りま
+した。LLL が学術的に確立された用語かどうかは知りませんが、彼らは明らか
+に Row-Level Locking とは区別しています。私の解釈では、LLL は 
+Row-Level Lock や Page-Level Locking も含んだ、ようするに Table-Level
+Locking よりも粒度の細かいロック一般を指しているのだろうと思います。で
+すから、LLL によって複数のトランザクションが並行して走る可能性が増えま
+す。これが嬉しい理由です。
+
+では、実際には 6.5 の LLL はどのようなものになるのでしょう。私は最初は
+極単純に Row-Level か Page-Level のロックを行うんだろう、位の認識しか
+なかったのですが、どうも違うようです。
+
+6.5 では MVCC (Multi-Versioning Concurrency Control(?))を使います。こ
+れは DELETE や UPDATE で行を更新しても、以前の行の内容が保存されるシス
+テムです。これと各行が持つトランザクションIDを併用することにより、並行
+して走るトランザクションがお互いに干渉することがなくなります。これは、
+基本的にはロックが不要であることを意味します。実際、6.5 では、違う行を
+アクセスする限り、テーブル全体にロックを掛けることなしに、複数のトラン
+ザクションが同じテーブルを同時に更新することができます(今は、どちらか
+のトランザクションが commit するまで待たされる)。
+
+6.5 のもう一つのロックは、バッファからの読み書きです。PostgreSQL では、
+効率を上げるためにバックエンドプロセス間で共有されるバッファを使います。
+テーブルやインデックスを読み時は、まずそのテーブル全体に shared lockを
+かけ、1 ページ読みだしてバッファに格納したらすぐにロックを解除します。
+これはテーブル全体をロックしますが、トランザクションの終了を待たずにロッ
+クを解除するので short-term locking と呼ばれています。これに対して、通
+常の 2 phase lock では、一度かけたロックは commit/abort まで解除されま
+せんので、long-term locking ということになります。
+
+とりあえず6.5のトランザクション管理について、私が理解しているのはこの
+位です。引続き勉強しなくては。
+
+# もっと分かっている人の突っ込み希望
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00308" HREF="msg00308.html">[pgsql-jp 6721] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Kohei OKUMURA &lt;kohei@mediatelier.fr&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00304" HREF="msg00304.html">[pgsql-jp 6717] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Toru Aiba &lt;taiba@ca2.so-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 6717] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00306.html">[pgsql-jp 6719] Re: アーカイブのCRCエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 6717] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00308.html">[pgsql-jp 6721] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00305"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00305"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

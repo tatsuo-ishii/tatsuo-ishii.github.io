@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2826] Re: MOVE & FETCH, PostgresPerl. -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 30 Oct 1997 10:29:34 +0900 -->
+<!--X-Message-Id: 199710300129.KAA21770@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 01bce478$5913a780$LocalHost@pc -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2826] Re: MOVE &amp; FETCH, PostgresPerl. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00239.html">Date Prev</A>][<A HREF="msg00241.html">Date Next</A>][<A HREF="msg00237.html">Thread Prev</A>][<A HREF="msg00244.html">Thread Next</A>][<A HREF="index.html#00240">Date Index</A>][<A HREF="threads.html#00240">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2826] Re: MOVE &amp; FETCH, PostgresPerl.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 30 Oct 1997 10:29:34 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;Perlスクリプトで以下のような実験をしてみました。
+&gt;(準備)
+&gt;3万レコード×26フィールドのクラスtest1を用意する。
+&gt;#中身は乱数で適当に生成。
+&gt;#26フィールドの内、
+&gt;# 1つがint4の通し番号(フィールド名:serial btree索引作成)
+&gt;# 24個がvarchar(20)
+&gt;# 残り１つはtext
+&gt;#タブ区切りでテキストファイルに保存してからcopyすると
+&gt;#数十秒で済んじゃいましたが、ものは試しとばかり、
+&gt;#1レコードずつinsertしてみたら、1時間くらいハードディ
+&gt;#スクがうなっていました(笑)。
+
+begin;insert;insert...;end; のようにすると、もっとずっと速く終ります。
+(ただ、insert が 3万個だとちょっときついかもしれないので、1000 個位ず
+つ(この数字はいい加減)に分割するといいでしょう。)
+
+begin-end で囲まずに単純に insert を発行すると、それぞれが独立したトラ
+ンザクションになるので、とっても遅くなります。また、insert の前に索引
+を外し、insert が終ってから create index... すると全体の処理時間が短く
+なるかも。
+
+&gt;(実験1)
+&gt;下記SQLを実行し、$query-&gt;fetchrow()で、
+&gt;出力された10行を表示する。
+&gt;
+&gt;BEGIN;
+&gt;DECLARE mycursor CURSOR FOR
+&gt;SELECT * FROM test1
+&gt;WHERE serial&gt;1000 and serial&lt;2000
+&gt;ORDER BY serial;
+&gt;MOVE FORWARD 10 IN mycursor;
+&gt;FETCH 10 IN mycursor;
+&gt;END;
+&gt;
+&gt;
+&gt;(実験2)
+&gt;下記SQLを実行し、$query-&gt;fetchrow()で、
+&gt;最初の10行を捨てて次の10行を表示する。
+&gt;
+&gt;BEGIN;
+&gt;SELECT * FROM test1
+&gt;WHERE serial&gt;1000 and serial&lt;2000
+&gt;ORDER BY serial;
+&gt;END;
+&gt;
+&gt;
+&gt;(結果)
+&gt;timeコマンドを使って何回か試したうちの平均的なものです。
+&gt;
+&gt;実験1　0.130u 0.050s 0:00.45 40.0% 563+619k 0+0io 1pf+0w
+&gt;実験2　0.230u 0.092s 0:02.16 14.8% 535+1026k 0+0io 0pf+0w
+&gt;
+&gt;まあ、C言語を捨てて(=C言語に見捨てられて)、手抜き可能な
+&gt;Perlに逃げたズボラ人間のする実験ですから、精度は低いですが。
+&gt;
+&gt;
+&gt;(考察)
+&gt;実験2の場合、SELECT * で全てのデータを検索するので時間とメモリを食う。
+&gt;実験1では、要求された数に達したら検索を打ち切るので早い。
+
+ちょっと違います。declare cusor しようとしまいと、backend はすべての検
+索を行ないます。違いは、declare cursor しない場合は検索結果をすべてク
+ライアント側に一度に転送してしまうことです(fetch all と同様)。実験1 と
+実験2 の実行時間の違いはここだと思います。
+
+&gt;何でこんなことにこだわるかといいますと、
+&gt;Yahooみたいに最初に検索した時は、全データを検索して
+&gt;「****件のデータがヒットしました。そのうちの1-20を表示しています」
+&gt;と表示し、[次の20件]ボタンを押す毎に、
+&gt;「****件のうち??-**を表示しています」
+&gt;となるようなWebデータベースを作ってみたい、と考えているからです。
+&gt;
+&gt;この場合、最初の検索時にはデータを総舐めしてヒット数を出す必要が
+&gt;ありますが、次からは(ヒット数が既にわかっているので)いちいち
+&gt;全データを舐め直す必要はないな、と思った次第であります。
+
+これは、最初のページでは fetch で 1-20 を取って来て、次のページでは 
+fetch 21-40 みたいなことをするということでしょうか？ この場合、次のペー
+ジに移るときに一旦 PostgreSQL へのコネクションが切られるので、そのまま
+では実現できないと思います。
+
+私がよくやるやり方は、最初にページを表示するのに最低必要な情報を全て取
+り込み、hidden タイプの POST のデータとして次のページを表示する CGI に
+渡す方法です。
+
+COOKIE を使っても同じようなことができると思いますが、全てのブラウザで 
+COOKIE が使えるわけではないこと、人によっては COOKIE を拒否する場合が
+あること、(これは曖昧)COOKIE で扱えるデータ量には制限があることなどか
+ら、採用していません。(嘘言ってたら突っ込んで下さい &gt; 詳しい方)
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00244" HREF="msg00244.html">[pgsql-jp 2830] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+<UL><LI><EM>From:</EM> Masami Saotome &lt;saotome@db3.so-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00237" HREF="msg00237.html">[pgsql-jp 2823] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+<UL><LI><EM>From:</EM> minohata@com-net.co.jp (minohata)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00239.html">[pgsql-jp 2825] How to debug ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00241.html">[pgsql-jp 2827] System Configuration of PostODBC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00237.html">[pgsql-jp 2823] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00244.html">[pgsql-jp 2830] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00240"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00240"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

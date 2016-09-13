@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8029] Re: PostgreSQLと  WWWサーバの連動（Pert&#45;2) について -->
+<!--X-From: Ei&#45;ji Nakama <nakama@ki.rim.or.jp> -->
+<!--X-Date: Wed, 14 Apr 1999 23:20:36 +0900 -->
+<!--X-Message-Id: 199904141420.XAA06569@mail.ki.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 371495368C.6AB1WHITEC@smtp02.odn.ne.jp -->
+<!--X-Reference-Id: 19990414223708U.hanai@imgsrc.co.jp -->
+<!--X-Reference-Id: 3714A054A0.6AB3WHITEC@smtp02.odn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8029] Re: PostgreSQLと  WWWサーバの連動（Pert-2) について </TITLE>
+<LINK REV="made" HREF="mailto:nakama@ki.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00221.html">Date Prev</A>][<A HREF="msg00222.html">Date Next</A>][<A HREF="msg00219.html">Thread Prev</A>][<A HREF="msg00249.html">Thread Next</A>][<A HREF="index.html#00220">Date Index</A>][<A HREF="threads.html#00220">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8029] Re: PostgreSQLと  WWWサーバの連動（Pert-2) について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ei-ji Nakama &lt;<A HREF="mailto:nakama@ki.rim.or.jp">nakama@ki.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Apr 1999 23:20:36 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00216.html">371495368C.6AB1WHITEC@smtp02.odn.ne.jp</A>&gt;&lt;<A HREF="msg00218.html">19990414223708U.hanai@imgsrc.co.jp</A>&gt;&lt;<A HREF="msg00219.html">3714A054A0.6AB3WHITEC@smtp02.odn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+なかまです。
+
+&gt; &gt; DBD-Oracle があっても FreeBSD で make できるかどうかはわからんでしょう、
+&gt; &gt; ということです。私は FreeBSD 用のクライアントライブラリーはないと思っ
+&gt; &gt; ていて、それが正しいとすると、Linux 用のライブラリーを使ってなんとかや
+&gt; &gt; ってみるとか自分で Oracle のプロトコルを喋れる関数をがんばって書くとか
+&gt; &gt; しないといけないから大変でしょう?
+&gt; &gt; # FreeBSD で使えるクライアントライブラリーがあるのなら問題なしですけど。
+&gt; 
+&gt; あ、なるほどぉ！やっと理解できました。
+&gt; ODBCもだめでしたっけ？
+&gt; # しらべてみよぉっと。
+&gt; そーいえば、SCO用ってあったような気が...
+
+perlって限るんだったら、DBD::Proxyでいいかと。
+
+libc6(onOracle)&lt;--&gt;libc5(Apache)で遊んでるだけですが。
+
+--------------------- perldoc Bundle::DBI -----------------------------
+NAME
+       Bundle::DBI - A bundle to install DBI and required
+       modules.
+
+SYNOPSIS
+       perl -MCPAN -e 'install Bundle::DBI'
+
+CONTENTS
+       Storable - for DBD::Proxy and DBI::ProxyServer
+       Net::Daemon 0.15 - for DBD::Proxy and DBI::ProxyServer
+       RPC::PlServer 0.2001 - for DBD::Proxy and DBI::ProxyServer
+       Getopt::Long 2.17 - for DBI::Shell
+       DBI - for to get to know thyself
+--------------------- perldoc Bundle::DBI -----------------------------
+
+さーばのconfigファイル
+---------------- dbisv.conf ----------------------
+{
+  'pidfile' =&gt; '/tmp/dbiproxy.pid',
+  'user' =&gt; 'nobody',
+  'group' =&gt; 'nobody',
+  'localport' =&gt; '3334',
+  'logfile' =&gt; undef,
+  'clients' =&gt; [
+		# Accept
+                { 'mask' =&gt; '^192\.168\.1\.\d+$',
+                  'accept' =&gt; 1,
+                },
+		# Deny
+                { 
+                  'mask' =&gt; '.*',
+                  'accept' =&gt; 0
+                }
+  ]
+}
+---------------- dbisv.conf ----------------------
+で、
+
+たち上げ dbiproxy --configfile dbisv.conf
+
+--------------------------------------------------
+#!/usr/local/bin/perl
+use DBI;
+
+$dbh = DBI-&gt;connect("dbi:Proxy:hostname=192.168.1.2;port=3334;dsn=dbi:Oracle:ora8",
+                    "scott",
+                    "tiger"
+                     );
+$sth = $dbh-&gt;prepare("select * from emp") ;
+$sth-&gt;execute ;
+while(@cols = $sth-&gt;fetchrow_array){
+    foreach $col (@cols){
+        print "$col\t" ;
+    }
+    print "\n" ;
+}
+$dbh-&gt;disconnect;
+--------------------------------------------------
+
+んな、感じでしょうか。
+これ以上は、別のMLが妥当かと。
+--
+e-mail : Ei-ji Nakama &lt;nakama@ki.rim.or.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00249" HREF="msg00249.html">[pgsql-jp 8058] Re: PostgreSQLと  WWWサーバの連動（Pert-2) について</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Shinohara" &lt;shino@cityfujisawa.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00216" HREF="msg00216.html">[pgsql-jp 8025] Re: PostgreSQLとWWWサーバの連動（Pert-2) について</A></STRONG>
+<UL><LI><EM>From:</EM> Masayoshi Tsuchida &lt;whitec@t.104.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00218" HREF="msg00218.html">[pgsql-jp 8027] Re: PostgreSQLと WWWサーバの連動（Pert-2) について</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroyuki HANAI &lt;hanai@imgsrc.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00219" HREF="msg00219.html">[pgsql-jp 8028] Re: PostgreSQLと WWWサーバの連動（Pert-2) について</A></STRONG>
+<UL><LI><EM>From:</EM> Masayoshi Tsuchida &lt;whitec@t.104.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00221.html">[pgsql-jp 8030] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00222.html">[pgsql-jp 8031] レス有難う御座います</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00219.html">[pgsql-jp 8028] Re: PostgreSQLと WWWサーバの連動（Pert-2) について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 8058] Re: PostgreSQLと  WWWサーバの連動（Pert-2) について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00220"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00220"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

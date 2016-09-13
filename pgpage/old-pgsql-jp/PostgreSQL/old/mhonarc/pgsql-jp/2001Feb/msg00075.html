@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19831] Re: PQexec 関数でのタイムアウトについて -->
+<!--X-From: HOTTA Michihide <hotta@net&#45;newbie.com> -->
+<!--X-Date: Fri, 9 Feb 2001 00:52:30 +0900 -->
+<!--X-Message-Id: 20010209005230.3435d4a9.hotta@net&#45;newbie.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 492569ED.000FE863.00@notesmailgw -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19831] Re: PQexec 関数でのタイムアウトについて </TITLE>
+<LINK REV="made" HREF="mailto:hotta@net-newbie.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00074.html">Date Prev</A>][<A HREF="msg00076.html">Date Next</A>][<A HREF="msg00059.html">Thread Prev</A>][<A HREF="msg00054.html">Thread Next</A>][<A HREF="index.html#00075">Date Index</A>][<A HREF="threads.html#00075">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19831] Re: PQexec 関数でのタイムアウトについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HOTTA Michihide &lt;<A HREF="mailto:hotta@net-newbie.com">hotta@net-newbie.com</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 9 Feb 2001 00:52:30 +0900</LI>
+<LI><em>Organization</em>: Linux Users KYushu  -- るぅきぃ</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00059.html">492569ED.000FE863.00@notesmailgw</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+堀田＠諌早市です。
+
+On Thu, 8 Feb 2001 11:53:30 +0900
+Subject: [pgsql-jp 19815] Re: PQexec 関数でのタイムアウトについて 
+Fumikatu_Saitoh@hq.digi.co.jp wrote:
+&gt; １５分後には以下のエラーが返ってきています。
+&gt; エラーメッセージは以下の通りです。
+&gt; 
+&gt;  pqReadData() --  read() failed: errno=113
+&gt;  No route to host
+&gt; 
+&gt; そこで、ソースを見てみると、fe-misc.cの
+&gt; pqReadData()内のrecv()でエラーとなっていることは分かりました。
+&gt; （errno=113 - EHOSTUNREACH)
+&gt; このrecvから１５分間答えが返ってこないと思われるのですが
+&gt; そうすると、私自身が無知なのでなんともいえないのですが、
+&gt; １５分というのは、OS側の設定なのでしょうか？それとも
+
+TCP レベル（およびそれ以下）のいろんな状態遷移間のタイムアウト
+値やリトライ回数を論理的に積み上げた値なのでしょうが、具体的に
+カーネルを追っかけて検証するだけのスキルはありません(^^;。
+
+ちょっと前に必要に迫られて検証しようとしたことがありましたが、
+ケーブル抜けなどの事象が入ると、arp cache の有効期限だとかいろ
+んな要素が入ってきて、カーネルの細かいバージョン依存とか、途中
+経路の要素とか、そんな話になってきます。
+
+&gt; connect時になにかを行えば(fcntl()などで）timeoutを変更できる
+&gt; のでしょうか？
+
+前のメールでも書きましたが、/proc/sys/net/ipv4 配下をいじること
+になるのでは?
+
+可能であればアプリケーションレベルで自前でタイマーを張るのが一
+番楽でしょう。select(2) を使うとか（libpq 呼ぶ場合はダメかも）、
+別プロセスで時間を数えてタイムアウトしたらシグナルを送るとか。
+
+&gt; ソース内で良く分からないこととして、
+&gt;  １．recv()の第４パラメータに０を入れていること。
+&gt;      man recv
+&gt;      で見ると４番目のパラメータ（flags)は
+&gt;        MSG_OOB      : 1
+&gt;        MSG_PEEK     : 2
+&gt;        MSG_WAITALL  : 0x100
+&gt;        MSG_NOSIGNAL : 0x4000
+&gt;        MSG_ERRQUEUE : 0x2000
+&gt;      の１つ以上のorとあるのですが、ここで、０をつむとどうな
+&gt;      るのでしょうか？
+
+man recv(2) を見てもわかるとおり、それぞれのビットは単なるフラ
+グですから、0 なら各フラグの意味を否定した要求になります。つま
+り、
+
+  MSG_OOB（帯域外データ受信）をしないで、かつ
+  MSG_PEEK（バッファののぞき見）をしない（実際に読む）で、かつ
+  ....
+
+&gt;  ２．connect時にfcntl()のパラメータにO_NONBLCKが指定されてい
+&gt;      るので recv()の errno は EHOSTUNREACH では無く、EAGAIN 
+&gt;      が返ってくると思うのですが違うのでしょうか？
+
+よく追っていませんが、EAGAIN が何回も返されたあげく最終的にカー
+ネルが音を上げたか、途中経路上の機器から返された ICMP メッセー
+ジに従ってカーネルがエラー番号を生成したかのどちらかではないか
+と思います。tcpdump で観察すればなにかわかるかもしれません。い
+ずれにしても、結構不毛な作業かも(^^;。
+-- 
+堀田　倫英                          Web : <A HREF="http://www.net-newbie.com">http://www.net-newbie.com</A>   
+Official : hotta@18software.co.jp / Private : hotta@net-newbie.com
+  Outlook Express をお使いの方へ：
+    <A HREF="http://www.net-newbie.com/netiquette/outlook.html">http://www.net-newbie.com/netiquette/outlook.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 19815] Re: PQexec 関数でのタイムアウトについて</A></STRONG>
+<UL><LI><EM>From:</EM> Fumikatu_Saitoh@hq.digi.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00074.html">[pgsql-jp 19830] solaris2.4 PostgreSQL 6.5のコンパイルでエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 19832] RE: SJIS &lt;-&gt; UNICODE</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 19815] Re: PQexec 関数でのタイムアウトについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 19810] Re: psql で　likeや 正規表現で （ごめんなさい）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00075"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00075"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

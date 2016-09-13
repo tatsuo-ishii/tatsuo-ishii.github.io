@@ -1,0 +1,206 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5110] pg_dumpのパッチその２ -->
+<!--X-From: kataoka@interwiz.koganei.tokyo.jp (片岡 裕生) -->
+<!--X-Date: Thu, 20 Aug 1998 04:45:29 +0900 -->
+<!--X-Message-Id: 19980820044529P.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5110] pg_dumpのパッチその２ </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00176.html">Date Prev</A>][<A HREF="msg00179.html">Date Next</A>][<A HREF="msg00179.html">Thread Prev</A>][<A HREF="msg00182.html">Thread Next</A>][<A HREF="index.html#00178">Date Index</A>][<A HREF="threads.html#00178">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5110] pg_dumpのパッチその２</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A> (片岡 裕生)</LI>
+<LI><em>Date</em>: Thu, 20 Aug 1998 04:45:29 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+  またpg_dumpで不都合を見つけてしまいました。テーブル名やカラム名に漢
+字や大文字英字などが含まれていると、pg_dump（pg_dumpall）で出力される
+CREATE TABLE文やCREATE INDEX文が間違ったないようで出力されてしまいます。
+
+  原因はスタティック領域のポインタを返す関数を同時に２回呼び出している
+ところがあり、２回目の呼び出しで１回目の呼び出しの結果を上書きするとい
+う、Ｃでありがちなバグでした。
+
+  前回ポストしたパッチは含んでいません。このパッチを当てる際には、前回
+ポストしたパッチを先に当ててください。
+
+−−−−ここから−−−−
+*** postgresql-6.3.2/src/bin/pg_dump/pg_dump.c.orig	Wed Aug 12 06:03:10 1998
+--- postgresql-6.3.2/src/bin/pg_dump/pg_dump.c	Thu Aug 20 04:04:46 1998
+***************
+*** 2434,2440 ****
+  	int			i,
+  				j,
+  				k;
+! 	char		q[MAXQUERYLEN];
+  	char	  **parentRels;		/* list of names of parent relations */
+  	int			numParents;
+  	int			actual_atts;	/* number of attrs in this CREATE statment */
+--- 2434,2442 ----
+  	int			i,
+  				j,
+  				k;
+! 	char		q[MAXQUERYLEN],
+! 				id1[MAXQUERYLEN],
+! 				id2[MAXQUERYLEN];
+  	char	  **parentRels;		/* list of names of parent relations */
+  	int			numParents;
+  	int			actual_atts;	/* number of attrs in this CREATE statment */
+***************
+*** 2505,2514 ****
+  					}
+  					else
+  					{
+  						sprintf(q, "%s%s %s",
+  								(actual_atts &gt; 0) ? ", " : "",
+! 								fmtId(tblinfo[i].attnames[j]),
+! 								fmtId(tblinfo[i].typnames[j]));
+  						actual_atts++;
+  					}
+  					if (tblinfo[i].adef_expr[j] != NULL)
+--- 2507,2518 ----
+  					}
+  					else
+  					{
++ 						strcpy(id1, fmtId(tblinfo[i].attnames[j]));
++ 						strcpy(id2, fmtId(tblinfo[i].typnames[j]));
+  						sprintf(q, "%s%s %s",
+  								(actual_atts &gt; 0) ? ", " : "",
+! 								id1,
+! 								id2);
+  						actual_atts++;
+  					}
+  					if (tblinfo[i].adef_expr[j] != NULL)
+***************
+*** 2579,2585 ****
+  				indclass;
+  	int			nclass;
+  
+! 	char		q[MAXQUERYLEN];
+  	PGresult   *res;
+  
+  	for (i = 0; i &lt; numIndices; i++)
+--- 2583,2591 ----
+  				indclass;
+  	int			nclass;
+  
+! 	char		q[MAXQUERYLEN],
+! 				id1[MAXQUERYLEN],
+! 				id2[MAXQUERYLEN];
+  	PGresult   *res;
+  
+  	for (i = 0; i &lt; numIndices; i++)
+***************
+*** 2668,2675 ****
+  							attname, indinfo[i].indexrelname);
+  					exit_nicely(g_conn);
+  				}
+  				sprintf(attlist + strlen(attlist), "%s%s %s",
+! 						(k == 0) ? "" : ", ", fmtId(attname), fmtId(classname[k]));
+  				free(classname[k]);
+  			}
+  		}
+--- 2674,2683 ----
+  							attname, indinfo[i].indexrelname);
+  					exit_nicely(g_conn);
+  				}
++ 				strcpy(id1, fmtId(attname));
++ 				strcpy(id2, fmtId(classname[k]));
+  				sprintf(attlist + strlen(attlist), "%s%s %s",
+! 						(k == 0) ? "" : ", ", id1, id2);
+  				free(classname[k]);
+  			}
+  		}
+***************
+*** 2677,2686 ****
+  		if (!tablename || (!strcmp(indinfo[i].indrelname, tablename)))
+  		{
+  
+  			sprintf(q, "CREATE %s INDEX %s on %s using %s (",
+  			  (strcmp(indinfo[i].indisunique, "t") == 0) ? "UNIQUE" : "",
+! 					fmtId(indinfo[i].indexrelname),
+! 					fmtId(indinfo[i].indrelname),
+  					indinfo[i].indamname);
+  			if (funcname)
+  			{
+--- 2685,2696 ----
+  		if (!tablename || (!strcmp(indinfo[i].indrelname, tablename)))
+  		{
+  
++ 			strcpy(id1, fmtId(indinfo[i].indexrelname));
++ 			strcpy(id2, fmtId(indinfo[i].indrelname));
+  			sprintf(q, "CREATE %s INDEX %s on %s using %s (",
+  			  (strcmp(indinfo[i].indisunique, "t") == 0) ? "UNIQUE" : "",
+! 					id1,
+! 					id2,
+  					indinfo[i].indamname);
+  			if (funcname)
+  			{
+−−−−ここまで−−−−
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00182" HREF="msg00182.html">[pgsql-jp 5114] Re: pg_dumpのパッチその２</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 5108] Re: cant use PostgresPerl1.3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00179.html">[pgsql-jp 5111] PostgreSQL ODBC Driver 日本語版 最新版公開</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00179.html">[pgsql-jp 5111] PostgreSQL ODBC Driver 日本語版 最新版公開</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00182.html">[pgsql-jp 5114] Re: pg_dumpのパッチその２</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00178"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00178"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

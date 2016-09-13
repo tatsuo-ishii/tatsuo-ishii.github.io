@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7732] RE: vacuum -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Thu, 25 Mar 1999 19:22:48 +0900 -->
+<!--X-Message-Id: 001601be76a9$6e5b9980$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903240858.RAA03779@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7732] RE: vacuum </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00477.html">Date Prev</A>][<A HREF="msg00478.html">Date Next</A>][<A HREF="msg00452.html">Thread Prev</A>][<A HREF="msg00450.html">Thread Next</A>][<A HREF="index.html#00476">Date Index</A>][<A HREF="threads.html#00476">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7732] RE: vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 25 Mar 1999 19:22:48 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+サブジェクトは石井さんに追随して変えました。
+
+&gt; -----Original Message-----
+&gt; From: owner-pgsql-jp@sra.co.jp [<A HREF="mailto:owner-pgsql-jp@sra.co.jp]On">mailto:owner-pgsql-jp@sra.co.jp]On</A>
+&gt; Behalf Of Tatsuo Ishii
+&gt; Sent: Wednesday, March 24, 1999 5:59 PM
+&gt; To: pgsql-jp@sra.co.jp
+&gt; Subject: [pgsql-jp 7701] Re: RE: [pgsql-jp 7683] Re: Linux WORLD の記事
+&gt;
+&gt;
+&gt; 石井です。
+&gt;
+&gt; &gt;井上＠セーレンです。
+&gt;
+&gt; &gt;件数情報はPostgreSQLでは更新されていません。
+&gt; &gt;Oracleもそうだったかな？
+&gt;
+&gt; 正確な件数というのは、結構求め方が難しいですよね。
+&gt; # というより不可能かな。
+&gt;
+
+rollback/commitにしっかり対応しないといけないし、できても大変
+という気がします。  それに意外と使い道が少ないんじゃないですか。
+件数情報だけで最適化するのは本当はちょいと無理があるし、
+select count(*) from .. にも使えそうで使えませんしね。
+
+&gt; &gt;insertしかしてないテーブルに対してvacuum(analyzeなし)を
+&gt; &gt;実行するとコンデンスは当然ながらできないので、件数／ページ
+&gt; &gt;数／索引の有無程度の統計情報を更新するだけになると思い
+&gt; &gt;ます。
+&gt;
+&gt; はい。ただの vacuum では pg_class にあるこれらの情報を更新するだけです。
+&gt;
+&gt; vacuum analyze ではどうなるかというと、たとえば regression test で使わ
+&gt; れる tenk1 というテーブル(10000タプル)に vacuum analyze をかけると、
+&gt;
+&gt; regression=&gt; vacuum analyze tenk1;
+&gt; VACUUM
+&gt; regression=&gt; select * from pg_statistic;
+&gt; starelid|staattnum|staop|stalokey|stahikey
+&gt; --------+---------+-----+--------+--------
+&gt;    19660|        1|    0|0       |9999
+&gt;    19660|        2|    0|0       |9999
+&gt;    19660|        3|    0|0       |1
+&gt;    19660|        4|    0|0       |3
+&gt;    19660|        5|    0|0       |9
+&gt;    19660|        6|    0|0       |19
+&gt;    19660|        7|    0|0       |99
+&gt;    19660|        8|    0|0       |999
+&gt;    19660|        9|    0|0       |1999
+&gt;    19660|       10|    0|0       |4999
+&gt;    19660|       11|    0|0       |9999
+&gt;    19660|       12|    0|0       |198
+&gt;    19660|       13|    0|1       |199
+&gt;    19660|       14|    0|AAAAAA  |ZZAAAA
+&gt;    19660|       15|    0|AAAAAA  |ZZNAAA
+&gt;    19660|       16|    0|AAAAxx  |VVVVxx
+&gt; (16 rows)
+&gt;
+&gt; のような感じで、各カラムの最大値と最小値が解析、格納されるようです。こ
+&gt; れがオプティマイザで実際どのように使われるかまでは知りません。
+
+この情報は不等号による比較の時に有効に使われるはずなのが現在は
+バグのため使われていないようです(staopがすべて 0 になっているのが
+まずい？）。
+
+vacuum analyzeではpg_attributeも更新されています。特にattdisbursion
+でしょうか？ こちらは等号による比較の時に比較的有効に使われている
+ようです。 ただ、各カラム毎の情報だけでは複合インデクスの処理がうまく
+できないと思うんだけど。
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00445" HREF="msg00445.html">[pgsql-jp 7701] Re: RE: [pgsql-jp 7683] Re: Linux WORLD の記事</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00477.html">[pgsql-jp 7733] php with gd (Re: undefined symbol: gdImageDestroy)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00478.html">[pgsql-jp 7734] Re: JDBC Driver Compile error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00452.html">[pgsql-jp 7708] Re: RE: Linux WORLD  の記事</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00450.html">[pgsql-jp 7706] Re: Linux WORLD の記事</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00476"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00476"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21645] Re: ecpg での構造体の型定義について -->
+<!--X-From: SAKAIDA Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Fri, 01 Jun 2001 21:21:39 +0900 -->
+<!--X-Message-Id: 20010601201903.F791.SAKAIDA@psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 008001c0e830$b4858f60$89a0530a@Rome -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21645] Re: ecpg での構造体の型定義について </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00024.html">Date Prev</A>][<A HREF="msg00026.html">Date Next</A>][<A HREF="msg00089.html">Thread Prev</A>][<A HREF="msg00021.html">Thread Next</A>][<A HREF="index.html#00025">Date Index</A>][<A HREF="threads.html#00025">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21645] Re: ecpg での構造体の型定義について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 01 Jun 2001 21:21:39 +0900</LI>
+<LI><em>References</em>: &lt;008001c0e830$b4858f60$89a0530a@Rome&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+# もう解決されているかもしれませんね。亀レスです。
+
+"柳原　淳宏" &lt;yanagiha@soc.se.fujitsu.co.jp&gt; さん wrote:
+&gt; 
+&gt; OracleのPro*Cで開発したプログラムをPostgreSQLのecpgに移植しているのですが、
+&gt; 構造体の型宣言がホスト変数宣言部でうまくいかず悩んでいます。
+&gt; 
+&gt; Oracleでは
+&gt; 
+&gt; EXEC SQL BEGIN DECLARE SECTION;
+&gt; typedef struct {
+&gt;     varchar    name[10];
+&gt;     int        inum;
+&gt; } TABLE_STR;
+&gt; 
+&gt; typedef struct {
+&gt;     short    name_ind;
+&gt;     short    inum_ind;
+&gt; } TABLE_IND;
+&gt; EXEC SQL END DECLARE SECTION;
+&gt; 
+&gt; TABLE_STR　table_str1;
+&gt; TABLE_IND  table_ind1;
+&gt; 　：
+&gt; のようにホスト変数宣言部に宣言した型を利用して同じ構造の変数を複数
+&gt; 使用していました。
+&gt; 
+&gt; テストプログラムを作って上記の宣言を行うとecpgにtypdefの型が不正だと
+&gt; 怒られてしまいます。
+
+PostgreSQLでは、DECLARE SECTION内に typedef を指定できません。
+（そのうち、指定できるようになると期待はしてますが）
+
+&gt;  typedef struct { long born; short age; } birthinfo;
+&gt;  exec sql type birthinfo is struct { long born; short age; };
+&gt; のように必ず型定義を行う場合は上記の２パターンの記述があるのですが、
+&gt; "exec sql type ..."の宣言は実際のところ何を行っているのでしょうか？
+
+これは、typedef を使うための苦肉の策じゃないでしょうか。
+（私もよくわかりません。）
+
+とりあえず、現状では次のようにします。
+typedef struct { varchar name[10]; int inum;
+} TABLE_STR;
+exec sql type TABLE_STR is struct{varchar name[10]; int inum;};
+typedef struct {
+   short    name_ind; 
+   short inum_ind;
+} TABLE_IND;
+exec sql type TABLE_IND is struct {
+   short    name_ind;
+   short    inum_ind;
+} ;
+EXEC SQL BEGIN DECLARE SECTION;
+  TABLE_STR  table_str1;
+  TABLE_IND  table_ind1;
+EXEC SQL END DECLARE SECTION;
+
+
+tyoedef を使用せずに、直接 struct を定義することはできます。
+（この方が、ずっとすっきりしてますね。）
+EXEC SQL BEGIN DECLARE SECTION;
+  struct {
+    varchar    name[10];
+    int        inum;
+  } table_str1;
+  struct {
+   short    name_ind;
+   short    inum_ind;
+  } table_ind1;
+EXEC SQL END DECLARE SECTION;
+
+
+ついでに言いますと、上記のいずれの宣言であっても fetch 文で
+は次のように使用することができます。
+exec sql fetch cur into :table_str1:table_ind1;
+
+但し、構造体ホスト変数を使用する場合は、NULL判定用のインジケ
+ータ変数は必須です。
+
+また、insert でも
+exec sql insert into test values( :table_str1:table_ind1 );
+とできるはずですが....残念ながら ecpg のバグのため、7.1.2
+では正常に動きません。
+
+
+&gt; また"exec sql begin declare section;"内の構造体のメンバのうち
+&gt; varchar属性のものはわざわざ同宣言内の前に
+&gt; 
+&gt; exec sql type str is varchar[8];
+&gt; 
+&gt; といった型宣言を行った上で使用されていますが、
+&gt; 構造体を宣言する場合のvarchar属性の変数は全て１つずつ外部で型宣言を
+&gt; しなければ使用できないのでしょうか？
+
+いえ、そんなことはありません。単に、char 型のホスト変数を
+宣言して使用することができます。exec sql type str .. のよ
+うに宣言して使用すると、その変数が構造体型になり文字列と
+文字長を返してくれるのですが、ただそれだけのことです。
+
+# *.pgc と *.c とを見比べて *.c 側の ECPGdo()のパラメータ
+　を見れば、違いがわかるでしょう。
+
+--
+SAKAIDA Masaaki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00024.html">[pgsql-jp 21644] Re: make のエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 21646] Re: Kylix の接続コンポーネント</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 21710] Re: Delphi/C++Builder 用接続コンポーネント</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00021.html">[pgsql-jp 21641] make のエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00025"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00025"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

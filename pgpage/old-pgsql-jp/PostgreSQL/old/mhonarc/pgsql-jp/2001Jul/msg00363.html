@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22498] PostgreSQL JDBC バグ？(ResultSet#getString() ) -->
+<!--X-From: "r.mi.ats" <mizoguti@ats&#45;japan.co.jp> -->
+<!--X-Date: Sat, 21 Jul 2001 15:11:37 +0900 -->
+<!--X-Message-Id: JE20010721151137.76216443@ats&#45;japan.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22498] PostgreSQL JDBC バグ？(ResultSet#getString() ) </TITLE>
+<LINK REV="made" HREF="mailto:mizoguti@ats-japan.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00362.html">Date Prev</A>][<A HREF="msg00364.html">Date Next</A>][<A HREF="msg00365.html">Thread Prev</A>][<A HREF="msg00366.html">Thread Next</A>][<A HREF="index.html#00363">Date Index</A>][<A HREF="threads.html#00363">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22498] PostgreSQL JDBC バグ？(ResultSet#getString() )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "r.mi.ats" &lt;<A HREF="mailto:mizoguti@ats-japan.co.jp">mizoguti@ats-japan.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 21 Jul 2001 15:11:37 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+溝口と申します。
+
+問題的には既に解決している(と思う)のですが、
+皆様のご意見を賜りたく投稿させて頂きました。
+
+
+問題：
+    PostgreSQL 7.1.2 のデータベース( UNICODE )に JDBC で接続して、
+    ResultSet#getString() を実行すると、日本語のデータだけが取得
+    できない。
+    
+環境：
+    OS → RedHat Linux 7J
+    Servlet Engine → Tomcat 3.2.3 ( JVM 1.3.1 )
+    DB → PostgreSQL 7.1.2 (文字コードを "UNICODE" にしてあります)
+    JDBC Driver → PostgreSQL 7.1.2 付属のものを Ant でビルドしました。
+                   ( ビルド環境 windows2000 JDK1.3.1 )
+
+現象：
+    getString("カラム名") の返り値が ""(空文字) になる。
+
+対策：
+    PostgreSQL JDBC のソースを覗いてみると、以下のようになっていました。
+
+-- ここから --
+
+public String getString(int columnIndex) throws SQLException
+{
+    if (columnIndex &lt; 1 || columnIndex &gt; fields.length)
+        throw new PSQLException("postgresql.res.colrange");
+
+    wasNullFlag = (this_row[columnIndex - 1] == null);
+    if(wasNullFlag)
+        return null;
+    String encoding = connection.getEncoding();
+    if (encoding == null)
+        return new String(this_row[columnIndex - 1]);
+    else {
+        try {
+            return new String(this_row[columnIndex - 1], encoding);
+        } catch (UnsupportedEncodingException unse) {
+            throw new PSQLException("postgresql.res.encoding", unse);
+        }
+    }
+}
+
+-- ここまで --
+
+this_row[] には 取得したカラムごとのデータがバイト配列で入っています。
+また encoding には "UTF8" という文字列が入ります。
+
+ここで仮に、this_row[columnIndex - 1] に "溝口令雄" という文字列の
+バイト配列が入っているとき、
+
+if ( encoding == null )
+
+は false なので、new String(this_row[columnIndex - 1], encoding) が
+返されるのですが、これはバグではないでしょうか？
+
+new String(this_row[columnIndex - 1]) を返すようにするとちゃんと
+日本語を返してくれます。
+
+
+文字エンコーディングに対しての知識に自身が無い事と、
+プログラミングの経験が浅いため、このようなときにどうしたらよいのか分からなかったので、
+御意見・アドバイスを頂けると幸いです。
+(もしかしたら、僕の単なる勘違いなのかもしれません。徹夜明けで頭がもうろうと…(^^;)
+
+
+よろしくお願いします。
+
+
+
+--
+溝口 令雄/Reo MIZOGUCHI
+北野システムコンサルタント
+ <A HREF="http://www.ksci.co.jp/">http://www.ksci.co.jp/</A>
+ mizoguchi@ksci.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00366" HREF="msg00366.html">[pgsql-jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00362.html">[pgsql-jp 22497] Re: DBD::Pg で1回のexecuteで実行できるクエリは？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00364.html">[pgsql-jp 22499] Re: DBD::Pg で1回のexecuteで実行できるクエリは？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 22500] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00366.html">[pgsql-jp 22501] Re: PostgreSQL JDBC バグ？( ResultSet#getString() )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00363"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00363"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

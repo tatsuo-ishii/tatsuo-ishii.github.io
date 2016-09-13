@@ -1,0 +1,172 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 26 Mar 2001 15:27:08 +0900 -->
+<!--X-Message-Id: 3ABEE13C.483092C8@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200103241001.TAA14855@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 3ABC81B7.A0DF1657@shonan.ne.jp -->
+<!--X-Reference-Id: 20010324232656K.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200103260522.OAA11306@mailhost.e&#45;vision.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00351.html">Date Prev</A>][<A HREF="msg00353.html">Date Next</A>][<A HREF="msg00351.html">Thread Prev</A>][<A HREF="msg00339.html">Thread Next</A>][<A HREF="index.html#00352">Date Index</A>][<A HREF="threads.html#00352">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 15:27:08 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00340.html">200103241001.TAA14855@mailhost.e-vision.co.jp</A>&gt; &lt;<A HREF="msg00341.html">3ABC81B7.A0DF1657@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00342.html">20010324232656K.t-ishii@sra.co.jp</A>&gt; &lt;<A HREF="msg00350.html">200103260522.OAA11306@mailhost.e-vision.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+貴重なデーターをありがとうございます。
+
+実機や、pg_xlog以下の部分を専用のドライブ
+にした場合のデーターなど、ご都合がよければ、
+投稿していただけると嬉しいです。今忙しくて、
+7.1 のテストはできないもので、人頼み。(^_^;;
+
+-----------------------------------------------------
+Tsuyoshi SASAMOTO wrote:
+&gt; 
+&gt; 皆さん，ありがとうございます．
+&gt; 
+&gt; 近藤さん:
+&gt; &gt;CPU がわからないけど、この数値は、異常に低いような。
+(snip)
+&gt; はい，前回のメールに出していたデータは，同期モードのものでした．
+
+やっぱり。tmpfs( RAMDISK と言っていいのかな？)
+使う位だから、当然非同期と思い込んでたもんで。
+
+........... snip ........
+
+&gt; 石井さん:
+&gt; &gt;このデータからすると，fsyncありのデータですね．同じfsyncありでも，7.1
+&gt; &gt;ならかなり早くなるはずです．
+&gt; &gt;
+&gt; &gt;まだ正式アナウンスされてませんが，7.1のRC1(Relelease Candidate)
+&gt; &gt;
+&gt; &gt;<A HREF="ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz">ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz</A>
+&gt; &gt;
+&gt; &gt;をお試し下さい．もしかしたらtmpfsいらないくらいのスピードになるかも．
+&gt; 
+&gt; いよいよRCまで来たんですね．ということで，早速使ってみました．
+
+.........snip .......
+
+&gt; 確かに，fsyncありの場合のパフォーマンスはかなりよくなっているようですね．
+
+さすが、7.1 。fsync  の場合は、すごい効果ですね。
+
+ ufs  fsync  7.03 
+tps = 5.089115(including connections establishing)
+
+[ufs, fsync, 7.1RC1]
+tps = 31.229408(including connections establishing)
+
+と、６倍位になってますね。
+7.03 の非同期の tps = 90.759750 の 1/3 位ですね。
+
+&gt; データファイルの構造もだいぶ変わっているようですし．
+&gt; ただ，fsyncなしの場合には，逆にパフォーマンスが低下しているような
+&gt; 気もするんですけど......
+
+非同期の速度向上は期待してなかったけど、低下する
+ような場合があると。。。。。早く検証したい(^_^;;
+
+そうすると、7.1 は、pg_xlog を専用ドライブに置いて、
+fsync 同期モードで使うことを想定して作っているんで
+しょうかね？。このあたりの、設計方針みたいな話を、
+聞いてみたいです。
+
+........... snip ........
+
+&gt; で，結論的には
+&gt; ・　7.1を使う．
+&gt; ・　ufsを使うけど，バッファをたっぷり割り当てる．
+&gt; ・　pg_xlog以下の部分を別デバイスにする．
+
+そうですね。結局常識的な結論になるのかな。
+
+PostgreSQL の WORK 領域(SORT や MERGE JOIN 等々)
+だけでも、RAMDISK に置くか、別ドライブにするよう
+な方法が取れるといいのですが。
+
+pg_xlog で、HDD １台占有するのがもったいない気もす
+るけど、多分それだけの効果はあると期待しています。
+余った部分は、普段使わないごみ溜めにしておくとか。
+# Informix でも、その手で、HDD ８台並べて使ってます。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+           PostgreSQL 汎用DB検索ツール デモ  
+      <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00350" HREF="msg00350.html">[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00353.html">[pgsql-jp 20487] Re: 文字化けについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00339.html">[pgsql-jp 20473] バックアップ方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00352"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00352"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

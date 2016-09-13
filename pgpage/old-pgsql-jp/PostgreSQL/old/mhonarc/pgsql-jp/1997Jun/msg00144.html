@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2022] Re: (6.1) i386_solaris <&#45;> sparc_solaris/hpux communication failure. -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Fri, 20 Jun 1997 11:13:36 +0900 -->
+<!--X-Message-Id: 199706200213.LAA20752@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9706200050.AA06007@white.is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2022] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communicat </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00143.html">Date Prev</A>][<A HREF="msg00145.html">Date Next</A>][<A HREF="msg00143.html">Thread Prev</A>][<A HREF="msg00145.html">Thread Next</A>][<A HREF="index.html#00144">Date Index</A>][<A HREF="threads.html#00144">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2022] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Fri, 20 Jun 1997 11:13:36 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。お蔭様で私も疑問が氷解しました。
+
+&gt;&gt; endian.patch を当てておりますが、さらに以下のディレクティブを 
+&gt;&gt; postgres.h の最後の方に追加しました。
+&gt;&gt; 
+&gt;&gt; −−−−８＜−−−−
+&gt;&gt; #if !defined(LITTLE_ENDIAN) &amp;&amp; !defined(BIG_ENDIAN) &amp;&amp; !defined(PDP_ENDIAN)
+&gt;&gt; #  define LITTLE_ENDIAN 1
+&gt;&gt; #  define BIG_ENDIAN 2
+&gt;&gt; #  define PDP_ENDIAN 3
+&gt;&gt; #endif
+&gt;&gt; −−−−＞８−−−−
+&gt;
+&gt;おお！ なるほど．ちょっとしたところでこけていたのですね．
+&gt;問題が解決しました．どうもありがとうございます．
+&gt;
+&gt;&gt; この現象は、gcc 特有でしょうか？  こちらの gcc のバージョンは 2.7.2 で
+&gt;&gt; す。
+&gt;
+&gt;別な計算機に入っている SC3.0 (Sun の cc です) を見た感じでは，同じ
+&gt;ような現象が発生しそうです．実際，/usr/include の sys/byteorder.h
+&gt;や sys/isa_defs.h をみても，_LITTLE_ENDIAN などが define されている
+&gt;だけで，特に値は割り振っていないようです．一方，gcc の
+&gt;/usr/local/include/..../2.7.2.2/ にある，sys/byteorder.h では，
+&gt;__LITTLE_ENDIAN__ などが定義されていますから，本来ですと port/*.h に
+&gt;書き込む方式よりも，`_' つきの macro をうまく使って値を割り振っておく
+&gt;のがいいのでしょう．
+
+こちらでも調べましたが、やはり SunOS, Solaris ともに cc/gcc に限らずど
+こにも BIG_ENDIAN/LIITLE_ENDIAN などの値が定義されていませんでした。
+で、port.h でせっかく 
+
+	#define         BYTE_ORDER      LITTLE_ENDIAN
+
+とやっても BYTE_ORDER の値が未定です。こ場合 pqcomprim.c の中でやって
+いるような
+
+	#if BYTE_ORDER == LITTLE_ENDIAN
+
+がどうなるのか不思議ですが、実際にはエラーにもならず cc でも gcc でも
+必ず true になってしまうようですね。その結果 Sun のような big endian 
+のマシンにも関わらず little endian の処理に落ちてしまう。で、ネットワー
+クには big endian のデータが流れるため、Intel ベースのマシンはお話がで
+きなくなるわけですね。
+
+&gt;結局のところ，もともとの pqcomprim.c の作りが，define/undef で
+&gt;switch するのか，BYTE_ORDER の値で switch するのかが中途半端だった
+&gt;のがトラブルの原因かと思われます．
+
+そうですね。それと、BYTE_ORDER を定義している endian.h が無い時の処理
+が抜けていた。
+
+&gt;&gt; #if !defined(LITTLE_ENDIAN) &amp;&amp; !defined(BIG_ENDIAN) &amp;&amp; !defined(PDP_ENDIAN)
+&gt;&gt; #  define LITTLE_ENDIAN 1
+&gt;&gt; #  define BIG_ENDIAN 2
+&gt;&gt; #  define PDP_ENDIAN 3
+&gt;&gt; #endif
+
+これですが、実は config.h に endian.h があるかどうかを定義している場所
+があります。これを使って、
+
+#if !defined(HAVE_ENDIAN_H)
+#  define LITTLE_ENDIAN 1
+#  define BIG_ENDIAN 2
+#  define PDP_ENDIAN 3
+#endif
+
+とした方が良いかと思います。というわけで、これを追加した endian.patch
+を <A HREF="ftp://ftp.sra.co.jp/pub/">ftp://ftp.sra.co.jp/pub/</A>
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00145" HREF="msg00145.html">[pgsql-jp 2023] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00143" HREF="msg00143.html">[pgsql-jp 2021] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 2021] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00145.html">[pgsql-jp 2023] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00143.html">[pgsql-jp 2021] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00145.html">[pgsql-jp 2023] Re: (6.1) i386_solaris &lt;-&gt; sparc_solaris/hpux communication failure.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00144"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00144"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

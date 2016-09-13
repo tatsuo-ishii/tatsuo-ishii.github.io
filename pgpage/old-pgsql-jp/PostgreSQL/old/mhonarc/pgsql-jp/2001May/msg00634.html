@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21592] Re: AND 検索用SQL文に自信なし。 -->
+<!--X-From: Masaru Sugawara <rk73@echna.ne.jp> -->
+<!--X-Date: Thu, 31 May 2001 07:38:54 +0900 -->
+<!--X-Message-Id: 20010530210015.79BA.RK73@echna.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010529231134.E428.RK73@echna.ne.jp -->
+<!--X-Reference-Id: 003e01c0e8a5$d01ec820$720118ac@trl.hitachichem.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21592] Re: AND 検索用SQL文に自信なし。 </TITLE>
+<LINK REV="made" HREF="mailto:rk73@echna.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00633.html">Date Prev</A>][<A HREF="msg00635.html">Date Next</A>][<A HREF="msg00624.html">Thread Prev</A>][<A HREF="msg00635.html">Thread Next</A>][<A HREF="index.html#00634">Date Index</A>][<A HREF="threads.html#00634">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21592] Re: AND 検索用SQL文に自信なし。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masaru Sugawara &lt;<A HREF="mailto:rk73@echna.ne.jp">rk73@echna.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 May 2001 07:38:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00619.html">20010529231134.E428.RK73@echna.ne.jp</A>&gt; &lt;<A HREF="msg00624.html">003e01c0e8a5$d01ec820$720118ac@trl.hitachichem.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+すがわら/ＲＫ７３です。
+
+Message-ID:&lt;<A HREF="msg00624.html">003e01c0e8a5$d01ec820$720118ac@trl.hitachichem.co.jp</A>&gt;  
+Mail-Count:pgsql-jp 21582    Date&amp;Time:2001/05/30 10:13:58
+Kuwabata &lt;f-kuwabata@hitachi-chem.co.jp&gt;さんのφ(..@)について
+
+&gt; ぶんこです。使用中のバージョンは　7.0.2-12vl1です。
+&gt; 
+&gt; &gt; すがわら/ＲＫ７３です。
+&gt; &gt;
+&gt; &gt; &gt; 現状のテーブル仕様
+&gt; &gt; &gt; データテーブル　code, text1, text2, text3
+&gt; &gt; &gt; インデックステーブル　code, word
+&gt; &gt; &gt;
+&gt; &gt; &gt; よく見る方式ですが、データ登録時に
+&gt; &gt;
+&gt; &gt;   データテーブル１つに対して、インデックステーブルが多で
+&gt; &gt; 　すよね。
+&gt; 
+&gt; はい。
+&gt; 具体的には、
+&gt; data（code/text）　「1  "青いリンゴ"」「2  "赤いリンゴ"」「3  "赤いトマト"」
+&gt; index(code/word) 「1  "blue"」「1  "apple"」「2  "red"」「2  "apple"」「3
+&gt; "red"」「3  "tomato"」
+&gt; という２テーブルがあるとして
+&gt; "red" and "apple"という検索で、「2　赤いリンゴ」を拾いたいのです。
+
+  「赤い」，「リンゴ」と打ち込んだら「赤い」または「リンゴ」を
+　　含むレコードをすべて選択するものと思っていました。
+
+
+&gt; outer join は「欠落したデータを補完する」って説明がありました。
+
+　そうです。今回の場合データテーブルをもとにインデックス
+　テーブルを作られているので、補完する必要はなかったです
+　ね。私の勘違いです。
+
+
+&gt; この場合は、どういう使い方になっているのでしょう？
+&gt; 結果が
+&gt; 「1  "青いリンゴ"」
+&gt; 「2  "赤いリンゴ"」
+&gt; 「2  "赤いリンゴ"」
+&gt; 「3  "赤いトマト"」
+&gt; となってしまいそうですが。。。
+&gt; 勉強中です。御教授ください。
+&gt; 
+
+
+ 1&gt; select d.code, d.text, i0.word, i1.word
+ 2&gt;  from data as d, index as i0, index as i1
+ 3&gt;  where d.code =i0.code and d.code=i1.code 
+ 4&gt;       and i0.word='red' and i1.word='apple'
+ 5&gt; ;
+
+１から３までで次のような組み合わせを作り、
+５の条件で矢印のデータを選択できます。
+★ただし、ワード１とワード２が同じ値の場合
+間違ったレコードを選択するので、事前にPHP
+側でチェックする必要があります。
+
+code	text	       i0.word	i1.word
+1	青いリンゴ	blue	apple
+1	青いリンゴ	blue	blue
+1	青いリンゴ	apple	apple
+1	青いリンゴ	apple	blue
+2	赤いリンゴ	red	apple      ←ここ
+2	赤いリンゴ	red	red
+2	赤いリンゴ	apple	apple
+2	赤いリンゴ	apple	red
+3	赤いトマト	red	tomato
+3	赤いトマト	red	red
+3	赤いトマト	tomato	tomato
+3	赤いトマト	tomato	red
+
+
+------------------------------------------------------
+データ量が多くなった時は次のようなほうがちょっと早いかも
+しれません。
+
+ 1&gt; select d.code, d.text, i0.word, i1.word
+ 2&gt;  from data as d,
+ 3&gt;       (select a.code from index as a  where a.word = 'red') as i0,
+ 4&gt;         (select b.code from index as b where b.word ='apple') as i1
+ 3&gt;  where d.code =i0.code and d.code=i1.code 
+ 5&gt; ;
+
+
+
+
+
+
+
+
+
+
+--------------------------------
+  M.Sugawara
+  e-mail:&lt;rk73@echna.ne.jp&gt;
+ -------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00635" HREF="msg00635.html">[pgsql-jp 21593] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+<UL><LI><EM>From:</EM> Kuwabata &lt;f-kuwabata@hitachi-chem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00619" HREF="msg00619.html">[pgsql-jp 21577] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Sugawara &lt;rk73@echna.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00624" HREF="msg00624.html">[pgsql-jp 21582] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+<UL><LI><EM>From:</EM> Kuwabata &lt;f-kuwabata@hitachi-chem.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00633.html">[pgsql-jp 21591] Re: PostgreSQL が突然動かなくなった</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00635.html">[pgsql-jp 21593] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00624.html">[pgsql-jp 21582] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00635.html">[pgsql-jp 21593] Re: AND 検索用SQL文に自信なし。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00634"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00634"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

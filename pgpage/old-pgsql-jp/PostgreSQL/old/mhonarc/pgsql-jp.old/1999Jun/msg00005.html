@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8571] Re: 大量のデータ処理について教えて下さい。 -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Tue, 01 Jun 1999 13:26:32 +0900 -->
+<!--X-Message-Id: 375360F832A.9DD0SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37530DDA.4D8CA002@rnac.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8571] Re: 大量のデータ処理について教えて下さい。 </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00002.html">Thread Prev</A>][<A HREF="msg00007.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8571] Re: 大量のデータ処理について教えて下さい。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Jun 1999 13:26:32 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00002.html">37530DDA.4D8CA002@rnac.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Tue, 01 Jun 1999 07:31:55 +0900
+"terumi.chida" &lt;terumi@rnac.ne.jp&gt; さん wrote:
+&gt;
+&gt; 最近データ件数がふえるに伴い検索速度もぐっとおちてきております。現在の検
+&gt; 索速度はクエリーにもよりますが、２０秒〜５分といったところです。
+&gt; インデックスを含めたＤＩＳＫ使用容量は、計２Ｇを超えているようです。
+&gt;
+&gt; １）今より検索速度を上げる手だてがあるのでしょうか？
+&gt; 　　たとえばメモりをたすとか、データベース構造を変えるとか。
+
+　メモリ不足(swap発生)がありましたら、それはすぐに増設すべき
+です。（ディスクスピードもかなり影響します。）
+
+# (私の大嫌い^^;な)vacuumは実行してますよね？
+
+
+&gt; create table siwake_tab
+&gt; (
+&gt;         keiri_date      char(8),
+&gt;  ..途中省略 ..
+&gt;         rec_key         char(15)
+&gt; );
+&gt; 
+&gt; create table tax_tab
+&gt; (
+&gt;         rec_key         char(15),
+&gt;         s_zei           char(2)
+&gt; )
+&gt; 
+&gt; create index keiri_date_index on siwake_tab using btree (keiri_date);
+&gt; ...途中省略...
+&gt; create index kari_kin_index   on siwake_tab using btree (kari_kin);
+&gt; 
+&gt; create index rec_key_index_t     on tax_tab using btree (rec_key);
+&gt; create index s_zei_index_t       on tax_tab using btree (s_zei);
+
+　どのような select文を使用してますか？
+
+　おそらく、
+  select ... from siwake_tab, tax_tab 
+   where siwake_tab.rec_key = tax_tab.rec_key ...;
+
+  のような select文を使用していることと思いますが、この場合、
+　siwake_tabテーブルの"rec_key"に索引を作成した方がいいです。
+
+# 6.4.2は、複数テーブルを使用する検索において、結合対象とな
+  る列に索引が作成されていないと、かなり(異常に?)遅くなるよ
+  うです。
+
+# それと、where句において等号で比較される索引がある場合、create
+　indexに unique指定できるものは指定した方が良いです。その方
+　が若干速くなります。
+
+
+&gt; ２）６．４．２の導入を試みましたがslackwareのカーネル２．２．１では使用でき
+&gt; ないのでしょうか？
+&gt; 　　カーネル2.0.35ではできました。
+
+　これはわかりません。
+
+&gt; ３）siwake_tabとtax_tabをrec_keyをキーとしてs_zei.siwake_tabに
+&gt; s_zei.tax_tabをセット（７７万件すべてのupdate）したいのですが時間かかり
+&gt; すぎて断念しました。何かいい方法はありますか。
+&gt; 
+
+　どのような update文を使用してますか？
+
+　これも、先ほどの siwake_tab の rec_key に索引を作成すること
+で高速になるかもしれません。
+
+# と言いましても、77万件(77万タプル)ですから、相当な時間がかか
+　ると思います。(siwake_tab の s_zei に索引が指定されて'なけれ
+　ば'もっと高速になります）
+
+  テストしましたら、処理時間など教えてくださいね。
+
+--
+SAKAIDA Masaaki( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00007" HREF="msg00007.html">[pgsql-jp 8573] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> "terumi.chida" &lt;terumi@rnac.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 8568] 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> "terumi.chida" &lt;terumi@rnac.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 8570] はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 8572] psqlで大量のデータが表示できません</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 8568] 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00007.html">[pgsql-jp 8573] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

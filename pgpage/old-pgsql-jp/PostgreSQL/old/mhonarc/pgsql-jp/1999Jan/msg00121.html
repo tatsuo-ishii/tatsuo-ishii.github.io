@@ -1,0 +1,226 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6534] Re: 6.3.2 でバックエンドが落ちる件 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 09 Jan 1999 19:44:43 +0900 -->
+<!--X-Message-Id: 199901091044.TAA00430@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010140b2bbb5170c9a@homes.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6534] Re: 6.3.2 でバックエンドが落ちる件 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00120.html">Date Prev</A>][<A HREF="msg00122.html">Date Next</A>][<A HREF="msg00111.html">Thread Prev</A>][<A HREF="msg00128.html">Thread Next</A>][<A HREF="index.html#00121">Date Index</A>][<A HREF="threads.html#00121">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6534] Re: 6.3.2 でバックエンドが落ちる件</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 09 Jan 1999 19:44:43 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。朗報です:-)
+
+&gt; &gt; &gt; [エラーメッセージ]
+&gt; &gt; &gt; NOTICE:  SIAssignBackendId: discarding tag 2147430138
+&gt; &gt; &gt; Connection databese 'request' failed.
+&gt; &gt; &gt; FATAL 1:  Backend cache invalidation initialization failed
+&gt; &gt; &gt; 
+&gt; &gt; &gt; 　統計をとってみると、やはり複数人同時アクセスのときにこの
+&gt; &gt; &gt; エラーが出るようです。自分が作っているCGIでは1アクセスにつき
+&gt; &gt; &gt; データベースが8個同時に開かれるようになっているのですが、
+&gt; &gt; &gt; 多すぎるせいでこのエラーが出ているのでしょうか。それとも
+&gt; &gt; &gt; postmasterの-Bオプションの数字が128だと少ないのでしょうか。
+&gt; &gt; 
+&gt; &gt; 同時に8個ですか。FreeBSD をお使いとのことですが、ファイルテーブルのエ
+&gt; &gt; ントリは足りているのでしょうか。これが一番心配です。
+
+NOTICE: SIAssignBackendId: discarding tag 2147430138 がなぜ出るのか分
+かりました。阿部さんの推測通り、PostgreSQL の同時ユーザ数(正確には同時
+コネクション数)が MaxBackendId (src/include/storage/sinvaladt.h で定義)
+を超えたときに出るようです。実は、メッセージを出す原因となったモジュー
+ルでは、同時コネクション数が MaxBackendId を超えることを想定していませ
+ん。本来、postmaster がコネクションを受け付けるときに、すでに存在する
+コネクション数をチェックすべきだと思うのですが、その処理がどこにも見当
+たりません。そこで、添付のパッチを作成してみました。お試し下さい。
+
+&gt; 　v6.4.2にひとまず移行したのでこの問題は出なくなったのですが、
+
+これは、MaxbackendId が 6.3.2 では 32 なのに、6.4 以降で 64 になったせ
+いで単に目立たなくなっただけだと思われます。
+
+&gt; ファイルテーブルのエントリというのは何でしょうか。
+
+開いたファイルの情報を管理する kernel のテーブルです。FreeBSD では、
+pstat -T で確認できます。
+
+&gt; 　それから、なぜか今度はpostmasterが頻繁に落ちるようになりました。
+&gt; どうも同時アクセスで負荷がかかると落ちてしまうようです。なかなか
+&gt; うまくいかないものですね(^^;)。
+
+これは多分ファイルテーブルを使い果たしているのだと思います。
+
+       file: table is full
+
+のようなメッセージがコンソールに出てませんか？6.3.2 の時は、ファイルテー
+ブルを使い果たす前に NOTICE: SIAssignBackendId:...  が出てしまっていた
+ので、現象が起こらなかったのでしょう。対策ですが、limit コマンドを使っ
+てバックエンドが使えるファイルディスクリプタ数を制限するのが確実です。
+具体的には、postmaster を起動するときに、csh の limit コマンドを使って 
+20 程度に設定します(PostgreSQL がチェックするので、19以下には設定でき
+ません)。
+
+これと前述のパッチを組み合わせれば、
+
+	20 x 64 = 1280
+
+のファイルテーブルエントリを PostgreSQL 用に確保しておくことによって、
+NOTICE: SIAssignBackendId:... とか、postmaster が死んだりすることはな
+くなるはずです。pstat で見てみて 1280 確保できていない場合は、
+MaxBackendId を小さくして PostgreSQL を再インストールするか、カーネル
+を作り直してファイルテーブルを増やして下さい。
+
+P.S. 以上の対策で、市川さんのところのように多数の学生が同時に 
+PostgreSQL を使う環境でも、安定して使えるようになれば良いのですが..
+---
+Tatsuo Ishii
+
+-------------------------------- cut here --------------------------
+*** postmaster.c.orig	Sun Nov 29 10:52:32 1998
+--- postmaster.c	Sat Jan  9 18:14:52 1999
+***************
+*** 238,243 ****
+--- 238,244 ----
+  static long PostmasterRandom(void);
+  static void RandomSalt(char *salt);
+  static void SignalChildren(SIGNAL_ARGS);
++ static int CountChildren(void);
+  
+  #ifdef CYR_RECODE
+  void		GetCharSetByHost(char *, int, char *);
+***************
+*** 754,764 ****
+  				 * by the backend.
+  				 */
+  
+! 				if (BackendStartup(port) != STATUS_OK)
+! 					PacketSendError(&amp;port-&gt;pktInfo,
+  									"Backend startup failed");
+! 				else
+! 					status = STATUS_ERROR;
+  			}
+  
+  			/* Close the connection if required. */
+--- 755,771 ----
+  				 * by the backend.
+  				 */
+  
+!                                 if (CountChildren() &lt; MaxBackendId) {
+! 					if (BackendStartup(port) != STATUS_OK)
+! 						PacketSendError(&amp;port-&gt;pktInfo,
+  									"Backend startup failed");
+! 					else {
+! 						status = STATUS_ERROR;
+! 					}
+! 				} else {
+! 					PacketSendError(&amp;port-&gt;pktInfo,
+! 					"There are too many backends");
+! 				}
+  			}
+  
+  			/* Close the connection if required. */
+***************
+*** 1617,1620 ****
+--- 1624,1655 ----
+  	}
+  
+  	return random() ^ random_seed;
++ }
++ 
++ /*
++  * Count up number of chidren processes.
++  */
++ static int
++ CountChildren(void)
++ {
++ 	Dlelem	   *curr,
++ 			   *next;
++ 	Backend    *bp;
++ 	int			mypid = getpid();
++ 	int	cnt = 0;
++ 
++ 	curr = DLGetHead(BackendList);
++ 	while (curr)
++ 	{
++ 		next = DLGetSucc(curr);
++ 		bp = (Backend *) DLE_VAL(curr);
++ 
++ 		if (bp-&gt;pid != mypid)
++ 		{
++ 			cnt++;
++ 		}
++ 
++ 		curr = next;
++ 	}
++ 	return(cnt);
+  }
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00128" HREF="msg00128.html">[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 6524] Re: 6.3.2でバックエンドが落ちる件</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abe@homes.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 6533] RE:PostgreSQL 6.4.2+Apache 1.3.3+PHP3.0.6</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00122.html">[pgsql-jp 6535] Re: please fix pgaccess patch problem.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00111.html">[pgsql-jp 6524] Re: 6.3.2でバックエンドが落ちる件</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 6541] Re: 6.3.2 でバックエンドが落ちる件</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00121"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00121"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

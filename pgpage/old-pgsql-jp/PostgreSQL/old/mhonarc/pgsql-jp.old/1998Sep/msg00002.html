@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5209] Re: backslash with escape sequence. -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Tue, 01 Sep 1998 03:55:52 +0900 -->
+<!--X-Message-Id: 19980901035552N.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980901015337H.minakaji@osaka.email.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5209] Re: backslash with escape sequence. </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00001.html">Date Prev</A>][<A HREF="msg00003.html">Date Next</A>][<A HREF="msg00001.html">Thread Prev</A>][<A HREF="msg00005.html">Thread Next</A>][<A HREF="index.html#00002">Date Index</A>][<A HREF="threads.html#00002">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5209] Re: backslash with escape sequence.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Sep 1998 03:55:52 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00001.html">19980901015337H.minakaji@osaka.email.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+On Tue, 01 Sep 1998 01:53:37 +0900, Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt; wrote:
+&gt;   PostgreSQL + SKK の実験を続けていてふと疑問に思ったのですが、
+&gt; 例えば、
+&gt;                   yomi  |kanji
+&gt;                   ------+------
+&gt;                   latex |\latex
+&gt; 
+&gt; のようなテーブルを作りたいときに `\' だけでは、literal の `\' にならな
+&gt; いので、`\\' に変換したテキストから登録しているのですが、`\\' で登録す
+&gt; ると、今度は、
+&gt; 
+&gt;                   yomi  |kanji
+&gt;                   ------+------
+&gt;                   latex |\\latex
+&gt; 
+&gt; のように `\' ではなく、`\\' として登録されてしまいます。SQL のコマンド
+&gt; 自体で literal の `\' を表わしたいときは、`\\' として表現しなければな
+&gt; らないことは分るのですが、テーブルの登録文字や psql の output 自体は、
+&gt; `\' として \\(登録|出力\\) すべきように思います。
+&gt; 
+&gt; この辺り、どう考えれば良いのでしょうか？
+
+  libpq がどうあるべきかはおいておくとしまして，結論から端的に言ってしまえば，
+
+	\ のここでの役割は，通常のリテラル中のものとは異なる
+
+となります．
+
+  呼び出し系列としては，
+
+    SendQuery [bin/psql/psql.c ]
+         -&gt; PQprint [interfaces/libpq/fe-exec.c]
+              -&gt; do_field [interfaces/libpq/fe-exec.c]
+
+となっていて，\ を \\ にしているのは，do_field 関数の仕事です．
+この関数の役割は，
+
+	タプルデータを，適当なフィールド区切りを入れて一行にまとめる
+
+ということなので，\ が余分に置かれるのはリテラルエスケープ全般では無くて，
+
+	1. フィールド区切り文字の前
+	2. \n の前
+	3. \ の前
+
+となっています．\ が \\ となるのは，(1) と (2) のケースを特殊扱い
+してしまったために，\ も特殊扱いしなくてはならないということです．
+
+  例としてやや人工的なものですが，
+
+    create table aaa (yomi ext, kanji text);
+    insert into aaa values ('case1', 'sed|grep');
+    insert into aaa values ('case2', 'two\nlines');
+    insert into aaa values ('case3', '\\latex);
+
+というようなもの考えます．ここで，| を区切りとして使ってやると，
+
+yomi |kanji
+-----+-----------
+case1|sed\|grep
+case2|two\
+lines
+case3|\\latex
+
+となり，| の前には \ が入ります．カンマ (,)  を区切りに使えば，今度は
+      
+yomi ,kanji
+-----+-----------
+case1,sed|grep
+case2,two\
+lines
+case3,\\latex
+
+となり，sed|grep の | の前の \ は消えます．
+
+  ちょっとエキセントリックなもとしては，区切り文字を a にしてしまうという
+こともできます．この場合は
+
+yomi  akanji     
+------+----------
+c\ase1ased|grep  
+c\ase2atwo\
+lines
+c\ase3a\\l\atex  
+
+などとちょっとあやしい格好になりますね．
+
+  さらにさらに区切り文字を \ にすると...
+
+yomi \kanji     
+-----+----------
+case1\sed|grep  
+case2\two\
+lines
+case3\\\latex   
+
+ちょっと不完全かな? というのも出て来ますが，これはご愛敬なのでしょうか．
+
+&gt; ＃ gawk でテキスト上の `\' を `\\' に変換したいとき、gsub(/\\/, "\\\\")
+&gt; ＃ ではなくて、何故 gsub(/\\/, "\\\\\\") にしなければならないんでしょ
+&gt; うね？
+
+これはパスです．(^^;
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 5257] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00005" HREF="msg00005.html">[pgsql-jp 5212] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00001" HREF="msg00001.html">[pgsql-jp 5208] backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> Mikio Nakajima &lt;minakaji@osaka.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00001.html">[pgsql-jp 5208] backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 5210] Re: psqlで漢字を含むSQLがファイルから実行できない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00001.html">[pgsql-jp 5208] backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00005.html">[pgsql-jp 5212] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00002"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00002"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25802] Re: PL/pgSQL 文での関数について -->
+<!--X-From: Jun Kitamura <kitamura@zoozee.jp> -->
+<!--X-Date: Sun, 05 May 2002 01:13:58 +0900 -->
+<!--X-Message-Id: 3CD408C6FA.8F9EKITAMURA@mail.ayu.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 017b01c1f0ea$319a8bf0$26021bac@imimai -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25802] Re: PL/pgSQL 文での関数について </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@zoozee.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00003.html">Thread Prev</A>][<A HREF="msg00085.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25802] Re: PL/pgSQL 文での関数について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@zoozee.jp">kitamura@zoozee.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 05 May 2002 01:13:58 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00003.html">017b01c1f0ea$319a8bf0$26021bac@imimai</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠zoozee です。
+
+&gt; PL/pgSQL文でストアドプロシージャーを作成中なのですが、
+&gt; select intoではFOUNDにてエラー検知しアボートできますが、
+&gt; insertやupdateを実行したときのエラー処理（エラーの検知）はできるのでしょうか
+&gt; ？
+&gt; 出来るのでしたらそのやり方を、どなたかご教授下さい。
+
+出来ません。(あっさり)
+
+INSERT や UPDATE を行なった時のエラーが(重複エラーや NOT NULL などの制約
+エラーなのだと思いますが)発生する時は、その(エラー元となる)データのために
+整合性が既にとれていないわけです。そのため、強制的にトランザクションがロー
+ルバックされ、アボートされます。
+
+もし、既存なら○○とか、重複しているなら××、という処理をしたいなら、
+INSERTや UPDATEの前には、本来制約チェックで自動的にエラーになるそれらを自
+分で調べる必要があります。調べついでにロックをかける事になるのだと・・・。
+そのための FOUND だと思います。
+
+例:
+create table t1(
+ a int4, primary key(a),
+ b int4 not null
+);
+
+-- a をキーにして、b に NULL を入れようとすると 0 が、
+-- 追加したら 1、更新したら 2 が返る関数です。
+
+create function f1(int4,int4) returns int2 as
+'
+ DECLARE
+  val_a ALIAS FOR $1;
+  val_b ALIAS FOR $2;
+  retval int2;
+  poi_a int4;
+ BEGIN
+  -- b の NOT NULL チェック
+  IF val_b IS NULL THEN
+   retval := 0;
+  ELSE
+   -- 既存？ついでにロック
+   select val_a into poi_a from t1 where a = val_a FOR UPDATE;
+   IF NOT FOUND THEN
+    -- 無ければ追加
+    insert into t1 (a,b) values (val_a,val_b);
+    retval := 1;
+   ELSE
+    -- あったら更新
+    update t1 set b = val_b where a = val_a;
+    retval := 2;
+   END IF;
+  END IF;
+  return retval;
+ END;
+'
+language 'plpgsql';
+
+例が悪い(笑)ので何とも言えないのですが、「こんな感じ」って事で。
+このままだと INSERT 時に重複エラーになる可能性ありますね。BEGIN の後でテー
+ブルロックかけたほうが良いのかな？ほんと悪い例ですんません。
+では。
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00085" HREF="msg00085.html">[pgsql-jp: 25850] Re: PL/pgSQL 文での関数について</A></STRONG>
+<UL><LI><EM>From:</EM> "yasuo217" &lt;yasuo217@m17.alpha-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00003" HREF="msg00003.html">[pgsql-jp: 25769] PL/pgSQL文での関数について</A></STRONG>
+<UL><LI><EM>From:</EM> "yasuo217" &lt;yasuo217@m17.alpha-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp: 25801] Re: dbExpert/dbEasy がバージョンアップしています</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp: 25803] Re: 「Oracle に比べるとフリーだから不安」と言わ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp: 25769] PL/pgSQL文での関数について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00085.html">[pgsql-jp: 25850] Re: PL/pgSQL 文での関数について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

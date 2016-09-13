@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1863] Re: linux&#45;ELF shared libs? -->
+<!--X-From: Satoshi Ishikawa <power@sekine.densi.gifu&#45;u.ac.jp> -->
+<!--X-Date: Wed, 28 May 1997 16:31:39 +0900 -->
+<!--X-Message-Id: 199705280731.QAA19101@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199705280631.PAA13568@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1863] Re: linux-ELF shared libs? </TITLE>
+<LINK REV="made" HREF="mailto:power@sekine.densi.gifu-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00114.html">Date Prev</A>][<A HREF="msg00116.html">Date Next</A>][<A HREF="msg00113.html">Thread Prev</A>][<A HREF="msg00116.html">Thread Next</A>][<A HREF="index.html#00115">Date Index</A>][<A HREF="threads.html#00115">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1863] Re: linux-ELF shared libs?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Ishikawa &lt;<A HREF="mailto:power@sekine.densi.gifu-u.ac.jp">power@sekine.densi.gifu-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 28 May 1997 16:31:39 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00113.html">199705280631.PAA13568@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+でしゃばって後悔 いしかわ＠岐阜大です。
+
+Wed, 28 May 1997 15:31:57 +0900 頃、
+&lt;<A HREF="msg00113.html">199705280631.PAA13568@srashd.sra.co.jp</A>&gt; において
+ Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; さんは書きました。
+
+&gt; &gt;&gt; 3. 使いものにならないだけなら良いが、pg_id などの libpq をリンクしてい
+&gt; &gt;&gt; るロードモジュールのリンクで、-L で指定した場所に .so があると、.a よ
+&gt; &gt;&gt; り優先して .so をリンクする。その結果、ロードモジュールの実行時に 3 の
+&gt; &gt;&gt; 使いものにならない libpq.so が呼ばれてロードモジュールは異常終了する。
+&gt; &gt;
+&gt; &gt;使い物にならないっていうのは、
+&gt; &gt;
+&gt; &gt;% ldd /usr/local/pgsql/bin/pg_id
+&gt; &gt;        libpq.so =&gt; /usr/local/pgsql/lib/libpq.so
+&gt; &gt;        libdl.so.1 =&gt; /lib/libdl.so.1
+&gt; &gt;        libm.so.5 =&gt; /lib/libm.so.5
+&gt; &gt;        libreadline.so.2 =&gt; /usr/lib/libreadline.so.2
+&gt; &gt;% /usr/local/pgsql/bin/pg_id
+&gt; &gt;501
+&gt; &gt;
+&gt; &gt;っていうのが実行できないってことでしょうか？
+&gt; 
+&gt; そうです。MkLinux の場合、pg_id が segmentaion fault で死にます。死ん
+&gt; でいる場所は、どうやら shared library をリンクしている途中のようでした。
+&gt; 
+&gt; &gt;6.1で変更が加えられていく過程で、いつの間にか
+&gt; &gt;（意図的にかはわかりませんが）libpq.soが作られるようになり
+&gt; &gt;＃確か6.0は、libpq.soは作らずにlibpq.aでリンクしてましたよね。
+&gt; 
+&gt; え、そうですか？手元の 6.0 では、Linux-ELF が定義されていると必ず 
+&gt; libpq.a と libpq.so を作りますよ。もしも libpq.a しか作らないのなら、
+&gt; libpq が static link されるわけですから、
+&gt; 
+&gt; &gt;・initdb が実行できないよ（pg_id がこける）
+&gt; &gt;・libpq.soがないっていってる
+&gt; &gt;・どうしよ？
+&gt; &gt;っていう質問がされたことがありました、そこで
+&gt; &gt;
+&gt; &gt;libpq.aでなくlibpq.soでリンクされてるために、INSTALLファイルにLinux で
+&gt; &gt;の注意として、/etc/ld.so.conf に/usr/local/pgsql/lib を加えてldconfig
+&gt; &gt;するか、LD_LIBRARY_PATH に /usr/local/pgsql/lib に加えましょうっていう
+&gt; &gt;項目が加えられたと記憶しています。
+&gt; 
+&gt; こういう問題はそもそも起きないと思いますが。
+
+今ちょっと試してみました。
+6.0 libpq.so.1 ありました。(_O_)
+でも、リンクされるのはlibpq.a
+
+6.1 libpq.so.1 あります。でも、
+    libpq.so もあります。
+
+このとき、libpq.soがリンクされました。
+
+そこで、libpq.soなん消してまえ！
+
+で消してやると libpq.aがリンクされました。
+
+つまり、優先順位がこうなってるみたいですね。
+
+so &gt; a &gt; so.*
+
+＃このへんは、ld.soのバージョンに依存するかも
+
+だから、
+
+ln -sf libpq.so.1 libpq.so
+
+をしなければlibpq.aがリンクされると思います。
+
+&gt; &gt;&gt; 皆さんは手作業でこの問題点を回避されてるのでしょうか？ &gt; MkLinux 以外
+&gt; &gt;&gt; の Linux-ELF な方々
+&gt; &gt;
+&gt; &gt;SPARCでもTOWNSでも別に手は加えてないんですけど。
+&gt; 
+&gt; うーむ。
+&gt; 
+&gt; &gt;libpq.aでリンクしてやれば丸く収まるのでしょうか？
+&gt; 
+&gt; もちろん収まります。
+
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+Satoshi Ishikawa 	power@densi.gifu-u.ac.jp
+			tigre@cc.gifu-u.ac.jp
+<A HREF="http://133.66.191.3/">http://133.66.191.3/</A>    
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00118" HREF="msg00118.html">[postgres95 1866] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> ASADA Kazuhisa &lt;asada@trust.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[postgres95 1864] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00113" HREF="msg00113.html">[postgres95 1861] Re: linux-ELF shared libs?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00114.html">[postgres95 1862] tameshite mimasu.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00116.html">[postgres95 1864] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00113.html">[postgres95 1861] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00116.html">[postgres95 1864] Re: linux-ELF shared libs?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00115"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00115"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

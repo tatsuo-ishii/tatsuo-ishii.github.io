@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23562] Re: ソート時のNULL文字の扱いについて -->
+<!--X-From: Youichi Iwakiri <yiwakiri@st.rim.or.jp> -->
+<!--X-Date: Fri, 26 Oct 2001 10:34:22 +0900 -->
+<!--X-Message-Id: 200110260134.KAA11969@mail1.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003601c15d4a$0d09be70$0110a8c0@x20 -->
+<!--X-Reference-Id: 200110251311.WAA19669@mail1.rim.or.jp -->
+<!--X-Reference-Id: 3BD8A812.2090807@pjam.jpweb.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23562] Re: ソート時のNULL文字の扱いについて </TITLE>
+<LINK REV="made" HREF="mailto:yiwakiri@st.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00291.html">Date Prev</A>][<A HREF="msg00293.html">Date Next</A>][<A HREF="msg00290.html">Thread Prev</A>][<A HREF="msg00291.html">Thread Next</A>][<A HREF="index.html#00292">Date Index</A>][<A HREF="threads.html#00292">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23562] Re: ソート時のNULL文字の扱いについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:yiwakiri@st.rim.or.jp">yiwakiri@st.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Oct 2001 10:34:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00288.html">003601c15d4a$0d09be70$0110a8c0@x20</A>&gt;&lt;<A HREF="msg00289.html">200110251311.WAA19669@mail1.rim.or.jp</A>&gt;&lt;<A HREF="msg00290.html">3BD8A812.2090807@pjam.jpweb.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+ISHIDA Akioさんの&lt;<A HREF="msg00290.html">3BD8A812.2090807@pjam.jpweb.net</A>&gt;から
+ &gt;石田@苫小牧市です。
+
+ &gt;&gt; test=&gt; SELECT CASE WHEN sort_key IS NULL THEN 'zzzzzz' ELSE sort_key END 
+ &gt;as s_key,name
+ &gt;&gt;           FROM table_name ORDER BY s_key;
+ &gt;&gt;  s_key     name
+ &gt;&gt;  --------- ---------------------
+ &gt;&gt;  key1        record2
+ &gt;&gt;  key2        record4
+ &gt;&gt;  zzzzzz      record1
+ &gt;&gt;  zzzzzz      record3
+ &gt;&gt; nullのままでは表示されませんけど
+ &gt;&gt; sort_keyが数値なら最大値を、文字型なら
+ &gt;&gt; 文字コード表の最後の文字をあてがってやれば
+ &gt;&gt; 目的は達成できると思います。    
+
+ &gt;CASE WHEN を order by に使うことも出来ます。
+ &gt;test=&gt; SELECT * FROM table_name ORDER BY CASE WHEN sort_key IS NULL THEN
+ &gt;'zzzzzz' ELSE sort_key END;
+
+ &gt;同じことをするなら coalesce() を使ったほうがすっきりすると思います。
+ &gt;test=&gt; SELECT * FROM table_name ORDER BY COALESCE(sort_key, 'zzzzzz');
+
+確かに出来ますね。一つ勉強になりました。
+  s_key     name
+  --------- ---------------------
+  key1        record2
+  key2        record4
+              record1
+              record3
+ちゃんとNULLはNULLとして表示(?)されてますね。
+
+
+ここから先はほとんど趣味の世界なので適当にお付き合いください ;-P
+
+1. SELECT CASE WHEN sort_key IS NULL THEN 'zzzzzz' ELSE sort_key END as s_key, name
+     FROM table_name ORDER BY s_key;
+2. SELECT * FROM table_name ORDER BY COALESCE(sort_key, 'zzzzzz');
+
+どっちがソートバッファ(メモリ)を使わずに済むのか
+#昔からせこかったのですが、使わないですむリソースは極力使わずに
+#別の事にとっておく方針で物事を考えちゃいます
+
+1. だと抽出されるカラム数は2で
+  s_key        name
+  --------- -----------
+  zzzzzz      record1
+  key1        record2
+  zzzzzz      record3
+  key2        record4
+これをs_keyでsortする挙動かと思っています &gt; PostgreSQL
+
+2. だと抽出されるカラム数は2+1で
+  sort_key     name      case
+  --------- ----------- ----------
+  (NULL)      record1    zzzzzz
+  key1        record2    key1
+  (NULL)      record3    zzzzzz
+  key2        record4    key2
+これをcaseでsortする挙動かと思っています
+
+sort_keyのサイズがnameのサイズより大きい(同サイズ以上)と
+して考えただけでも1.5倍以上のソートバッファを
+必要とはしないでしょうか?
+
+ところで皆さんは可読性重視? 効率重視?
+#時と場合によるでしょうが
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00288" HREF="msg00288.html">[pgsql-jp 23558] ソート時のNULL文字の扱いについて</A></STRONG>
+<UL><LI><EM>From:</EM> "IIZUKA Satoshi" &lt;s.iizuka@mc.neweb.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00289" HREF="msg00289.html">[pgsql-jp 23559] Re: ソート時のNULL文字の扱いについて</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00290" HREF="msg00290.html">[pgsql-jp 23560] Re: ソート時のNULL 文字の扱いについて</A></STRONG>
+<UL><LI><EM>From:</EM> ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00291.html">[pgsql-jp 23561] Re: ソート時のNULL文字の扱いについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00293.html">[pgsql-jp 23563] Re: Q) Bench marking</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 23560] Re: ソート時のNULL 文字の扱いについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00291.html">[pgsql-jp 23561] Re: ソート時のNULL文字の扱いについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00292"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00292"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

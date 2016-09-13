@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25234] Re: Windows上JDBC でのエンコーディング -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Mon, 11 Mar 2002 23:54:23 +0900 -->
+<!--X-Message-Id: 200203112327.48793@digitune.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200203112036.08818@digitune.org -->
+<!--X-Reference-Id: 200203112050.46899@digitune.org -->
+<!--X-Reference-Id: 20020311211746.122D.YTP@vc&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25234] Re: Windows上JDBC でのエンコーディング </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00210.html">Date Prev</A>][<A HREF="msg00214.html">Date Next</A>][<A HREF="msg00208.html">Thread Prev</A>][<A HREF="msg00214.html">Thread Next</A>][<A HREF="index.html#00211">Date Index</A>][<A HREF="threads.html#00211">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25234] Re: Windows上JDBC でのエンコーディング</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 11 Mar 2002 23:54:23 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: SONS,. Ltd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00206.html">200203112036.08818@digitune.org</A>&gt; &lt;<A HREF="msg00207.html">200203112050.46899@digitune.org</A>&gt; &lt;<A HREF="msg00208.html">20020311211746.122D.YTP@vc-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤です。
+
+TANAKA Yoshihiro wrote:
+&gt; 私の不勉強なんですが、そこでおっしゃる
+&gt; 「SJISにすべき」の意味をもう少し、詳しく教えていただけませんか?
+&gt; ストリーム上→ JDBC  →アプリケーション
+&gt;   0x8160      U+301C    U+301C→U+FF5E
+&gt; これが正しいとする理由です。
+
+Java アプリケーション側のポータビリティを確保したいからです。
+
+PostgreSQL 側から流れてくるストリーム上では、「〜」は、Shift JIS
+なら常に「0x81、0x60」ですし EUC-JP ならば「0xa1、0xc1」です。
+
+ところが、これを受ける Java 側のコンバータによって、JavaVM 内に生
+成されるコードは次のように変わってしまいます。
+
+EUC-JP ストリーム    → EUC-JP コンバータ = \u301c
+Shift JIS ストリーム → SJIS   コンバータ = \u301c
+Shift JIS ストリーム → MS932  コンバータ = \uff5e
+
+一番下の例でだけ生成される文字コードが変わってしまい、もしこの文字
+に依存するような処理があった場合にはポータビリティが失われてしまい
+ます。現実にデフォルトエンコーディングが EUC-JP だったり SJIS だっ
+たり MS932 だったりする環境は存在するわけで、それらの間で同じ Java
+アプリケーションを利用したい、と考えるのであれば、デフォルトエンコー
+ディングは使えないことになります。
+
+&gt; 私がプラットフォームのデフォルトエンコーディングにこだわる理由ですが、
+&gt; これは、
+&gt; 「作ったアプリケーションはマルチプラットフォームで動くようにしたい」
+&gt; です。
+
+発想が逆です。マルチプラットフォームで動くようにしたいのであれば、
+デフォルトエンコーディングは使わない、くらいの気持ちでないと難しい
+と思います。
+
+デフォルトエンコーディングが (ポータビリティという意味も含めて) 有
+用なのは、JavaVM と、そのプラットフォーム OSとの間で I/O を行う時
+のみであり、僕の経験上そういった I/O は実際はほとんどありません。
+
+例えばデータをファイルとして外部システムとやりとりしたい時も、その
+エンコード方法も含めてきちんと決めておくべきですし、ネットワーク上
+の通信として I/O する場合も同様です。
+
+さらに、そういう風に明示的にコンバータを指定する場合に、SJIS ではな
+く MS932 を使わなくてはいけない局面って、ほとんどないのではないでしょ
+うか？Windows プラットフォーム上で、awt 等の GUI 部品から直に Unicode
+のデータを取得し、それを Shift JIS としてファイルに書かなければいけ
+ない時、くらい？Windows 上で直に Unicode データが入ってくるような場
+面では確かに MS932 コンバータは有用ですが、僕はそういう場合でも敢え
+て (田中さんが示してくださったような風間さんの対応表などを元に) Java
+レベルで文字変換をかけてから SJIS コンバータで出力する方を好みます。
+将来 EUC-JP や JIS に変換しなくてはいけなくなった時、その方がきっと
+楽だからです。
+
+ご理解いただけましたでしょうか？
+
+＃Java な話ばかりですみません。
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00214" HREF="msg00214.html">[pgsql-jp: 25235] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> TANAKA Yoshihiro &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00206" HREF="msg00206.html">[pgsql-jp: 25229] Re: Windows上JDBC     でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00207" HREF="msg00207.html">[pgsql-jp: 25230] Re: Windows上JDBC      でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00208" HREF="msg00208.html">[pgsql-jp: 25231] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> TANAKA Yoshihiro &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp: 25233] Unicode マッピングの問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00214.html">[pgsql-jp: 25235] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00208.html">[pgsql-jp: 25231] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00214.html">[pgsql-jp: 25235] Re: Windows上JDBCでのエンコーディング</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00211"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00211"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

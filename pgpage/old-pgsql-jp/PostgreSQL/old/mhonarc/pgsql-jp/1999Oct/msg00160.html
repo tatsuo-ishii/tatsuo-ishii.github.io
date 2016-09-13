@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11121] Re: number format problem -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Sat, 09 Oct 1999 09:50:27 +0900 -->
+<!--X-Message-Id: 37FE915364.B78FSAKAIDA@smtp.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11121] Re: number format problem </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00159.html">Date Prev</A>][<A HREF="msg00161.html">Date Next</A>][<A HREF="msg00162.html">Thread Prev</A>][<A HREF="msg00161.html">Thread Next</A>][<A HREF="index.html#00160">Date Index</A>][<A HREF="threads.html#00160">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11121] Re: number format problem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 09 Oct 1999 09:50:27 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+EMOTO Masahiko &lt;emo@nifs.ac.jp&gt; さん wrote:
+&gt;
+&gt; どうも負の数で小数点以下 16 桁以上あるとパースエラー
+&gt; になるようなのですが、どうしたらよいでしょうか
+&gt;
+&gt; db1=&gt; create table foo ( d float );
+&gt; CREATE
+&gt; db1=&gt; insert into foo values ( -0.123456789012345 );
+&gt; INSERT 178112 1
+&gt; db1=&gt; insert into foo values ( -0.1234567890123456 );
+&gt; ERROR:  Unable to convert left operator '-' from type 'unknown'
+&gt; db1=&gt; insert into foo values ( 0.1234567890123456 );
+&gt; INSERT 178113 1
+&gt; db1=&gt; insert into foo values ( 0.12345678901234567 );
+&gt; INSERT 178114 1
+
+  マイナスの値のときに、マイナス記号を除いた数字列('.'含む)の
+長さが17桁を越すとエラーになるようです。
+
+# プラスの値のときは、文字列の長さはいくらでもいいようですね。
+　おそらくバグだと思います。
+
+　これを正常に処理させるには、パッチを当てる必要があります。
+以下にパッチを示します。このパッチは、18桁（小数点以下16桁
+を許します。もっと長くしたい場合は、18を19などに変更してく
+ださい)
+
+# もともと、プラス値とマイナス値で処理を変えることに問題が
+　ありそうなので、このパッチは根本的な治療にはなっていませ
+　ん。応急手当ということでお願いします。本家には、江本さん
+　から報告してください。
+
+# プログラムの更新手順はご存知とは思いますが、念のため..
+
+  1. cd src/backend/parser
+  2. scan.l にパッチを当てる（エディラで直接修正でもかまいません）
+  3, make clean; make
+  4. cd src ; make install
+  5. postmaster の再起動
+  6. cd src/test/regress ; make clean; make all runtest
+
+  6のテストは必ず行ってください。今まで、6のテストを行って
+ないときは、この修正をする前に必ずテストを行い結果を記録し
+ておいてください。そして、今回の修正によってregressのテスト
+結果が変わらないことを確認してください。
+
+*** postgresql-6.5.1/src/backend/parser/scan.l.orig	Sat Oct  9 09:07:23 1999
+--- postgresql-6.5.1/src/backend/parser/scan.l	Sat Oct  9 09:06:02 1999
+***************
+*** 409,415 ****
+  {decimal}		{
+  					char* endptr;
+  
+! 					if (strlen((char *)yytext) &lt;= 17)
+  					{
+  						errno = 0;
+  						yylval.dval = strtod((char *)yytext,&amp;endptr);
+--- 409,415 ----
+  {decimal}		{
+  					char* endptr;
+  
+! 					if (strlen((char *)yytext) &lt;= 18)
+  					{
+  						errno = 0;
+  						yylval.dval = strtod((char *)yytext,&amp;endptr);
+
+
+
+--
+境田雅明
+Personal Software, Inc.
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00161" HREF="msg00161.html">[pgsql-jp 11122] Re: number format problem</A></STRONG>
+<UL><LI><EM>From:</EM> EMOTO Masahiko &lt;emo@nifs.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 11120] Re: 自己紹介＆postgreSQL用ツールの紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 11122] Re: number format problem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 11123] PostgreSQL 6.5.2 patches added</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 11122] Re: number format problem</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00160"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00160"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

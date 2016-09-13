@@ -1,0 +1,526 @@
+徒然PostgreSQL散策
+
+石井達夫
+ISHII Tatsuo
+ishii@postgresql.org
+
+第8回 PostgreSQLとネットワークプログラミング(後編)
+
+前回はpgpoolのソースを使って，以下のようなネットワークプログラミングの
+基礎を解説しました．
+
+1) クライアント/サーバモデルとは
+
+2) ソケットインターフェイスとは
+
+3) サーバ側でのソケットの使い方
+
+4) pre-fork方式とは
+
+5) 非ブロックソケットとは
+
+ここまでで，一応サーバがネットワーク経由でクライアントからの接続を受け
+入れるところまで解説が終わっています．
+
+今回はその続きということで，クライアントがサーバに接続するところから始
+めたいと思いますが，その前に，解説の対象となるpgpoolのバージョンが2.0 
+に上がったのでお知らせします．
+
+# pgpool 2.0について
+
+pgpoolはバージョン1でコネクションプールとレプリケーションをサポートし
+ましたが，2.0ではついに負荷分散機能が使えるようになりました．負荷分散
+とは，一般に複数のサーバで処理を分担し合ってトータルでの性能を向上させ
+る手法を指します．たとえばhttpdサーバを複数並べ，クライアントからの要
+求をそれぞれに割り振ってより多くのリクエストをこなすようにするのは大規
+模なWebサイトではごく普通に行われています．同じように，pgpool 2.0では
+(以下，単にpgpoolと呼称します)マスタとセカンダリにランダムに要求を割り
+振り，単位時間あたりより多くのDBアクセスをこなすことができるようにして
+います．
+
+もちろん，更新を伴うSQLを負荷分散させてはマスタとセカンダリのデータベー
+スの内容が一致しなくなってしまいますので，pgpoolではSQL文が「SELECT」
+で始まるときだけ負荷分散するようにしています[注]．
+
+[注: もちろん「select」でも大丈夫です．ただし，更新副作用を含むSELECT
+文かどうかの判定まではpgpoolはしてくれないので，そういう場合はpgpoolに
+負荷分散をしない指示を与えなければなりません．]
+
+では早速その効果を見てみましょう．ベンチマークプログラムであるpgbench
+に-Sオプションを渡し，検索処理のみを実行させた結果が図1です．
+
+図1: 検索処理をpgpoolで負荷分散させたときの効果
+
+ご覧のように，ほぼ単体のPostgreSQLの2倍近い性能が得られています．
+
+これ以外にも，V3プロトコル(PostgreSQL 7.4以降で採用されている通信プロ
+トコル）に対応し，PostgreSQL 7.4と一緒に使ったときに機能の制約がなくなっ
+たとか，効率がアップしたなどの改良が加えられています．
+
+# connect()でサーバに接続
+
+前置きが長くなりましたが，さっそく前回の続きから始めましょう．
+
+クライアントがサーバに接続するには，connect()というシステムコールを使
+います．本校執筆時点の最新版であるpgpool 2.0.5では，
+pool_connection_pool.cの299行目辺りにあるconnect_inet_domain_socket()
+という関数がconnect()を呼び出しています(リスト1)．
+
+リスト1: pgpoolの中でconnect()を呼び出しているところ
+---------------------------------------------------------------------
+   299	int connect_inet_domain_socket(int secondary_backend)
+   300	{
+   301		int fd;
+   302		int len;
+   303		int on = 1;
+   304		struct sockaddr_in addr;
+   305		struct hostent *hp;
+   306		int port;
+   307		char *host;
+   308	
+   309		fd = socket(AF_INET, SOCK_STREAM, 0);
+   310		if (fd < 0)
+   311		{
+   312			pool_error("connect_inet_domain_socket: socket() failed: %s", strerror(errno));
+   313			return -1;
+   314		}
+   315	
+   316		/* set nodelay */
+   317		if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+   318					   (char *) &on,
+   319					   sizeof(on)) < 0)
+   320		{
+   321			pool_error("connect_inet_domain_socket: setsockopt() failed: %s", strerror(errno));
+   322			close(fd);
+   323			return -1;
+   324		}
+   325	
+   326		memset((char *) &addr, 0, sizeof(addr));
+   327		((struct sockaddr *)&addr)->sa_family = AF_INET;
+   328	
+   329		host = secondary_backend?pool_config.secondary_backend_host_name:pool_config.current_backend_host_name;
+   330	
+   331		port = secondary_backend?pool_config.secondary_backend_port:pool_config.current_backend_port;
+   332		addr.sin_port = htons(port);
+   333		len = sizeof(struct sockaddr_in);
+   334	
+   335		hp = gethostbyname(host);
+   336		if ((hp == NULL) || (hp->h_addrtype != AF_INET))
+   337		{
+   338			pool_error("connect_inet_domain_socket: gethostbyname() failed: %s host: %s", strerror(errno), host);
+   339			close(fd);
+   340			return -1;
+   341		}
+   342		memmove((char *) &(addr.sin_addr),
+   343				(char *) hp->h_addr,
+   344				hp->h_length);
+   345	
+   346		if (connect(fd, (struct sockaddr *)&addr, len) < 0)
+   347		{
+   348			pool_error("connect_inet_domain_socket: connect() failed: %s",strerror(errno));
+   349			close(fd);
+   350			return -1;
+   351		}
+   352		return fd;
+   353	}
+---------------------------------------------------------------------
+
+クライアントからサーバに接続する際もまずsocket()システムコールを使って
+ソケットを作ります(309行目)．socket()については前回説明しました．
+
+作成したソケットにはsetsockopt()でオプションを与えることができます．こ
+こでは，TCP_NODELAYというオプションを指定しています(317行目)．これを指
+定しないと，カーネルは小さなTCPのパケットをできるだけまとめて送信しよ
+うとするため，PostgreSQLの通信プロトコルに支障を来たすことがあります．
+
+次にconnect()を使って目的のサーバに接続します．connect()の第1引数は
+socket()の返すファイルディスクリプタです．第2引数は接続するサーバを指
+定するための構造体sockaddrです．前回のべたように，TCP/IP接続の場合は実
+際にはsockaddr_inという構造体に値をセットし，connect()への引数としては
+sockaddr *にキャストするということを行います．sockaddr_inには前回説明
+した通り，アドレスファミリ(327行目)とアドレスを指定します．アドレスは
+前回はINADDR_ANYを指定していましたが，クライアントがサーバに接続する際
+には相手のサーバをポート番号とホスト名(またはIPアドレス)ではっきり指定
+しなければなりません．
+
+ポート番号はpostmasterの待ち受けポート番号をhtons()を使ってネットワー
+クバイトオーダーに変換して設定します(322行目)．
+
+文字列のホスト名はそのままconnect()に渡すことはできないので，
+gethostbyname()を使ってIPアドレスに変換します(335-341行目)．
+
+こうして作成した引数をconnect()に渡します(349行目)．成功すればファイル
+ディスクリプタが返却されます．このファイルにディスクリプタにread()や
+write()を使ってデータの読み書きを行えばそのままサーバとデータの送受信
+ができます．
+
+# read()/write()のネットワーク通信における注意事項
+
+こうしてread()やwrite()を使ってサーバと通信ができるようになったとは言
+え，普通のファイルの読み書きとはまた違った考慮がネットワーク通信では必
+要です．
+
+1) 必ずエラーチェックをする
+
+ネットワーク上の通信では，回線が物理的に切断したり，あるいはサーバがダ
+ウンするなど，いつ何時通信路が閉鎖されるかわかりません．きちんとエラー
+チェックを行うことが必要です．なお，切断したソケットに書き込みを行うと，
+SIGPIPEというシグナルが発生し，プロセスが強制終了させられますが，後始
+末をなどを考えるとあまり都合の良い動作ではありません．SIGPIPEを無視す
+る設定をし，read()やwrite()でエラーを検知した際にきめ細かなエラー処理
+をするようにした方が良いでしょう．
+
+2) readで指定バイト数読み出せなくてもエラーではない
+
+ソケットをread()すると，指定したバイト数が読み出せないことがありますが，
+これはエラーではありません．このような場合は，取得できなかったバイト数
+を再度読み出さなければなりません．
+
+3) read()やwrite()はできるだけ節約
+
+通常のファイルへの書き込みと違って，ソケットへのread()やwrite()は非常
+に遅くなります．これはどちらかというと，データ量よりもシステムコールの
+発行回数が問題になります．また，read()に関してはカーネルのバッファリン
+グがあるので，せいぜいシステムコールを呼び出すオーバヘッドが問題になる
+くらいですが，write()のオーバヘッドは深刻です．バッファリング機能を持
+つ標準入出力ライブラリを使う手もありますが，read()の際に前もってデータ
+が届いているかどうかをチェックできないのがこまり者です．そこでpgpoolで
+は自前のread()やwrite()のラッパー関数を書いています[注]．
+
+[注: PostgreSQLでもそのような実装になっています．]
+
+# pgpoolにおけるラッパー関数の実装
+
+ソケットインターフェイスのaccept(サーバの場合)やconnect(クライアントの
+場合)が返すファイルディスクリプタは全二重通信，すなわち1本のストリーム
+で読み出しも書き込みもできます．前述の理由で読み出しに関しては独自のバッ
+ファリングを実装しますが，書き込みに関しては標準入出力関数を使わない理
+由は特にないので，ソケットのファイルディスクリプタからfdopen()を使って
+標準入出力関数が利用できる形式のファイルディスクリプタを作成します．図2
+にpgpoolでの入出力関数の構造を示します．
+
+図2: pgpoolのストリーム入出力関数の構造(stream.png)
+
+pgpoolのラッパー関数はすべてpool_stream.cにまとめてあります．提供して
+いるインターフェイスは以下のものです．
+
+# POOL_CONNECTION *pool_open(int fd)
+
+ソケットインターフェイスの返したファイルディスクリプタから書き込み用の
+標準入出力インターフェイスのファイルディスクリプタを生成し，
+POOL_CONNECTION構造体にセットして返却します．
+
+POOL_CONNECTION構造体はpool.hに以下のように定義されており，pgpoolのス
+トリーム入出力関数はすべてこの構造体をインターフェイスとして使用します．
+
+typedef struct {
+	int fd;		/* fd for connection */
+	FILE *write_fd;	/* stream write connection */
+
+	char *hp;	/* pending data buffer head address */
+	int po;		/* pending data offset */
+	int bufsz;	/* pending data buffer size */
+	int len;	/* pending data length */
+
+	char *sbuf;	/* buffer for pool_read_string */
+	int sbufsz;	/* its size in bytes */
+
+	char *buf2;	/* buffer for pool_read2 */
+	int bufsz2;	/* its size in bytes */
+
+	int isbackend;		/* this connection is for backend if non 0 */
+	int issecondary_backend;		/* this connection is for secondary backend if non 0 */
+
+	char tstate;		/* transaction state (V3 only) */
+
+	/*
+	 * following are used to remember when re-use the authenticated connection
+	 */
+	int auth_kind;		/* 3: clear text password, 4: crypt password, 5: md5 password */
+	int pwd_size;		/* password (sent back from frontend) size in host order */
+	char password[MAX_PASSWORD_SIZE];		/* password (sent back from frontend) */
+	char salt[4];		/* password salt */
+
+	/*
+	 * following are used to remember current session paramter status.
+	 * re-used connection will need them (V3 only)
+	 */
+	ParamStatus params;
+
+	int no_forward;		/* if non 0, do not write to frontend */
+
+} POOL_CONNECTION;
+
+# void pool_close(POOL_CONNECTION *cp)
+
+pool_open()で開いたストリームを閉じます．
+
+# int pool_read(POOL_CONNECTION *cp, void *buf, int len)
+
+指定したバイト数分ストリームから読み込み，bufに返します．
+POOL_CONNECTION構造体の，hp, po, bufsz, lenを使って内部的にバッファリ
+ングをしており，なるべく読み込み回数を減らすようにしています．このとき
+読み込みすぎたデータは「ペンディングデータ」として内部的に扱い，次回の
+pool_read()の呼び出しで利用されます．
+
+# char *pool_read2(POOL_CONNECTION *cp, int len)
+
+指定したバイト数分ストリームから読み込み，内部的な読み込みバッファのア
+ドレスを返します．pool_read()との違いは，lenで指定したバイト数分だけし
+か読み込みを行わないことです．したがって，バイト数が少なく，しかも固定
+長の読み込みにはpool_read()，そうでない場合にはpool_read2()を使うよう
+にします．
+
+# int pool_write(POOL_CONNECTION *cp, void *buf, int len)
+
+fwrite()を使ってストリームに書き込みます．
+
+# int pool_flush(POOL_CONNECTION *cp)
+
+pool_write()は標準入出力ライブラリのバッファに書き込むだけです，
+pool_flush()はfflush() を呼び出し，実際にネットワークにデータが送出さ
+れることを保証します．
+
+# int pool_write_and_flush(POOL_CONNECTION *cp, void *buf, int len)
+
+pool_write()とpool_flush()のコンビネーションです．
+
+# char *pool_read_string(POOL_CONNECTION *cp, int *len, int line)
+
+改行またはNULLが来るまでストリームから文字列を読み込みます．V3プロトコ
+ルでは使用されません．
+
+# V3プロトコルによる通信処理とは
+
+では実際にPostgreSQLがどのようにしてフロントエンドとバックエンドの間で
+通信を行っているかを見てみましょう[注]．
+
+[注: もっと詳しいことを知りたい方は，PostgreSQL付属マニュアルの
+"Chapter 44. Frontend/Backend Protocol"，あるいは日本PostgreSQLユーザ
+会が配布する日本語版の「第44章フロントエンド/バックエンドプロトコル」
+をご覧下さい．]
+
+このあたりの詳細な処理は，pgpoolではpool_process_query.cに書いてあるの
+で，興味がある方はソースコードをご覧下さい．
+
+# スタートアップ
+
+フロントエンドから図3のような構造を持つ「スタートアップメッセージ」が
+送られてきます．
+
+図3: スタートアップメッセージの構造(startup.png)
+
+最初の4バイトは，自身を含むメッセージ全体のバイト数です．次の4バ
+イトはこの通信プロトコルのバージョンで，頭16ビットが「メジャーバージョ
+ン」で，V3なら3です．後の16ビットは「マイナーバージョン」で，今のとこ
+ろ0です．この後項目名文字列とその値文字列のペアが続きます．図ではuser
+の次にdatabaseが来ていますが，この順番は保証されていません．databaseや
+optionsは省略可能です．databaseが省略された場合はユーザ名と同じ名前の
+データベースを使うものと見なされます．
+
+pgpoolではスタートアップメッセージの処理はchild.cに定義された
+read_startup_packet()という関数に記述されています．
+
+バックエンド側では，データベース名やpg_hba.confを参照してフロントエン
+ドからの接続要求を受け入れるかどうかを決定します．もし問題なければ次の
+ステップに移ります．
+
+# 認証処理
+
+もしTRUST認証，すなわちパスワード設定がされていない場合は，図4の
+「AuthenticationOk」メッセージがフロントエンドに送信されてきます．
+
+図4: AuthenticationOkメッセージ(AuthOk.png)
+
+頭1バイトは'R'という文字で，認証要求を表します．次の4バイトは自身を含
+むメッセージのバイト数です．このように，頭1バイトがメッセージの種類で，
+次の4バイトがメッセージの長さになっているのはほかのメッセージも共通で
+す(ただし，スタートアップメッセージを除く)．そして最後が4バイトの0です．
+
+# パスワードのやり取りがある場合
+
+パスワードが必要なければ次のステップに進むことができますが，md5認証な
+どではパスワードをやり取りしなければなりません．この場合図5の
+「AuthenticationMD5Password」メッセージがフロントエンドに送られてきま
+す．
+
+図5: AuthenticationMD5Passwordメッセージ(md5.png)
+
+AuthenticationMD5Password」メッセージが送られてきたら，返答として図6の
+「PasswordMessage」をバックエンドに返却します．
+
+図6: PasswordMessageメッセージ(password.png)
+
+MD5認証の場合，パスワードを生のままで送るのではなく，
+「AuthenticationMD5Password」メッセージに含まれるソルトを使ってMD5メッ
+セージ化したものを送るようにします．こうすれば，ある程度ネットワーク上
+の盗聴にも対処できます．
+
+# パラメータステータス
+
+もしパスワードがOKならば，AuthenticationOkメッセージがバックエンドから
+送られてきます．次は「パラメータステータス」(ParameterStatus: 図7)をバッ
+クエンドは送信してきます．
+
+図7: ParameterStatusメッセージ(param.png)
+
+パラメータステータスとは，そのセッションの設定値を示す値です．SETコマ
+ンドで設定するとこのメッセージが送られてきますが，セッションの開始にも
+セッションのデフォルト値がまとめて送られてきます．今のところ，以下のよ
+うなパラメータステータスが送信されてきます．
+
+名前			典型的な値	説明
+--------------------------------------------------------------------------
+client_encoding		EUC_JP		クライアントのエンコーディング
+DateStyle		ISO, MDY	日付データ形式
+is_superuser		off		スーパユーザかどうか
+server_version		7.4.3		PostgreSQLバックエンドのバージョン
+session_authorization	t-ishii		セッションユーザ名
+--------------------------------------------------------------------------
+
+# 秘密鍵
+
+次はBackendKeyDataメッセージです(図8)．
+
+図8: BackendKeyDataメッセージ(key.png)
+
+バックエンドから送られてくるこのメッセージには，バックエンドのプロセス
+IDと「秘密鍵」が含まれます．フロントエンドは，後で実行中の問い合わせを
+中断したくなったらこのプロセスIDと秘密鍵を送信しなければなりません．こ
+のようにして，誰でもが問い合わせをキャンセルすることを防いでいます．
+
+# ReadyForQueryメッセージ
+
+すべてがOKならば，最後の締めくくりにバックエンドからReadyForQueryメッセー
+ジが送られてきます(図9)．このメッセージを受け取るまでは，フロントエン
+ドは問い合わせを送信してはいけません．ReadyForQueryはスタートアップ時
+だけでなく，一つの問い合わせ処理が終わる度にバックエンドから送信されて
+きます．
+
+図9: ReadyForQueryメッセージ(ready.png)
+
+ReadyForQueryメッセージの重要な役割は，現在のトランザクションの状態を
+報告することです．状態は1バイトの文字で報告されます．
+
+状態文字	説明
+--------------------------------------------
+I		アイドル状態
+T		トランザクションブロック内
+E		エラー中のトランザクション
+--------------------------------------------
+
+# 問い合わせの種類
+
+PostgreSQLが受け付ける問い合わせにいろいろな種類があります．
+
+形式		説明
+-----------------------------------------------------------
+簡易問い合わせ	問い合わせに対して直ちに結果が返る
+拡張問い合わせ	Parse/Bind/Executeによって問い合わせを実行
+COPY		COPYコマンドで使用
+関数呼び出し	指定関数の実行
+-----------------------------------------------------------
+
+ここでは「簡易問い合わせ」と呼ばれる問い合わせに対して直ちに結果が返る
+タイプのものを説明します．例題として使う問い合わせは"SELECT 1"という極
+めて単純なものです．
+
+# SELECT文の発行
+
+問い合わせは，Queryメッセージをフロントエンドが発行するところから始ま
+ります(図10)．
+
+図10: Queryメッセージ(query.png)
+
+# RowDescription
+
+首尾よく問い合わせが実行されると，まず結果のデータの構造を表す
+RowDescriptionメッセージ(図11)がバックエンドから送られてきます．このメッ
+セージは少々複雑ですが，検索結果のデータに関する詳細な情報を含んでいま
+す．
+
+図11: RowDescriptionメッセージ(rowdesc.png)
+
+メッセージタイプT，メッセージのバイト長の後にまず結果の列数があります．
+後のフィールドはその数分だけの情報があります．
+
+1) 列名．列の名前です．この例ではテーブルからのデータの取得ではないた
+   め，"?column"となっています．
+
+2) テーブルOID．テーブルからのデータ取得の場合にはそのテーブルのOID，
+   そうでなければ0です．
+
+3) このデータの型に対応するOID．この例では整数(int4)で，PostgreSQL 7.4
+   では23となります．
+
+4) このデータのバイト数によるサイズ．この例では4です．可変長のデータで
+   は-1となります．
+
+5) 型修飾子．データ型によって異なりますが通常0です．
+
+6) 書式コード．テキスト形式で結果が帰る場合は0，バイナリで返る場合は1
+   で，この例では0です．
+
+# DataRowメッセージ
+
+RowDescriptionの次は結果の行数分だけDataRowメッセージ(図12)が返ります．
+
+図12: DataRowメッセージ(datarow.png)
+
+なお，データがNULLの場合は，データ長は-1，その後に続くはずの「データ」
+はありません．
+
+# CommandCompleteメッセージ
+
+問い合わせ結果が無事に返ると，次にCommandCompleteメッセージ(図13)がバッ
+クエンドから送られてきます．
+
+図13: CommandCompleteメッセージ(complete.png)
+
+「コマンドタグ」はどのSQLコマンドが完了したかを表す文字列です．たとえ
+ばSELECTなら"SELECT"，VACUUMなら"VACUUM"となります．INSERTコマンドなど
+では挿入された行数，行にアサインされたOIDなどの付加情報が付与されます．
+
+# ErrorResponseメッセージ
+
+今回は間違いが起きようもないSELECT文ですが，万が一エラーが起きたらどう
+なるのでしょう?そういう場合はErrorResponseメッセージ(図14)が返ります．
+
+図14: ErrorResponseメッセージ(error.png)
+
+フィールド識別コードには以下のものがあります．
+
+フィールド識別コード	意味			フィールド値の例
+------------------------------------------------------------------------
+S			エラーの深刻度		ERROR
+C			エラーコード		22021
+M			エラーメッセージ	could not create unique index
+D			詳細メッセージ		Table contains duplicated values.
+H			ヒント			Please REINDEX it.
+P			エラーの位置		92
+F			ソースファイル名	scan.c
+L			行番号			110
+R			関数名			foo
+------------------------------------------------------------------------
+
+# 再びReadyForQueryメッセージ
+
+こうして一つの問い合わせが処理されると再びReadyForQueryメッセージをバッ
+クエンドは送信し，問い合わせを受け付けることができるようになります．
+
+# 接続の終了
+
+接続を終了したい場合は，Terminateメッセージ(図15)をフロントエンドから
+バックエンドに送信します．
+
+図15: Terminateメッセージ(terminate.png)
+
+# 最後に
+
+2回にわたってネットワークプログラミングについて解説しました．ネットワー
+クプログラミングは慣れないとなかなか分かりにくい面もありますが，プログ
+ラミングのテクニックを磨く上では最高の題材だと思います．また，今の世の
+中ネットワークは避けて通れない存在です．最初から難しく考える必要はあり
+ません．実はpgpoolも最初は300行ほどの小さなプログラムから出発し，今で
+はそれなりの機能を持つサーバソフトへと成長しました．皆さんもこれを機会
+に簡単なネットワークプログラムを作ってみてはどうでしょう．

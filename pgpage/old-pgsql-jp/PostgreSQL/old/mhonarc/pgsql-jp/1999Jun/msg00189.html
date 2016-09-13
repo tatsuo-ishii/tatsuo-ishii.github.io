@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8755] pg_dumpのつくるviewのschema -->
+<!--X-From: Makoto Shimokawa <mts@ma.kcom.ne.jp> -->
+<!--X-Date: Wed, 09 Jun 1999 18:56:47 +0900 -->
+<!--X-Message-Id: 19990609185647U.mts@ma.kcom.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8755] pg_dumpのつくるviewのschema </TITLE>
+<LINK REV="made" HREF="mailto:mts@ma.kcom.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00188.html">Date Prev</A>][<A HREF="msg00190.html">Date Next</A>][<A HREF="msg00197.html">Thread Prev</A>][<A HREF="msg00203.html">Thread Next</A>][<A HREF="index.html#00189">Date Index</A>][<A HREF="threads.html#00189">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8755] pg_dumpのつくるviewのschema</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Makoto Shimokawa &lt;<A HREF="mailto:mts@ma.kcom.ne.jp">mts@ma.kcom.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 09 Jun 1999 18:56:47 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+しもかわです。ずいぶんと御無沙汰してます。メールは一応全部目は
+通しているつもりですが...
+
+6.4.2+99.02.17PATCH（たぶん）でpg_dumpについて気になることがあ
+ります。2つのテーブルを同じ名前のアトリビュートで連結した
+viewを作成し、pg_dumpでつくったshemaを読み込ませるとエラーにな
+ります。
+
+具体的には、
+
+以下のように2つのtableを用意して
+create table boo (id int2, code char(4));
+
+select * from boo; 
+id|code
+--+----
+ 1|A000
+ 2|A001
+(2 rows)
+
+create table foo (id int2, descript text);
+
+select * from foo;
+id|descript  
+--+----------
+ 1|First one 
+ 2|Second one
+(2 rows)
+
+そして、次のようなviewを作ります。
+create view uoo as
+  select
+    boo.id as id,
+    boo.code as code,
+    foo.descript as descript
+  where boo.id = foo.id;
+
+動作は期待どおりのようです。
+select * from uoo;
+id|code|descript  
+--+----+----------
+ 1|A000|First one 
+ 2|A001|Second one
+(2 rows)
+
+pg_dump -s -t uoo dbなどとして、schemaを吐かせると、以下のよう
+になります。（改行位置は変更しています。）
+CREATE TABLE "uoo" (
+	"id" int2,
+	"code" character(4),
+	"descript" text);
+CREATE RULE "_RETuoo" AS ON SELECT TO "uoo"
+ DO INSTEAD SELECT "id", "code", "descript"
+ FROM "boo", "foo" WHERE "id" = "id";
+
+いちどviewを削除して、pg_dumpで作ったschemaを読ませると、
+ERROR:  Column id is ambiguous
+とエラーになります。（当然ではある）
+
+pg_viewsという、システムカタログも以下のようになっています。
+
+select definition from pg_views where viewname='uoo';
+definition                                                          
+--------------------------------------------------------------------
+SELECT "id", "code", "descript" FROM "boo", "foo" WHERE "id" = "id";
+(1 row)
+
+これでは、バックアップとリストアがうまくいかないのではないでしょ
+うか。
+
+既知の問題でしたら、ごめんなさい。
+
+下川 誠
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00203" HREF="msg00203.html">[pgsql-jp 8769] Re: pg_dumpのつくるviewのschema</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00188.html">[pgsql-jp 8754] pgsql6.5b3</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00190.html">[pgsql-jp 8756] Re: 32ビットODBCを日本語に戻す</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00197.html">[pgsql-jp 8763] PostgreSQL 6.5beta2 on alpha</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 8769] Re: pg_dumpのつくるviewのschema</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00189"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00189"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

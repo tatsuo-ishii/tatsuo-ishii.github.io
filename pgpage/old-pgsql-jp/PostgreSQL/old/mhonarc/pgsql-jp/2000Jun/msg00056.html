@@ -1,0 +1,221 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15013] serial と inherits について -->
+<!--X-From: 佐藤　充男 <satou@osk.3web.ne.jp> -->
+<!--X-Date: Sat, 03 Jun 2000 14:38:17 +0900 -->
+<!--X-Message-Id: 393899C93D4.F35FSATOU@mx1.osk.3web.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15013] serial と inherits について </TITLE>
+<LINK REV="made" HREF="mailto:satou@osk.3web.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00055.html">Date Prev</A>][<A HREF="msg00057.html">Date Next</A>][<A HREF="msg00057.html">Thread Prev</A>][<A HREF="msg00055.html">Thread Next</A>][<A HREF="index.html#00056">Date Index</A>][<A HREF="threads.html#00056">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15013] serial と inherits について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤　充男 &lt;<A HREF="mailto:satou@osk.3web.ne.jp">satou@osk.3web.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 03 Jun 2000 14:38:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ども、佐藤です。
+PostgreSQL 7.0.0の継承を試しています。
+serial型を利用しているtableから派生したtableはserial型が別に作られると
+思っていたのですが、継承元をそのまま利用しているみたいですね。
+
+テスト環境
+　Vine Linux 1.1CR + PostgreSQL 7.0.0
+
+
+トリガによる履歴を作成するサンプルです。
+
+-- ************************************************************
+create function plpgsql_call_handler() returns opaque
+  as '/usr/local/pgsql/lib/plpgsql.so'
+  language 'C';
+create trusted procedural language 'plpgsql'
+  handler plpgsql_call_handler
+  lancompiler 'PL/pgSQL';
+-- ************************************************************
+drop function func_post_bd();
+
+drop sequence post_log_key_seq;
+drop index post_log_key_key;
+drop table post_log;  -- 継承の関係で先に消すこと
+
+drop sequence post_key_seq;
+drop index post_key_key;
+drop table post;
+-- ************************************************************
+-- 役職テーブル
+create table post (
+        key             serial,         -- キー
+        emp_no          int4,           -- 社員番号
+        post_no         int4            -- 役職番号
+);
+-- 役職異動履歴テーブル（役職テーブルを継承）
+create table post_log (
+        chg_day         date,           -- 変更日
+        action          text            -- 更新条件
+) inherits(post);
+-- ************************************************************
+-- 役職テーブル トリガ定義(before delete)
+create function func_post_bd() returns opaque as '
+begin
+  insert into post_log(emp_no, post_no, chg_day, action)
+    values(old.emp_no, old.post_no, now(), TG_OP);
+  return old; -- deleteのトリガはoldにする
+end;
+' language 'plpgsql';
+create trigger tg_post_bd before delete
+  on post for each row execute procedure func_post_bd();
+-- ************************************************************
+insert into post(emp_no, post_no) values(1, 10);
+insert into post(emp_no, post_no) values(2, 20);
+insert into post(emp_no, post_no) values(3, 30);
+-- ************************************************************
+
+
+以後、psqlでの作業
+
+test=# select version();
+                            version
+----------------------------------------------------------------
+ PostgreSQL 7.0.0 on i586-pc-linux-gnu, compiled by gcc 2.7.2.3
+(1 row)
+
+test=# select * from post;
+ key | emp_no | post_no
+-----+--------+---------
+   1 |      1 |      10
+   2 |      2 |      20
+   3 |      3 |      30
+(3 rows)
+
+test=# select * from post_log;
+ key | emp_no | post_no | chg_day | action
+-----+--------+---------+---------+--------
+(0 rows)
+
+test=# delete from post where key = 3;
+DELETE 1
+test=# select * from post;
+ key | emp_no | post_no
+-----+--------+---------
+   1 |      1 |      10
+   2 |      2 |      20
+(2 rows)
+
+test=# select * from post_log;
+ key | emp_no | post_no |  chg_day   | action
+-----+--------+---------+------------+--------
+   4 |      3 |      30 | 2000-06-03 | DELETE
+(1 row)
+
+test=# \dtivs
+         List of relations
+     Name     |   Type   |  Owner
+--------------+----------+----------
+ post         | table    | postgres
+ post_key_key | index    | postgres
+ post_key_seq | sequence | postgres
+ post_log     | table    | postgres
+(4 rows)
+
+test=# \d post
+                             Table "post"
+ Attribute |  Type   |                    Modifier
+-----------+---------+------------------------------------------------
+ key       | integer | not null default nextval('post_key_seq'::text)
+ emp_no    | integer |
+ post_no   | integer |
+Index: post_key_key
+
+test=# \d post_log
+                           Table "post_log"
+ Attribute |  Type   |                    Modifier
+-----------+---------+------------------------------------------------
+ key       | integer | not null default nextval('post_key_seq'::text)
+ emp_no    | integer |
+ post_no   | integer |
+ chg_day   | date    |
+ action    | text    |
+
+
+serial型で連番を得たい場合は問題あるでしょうが、私の場合は単に
+ユニークな値が得られればＯＫなので、このままでも良いけれど…(^^;
+一応以下のように雛型を作り対処しました。
+
+-- ************************************************************
+-- 役職テーブル雛型
+create table post_base (
+        emp_no          int4,           -- 社員番号
+        post_no         int4            -- 役職番号
+);
+-- 役職テーブル（役職テーブル雛型を継承）
+create table post (
+        key             serial          -- キー
+) inherits(post_base);
+-- 役職異動履歴テーブル（役職テーブル雛型を継承）
+create table post_log (
+        key             serial,         -- キー
+        chg_day         date,           -- 変更日
+        action          text            -- 更新条件
+) inherits(post_base);
+-- ************************************************************
+
+
+佐藤　充男
+satou@osk.3web.ne.jp
+LDM03756@nifty.ne.jp
+<A HREF="http://www.threeweb.ad.jp/~satou/">http://www.threeweb.ad.jp/~satou/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 15012] WinNTからPerl、ODBCでLinux上のデータベースへのアクセスがうまくいきません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 15014] postgresql-7.0.1 binraries.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 15014] postgresql-7.0.1 binraries.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 15012] WinNTからPerl、ODBCでLinux上のデータベースへのアクセスがうまくいきません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00056"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00056"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

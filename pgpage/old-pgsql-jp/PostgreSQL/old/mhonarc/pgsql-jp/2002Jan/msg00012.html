@@ -1,0 +1,168 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24349] Re: Re4:  テーブルが存在しているかどうかのチェック -->
+<!--X-From: Ken&#45;ichi Nakayama <aguri@ssl.fujitsu.com> -->
+<!--X-Date: Mon, 07 Jan 2002 13:40:33 +0900 -->
+<!--X-Message-Id: 20020107132401.4228.AGURI@ssl.fujitsu.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C3916A5.AF8CEC49@shonan.ne.jp -->
+<!--X-Reference-Id: 200201071259.CEB72521.PPO@fjct.fujitsu.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24349] Re: Re4:  テーブルが存在しているかどうかのチェック </TITLE>
+<LINK REV="made" HREF="mailto:aguri@ssl.fujitsu.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00011.html">Date Prev</A>][<A HREF="msg00013.html">Date Next</A>][<A HREF="msg00011.html">Thread Prev</A>][<A HREF="msg00013.html">Thread Next</A>][<A HREF="index.html#00012">Date Index</A>][<A HREF="threads.html#00012">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24349] Re: Re4:  テーブルが存在しているかどうかのチェック</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ken-ichi Nakayama &lt;<A HREF="mailto:aguri@ssl.fujitsu.com">aguri@ssl.fujitsu.com</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Jan 2002 13:40:33 +0900</LI>
+<LI><em>Organization</em>: Fujitsu SSL Limited</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00010.html">3C3916A5.AF8CEC49@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00011.html">200201071259.CEB72521.PPO@fjct.fujitsu.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+なかやまです。
+
+[On Mon, 7 Jan 2002 12:59:35 +0900] Kenji Ono &lt;ono@fjct.fujitsu.com&gt; wrote:
+ono&gt; どうも、Minatonです。
+ono&gt; &gt; SELECT COUNT(*) でも、SELECT 列名 でも、INDEX 使用
+ono&gt; &gt; の有無には、関係ないと思います。
+ono&gt; &gt; ：　Snip
+ono&gt; &gt; explain select count(*) from pg_class where relname = 'tjm';
+ono&gt; &gt;     NOTICE:  QUERY PLAN:
+ono&gt; &gt;     Aggregate  (cost=2.02..2.02 rows=1 width=4)
+ono&gt; &gt;       -&gt;  Index Scan using pg_class_relname_index on pg_class
+ono&gt; &gt;           (cost=0.00..2.01 rows=1 width=4)
+ono&gt; 
+ono&gt; Oracleで試す時間がないのですみませんが、これを見ると問題なさそう
+ono&gt; ですね。
+
+ご存知だと思いますが、上記はPostgreSQLの実行計画です。
+
+oracleでは、pg_classと同等のディクショナリとして、
+dba_tables
+all_tables
+user_tables
+
+があり、通常ユーザ自身の定義済み表を調べるときには user_tablesを使います。
+で、上記検索と同等なことをやった上での実行計画(Ora8iEE R8.1.7)は
+
+SQL&gt;  set autot traceonly
+SQL&gt;  select count(*) from user_tables where table_name =　'TJM' ;
+実行計画
+----------------------------------------------------------
+   0      SELECT STATEMENT Optimizer=CHOOSE
+   1    0   SORT (AGGREGATE)
+   2    1     NESTED LOOPS
+   3    2       NESTED LOOPS (OUTER)
+   4    3         NESTED LOOPS (OUTER)
+   5    4           NESTED LOOPS (OUTER)
+   6    5             NESTED LOOPS (OUTER)
+   7    6               NESTED LOOPS
+   8    7                 TABLE ACCESS (BY INDEX ROWID) OF 'OBJ$'
+   9    8                   INDEX (RANGE SCAN) OF 'I_OBJ2' (UNIQUE)
+  10    7                 TABLE ACCESS (CLUSTER) OF 'TAB$'
+  11   10                   INDEX (UNIQUE SCAN) OF 'I_OBJ#' (NON-UNIQUE)
+  12    6               TABLE ACCESS (BY INDEX ROWID) OF 'OBJ$'
+  13   12                 INDEX (UNIQUE SCAN) OF 'I_OBJ1' (UNIQUE)
+  14    5             INDEX (UNIQUE SCAN) OF 'I_OBJ1' (UNIQUE)
+  15    4           TABLE ACCESS (CLUSTER) OF 'USER$'
+  16   15             INDEX (UNIQUE SCAN) OF 'I_USER#' (NON-UNIQUE)
+  17    3         TABLE ACCESS (CLUSTER) OF 'SEG$'
+  18   17           INDEX (UNIQUE SCAN) OF 'I_FILE#_BLOCK#' (NON-UNIQUE)
+  19    2       TABLE ACCESS (CLUSTER) OF 'TS$'
+  20   19         INDEX (UNIQUE SCAN) OF 'I_TS#' (NON-UNIQUE)
+
+複雑ですね(^^;) コスト値もオプティマイザモードも
+出てきませんね(^^;;)
+データベースディクショナリ表がプリミティブな実表からのView(もしくは
+Synonym) だからです。末端のプリミティブな表ではたしかにIndex Scan
+されていますので、実データブロックの全舐めはしないといえますが。
+
+任意の実表(インデックス定義済み)のcount(*) であれば、
+
+
+SQL&gt; select count(*) from emp ;
+実行計画
+----------------------------------------------------------
+   0      SELECT STATEMENT Optimizer=CHOOSE (Cost=1 Card=1)
+   1    0   SORT (AGGREGATE)
+   2    1     INDEX (FAST FULL SCAN) OF 'IDX_EMP1' (NON-UNIQUE) (Cost=1 Card=5144)
+
+こんな感じです。
+※ 環境によって(FAST FULL SCAN) ではなく ([UNIQUE|NONUNIQUE] SCAN)に
+   なるかもしれません。(初期化パラメタ index_ffs_enabled やヒント
+   INDEX_FFS)を調べてください)
+
+
+※ メールアドレスが変わりました ↓↓↓ ※
+==================================================================
+中山 賢一  &gt;&gt;  <A HREF="mailto:aguri@ssl.fujitsu.com">mailto:aguri@ssl.fujitsu.com</A>
+株式会社富士通ソーシアルサイエンスラボラトリ(富士通ＳＳＬ)
+ネットワークシステム事業部 セキュリティシステム部 Webシステム課
+Office URL&gt;&gt;  <A HREF="http://www.ssl.fujitsu.com">http://www.ssl.fujitsu.com</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00014" HREF="msg00014.html">[pgsql-jp 24351] Re: Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00013" HREF="msg00013.html">[pgsql-jp 24350] Re6:	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00010" HREF="msg00010.html">[pgsql-jp 24347] Re: Re2: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00011" HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 24350] Re6:	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00011.html">[pgsql-jp 24348] Re4: 	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 24350] Re6:	テーブルが存在しているかどうかのチェック</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00012"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00012"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4569] Re: CSV形式で吐き出すには？ -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Wed, 24 Jun 1998 20:03:13 +0900 -->
+<!--X-Message-Id: 19980624200313B.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199806240944.SAA07980@dragon.homes.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4569] Re: CSV形式で吐き出すには？ </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00298.html">Date Prev</A>][<A HREF="msg00300.html">Date Next</A>][<A HREF="msg00298.html">Thread Prev</A>][<A HREF="msg00296.html">Thread Next</A>][<A HREF="index.html#00299">Date Index</A>][<A HREF="threads.html#00299">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4569] Re: CSV形式で吐き出すには？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 24 Jun 1998 20:03:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00298.html">199806240944.SAA07980@dragon.homes.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+On Wed, 24 Jun 1998 18:44:16 +0900, abet@tk.airnet.ne.jp (Takuya Abe) wrote:
+&gt; &gt;&gt;copy テーブル名 to ファイル名 using delimiters ',';
+&gt; &gt;&gt;とやると、parser: parse error at or near "ファイル名"
+&gt; &gt;
+&gt; &gt;ファイル名を「''」で囲っていないからでは?
+&gt; 
+&gt; 　囲ってみたらコマンドは成功するんですが、ファイルには書き込まれて
+&gt; いないみたいです。どこに行ってしまったんだろう(^^;)。
+
+copy コマンドは server 側で処理されますから，相対パスが指定されると
+(/usr/local/pgsql/data がデータディレクトリでDB 名が foo としますと)
+
+	/usr/local/pgsql/data/base/foo
+
+からの相対パスとして解釈されます．
+
+勿論サーバの走っているホストに書き込まれます．(ということで，
+結構危険なコマンドなので，super-user 特権が必要なのもうなずけます．)
+
+psql をクライアントにして処理するのであれば，\copy を使う方が
+安全かもしれません．こちらであれば，super-user 特権も必要ありませんし，
+間違って何か壊す，という危険も少ないと思います．
+ただし，delimiter 指定が使えないという制限はありますので，結局は
+awk や perl などでの後処理は避けられないようです．
+
+# 最初から perl で書いた方が早いかも．あとのフォーマッティングは何でも
+# ありですね．" をエスケープしないとか，ENCODING を指定していないなど
+# 手抜きも手抜きですが ...
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+
+------------------------------------------------------------
+#!/usr/local/bin/perl -Leuc 
+
+use Pg;
+
+$conn = Pg::connectdb("");
+PGRES_CONNECTIONS_OK == $conn-&gt;status || die "failed to connect.\n";
+
+$query = 'select * from ' . $ARGV[0];
+$result = $conn-&gt;exec($query);
+PGRES_TUPLES_OK == $result-&gt;resultStatus || die "cannot execute $query.\n";
+
+while (@row = $result-&gt;fetchrow) {
+    for ($k = 0; $k &lt; $result-&gt;nfields; $k++) {
+	print '"', $row[$k], '"';
+	print "," if $k != $result-&gt;nfields-1;
+    }
+    print "\n";
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00298" HREF="msg00298.html">[pgsql-jp 4568] Re: CSV形式で吐き出すには？</A></STRONG>
+<UL><LI><EM>From:</EM> abet@tk.airnet.ne.jp (Takuya Abe)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00298.html">[pgsql-jp 4568] Re: CSV形式で吐き出すには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00300.html">[pgsql-jp 4570] Re: CSV形式で吐き出すには？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00298.html">[pgsql-jp 4568] Re: CSV形式で吐き出すには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 4566] CSV形式で吐き出すには？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00299"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00299"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

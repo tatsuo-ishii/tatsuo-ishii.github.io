@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8287] Re: varchar or text -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 02 May 1999 00:17:09 +0900 -->
+<!--X-Message-Id: 199905011517.AAA00775@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 372A700E33E.B040SAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8287] Re: varchar or text </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00013.html">Date Prev</A>][<A HREF="msg00016.html">Date Next</A>][<A HREF="msg00018.html">Thread Prev</A>][<A HREF="msg00003.html">Thread Next</A>][<A HREF="index.html#00015">Date Index</A>][<A HREF="threads.html#00015">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8287] Re: varchar or text</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 02 May 1999 00:17:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 境田です。
+
+&gt; 「現実的には 4096が無難」と書きましたが、もう少し調べてみまし
+&gt; たら..
+&gt; 
+&gt; 　create table test_text (tx text);
+&gt; 
+&gt; 　のようにTEXT型１列だけのテーブルを作成した場合は、tx には、
+&gt; 8144バイトまで入力することができました。
+
+この 8144 という数字は実装依存なので、PostgreSQL のバージョンが変わっ
+たり、プラットフォームが変わると変化する可能性があります。
+
+&gt; 　create table で列数が増えていけば、当然、TEXT型列に入力でき
+&gt; るサイズ 8144 バイトより小さくなっていきますが、それでも、「
+&gt; 現実的には 4096が無難」はチョット言い過ぎでした(-_-)
+
+でも、ディスクの使用効率を考えると、4096 とか、6000 とかは止めたほうが
+良いですよ。たとえば続けて 6000バイトのテキストを2つ入力しようとすると、
+8192 バイトのブロックに2つ収まらないので、結局 8192 x 2 バイト必要にな
+ります。フラグメンテーション問題というやつですね。
+# テーブル単位で使用効率を表示するコマンドがあるといいなぁ。
+
+&gt;# 話しは少し横道にそれますが、varchar,text,char の文字型の
+&gt;　ディスクサイズは、4 バイトの整数倍(4バイト境界)になってい
+&gt;  ます。例えば、varchar(5)としても 8バイト、char(1バイト)と
+&gt;  しても4バイトがディスク上に確保されます。
+
+このあたりのデータ型は、実際の文字列領域の前に文字列長を格納する整数型
+のデータがくっついている関係で、整数型のデータ境界が必要になっています。
+# それと、境界が4バイトっていうのも実装依存なので、ご注意下さい
+
+&gt; &gt; Postgres では，varchar と text では実装上違いがないので，text 型が
+&gt; &gt; 推薦されているということでしょうか．
+&gt; &gt; 
+&gt; 
+&gt; 　この辺はわかりません。
+&gt; 
+&gt; # 実装上の違いがないのなら、SQL標準ではない TEXT型をわざわざ
+&gt; 　推薦することはないはず??だから、postgresqlの以前のバージョ
+&gt; 　ンは、varchar型とTEXT型の処理方法が異なっていたのかも??
+
+そうですね。確か以前は varchar は varchar(256)だったら無条件に256バイ
+ト確保するようなことをしていたはずです。そのなごりかもしれません。でも、
+個人的には varchar よりも text がいいですね、varchar(256)でテーブルを
+定義して、後で実際には varchar(512)必要でした、なんてなったら悲惨です
+から。textならそんな心配もないし。
+
+&gt; &gt; それから，varchar は配列を作れないというのは，何か特別な理由がある
+&gt; &gt; のでしょうか？単にパーサーが理解しないだけ？
+&gt; &gt; 
+&gt; 
+&gt; 　これもよくわかりませんが、現在のバージョンを見る限りは、「
+&gt; パーサーが理解しないだけ」だと思っています。
+
+良く分かりません。もしかしたら、arrayを管理する構造体を変更しないと駄
+目なのかも。
+---
+Tatsuo Ishii
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00004" HREF="msg00004.html">[pgsql-jp 8276] Re: varchar or text</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00013.html">[pgsql-jp 8286] Re: [Q] \copy command when adding data with numelictype serial.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00016.html">[pgsql-jp 8288] Re: varchar or text</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 8290] Re: varchar or text</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 8275] Re:About Eijiro (I completed it!!)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00015"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00015"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

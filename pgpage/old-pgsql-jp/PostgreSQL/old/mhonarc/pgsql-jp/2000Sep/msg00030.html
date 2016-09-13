@@ -1,0 +1,186 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17218] Re: 月曜から日曜までの範囲指定をするには？ -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Mon, 4 Sep 2000 16:54:51 +0900 -->
+<!--X-Message-Id: p04310509b5d903476257@[158.214.136.220] -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 002e01c01626$f3e95f60$1e231cac@hyde.neko&#45;net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17218] Re: 月曜から日曜までの範囲指定をするには？ </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00028.html">Date Prev</A>][<A HREF="msg00029.html">Date Next</A>][<A HREF="msg00027.html">Thread Prev</A>][<A HREF="msg00023.html">Thread Next</A>][<A HREF="index.html#00030">Date Index</A>][<A HREF="threads.html#00030">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17218] Re: 月曜から日曜までの範囲指定をするには？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 4 Sep 2000 16:54:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00025.html">002e01c01626$f3e95f60$1e231cac@hyde.neko-net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こすげです。
+
+At 13:16 +0900 2000.09.04, Keiji Mitsubuchi wrote:
+&gt;三淵と言います。
+&gt;
+&gt;いつも、色々なご意見を参考に
+&gt;させていただいております。
+&gt;MLアーカイブも混んでいるのか
+&gt;リスポンスが無いので
+&gt;
+&gt;愚問かもしれませんが
+&gt;質問させていただきます。
+&gt;
+&gt;過去のMLの資料から
+&gt;毎月の集計や、毎日の集計は
+&gt;問題なく出来たのですが
+&gt;毎週の、月曜日から、日曜日までの
+&gt;集計を取りたいのですが
+&gt;いい方法は有るでしょうか？
+
+私の環境では次のSQL 文が動きましたので、参考になればということで。
+[PostgreSQL 6.5.1 on sparc-sun-solaris2.6, compiled by gcc 2.7.2.1]
+
+create table dow( d date, i int4);
+insert into dow values('2000/1/1',3);
+insert into dow values('2000/1/2',2);
+insert into dow values('2000/1/3',1);
+insert into dow values('2000/1/4',2);
+insert into dow values('2000/1/5',4);
+insert into dow values('2000/1/6',5);
+insert into dow values('2000/1/7',8);
+insert into dow values('2000/1/8',9);
+
+select '2000/1/8'::date - '2000/1/1'::date ;
+select (dow.d - '2000/1/1'::date)/7 from dow;
+select sum(dow.i) from dow where (dow.d - '2000/1/1'::date)/7 = 0;
+select sum(dow.i) from dow group by (dow.d - '2000/1/1'::date)/7;
+
+
+いちおう、SQL 文をカット＆ペーストした結果をつけておきます。
+ちょっと字が乱れてますが。
+何かと言うと、
+・日付けの差は取れる。
+・基準日を設けて、差を7 で割ったものでgroup by することによって
+　各7 日間ごとの集計ができる。ただし、基準の日によっては
+　水曜から翌週の火曜まで、とかになります。2000/1/1　って何曜日?
+
+
+tmp=&gt; create table dow( d date, i int4);
+to dow values('2000/1/3',1);
+insert into dow values('2000/1/4',2);
+insert into dow values('2000/1/5',4);
+insert into dowCREATE
+tmp=&gt; insert into dow values('2000/1/1',3);
+INSERT 1418044 1
+tmp=&gt; insert into dow values('2000/1/2',2);
+INSERT 1418045 1
+tmp=&gt; insert into dow values('2000/1/3',1);
+INSERT 1418046 1
+tmp=&gt; insert into dow values('2000/1/4',2);
+INSERT 1418047 1
+tmp=&gt; insert into dow values('2000/1/5',4);
+INSERT 1418048 1
+tmp=&gt; insert into dow values('2000/1/6',5);
+INSERT 1418049 1
+tmp=&gt; insert into dow values('2000/1/7',8);
+INSERT 1418050 1
+tmp=&gt; insert into dow values('2000/1/8',9);
+INSERT 1418051 1
+tmp=&gt;
+tmp=&gt; select '2000/1/8'::date - '2000/1/1'::date ;
+?column?
+--------
+       7
+(1 row)
+
+tmp=&gt; select (dow.d - '2000/1/1'::date)/7 from dow;
+?column?
+--------
+       0
+       0
+       0
+       0
+       0
+       0
+       0
+       1
+(8 rows)
+
+tmp=&gt; select sum(dow.i) from dow where (dow.d - '2000/1/1'::date)/7 = 0;
+sum
+---
+ 25
+(1 row)
+
+tmp=&gt; select sum(dow.i) from dow group by (dow.d - '2000/1/1'::date)/7;
+sum
+---
+ 25
+  9
+(2 rows)
+
+tmp=&gt;
+
+--
+-- 
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内5217)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[pgsql-jp 17213] 月曜から日曜までの範囲指定をするには？</A></STRONG>
+<UL><LI><EM>From:</EM> "Keiji Mitsubuchi" &lt;keiji@msn.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 17216] RE: 月曜から日曜までの範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 17217] RE: ODBC による可変長配列データの個別リンク方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 17215] RE: 月曜から日曜までの範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 17211] Re: ラージオブジェクトを使いたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00030"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00030"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

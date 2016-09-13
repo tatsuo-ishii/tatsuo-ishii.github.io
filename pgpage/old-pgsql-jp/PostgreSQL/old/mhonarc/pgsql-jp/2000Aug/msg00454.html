@@ -1,0 +1,232 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16840] Re: [pgsql&#45;jp 16835] Re: [pgsql&#45;jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Tue, 22 Aug 2000 18:34:37 +0900 (JST) -->
+<!--X-Message-Id: 20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000822164413.19622861@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 014801c00c11$9f93e120$7563bed2@hari.to -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00453.html">Date Prev</A>][<A HREF="msg00455.html">Date Next</A>][<A HREF="msg00449.html">Thread Prev</A>][<A HREF="msg00459.html">Thread Next</A>][<A HREF="index.html#00454">Date Index</A>][<A HREF="threads.html#00454">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Aug 2000 18:34:37 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00448.html">20000822164413.19622861@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00449.html">014801c00c11$9f93e120$7563bed2@hari.to</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+針川さん、さっそくのレスに感謝致します。
+やっぱり信じられないですよね。
+小生も「まさかな〜」っと今でも自分の目を
+疑っております。
+
+&gt;こんにちは。針川＠はり。と です。
+&gt;
+&gt;PHPは判らないのですが、とりあえず…
+&gt;
+&gt;----- Original Message -----
+&gt;From: "Yoshio Tokuda" &lt;actords@zaqcad091da.zaq.ne.jp&gt;
+&gt;To: &lt;pgsql-jp@sra.co.jp&gt;
+&gt;Cc: "PHP ML Server" &lt;PHP-jp@sidecar.ics.es.osaka-u.ac.jp&gt;
+&gt;Sent: Tuesday, August 22, 2000 4:44 PM
+&gt;Subject: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってし
+&gt;まう謎
+&gt;
+&gt;
+&gt;&gt; INSERT 直後に pg_getlastoid() を実行すると、本来自動生成した
+&gt;&gt; OID番号と異なる数値を返数する現象です。信じていただけないと
+&gt;&gt; 存じます。目下、PostgreSQL7.0.2は負(マイナス)のOIDを自動
+&gt;&gt; 生成しています。例えば　-2147479072　とかです。
+&gt;
+&gt;PHP側で unsigned int を signed int にしてしまってるのではないでしょうか？
+PHP側のスクリプトや、php.iniなどでデフォルト以外の特別な設定は
+行っておりません。
+
+&gt;どこで、負の値を返しているのを確認しているのかわからないので
+&gt;なんともいえないですが、psql 上でSELECT文を発行した場合の
+&gt;OID は どうなっているのでしょう？
+わかりました、psqlを用いた実験を行いましたのでレポートします。
+
+■ それでは実際に CREATEDB からの手順をダンプしてみますね
+(ログインユーザーはPostgreSQLのスーパーユーザーでしました)
+
+$ createdb junk
+CREATEDATABASE
+$ psql junk
+Welcom メッセージは表記省略します
+
+junk=# create table junk (a int,b text,c date);
+CREATE
+junk=# insert into junk values(123,'Abc','now');
+INSERT 2147488330 1
+junk=# select oid,* from junk;
+    oid     |  a  |  b  |     c
+------------+-----+-----+------------
+-2147478966 | 123 | Abc | 2000-08-22
+(1 row)
+
+が正確なpsqlでのオペレーションの状況です。
+面白いのは、INSERT実行時の結果レポートは
+「　INSERT 2147488330 1　」として正数です。
+ところが、SELECT で OID を表示すると負数です。
+数値部も異なります。つまりオーバーフロー現象
+なのでしょうか
+
+そこで
+
+junk=# select oid,* from junk where oid = '-2147488330';
+では（１ ｒｏｗｓ）で該当するレポートが表示されますが、
+
+junk=# select oid,* from junk where oid = -2147488330;
+junk=# select oid,* from junk where oid = 2147488330;
+junk=# select oid,* from junk where oid = '2147488330';
+では（０　ｒｏｗｓ）のレポートしか戻りません
+
+また
+junk=# select oid,* from junk where oid = 2147488330;
+ERROR:  dtoi4: integer out of range
+
+と表示してエラーです。
+
+&gt;&gt; 仮に今、INSERTを実行し自動的に生成されたOIDが -2147479072
+&gt;&gt; だとしましょう。そして、このINSERTをPHPでpg_execした直後に
+&gt;&gt; pg_getlastoid()を実行すると、何と戻り値が正数になってしまいます。
+&gt;&gt; つまり、pg_getlastoid() の戻り値は ＋2147479072 となります。
+&gt;&gt; みなさんのところでは、異常はないですか？
+&gt;&gt; きっとみなさんのところでは「OIDは正数だよ！」って言われるので
+&gt;&gt; しょうね。
+&gt;
+&gt;typedef unsigned int Oid;
+&gt;と定義されていますから整数しか値の取り様がないですからね…
+&gt;
+&gt;負数が返されるのはどこかで
+&gt;signed int の最大値を超えた (unsigned intである)OID の値を
+&gt;signed int にキャストしてしまったためだと考えられます。
+&gt;
+&gt;(略)
+&gt;&gt; そこで発見できたのが、新規OIDがやたら大きな負の数字となっている
+&gt;&gt; 点でした。以前のバージョンである 6.5.3 時代ではOIDが全て
+&gt;&gt; 正数でしたので、SELECT構文などの WHERE で OID を特定する場合、
+&gt;&gt; シングルクオーテーションは在っても無くてもエラーにはなりません
+&gt;&gt; でした。例えば
+&gt;&gt;
+&gt;&gt; $OID_ = 12345678;
+&gt;&gt; $query = "select * from junk where oid = $OID_";
+&gt;&gt;
+&gt;&gt; でも異常ではなかったのですが・・・負の数字となった今では
+&gt;&gt; 必ず「’」シングルクオーテイションで囲まないとエラーにならないで
+&gt;&gt; 参照不能となります。そこで全てのPHPソースを編集しました。
+&gt;
+&gt;$OID というのは unsigned int と同等なのでしょうか？
+&gt;もし int と同様である場合 符号付き int の最大値を超えると
+&gt;負数の値をとるようになると 思われます。
+&gt;
+&gt;PHPで、$OID を unsigned int で扱うような設定や
+&gt;signed int でも、 ビット幅をsizeof(unsigned int)より 大きく
+&gt;すればOID自体が 負数にならないのでは ないかと 思います。
+&gt;
+&gt;# 外していたら御免なさい(^^;;
+事態はＰＨＰの問題なのでしょうか。PHPの問題ではないことが
+psqlでの手打ちでも確認していただけたと思います。
+小生の直感では、PostgreSQL 7.0.2 が、INSERT ルーチンと、
+データーベースのハンドルルーチンとがOIDに関する
+管理ビット長が異なるからではないでしょうか。
+それと、なんでみなさんと異なるOID発生ルーチンとなって
+しまったのかが理解を絶するところです。開発者しか
+わからないのでは？　早く正数のOIDを見たいです！
+
+当方ではどうしても「OID復元」をはずせませんので、
+PostgreSQL7.0.2 から、PostgreSQL 6.5.3へ戻し、
+「OID復元」するしかないかとも考えておりますが、
+仮に、PostgreSQL の問題であるのなら、どなたか
+パッチを提供していただけないかなとあまい気持ちが
+あるわけです。小生にはソースを検証するだけの
+実力が無い人間ですので、優秀なかたのお知恵を
+借りたいわけです。
+
+「OID復元」を COPY で実行すると、postgreSQL　の
+どこかのフラッグが立って・・・OIDの重複エラーを
+防ぐOID開始初期値が変更されるのではないでしょうか？
+今回、TABLEごとに COPY xxx WITH OIDS from を
+何度も繰り返すことになりましたので、OIDの
+初期値がいつのまにかオーバーフロー領域まで
+繰り返し加算されたのかなとも想像しております。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+     Yoshio Tokuda
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00471" HREF="msg00471.html">[pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00461" HREF="msg00461.html">[pgsql-jp 16847] Re: [pgsql-jp 16834] 7.0.2のinse	rt直後のpg_getlastoid()で正	数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "iwa" &lt;d_iwa@hotmail.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00460" HREF="msg00460.html">[pgsql-jp 16846] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Masao Shirakura" &lt;masa@masternet.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00459" HREF="msg00459.html">[pgsql-jp 16845] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiro Hanahara &lt;hanahara@meiko.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00453.html">[pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00455.html">[pgsql-jp 16841] Re: Re:再度、大文字/文字検索のことで</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00449.html">[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00459.html">[pgsql-jp 16845] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00454"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00454"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

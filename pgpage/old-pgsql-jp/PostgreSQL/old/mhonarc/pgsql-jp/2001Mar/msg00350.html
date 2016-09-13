@@ -1,0 +1,231 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20484] Re^2: How about to use a silicon disk on $PGDATA -->
+<!--X-From: Tsuyoshi SASAMOTO <sasamoto@e&#45;vision.co.jp> -->
+<!--X-Date: Mon, 26 Mar 2001 14:22:11 +0900 (JST) -->
+<!--X-Message-Id: 200103260522.OAA11306@mailhost.e&#45;vision.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200103241001.TAA14855@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 3ABC81B7.A0DF1657@shonan.ne.jp -->
+<!--X-Reference-Id: 20010324232656K.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA </TITLE>
+<LINK REV="made" HREF="mailto:sasamoto@e-vision.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00349.html">Date Prev</A>][<A HREF="msg00351.html">Date Next</A>][<A HREF="msg00342.html">Thread Prev</A>][<A HREF="msg00351.html">Thread Next</A>][<A HREF="index.html#00350">Date Index</A>][<A HREF="threads.html#00350">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:sasamoto@e-vision.co.jp">sasamoto@e-vision.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 14:22:11 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00340.html">200103241001.TAA14855@mailhost.e-vision.co.jp</A>&gt; &lt;<A HREF="msg00341.html">3ABC81B7.A0DF1657@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00342.html">20010324232656K.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+皆さん，ありがとうございます．
+
+近藤さん:
+&gt;CPU がわからないけど、この数値は、異常に低いような。
+
+はい，現在開発／テスト用に使っているマシンは，ちょっと遅いかも知れません^^;
+    [PII-???MHz, RAM256MB, SCSIだけど遅いかも^^;]
+実際の運用時に使うマシンはもっとスペックがいいのですが，
+    [PIII-866MHz, RAM512MBにする予定, Ultra3-SCSI(10,000rpm)]
+注文中の増設RAMがまだ来ていないので，現在はまだちゃんとした状態では使えません．
+
+&gt;ひょっとして、同期モードで動かしているなんてことは。
+
+はい，前回のメールに出していたデータは，同期モードのものでした．
+非同期モードでやってみると，
+----------------------------------------------------------------------
+    [ufs, nofsync, 7.0.3]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 87.919353(including connections establishing)
+tps = 90.759750(excluding connections establishing)
+    [tmpfs, nofsync, 7.0.3]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 145.847857(including connections establishing)
+tps = 153.629418(excluding connections establishing)
+----------------------------------------------------------------------
+てな感じです．これなら，“比べ物になる”(？)程度の差なんでしょうか（笑）
+でも，時と場合によっては，この差も効いてくるのかも知れませんね．
+
+&gt;仮に、solaris の tmpfs を使うとしても、$PGDATA/base/
+&gt; :
+&gt;その他、tmpfs や RAMDISK へのシンボリックリンク
+&gt;での使用は、いろいろ問題がありりそうで、
+&gt;よほどしっかりチェックして対策しないと恐いよう
+&gt;に思います。
+
+確かに，そうなんですよね．実際の運用サーバではRAMを結構積むので
+
+&gt;ただ、変な小細工するよりも、DB Server 専用機にして、
+&gt;実メモリをごっそりと積んで、UNIX の FILE CACHE に
+&gt;任せた方がいいのかもしれませんが。どうなんだろう。
+
+この方向で考えた方がいいのかも，という気がしてきました．
+
+&gt;最近広告見ないけど、シリコンディスクなんてまだ売っているん
+&gt;でしょうか？。
+
+細々とですが，扱っているところはあるようです．
+モバイル分野で復活する兆しもあるとか，ないとか......
+
+石井さん:
+&gt;このデータからすると，fsyncありのデータですね．同じfsyncありでも，7.1
+&gt;ならかなり早くなるはずです．
+&gt;
+&gt;まだ正式アナウンスされてませんが，7.1のRC1(Relelease Candidate)
+&gt;
+&gt;<A HREF="ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz">ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz</A>
+&gt;
+&gt;をお試し下さい．もしかしたらtmpfsいらないくらいのスピードになるかも．
+
+いよいよRCまで来たんですね．ということで，早速使ってみました．
+----------------------------------------------------------------------
+    [ufs, fsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 31.229408(including connections establishing)
+tps = 31.602606(excluding connections establishing)
+    [ufs, nofsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 37.079789(including connections establishing)
+tps = 37.614772(excluding connections establishing)
+  :: かなりばらつきが出る
+tps = 101.064206(including connections establishing)
+tps = 104.625603(excluding connections establishing)
+    [tmpfs, fsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 139.139533(including connections establishing)
+tps = 146.767878(excluding connections establishing)
+    [tmpfs, nofsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 145.490098(including connections establishing)
+tps = 153.822725(excluding connections establishing)
+----------------------------------------------------------------------
+確かに，fsyncありの場合のパフォーマンスはかなりよくなっているようですね．
+データファイルの構造もだいぶ変わっているようですし．
+ただ，fsyncなしの場合には，逆にパフォーマンスが低下しているような
+気もするんですけど......
+
+で，pg_xlog以下の部分を別デバイスにするといいとかいう話もあったんですが，
+現在はすぐにアルミ板ディスクを追加できる状況ではないので，代わりに
+pg_xlogにtmpfsを使って試してみました．
+----------------------------------------------------------------------
+    [ufs(pg_xlog=tmpfs), fsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 62.820976(including connections establishing)
+tps = 64.345882(excluding connections establishing)
+    [ufs(pg_xlog=tmpfs), nofsync, 7.1RC1]
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 64.214074(including connections establishing)
+tps = 65.634412(excluding connections establishing)
+----------------------------------------------------------------------
+これも，fsyncありの場合はかなりいい結果が出るようですね．
+とはいえ，やはりここにtmpfsを使うというのも危険ですかね^^;
+
+
+で，結論的には
+・　7.1を使う．
+・　ufsを使うけど，バッファをたっぷり割り当てる．
+・　pg_xlog以下の部分を別デバイスにする．
+ということをやれば，テスト用サーバと実運用時のサーバのスペックの差を考えれば
+どうにかなるのかなぁ，という気がしてきました．
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00352" HREF="msg00352.html">[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00351" HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00349.html">[pgsql-jp 20483] postmaster のコネクト数（バックエンド数）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00351.html">[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00350"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00350"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

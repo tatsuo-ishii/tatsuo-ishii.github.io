@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11990] Re: データのインポートについて -->
+<!--X-From: OGURA Masaya <massay@cnt.canon.co.jp> -->
+<!--X-Date: Wed, 01 Dec 1999 10:11:36 +0900 -->
+<!--X-Message-Id: 199912010109.KAA26762@cntsun01.cnt.canon.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11990] Re: データのインポートについて </TITLE>
+<LINK REV="made" HREF="mailto:massay@cnt.canon.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00001.html">Date Prev</A>][<A HREF="msg00003.html">Date Next</A>][<A HREF="msg00004.html">Thread Prev</A>][<A HREF="msg00003.html">Thread Next</A>][<A HREF="index.html#00002">Date Index</A>][<A HREF="threads.html#00002">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11990] Re: データのインポートについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: OGURA Masaya &lt;<A HREF="mailto:massay@cnt.canon.co.jp">massay@cnt.canon.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 01 Dec 1999 10:11:36 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小倉ですが..早速いくつか解決法を教えていただきました。_o_
+
+私のメイル・・
+&gt; 以下のメイルと同じ症状
+&gt; （ delimiters を指定するとyou have extra tokens after the filename と出る）
+&gt; が出ているのですが、この解決法はどうなったのでしょうか？
+
+これに関しては、わたなべさんより、
+
+&gt; 　SQL の copy ではなくて psql コマンドの \copy を使っていませんか?
+&gt; using delimiters が使えるのは SQL の copy のほうですから、以下のよ
+&gt; うになります。
+&gt; host~$ psql test
+&gt; POSTGRESQL の会話型 SQL モニター(psqlj-6.5.3)へようこそ。
+&gt;   POSTGRESQL の著作権、については COPYRIGHT ファイルをご覧ください。
+&gt; 
+&gt;    \? で \ コマンドのヘルプを表示します。
+&gt;    \q で終了します。
+&gt;    \g をタイプするかまたは ';' で終わらせると、クエリーを実行します。
+&gt;  現在データベース 'test' に接続されています。
+&gt; 
+&gt; test=&gt; COPY hoge FROM 'hoge.csv' USING DELIMITERS ',';
+&gt; COPY
+&gt; test=&gt;
+
+という解決法をいただきました。
+やってみたところ、
+ERROR:  You must have Postgres superuser privilege to do a COPY directly to or
+ from a file.  Anyone can COPY to stdout or from stdin.  Psql's \copy
+ command also works for anyone.
+
+Postgres の superuser でないと、COPY は使えないよと言われたので、
+superuser で実行したら無事 COPY されました。psql の \COPY なら
+どのユーザでも実行できるのですね。
+
+また、小山内さんからは
+
+&gt; 知りたいことと違うような気がするのですが・・・
+&gt; とりあえず問題は解決するので・・・
+&gt; データ登録用のSQL文を下にあるようなパールの
+&gt; プログラムを用いて（CSV形式→TSV形式）をつかってみてはいかがでしょう？
+&gt; ++++++++++ここから
+&gt; #!/usr/local/bin/perl
+&gt; 
+&gt; print "drop table データベース\;\n";	#既存のテーブル「データベース」を削除
+&gt; $one_line = &lt;&gt;;			#一行読み込み（属性名が入ってる）
+&gt; $one_line =~ /(.*),(.*)/;	#読み込んだ行をパターンマッチ
+&gt; $attribute1 = $1;		#マッチしたものを変数に格納　注：属性の数だけ必要！
+&gt; $attribute2 = $2;		#マッチしたものを変数に格納
+&gt; print "create table データベース ($attribute1 int4, $attribute2 int4) \;\n";　
+&gt; 	#テーブル「データベース」を新規に作成。第一属性の型（ドメイン）は整数、
+&gt; 	#第二属性の型は整数　注：この辺は適当です！！
+&gt; 
+&gt; print "copy データベース from stdin \;\n";
+#今から入力されるTSVを一括読み込み。
+&gt; 
+&gt; while (&lt;&gt;) {	#入力がなくなるまで読む。さっき一行読んだので二行目から。
+&gt;     if (/(.*),(.*)/) {	#読み込んだ行がパターンにマッチする場合は、
+&gt; 	print "$1	$2\n";	#TSVとして出力する。
+&gt;     }
+&gt; }
+&gt; 
+&gt; +++++++++++
+
+このような解決法も示していただきました。この perl スクリプトはいろいろ
+転用できそうです。f(^^;)
+
+ありがとうございました。今後ともよろしくお願い致します。
+ではでは
++-----------------------------------------------+
+|               OGURA Masaya..                  |
+|             Daytime: massay@cnt.canon.co.jp   |
+| Night(if necessary): massay@mx2.mesh.ne.jp    |
+|                   E poi?                      |
++===============================================+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00003" HREF="msg00003.html">[pgsql-jp 11991] Re: データのインポートについて</A></STRONG>
+<UL><LI><EM>From:</EM> Manabu Watanabe &lt;manyabu.nabe@ooi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00001.html">[pgsql-jp 11989] Re:日本語マニュアル作成プロジェクト</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 11991] Re: データのインポートについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 11992] 【お礼】CHAR型フィールドで数値演算ができる？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 11991] Re: データのインポートについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00002"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00002"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

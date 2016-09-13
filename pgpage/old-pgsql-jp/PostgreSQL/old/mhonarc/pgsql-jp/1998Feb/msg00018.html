@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3327] Re: about EUC -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 06 Feb 1998 12:02:15 +0900 -->
+<!--X-Message-Id: 199802060302.MAA03199@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199802060117.RAA14027@dlsun329.oracle.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3327] Re: about EUC </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00017.html">Date Prev</A>][<A HREF="msg00019.html">Date Next</A>][<A HREF="msg00017.html">Thread Prev</A>][<A HREF="msg00012.html">Thread Next</A>][<A HREF="index.html#00018">Date Index</A>][<A HREF="threads.html#00018">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3327] Re: about EUC</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 06 Feb 1998 12:02:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt; 1. サーバプロセスの内部コード、およびデータベースにデータを格納すると
+&gt;&gt; きのコードは 1 種類(EUC、UTF-8、mule internal code のどれか)とする。
+&gt;
+&gt;ふむふむ．
+&gt;
+&gt;わたしの興味は，内部コードと処理スピードの関連です．
+&gt;例えば，likeのコストが内部コードの差によって，どのように変化するのか，
+&gt;しないのか？
+
+私の実装では、like の処理を行なう前に、内部コードを1文字固定長の表現に
+変換しています(正規表現も同じ)。たとえば、UTF-8 -&gt; UCS-2 への変換を行
+ないます。このコストはEUC、UTF-8、muleのどれでもほぼ同じだと思います。
+
+# これは本題とは無関係ですが、今まで jp patch で使っていた正規表現エン
+# ジン(GNU のもの)をPostgreSQL に付属のものに変えたら、5割ほどスピードアッ
+# プしました。ちょっと嬉しい。
+
+&gt;mule は表現力がリッチな分，内部コードがASCII以外は一文字あたり1-2バイ
+&gt;ト増えていますが，その処理のオーバヘッドがどのくらいあるのか興味深いと
+&gt;ころです．
+
+ISO-2022 準拠の文字集合に関しては、mule の内部コードと UTF-8 は同じ長
+さですね。
+
+ASCII				1バイト
+ASCII 以外のラテン文字など	2バイト
+漢字など			3バイト
+
+&gt;なるほど．スケーラビリティのことを考えると，クライアント側でコード変換
+&gt;するといいかもしれないですね．でも，最初はいいかな．
+
+悩んでます。PostgreSQL では、クライアント側の通信処理はほとんどの場合、 
+libpq というライブラリ経由で行なわれるので、libpq で一括してコード変換
+することにしてもいいのですが、一部のクライアント、たとえば JDBC や 
+ODBC は libpq を使いません。そこで、サーバ側でまとめてコード変換しては
+どうかなと思ったのですが...
+
+&gt;&gt; 実は、4, 5 はあんまり意味がないような気がしてます。実際問題として、
+&gt;&gt; 
+&gt;&gt; create table foo(bar char(10) character set euc-jp
+&gt;&gt;                buz char(10) character set euc-china);
+&gt;&gt; 
+&gt;&gt; とかやっちゃったら、一体どうやって insert の SQL 文を書くのか疑問だし。
+&gt;
+&gt;ソースコードを表現する文字集合とデータベースの文字集合が同じでなければ
+&gt;ならないということはないです．ＳＱＬ９２自身そこらへんがちょっとはっき
+&gt;りしていないのですけど，リテラルの表現方式として，
+&gt;
+&gt;_&lt;character-set-name&gt;'literal'
+&gt;
+&gt;というシンタックスがあります．上記の例でいうと
+&gt;insert into foo values( _euc-jp'xxx', _euc-china'yyy' );
+&gt;みたいな感じになって，ソースコード文字集合は，別途他の文字集合でもいい
+&gt;わけです．
+&gt;
+&gt;paser のリテラル処理の部分にコード変換的な拡張が必要になりますけど．
+&gt;
+&gt;JavaのプログラムはASCIIで書くけど，Unicodeを埋めるときは \uXXXXと
+&gt;表現するみたいなイメージでしょうか．
+
+なるほど。
+
+&gt;とはいうものの確かに，5)は，あんまり使いやすいとは言えないですね．
+
+それが問題ですね:-)
+
+&gt;&gt; また、各国語を混ぜて使いたいという要求であれば、UTF-8 とか、mule
+&gt;&gt; internal code をつかえば対応できますし。(それどころか、列の中に複数の
+&gt;&gt; 文字集合を混在させることも出来る)
+&gt;
+&gt;UTF8は一つの文字集合だけど，マルチスクリプトですよね．一方，mule のコー
+&gt;ドは確かに複数の文字集合を混在させることはできますね．ただそうすると，
+&gt;GBで書いた(中国漢字スクリプト)の毛沢東とJISで書いた毛沢東をマッチさせ
+&gt;たいとかいうのが，UTF8ではできるけど，muleでは，ちょっと面倒ですね．
+
+ここが良く分かりません。この例は、
+
+	中国漢字スクリプトで書いた「毛沢東」と日本漢字スクリプトで書い
+	た「毛沢東」を同じ物とみなす(たとえば、= や LIKE でマッチさせ
+	る)
+
+という意味だと思うのですが、これは本質的に、
+
+	中国漢字スクリプトで書いた「毛沢東」と日本平仮名スクリプトで書
+	いた「もうたくとう」を同じ物とみなす
+
+ような処理と同じですよね。つまり、「毛沢東」という単語を異なるスクリプ
+トで表現したときに、それらを同一のものと見倣すためには、コード系や文字
+集合とは別の情報が必要になります。それは UTF でも mule でも同じことで
+はないですか？
+
+&gt;&gt; でも、結局どっかで「1文字」を切り出して来る処理が必要になりますよね。
+&gt;&gt; それは文字集合独立にはならない。
+&gt;&gt; # もちろん、そこの部分をユーザ定義関数などを使って拡張可能にする戦略は
+&gt;&gt; # 考えられます。
+&gt;
+&gt;わたしの言っている文字集合依存というのは，ソースコードの中に文字集合に
+&gt;関する情報を埋めこむという実装で，新しい文字集合をサポートする時に，ソー
+&gt;スの変更を伴わない形で，それのサポートが可能なら文字集合独立と言えるの
+&gt;ではと思ってます．
+&gt;
+&gt;その意味でいうと，mule などは，文字集合の意味を，ソースコードの中に埋
+&gt;め込まないで，ジェネリックな処理をするエンジンなので，文字集合独立な実
+&gt;装ですね．
+
+なるほど。理解しました。
+
+&gt;ＲＤＢＭＳもシステムテーブルになんらかの形で文字集合の属性を格納してお
+&gt;いて，例えば，一文字のバイト数とか，コードの範囲とか，そのテーブルを参
+&gt;照するかたちで，文字処理を行なえば，文字集合独立の実装ができます．
+&gt;
+&gt;問題はその処理速度でしょうね．テーブル駆動にしないまでも，ユーザ定義関
+&gt;数などを利用して実装するというのは，現実的な案かもしれないです．
+
+そうですね。検討させて下さい。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00017" HREF="msg00017.html">[pgsql-jp 3326] Re: about EUC</A></STRONG>
+<UL><LI><EM>From:</EM> hyoshiok@jp.oracle.com</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 3326] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 3328] Re: about EUC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00017.html">[pgsql-jp 3326] Re: about EUC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 3321] about EUC</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00018"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00018"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12991] Re:Re:テーブルのDeadlock -->
+<!--X-From: Shinichi Fukuda <shinf@ma.mailbank.ne.jp> -->
+<!--X-Date: Tue, 01 Feb 2000 16:42:57 +0900 -->
+<!--X-Message-Id: 200002010745.QAA19808@smtpb.mailbank.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000201161115N.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12991] Re:Re:テーブルのDeadlock </TITLE>
+<LINK REV="made" HREF="mailto:shinf@ma.mailbank.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00034.html">Date Prev</A>][<A HREF="msg00032.html">Date Next</A>][<A HREF="msg00028.html">Thread Prev</A>][<A HREF="msg00042.html">Thread Next</A>][<A HREF="index.html#00033">Date Index</A>][<A HREF="threads.html#00033">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12991] Re:Re:テーブルのDeadlock</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shinichi Fukuda &lt;<A HREF="mailto:shinf@ma.mailbank.ne.jp">shinf@ma.mailbank.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Feb 2000 16:42:57 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+福田です。
+
+&gt;&gt; ところでDeadlockしてしまったプロセスは、
+&gt;&gt; いちいちプロセスをkillしていかないといけないのでしょうか？
+&gt;&gt; いつまでも(何日でも)Deadlockしたまま(?)です。
+&gt;
+&gt;それはおかしいですね。6.4ではdeadlock状態になったらしばらくして(1分く
+&gt;らい)deadlockの原因になったトランザクションが勝手にアボートされるはず
+&gt;です。その時にはアプリケーションにはエラーが返りますから、それをチェッ
+&gt;クして適切な処理をしていれば問題は起きないはずです。
+&gt;
+&gt;&gt; それと、一度Deadlockしてしまったら、その後そのテーブルは、
+&gt;&gt; 毎回Deadlockしてしまうのでしょうか？
+&gt;
+&gt;そんなことはありません。
+&gt;
+&gt;&gt; まったく同じシステムを複数走らせているのですが、
+&gt;&gt; 現在一つのシステムだけでこれが起こっています。
+&gt;&gt; 他のシステムでもDeadlockは起こりますが、
+&gt;&gt; 時間が経てばプロセスは消えました。
+&gt;
+&gt;一つのシステムだけ問題が起きているということで、何かそのシステムに他と
+&gt;の違いがないのでしょうか？たとえばユーザ数が多いとか。何度も書いている
+&gt;ように、＊素＊の6.4 はユーザ数が多いと共有メモリが壊れる可能性があり、
+&gt;こうなると何が起きても不思議ではありません。もしかしたらそのせいで
+&gt;deadlock状態が続いているのかも知れません。一度 
+&gt;ftp.sra.co.jp/pub/cmd/postgres/6.4.2/patches/ にあるパッチ済の6.4.2を
+&gt;試してみて下さい。
+&gt;
+&gt;&gt; テーブルが、Deadlockの連発が原因で壊れてしまっている、
+&gt;&gt; ということは考えられるのでしょうか？
+&gt;
+&gt;バックエンドプロセスを kill -9 したりすると、壊れてしまう可能性はあり
+&gt;ます。
+&gt;
+&gt;&gt; なにせVACUUMもpg_dumpもできません。
+&gt;
+&gt;postmasterを再立ち上げしてもですか？
+
+いちばん気になっていた件に件に関するレスです。
+ありがとうございます。
+
+もう一度環境を書いておきます。
+
+SunOS5.6(256MB)、Apache1.3.6、PHP3.0.7、PostgresSQL6.4.2です。
+ユーザ数は250名程です。
+問題になっているテーブルに入るデータ件数は、
+最大で50,000件くらいになります(現在25,000件程度)。
+
+確かに正常ですと、
+Deadlockになっても1分でエラーを吐き出して終了しますが、
+今の妙な状態になってしまうと、
+半永久的にDeadlock状態になってしまいます。
+
+一時的に集中してアクセスが重なり、
+Deadlockが連続したせいだとは思うのですが、
+プロセスをkillしない限り残ってしまいます。
+ユーザからはプロキシ経由でアクセスされているのですが、
+関係ありますでしょうか？
+
+同時に走らせているシステムは、まったく同一のものです。
+もともと1つだったものを、
+DBへのアクセス数を減らすために、均等に分けたものです。
+1つだった時にも、頻繁にこの現象に陥りました。
+ちなみにこの現象が起こっているDBは、
+現在、日に10数件程度のアクセスです
+(その後スケジュールで分けることになった為)。
+で、かならず起きます。
+
+killするプロセスは、子プロセスだけで、
+killコマンドにオプションは付けていません。
+
+また、システムを構築したのが6月頃なのですが、
+それ以前のパッチは当てています。
+
+なにせシステムが現在進行中の(3月まで)なので、
+容易にDBを落とすことができません。
+おそらく再起ち上げすれば直りそうですが、
+また頻発する恐れがあります。
+
+せめて原因がわかればいいのですが……。
+
+
+
+===================================
+◆SHINICHI FUKUDA◆
+・bz3s-fkd@asahi-net.or.jp
+・shinf@ma.mailbank.ne.jp
+===================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00042" HREF="msg00042.html">[pgsql-jp 13001] Re: Re:Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 12985] Re: Re:テーブルのDeadlock</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 12992] RE: [pgsql-jp 12986] Win32版psql のWIN95での動作について質問です。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00032.html">[pgsql-jp 12990] Re: Free Solaris7 (Sparc)日本語版へのインストール</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00028.html">[pgsql-jp 12985] Re: Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00042.html">[pgsql-jp 13001] Re: Re:Re:テーブルのDeadlock</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00033"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00033"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

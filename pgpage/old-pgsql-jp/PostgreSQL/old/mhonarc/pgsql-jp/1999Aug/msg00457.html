@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10303] RE: large_object and Transaction -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Thu, 19 Aug 1999 10:20:59 +0900 -->
+<!--X-Message-Id: 000101bee9e1$17f38020$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199908180933.SAA29527@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10303] RE: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00456.html">Date Prev</A>][<A HREF="msg00458.html">Date Next</A>][<A HREF="msg00439.html">Thread Prev</A>][<A HREF="msg00458.html">Thread Next</A>][<A HREF="index.html#00457">Date Index</A>][<A HREF="threads.html#00457">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10303] RE: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 19 Aug 1999 10:20:59 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 石井です。
+&gt;
+&gt; &gt;今回、トランザクションを実行中にＰｏｓｔｇｒｅｓが妙な動作を
+&gt; &gt;する事があるような気がしたのでご報告します。
+&gt; &gt;
+
+［途中略］
+
+&gt;
+&gt; ちょっと見ましたが、まだ解決していません。言えるのは、large objectを使っ
+&gt; ているかどうかに無関係に同じ現象が発生すると言うことです。
+&gt;
+&gt; 例：
+&gt;
+&gt; test=&gt; begin;
+&gt; BEGIN
+&gt; test=&gt; create table t1(i int);
+&gt; CREATE
+&gt; test=&gt; aaa; -- なんでもいいからエラーになるSQL
+&gt; ERROR:  parser: parse error at or near "aaa"
+&gt; -- この時点でt1に対応するテーブルファイルは消えている
+&gt; -- しかし、t1をアクセスするようなSQLを発行すると、t1に
+&gt; -- 対応するファイルがまた作られる
+&gt; test=&gt; select * from t1; -- (1)
+&gt; NOTICE:  (transaction aborted): queries ignored until END
+&gt; *ABORT STATE*
+&gt; test=&gt; end;
+&gt; END
+&gt; test=&gt; create table t1(i int);
+&gt; ERROR:  cannot create t1 -- 結果create tableが失敗する
+&gt;
+&gt; どうやらパーサが(1)を実行したときに t1 をheap_openし、この時にまたt1が
+&gt; createされてしまうようです。本当ならt1は無いのでheap_openが成功しては
+&gt; いけないのですが、local cache のカタログに情報が残っているようです。パー
+&gt; サに入る前にチェックをかけ、トランザクションが Abort stateなら何もしな
+&gt; い、というのも考えたのですが、これでは "end" とか "abort" まで実行でき
+&gt; なくなってしまいます:-)
+&gt;
+&gt; 正しい解決方は、きちんと local cache からt1の情報を消して上げることだ
+&gt; と思うのですが、いまいち何をどこのタイミングで呼べばいいのか分かってい
+&gt; ません。とりあえず RelationPurgeLocalRelation()あたりを見てはいるので
+&gt; すが...
+&gt;
+&gt; なんかコメントありませんか? &gt; 井上さん
+
+上記の例に関してだけならば次のパッチで対処できると思います（副作用や
+パフォーマンス低下がないかどうかは ？）
+
+ただ、以前にも投稿していますが基本的に次の問題があると思います。
+
+大きな問題は、PostgreSQLではCREATE/DROP ... などのデータ定義コマンド
+がトランザクション内で実行できてしまうということです。
+全く例がないわけではないようですが、多くのDBMSはデータ定義コマンドの
+トランザクション内での実行を許していません。
+
+特にPostgreSQLでは、CREATE/DROP table/index が ファイルの create/unlink
+と対応しています。 この方式では（でなくても？）、正しいトランザクション管理
+を貫くのは難しいのではないでしょうか ？
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+
+*** utils/time/tqual.c.orig	Mon Jul 26 12:45:19 1999
+--- utils/time/tqual.c	Thu Aug 19 10:14:55 1999
+***************
+*** 230,235 ****
+--- 230,237 ----
+  		{
+  			if (CommandIdGEScanCommandId(tuple-&gt;t_cmin))
+  				return false;	/* inserted after scan started */
++ 			if (TransactionIdDidAbort(tuple-&gt;t_xmin))
++ 				return false;
+
+  			if (tuple-&gt;t_infomask &amp; HEAP_XMAX_INVALID)	/* xid invalid */
+  				return true;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00458" HREF="msg00458.html">[pgsql-jp 10304] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00439" HREF="msg00439.html">[pgsql-jp 10285] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 10302] phtml</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00458.html">[pgsql-jp 10304] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00439.html">[pgsql-jp 10285] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00458.html">[pgsql-jp 10304] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00457"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00457"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

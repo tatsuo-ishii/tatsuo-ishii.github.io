@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2394] Re: [Q] NOTICE: BufferSync: content of block42(xx) changed while flushing -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Wed, 27 Aug 1997 13:37:21 +0900 -->
+<!--X-Message-Id: 199708270437.NAA26482@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708270124.KAA11176@hibari.rsl.crl.fujixerox.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2394] Re: [Q] NOTICE: BufferSync: content of block42(xx) chang </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00119.html">Date Prev</A>][<A HREF="msg00121.html">Date Next</A>][<A HREF="msg00116.html">Thread Prev</A>][<A HREF="msg00115.html">Thread Next</A>][<A HREF="index.html#00120">Date Index</A>][<A HREF="threads.html#00120">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2394] Re: [Q] NOTICE: BufferSync: content of block42(xx) changed while flushing</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Wed, 27 Aug 1997 13:37:21 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;はじめまして。奥村＠富士ゼロックスと申します。
+&gt;ただで使えるRDBということでPostgreSQLを使わせていただいております。
+&gt;
+&gt;いきなり質問で恐縮ですが、よろしくご指導ください。
+&gt;
+&gt;複数*のコネクションで同一のデータベースに接続し、ビジーな要求をだすと、
+&gt;NOTICE: BufferSync: content of block42(pg_log) changed while flushing
+&gt;といわれてしまいます。
+&gt;
+&gt;*)Solaris 2.5.1 on SS20(75MHzx2,128M, gcc made)で四つから五つ、FreeBSD on
+&gt;P5-200/64Mで二つから三つぐらい。
+&gt;
+&gt;とくに書き込みのない要求でもアクセスログを書く都合でしょうかこのようになります。
+&gt;意味はなんとなくわかるのですが、どのように理解すればよろしいのでしょうか。
+&gt;1. 比較的最近のコード修正によるので、まるで気にしないでよい。
+&gt;2. かなりしんどくなっているので、警戒せねばならない。
+&gt;3. もうデータベースがただしいとは保証できないぐらい厳しい状態である
+
+うーん、一応 NOTICE ですから、1 だと思うのですが、
+
+&gt;この件と関係あるかは不明ですが、無視してどんどん要求を出すとそのうち共有メモ
+&gt;リが足りないなどの理由でサーバが動作しなくなってしまいます。こうなるとそのう
+&gt;ち実際には存在するデータがインデックスからは引けなくなるといった状況も発生し
+&gt;ます。
+
+これはまずいですね。ただ、NOTICE 自体とは直接関係ない障害だと思われま
+す。多分大きなトランザクションをたくさん実行されているのだと思いますが、
+共有メモリを増やし、PostgreSQL が使えるバッファ領域を増やすか、一つの
+トランザクションを小さく(短く)してはどうでしょう。検索結果が巨大でない
+限り、検索は
+
+begin;
+declare c curosor for select ...
+fetch
+:
+close cursor
+end;
+
+というふうにトランザクションブロックに入れなくても、単一の select 文で
+いけると思うのですが。(それとも、一つ一つの検索が非常に時間がかかると
+か)
+
+&gt;本家FAQなど探したのですがとくに引っかかる記事は見つけられませんでした。ソー
+&gt;スを読んだところ、無視してよい状態とは読めななかったのですが、何分不勉強でよ
+&gt;くはわかりません。
+&gt;
+&gt;ついでにもう一つ質問なのですが、ワークアラウンドとして書き込みのない検索要求
+&gt;の場合はabortするという手で逃げています（こうするとログの書き込みを行わない
+&gt;ようです）が、こうするとサーバプロセスがみるみるメモリを消費し、そのうちメモ
+&gt;リが足りなくなります。
+
+トランザクションが abort するとメモリリークするわけですね。うーん、
+6.1.1 でも直っていないのかな。(ちなみに、お使いの PostgreSQL のバージョ
+ンはいくつですか？)
+
+さらにワークアラウンドとして^^;100要求に一回リセットす
+&gt;るという手で逃げています。こちらもそんなものなのかどうか、ご教授ください。
+
+確かに、これなら安心ですが:-)
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[pgsql-jp 2390] [Q] NOTICE: BufferSync: content of block42(xx) changed while flushing</A></STRONG>
+<UL><LI><EM>From:</EM> okumura@rsl.crl.fujixerox.co.jp (Yo Okumura)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00119.html">[pgsql-jp 2393] Re: [Article] Internetworking</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00121.html">[pgsql-jp 2395] self introduction</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 2390] [Q] NOTICE: BufferSync: content of block42(xx) changed while flushing</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 2389] self introduction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00120"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00120"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

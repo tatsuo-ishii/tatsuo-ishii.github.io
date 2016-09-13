@@ -1,0 +1,274 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20878] Kernel parameters (Re: make installのエラー) -->
+<!--X-From: Hiro Yoshioka <hyoshiok@miraclelinux.com> -->
+<!--X-Date: Wed, 25 Apr 2001 14:43:01 +0900 -->
+<!--X-Message-Id: 20010425144301I.hyoshiok@miraclelinux.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200104200603.AA00969@nagao. -->
+<!--X-Reference-Id: 200104200648.PAA29576@popsv2.cc.ho.nec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20878] Kernel parameters (Re: make installのエラー) </TITLE>
+<LINK REV="made" HREF="mailto:hyoshiok@miraclelinux.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00302.html">Date Prev</A>][<A HREF="msg00304.html">Date Next</A>][<A HREF="msg00228.html">Thread Prev</A>][<A HREF="msg00225.html">Thread Next</A>][<A HREF="index.html#00303">Date Index</A>][<A HREF="threads.html#00303">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20878] Kernel parameters (Re: make installのエラー)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiro Yoshioka &lt;<A HREF="mailto:hyoshiok@miraclelinux.com">hyoshiok@miraclelinux.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 25 Apr 2001 14:43:01 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:hyoshiok@miraclelinux.com">hyoshiok@miraclelinux.com</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00224.html">200104200603.AA00969@nagao.</A>&gt;&lt;<A HREF="msg00228.html">200104200648.PAA29576@popsv2.cc.ho.nec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、ミラクル・リナックスのよしおかです。
+
+&gt; 滝中です。
+&gt; &gt;　たぶん、shared memoryを使えるようにしなさいといわれているのだと
+&gt; &gt;　おもうのですが。
+&gt; &gt;　solarisのカーネルの再構築方法もわかっていないので、いろいろと
+&gt; &gt;　模索中です。
+&gt; <A HREF="http://www.ca.postgresql.org/users-lounge/docs/7.1/admin/kernel-resources.html">http://www.ca.postgresql.org/users-lounge/docs/7.1/admin/kernel-resources.html</A>
+
+なんかを見ると、カーネルパラメータの設定等なかなか
+敷居が高そうにみえますね。データベース構築するのに
+カーネル再構成までは、ちょっとというか。
+
+Linuxの場合、/proc/sys/kernelの下に
+shmmax/shmallがあって、動的に変更可能
+ですが、セマフォ関係はカーネル再構成
+しないと変更できません。
+
+通常は、デフォルト値で十分なのですが、大規模なもの
+になるとやっぱりいろいろいじりたくなります。
+
+Miracle Linuxの場合、独自パッチをかけていて
+semopmも動的に変更可能になっています。
+
+でもって、linux kernel 2.2.18用に下記のパッチをつくってみました。
+ちゃんとテストしていないのですが、実験君してみたい方は
+どーぞ、チャレンジしちゃってください。もちろん未保証です。
+
+rpm/srpmもつくったんだけどでかいので、とくに公開は
+しません。
+
+よ
+--
+Hiro Yoshioka/CTO, Miracle Linux
+<A HREF="mailto:hyoshiok@miraclelinux.com">mailto:hyoshiok@miraclelinux.com</A>
+<A HREF="http://www.miraclelinux.com">http://www.miraclelinux.com</A>
+カーネルプログラマ募集中
+
+------------------------------ここから------------------------------------
+diff -urN linux.orig/include/linux/sysctl.h linux-2.2.18/include/linux/sysctl.h
+--- linux.orig/include/linux/sysctl.h	Mon Dec 11 09:49:44 2000
++++ linux-2.2.18/include/linux/sysctl.h	Tue Apr 24 14:21:51 2001
+@@ -104,8 +104,18 @@
+ 	KERN_MSGMNB=36,         /* int: Maximum message queue size */
+ 	KERN_MSGPOOL=37,         /* int: Maximum system message pool size */
+ 	KERN_SYSRQ=38,		/* int: Sysreq enable */
++
++	KERN_SHMMNI=39,         /* int: max num of segs system wide */
++	KERN_SHMSEG=40,         /* int: max shared segs per process */
+ 	KERN_SHMALL=41,		/* int: maximum size of shared memory */
++	KERN_SEMOPM=42,		/* int: max num of ops per semop call */
++	KERN_SEMMNI=43,         /* int: max # of semaphore identifiers */
++
+ 	KERN_SPARC_STOP_A=44,	/* int: Sparc Stop-A enable */
++
++	KERN_SEMMSL=45,         /* int: &lt;= 512 max num of semaphores per id */
++	KERN_SEMMNS=46,         /* int: max # of semaphores in system */
++	KERN_SEMVMX=47,         /* int: semaphore maximum value */
+ 	KERN_HOTPLUG=49,	/* string: path to hotplug policy agent */
+ 	KERN_IEEE_EMULATION_WARNINGS=50 /* int: unimplemented ieee instructions */
+ };
+diff -urN linux.orig/ipc/sem.c linux-2.2.18/ipc/sem.c
+--- linux.orig/ipc/sem.c	Thu May  4 09:16:53 2000
++++ linux-2.2.18/ipc/sem.c	Tue Apr 24 14:15:46 2001
+@@ -56,6 +56,11 @@
+ 
+ #include &lt;asm/uaccess.h&gt;
+ 
++int semopm = SEMOPM;
++int semmns = SEMMNS;
++int semmsl = SEMMSL;
++int semvmx = SEMVMX;
++
+ extern int ipcperms (struct ipc_perm *ipcp, short semflg);
+ static int newary (key_t, int, int);
+ static int findkey (key_t key);
+@@ -104,7 +109,7 @@
+ 
+ 	if (!nsems)
+ 		return -EINVAL;
+-	if (used_sems + nsems &gt; SEMMNS)
++	if (used_sems + nsems &gt; semmns)
+ 		return -ENOSPC;
+ 	for (id = 0; id &lt; SEMMNI; id++)
+ 		if (semary[id] == IPC_UNUSED) {
+@@ -149,7 +154,7 @@
+ 	struct semid_ds *sma;
+ 
+ 	lock_kernel();
+-	if (nsems &lt; 0 || nsems &gt; SEMMSL)
++	if (nsems &lt; 0 || nsems &gt; semmsl)
+ 		goto out;
+ 	if (key == IPC_PRIVATE) {
+ 		err = newary(key, nsems, semflg);
+@@ -233,7 +238,7 @@
+ 
+ 		if (curr-&gt;semval &lt; 0)
+ 			goto would_block;
+-		if (curr-&gt;semval &gt; SEMVMX)
++		if (curr-&gt;semval &gt; semvmx)
+ 			goto out_of_range;
+ 	}
+ 
+@@ -391,7 +396,7 @@
+ 	struct sem_undo *un;
+ 	unsigned int nsems;
+ 	ushort *array = NULL;
+-	ushort sem_io[SEMMSL];
++	ushort sem_io[semmsl];
+ 	int err = -EINVAL;
+ 
+ 	lock_kernel();
+@@ -404,10 +409,10 @@
+ 	{
+ 		struct seminfo seminfo, *tmp = arg.__buf;
+ 		seminfo.semmni = SEMMNI;
+-		seminfo.semmns = SEMMNS;
+-		seminfo.semmsl = SEMMSL;
+-		seminfo.semopm = SEMOPM;
+-		seminfo.semvmx = SEMVMX;
++		seminfo.semmns = semmns;
++		seminfo.semmsl = semmsl;
++		seminfo.semopm = semopm;
++		seminfo.semvmx = semvmx;
+ 		seminfo.semmnu = SEMMNU;
+ 		seminfo.semmap = SEMMAP;
+ 		seminfo.semume = SEMUME;
+@@ -492,7 +497,7 @@
+ 	case SETVAL:
+ 		val = arg.val;
+ 		err = -ERANGE;
+-		if (val &gt; SEMVMX || val &lt; 0)
++		if (val &gt; semvmx || val &lt; 0)
+ 			goto out;
+ 		break;
+ 	case IPC_RMID:
+@@ -511,7 +516,7 @@
+ 		       goto out;
+ 		err = 0;
+ 		for (i = 0; i &lt; nsems; i++)
+-			if (sem_io[i] &gt; SEMVMX) {
++			if (sem_io[i] &gt; semvmx) {
+ 				err = -ERANGE;
+ 				goto out;
+ 			}
+@@ -624,7 +629,7 @@
+ {
+ 	int id, size, error = -EINVAL;
+ 	struct semid_ds *sma;
+-	struct sembuf sops[SEMOPM], *sop;
++	struct sembuf sops[semopm], *sop;
+ 	struct sem_undo *un;
+ 	int undos = 0, decrease = 0, alter = 0;
+ 	struct sem_queue queue;
+@@ -633,7 +638,7 @@
+ 	if (nsops &lt; 1 || semid &lt; 0)
+ 		goto out;
+ 	error = -E2BIG;
+-	if (nsops &gt; SEMOPM)
++	if (nsops &gt; semopm)
+ 		goto out;
+ 	error = -EFAULT;
+ 	if (copy_from_user (sops, tsops, nsops * sizeof(*tsops)))
+diff -urN linux.orig/kernel/sysctl.c linux-2.2.18/kernel/sysctl.c
+--- linux.orig/kernel/sysctl.c	Mon Dec 11 09:49:44 2000
++++ linux-2.2.18/kernel/sysctl.c	Tue Apr 24 15:24:31 2001
+@@ -50,6 +50,10 @@
+ #endif
+ #ifdef CONFIG_SYSVIPC
+ extern int shmmax;
++extern int semopm;
++extern int semmns;
++extern int semmsl;
++extern int semvmx;
+ extern int shmall;
+ extern int shmall_max;
+ #endif
+@@ -236,6 +240,14 @@
+ 	 0644, NULL, &amp;proc_dointvec},
+ #ifdef CONFIG_SYSVIPC
+ 	{KERN_SHMMAX, "shmmax", &amp;shmmax, sizeof (int),
++	 0644, NULL, &amp;proc_dointvec},
++	{KERN_SEMOPM, "semopm", &amp;semopm, sizeof (int),
++	 0644, NULL, &amp;proc_dointvec},
++	{KERN_SEMMNS, "semmns", &amp;semmns, sizeof (int),
++	 0644, NULL, &amp;proc_dointvec},
++	{KERN_SEMMSL, "semmsl", &amp;semmsl, sizeof (int),
++	 0644, NULL, &amp;proc_dointvec},
++	{KERN_SEMVMX, "semvmx", &amp;semvmx, sizeof (int),
+ 	 0644, NULL, &amp;proc_dointvec},
+ 	{KERN_SHMALL, "shmall", &amp;shmall, sizeof (int),
+ 	 0644, NULL, &amp;proc_dointvec_minmax, &amp;sysctl_intvec,
+------------------------------ここまで------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00224" HREF="msg00224.html">[pgsql-jp 20799] Re: make install のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroyuki Nagao &lt;nagao@skb.mdis.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00228" HREF="msg00228.html">[pgsql-jp 20803] Re: make install のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Toru Takinaka &lt;takinaka@cp.jp.nec.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00302.html">[pgsql-jp 20877] Re: ACCESS2000 でODBC接続時のBOOL型の取り扱い</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 20879] Re: NOT NULL  的？制約</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00228.html">[pgsql-jp 20803] Re: make install のエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00225.html">[pgsql-jp 20800] Installation by root (was: make installのエラー)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00303"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00303"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

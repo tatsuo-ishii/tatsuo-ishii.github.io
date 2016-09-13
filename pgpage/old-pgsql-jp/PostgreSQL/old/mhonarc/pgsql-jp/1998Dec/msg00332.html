@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6307] RE: [pgsql&#45;jp 6305] Re: 定数 'now' について -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Wed, 23 Dec 1998 09:11:54 +0900 -->
+<!--X-Message-Id: 000401be2e08$d945d100$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812221400.XAA00425@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6307] RE: [pgsql-jp 6305] Re: 定数 'now' について </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00331.html">Date Prev</A>][<A HREF="msg00333.html">Date Next</A>][<A HREF="msg00330.html">Thread Prev</A>][<A HREF="msg00336.html">Thread Next</A>][<A HREF="index.html#00332">Date Index</A>][<A HREF="threads.html#00332">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6307] RE: [pgsql-jp 6305] Re: 定数 'now' について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Dec 1998 09:11:54 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt; -----Original Message-----
+&gt; From: owner-pgsql-jp@sra.co.jp [<A HREF="mailto:owner-pgsql-jp@sra.co.jp]On">mailto:owner-pgsql-jp@sra.co.jp]On</A>
+&gt; Behalf Of Tatsuo Ishii
+&gt; Sent: Tuesday, December 22, 1998 11:00 PM
+&gt; To: pgsql-jp@sra.co.jp
+&gt; Subject: [pgsql-jp 6305] Re: 定数 'now' について
+&gt;
+&gt;
+&gt; 石井です。
+&gt;
+&gt; &gt; &gt; 'current' っつうやつがお望みのものかもしれません。
+&gt; &gt; &gt; 試したわけではないのですが。
+&gt;
+&gt; current は datetime でしか使えないです。
+&gt;
+&gt; &gt; 白川ともうします。
+&gt; &gt;
+&gt; 代わりに試してみました。でも、やはり、テーブルが作成される時にde
+faultは評価さ
+&gt; &gt; れるようですね。
+&gt; &gt;
+&gt; &gt; testdb=&gt; create table test (test char(3),nowtime time default
+&gt; current_time);
+&gt;
+&gt; current と current_time は別物なんです。current_time は、now()を呼んで
+&gt; いるだけです。
+&gt;
+&gt; だもんで、time の代わりに datetime でよければ、current を使ってお望み
+&gt; の結果が得られます。
+&gt;
+&gt; test=&gt; create table test (test char(3),nowtime datetime default
+&gt; 'current');
+&gt; CREATE
+&gt; test=&gt; insert into test values('aaa');
+&gt; INSERT 840331 1
+&gt; test=&gt; select * from test;
+&gt; test|nowtime
+&gt; ----+-------
+&gt; aaa |current
+&gt; (1 row)
+&gt;
+&gt; ただ、表示がいつも current なので、ちょっと... という場合は、
+&gt;
+&gt; test=&gt; select test,date_trunc('sec',nowtime) from test;
+&gt; test|date_trunc
+&gt; ----+----------------------------
+&gt; aaa |Tue Dec 22 20:55:51 1998 JST
+&gt; (1 row)
+&gt;
+&gt; test=&gt; select test,date_trunc('sec',nowtime) from test;
+&gt; test|date_trunc
+&gt; ----+----------------------------
+&gt; aaa |Tue Dec 22 20:56:00 1998 JST
+&gt; (1 row)
+&gt;
+&gt; などと細工する手があります。
+&gt;
+
+おおすごい、'current'という値をDBのitemに対して指定できるのですね。
+でも、これをitemとして持つ意味って何かあるのかな ？
+
+&gt; &gt;私の方はずっとnow()ばかり使っていて、逆に定数nowがあることは
+&gt; &gt;知りませんでした。
+&gt; &gt;両方を使っている人はおられるのでしょうか ？
+&gt; &gt;どういうふうに使い分けるんでしょうね ？
+&gt;
+&gt; 結局 GetCurrentTransactionStartTime() を呼び出して現在のトランザクショ
+&gt; ンの時刻を返すだけですからどちらも全く同じだと思います。
+&gt;
+&gt; ところで、default 節に now() を使う件ですが、これだとやっぱり insert
+&gt; 時の時刻になってしまいますね。市川さんの例にあるように SQL関数を使って
+&gt; 評価を遅延されるか、current を使うしかないと思います。
+&gt;
+
+定数 'now' は  INSERT時でなくテーブルのCREATE時  に評価されてしまうので
+困るという話題だと思っていたのですが ？
+市川先生の方法も返り値の属性が異なるだけで、遅延評価にはならないと
+思いますし。
+
+&gt; P.S.	create table t4 (i int, d1 datetime default now()::datetime);
+&gt;
+&gt; とか
+&gt;
+&gt; 	create table t4 (i int, d1 time default 'current'::time);
+&gt;
+&gt; とやると 6.4 ではバックエンドが落ちますね。6.4.1 が出ましたが、直って
+&gt; るかな。
+&gt;
+&gt; ちなみに、now()に対する datetime の cast がないと、6.4 では
+&gt;
+&gt; test=&gt; create table t4 (i int, d1 datetime default now());
+&gt; ERROR:  DEFAULT: type mismatched
+&gt;
+&gt; となってしまいます。
+
+そうですね。属性をはじめから timestamp にしてしまうとか
+
+    create table t4 (i int,d1 datetime default datetime(now()));
+
+なんていうのもあります。
+
+Hiroshi Inoue
+Inoue@tpf.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00336" HREF="msg00336.html">[pgsql-jp 6312] Re: RE: [pgsql-jp 6305] Re: 定数 'now' について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00330" HREF="msg00330.html">[pgsql-jp 6305] Re: 定数'now' について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 6306] Re: RE: [pgsql-jp 6201] バックエンドの初期化エラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00333.html">[pgsql-jp 6309] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00330.html">[pgsql-jp 6305] Re: 定数'now' について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00336.html">[pgsql-jp 6312] Re: RE: [pgsql-jp 6305] Re: 定数 'now' について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00332"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00332"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

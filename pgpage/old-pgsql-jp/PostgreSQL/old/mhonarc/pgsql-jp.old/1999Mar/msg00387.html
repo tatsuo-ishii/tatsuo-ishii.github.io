@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7634] Re: contrib/array の makeについて -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Sat, 20 Mar 1999 18:20:38 +0900 -->
+<!--X-Message-Id: 36F3686629E.782ESAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903151301.WAA00743@ext16.sra.co.jp -->
+<!--X-Reference-Id: 36ED24EC21C.D9E3YOSHIDA@smtp.mazda.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7634] Re: contrib/array の makeについて </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00386.html">Date Prev</A>][<A HREF="msg00388.html">Date Next</A>][<A HREF="msg00305.html">Thread Prev</A>][<A HREF="msg00260.html">Thread Next</A>][<A HREF="index.html#00387">Date Index</A>][<A HREF="threads.html#00387">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7634] Re: contrib/array の makeについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 20 Mar 1999 18:20:38 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00304.html">199903151301.WAA00743@ext16.sra.co.jp</A>&gt; &lt;<A HREF="msg00305.html">36ED24EC21C.D9E3YOSHIDA@smtp.mazda.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Tue, 16 Mar 1999 00:19:08 +0900
+Hiroyuki Yoshida &lt;yoshida@mail.com&gt; さん wrote:
+&gt; 吉田 博行です．
+&gt; 
+&gt; いろいろselect文で試していたのですが，どうやってもインデックスを使って検
+&gt; 索しないようです．ソースを見てみると，配列要素を一つ一つ抽出して，関数内
+&gt; で比較しているように見えます．配列に要素がいくつあるかわからない状態で，
+&gt; インデックスを使った検索は無理なのでしょうか?
+&gt;
+
+  使い方によっては、無理ではないと思いますが、現状は問題点が
+ありそうです。
+
+　まず、「一つ一つ抽出して」の意味ですが、btreeの8KBブロック内
+のキー値の比較のことでしたら、これはもともと、PostgreSQLで採用
+しているロジックです。（配列型でないインデックスも同様の考えで
+す。また、vacuumを実行しても変わりません)
+
+　次に、配列型インデックスの構成ですが、text配列型のインデック
+スを例にとりますと、１レコード内の配列要素を合成してあたかも１
+つの文字列かのように取り扱っています。
+
+# 配列値が'{aaa,bbb,ccc}'の場合、"aaa+bbb+ccc"が１つのキー値
+  かのようになっています。
+
+
+　プログラムソースを追っていませんので、次は想像になりますが...
+---
+　btreeを有効に利用するには、なるべく１番目の配列要素を検索した
+方が高速になるのでは...（where 表.配列名[2]='bbb' よりはできるだ
+け where 表.配列型[1]='aaa'で検索を絞り込んだ方がいいかも...)
+---
+  
+　それと、配列型インデックスは、キー値が昇順の場合は、正常に
+btreeを作成してますが、降順に書き込んだ場合は、どうもおかしい。
+
+  create table array_t ( name text[] );
+  create index name_index on array_t (name text_ops);
+  insert into arra_t values( '{a149-1,a149-2,a149-3}');
+  insert into arra_t values( '{a148-1,a148-2,a148-3}'); 
+  ...
+　insert into arra_t values( '{a000-1,a000-2,a000-3}');
+
+  のように150件書きこんで、name_index をファイルダンプしてみる
+と次のようになっています。
+
+　第１ブロック a000,... a041,a096,....a043
+  第２ブロック a042,a149,.............a096
+  第３ブロック a042,a043
+
+  正解は次です。
+
+　第１ブロック a000,... a042,a096,....a043
+  第２ブロック a149,..................a096
+  第３ブロック a096,a043
+　
+　(但し a000は {a000-1,a000-2,a000-3}のキー値を表しています)
+
+　つまり、第１回目のブロック分割が行われるときに、一つ余計に
+キー(a042)を移動し、親(第3)ブロックにも間違った情報を書きこん
+でいます。このままだと、btreeは役にたちません。
+
+# この状態はvacuumを実行しても変わりません。
+
+# 上記は、postgresql-6.4.2で確認しました。
+
+--
+Personal Software, Inc.
+境田雅明( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00304" HREF="msg00304.html">[pgsql-jp 7550] Re: contrib/array のmakeについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00305" HREF="msg00305.html">[pgsql-jp 7552] Re: contrib/array の makeについて</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroyuki Yoshida &lt;yoshida@mail.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 7633] Re: Linux WORLDの記事</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00388.html">[pgsql-jp 7635] Re: Linux WORLDの記事</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 7552] Re: contrib/array の makeについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 7507] RE: Re: RE:Re: BOX型データに含まれるpoin tの探し方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00387"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00387"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

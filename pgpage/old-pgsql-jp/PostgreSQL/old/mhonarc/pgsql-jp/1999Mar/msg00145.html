@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7392] Re: Postmaster down -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 10 Mar 1999 16:33:25 +0900 -->
+<!--X-Message-Id: 199903100733.QAA15038@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19990310153111T.uchida@yrd.suzuki.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7392] Re: Postmaster down </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00144.html">Date Prev</A>][<A HREF="msg00146.html">Date Next</A>][<A HREF="msg00144.html">Thread Prev</A>][<A HREF="msg00146.html">Thread Next</A>][<A HREF="index.html#00145">Date Index</A>][<A HREF="threads.html#00145">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7392] Re: Postmaster down</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 10 Mar 1999 16:33:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。解決になっていないのですが...
+
+&gt;内田です。
+&gt;
+&gt;PostgreSQL 6.4.2 をshmem.6.4.patchの含まれた最新 Patched source から再コ
+&gt;ンパイルして稼働させてみました(postgresql-6.4.2-patched-990308.tar.gz)。
+&gt;
+&gt;しかし、負荷が高くなると、以下のようなメッセージを残して postmaster が御
+&gt;亡くなりになってしまいます。
+&gt;
+&gt;# 行は多少整形してあります。
+&gt;
+&gt;NOTICE:  Message from PostgreSQL backend:
+&gt;	The Postmaster has informed me that some other backend died
+&gt;	abnormally and possibly corrupted shared memory.
+&gt;        
+&gt;	I have rolled back the current transaction and am going to
+&gt;	terminate you r database system connection and exit.
+&gt;        
+&gt;	Please reconnect to the database system and repeat your query.
+&gt;
+&gt;IpcMemoryCreate: shmget failed (Invalid argument) key=5432101,
+&gt;	size=1044656, permission=600
+&gt;FATAL 1:  ShmemCreate: cannot create region
+&gt;proc_exit(0) [#0]
+&gt;shmem_exit(0) [#0]
+&gt;exit(0)
+
+postmaster がお亡くなりになる直接の原因は shmget failed ですが、ここに
+到るまでの筋書きは以下のようであると想像します。
+
+1. バックエンドのどれかが proc_exit()を呼ばずに終了(つまり異常終了)
+2. それを検知した postmaster がすべてのバックエンドを殺す
+3. postmaster は shared memory を再初期化しようとしたが、shmget failed 
+   で失敗
+4. 仕方が無いので postmaster は exit(0) する
+
+なぜ 3 が起きるか気になります。shmget の引数 key=5432101,
+size=1044656, permission=600 は間違っていなそうですし。もしかして 
+shared memory にゴミが蓄積している？今度こういう状態になったら、ipcs 
+してみませんか？
+
+ちなみに、同じ990308 で、バックエンドに kill -11 して人工的に 1 の状態
+を作ってみましたが、shared memory の初期化失敗は発生しませんでした。
+うーむ。
+
+&gt;環境は P5/133MHz 32MB RAM という実にチープな環境です。
+&gt;
+&gt;  ・OS 他は RedHat 4.2 + Apahce 1.3.4 + PhP 3.06 
+&gt;  ・バックエンドの数はデファオルトのまま 64
+&gt;  ・postmaster 起動時に bash で ulimit -n 20 を指定
+&gt;  ・Apache の MacClient は 100
+&gt;
+&gt;今から postgresql-6.4.2-patched-990217.tar.gz に戻して再稼働させてみます。
+
+レポートお待ちしています。
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00146" HREF="msg00146.html">[pgsql-jp 7393] Re: Postmaster down</A></STRONG>
+<UL><LI><EM>From:</EM> uchida@yrd.suzuki.co.jp (Uchida Hitoshi)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00144" HREF="msg00144.html">[pgsql-jp 7391] Postmaster down</A></STRONG>
+<UL><LI><EM>From:</EM> uchida@yrd.suzuki.co.jp (Uchida Hitoshi)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 7391] Postmaster down</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 7393] Re: Postmaster down</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 7391] Postmaster down</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 7393] Re: Postmaster down</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00145"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00145"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13708] Re: sjis.patchをテストしました -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 01 Apr 2000 20:40:24 +0900 -->
+<!--X-Message-Id: 20000401204024M.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38E4B1F23B6.5387SATOU@mx1.osk.3web.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13708] Re: sjis.patchをテストしました </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00033.html">Thread Prev</A>][<A HREF="msg00006.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13708] Re: sjis.patchをテストしました</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 01 Apr 2000 20:40:24 +0900</LI>
+<LI><em>References</em>: &lt;38E4B1F23B6.5387SATOU@mx1.osk.3web.ne.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; ども、佐藤です。
+&gt; 
+&gt; 社内のWindowsクライアントからPostgreSQLを利用するため、SJISコードの
+&gt; 変換状況を調べました。短時間で調べたので抜けが有るかもしれませんが
+&gt; 報告しておきます。
+
+詳しいテスト、ありがとうございます。
+
+&gt; ４．テスト２　sjis.patch 有り
+&gt; 
+&gt; 　全コードの挿入動作は正常完了。
+&gt; 
+&gt; 　EAFC〜ECFC　変換前は「・」で、変換後は文字そのものが無くなる。
+
+ここはSJISでは使われていない領域なのではないかと思いますが...
+
+&gt; 　ED40〜EFFC　変換前は漢字等であるが、変換後は「〓」となる。
+
+いわゆる「NEC 選定 IBM 拡張文字領域」ですね。確かにこのような動作を意
+図した実装になっています。
+
+&gt; 　FA54　　　　変換前後の文字は見かけ上同じだがコードが違う（81CAに変換）
+&gt; 　FA5B　　　　変換前後の文字は見かけ上同じだがコードが違う（81E6に変換）
+
+この二つはいわゆる「IBM 拡張文字領域」の一部ですが、どうしてもこのよう
+になってしまいます。この領域の文字はほとんどは EUC コードの JIS X 0212 
+に対応する領域に変換されますが、なぜか FA54 と FA5B だけは JIS X 0208 
+の文字です。ところが、SJIS では JIS X 0208 の1区から84区の文字を別な領
+域にも定義しているのです (FA54 と FA5B に対応する文字は81CA と 81E6 に
+2重に定義されています)。もちろん EUC や JIS ではこのような2重定義はあ
+りません。ですから FA54 や FA5B が SJIS -&gt; EUC 変換で JIS X 0208 に変
+換され、次に EUC -&gt; SJIS に戻るときに 元々 SJISで FA54 や FA5B であっ
+たのか、それとも 81CA や 81E6 であったのかの情報が失われる結果、このよ
+うな現象が発生するわけです。
+
+&gt; 　FC4C〜FCFC　変換前は「・」で、変換後は文字そのものが無くなる。
+
+これまたSJISでは使われていない領域なのではないかと思いますが...
+
+&gt; 
+&gt; 　【確認】
+&gt; 　ED40〜EEFC エリアにある文字が、PostgreSQLを経由することで
+&gt; 　変換不可能文字「〓」に置換される。
+&gt; 
+&gt; 
+&gt; ５．まとめ
+&gt; 
+&gt; 　テスト２で変換不可能文字「〓」となる ED40〜EEFC は FA40〜FC4B エリアに
+&gt; 　同じ文字が存在します。MS-IME97でこのコードに該当する文字を入力した
+&gt; 　ところ、 Fxxx コードが使用されています。また、外字エリアは F040〜F9FC 
+&gt; 　なので問題ないです。
+&gt; 
+&gt; 　よって sjis.patch.gz のパッチを当てることで、SJISを問題なく運用できると
+&gt; 　思います。
+&gt; 
+&gt; ＃あとはデータが ED40〜EEFC を使用していないかテストしないと(^^;
+
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00006" HREF="msg00006.html">[pgsql-jp 13709] Re: sjis.patchをテストしました</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤　充男 &lt;satou@osk.3web.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 13707] Re: テキストのインポート</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 13709] Re: sjis.patchをテストしました</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00033.html">[pgsql-jp 13736] RE: [pgsql-jp 13730] Re: アップレット（やったー！）</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 13709] Re: sjis.patchをテストしました</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

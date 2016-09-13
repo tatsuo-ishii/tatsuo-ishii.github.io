@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10174] Re: pqReadData()のエラー -->
+<!--X-From: 前 真司 <mae@ailes.co.jp> -->
+<!--X-Date: Thu, 12 Aug 1999 10:26:20 +0900 -->
+<!--X-Message-Id: 37B222BC318.F88AMAE@mbox.ailes.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v04010106b3d566485735@str.hitachi.co.jp -->
+<!--X-Reference-Id: 37B1196915A.6B4CMAE@mbox.ailes.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10174] Re: pqReadData()のエラー </TITLE>
+<LINK REV="made" HREF="mailto:mae@ailes.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00328.html">Date Prev</A>][<A HREF="msg00330.html">Date Next</A>][<A HREF="msg00325.html">Thread Prev</A>][<A HREF="msg00333.html">Thread Next</A>][<A HREF="index.html#00329">Date Index</A>][<A HREF="threads.html#00329">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10174] Re: pqReadData()のエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 前 真司 &lt;<A HREF="mailto:mae@ailes.co.jp">mae@ailes.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 12 Aug 1999 10:26:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00314.html">v04010106b3d566485735@str.hitachi.co.jp</A>&gt; &lt;<A HREF="msg00325.html">37B1196915A.6B4CMAE@mbox.ailes.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+自己レスです。
+
+&gt; いろいろ試してみたのですが、コンパイラやvacuum等では解決せず、
+&gt; postmasterの起動時に -B （バッファ数）を付け加えればエラーの起こる回数は
+&gt; 極端に減りました。（以前はデフォルトのままでした）
+&gt; 
+&gt;   su - postgres -c "$POSTGRESDIR/bin/postmaster -S -i -D $POSTGRESDIR/data
+&gt;   -B 2000"
+&gt; 
+&gt; しかし、まだときどき「pqReadData().....」のエラーがでます。
+&gt; メモリーは64MBなので、とりあえずバッファ数を2000（16MB）取りました。
+&gt; もしこの問題が、バッファ数を増やしてやれば解決できるのであれば、メモリー
+&gt; を増設するのですが。
+この時は、かなりエラーの出る頻度が減ったのですが、処理のパターンを変えれ
+ば以前と同じような高い頻度でエラーが出るようになりました。
+どうも、原因がちがうようです。
+
+
+処理の内容は、複数の施設の予約状況をインターネットから登録や検索ができる
+システムです。
+以下にテーブルの概要を示します。
+
+施設マスター（60の項目で100件程度）
+施設番号      varchar(6)（キー）
+施設ID        varchar(8)
+施設password  varchar(8)
+....
+他に使っているのは、datetime、int2です。
+インデックスは、以下のとおりです。
+create unique index プライマリー on 施設マスター using btree (施設番号
+bpchar_ops);
+create index インデックス on 施設マスター using btree (施設名 bpchar_ops);
+
+
+予約テーブル（10の項目で10件程度）履歴が残るようになってます。
+施設番号      varchar(6)（キー）
+更新日        datetime（キー）
+最新フラグ    varchar(6)（「1」が最新）
+....
+
+インデックスは、以下のとおりです。
+create unique index プライマリー on 予約テーブル using btree
+(施設番号, 更新日 bpchar_ops);
+
+件数はテスト時点での件数で、稼動すれば増えてきます。
+項目名は、実際には日本語を使っていません。
+
+
+次にＳＱＬ文の処理の流れです。
+施設の方が認証を行い、最新の状況を予約テーブルに書き込む場合です。
+
+1.まずは、ユーザー認証です。
+select * from 施設マスター where 施設ＩＤ = 'x' and 施設password = 'x';
+
+2.予約の履歴を表示します。
+select * from 予約テーブル where 施設番号 = '123' order by 更新日 DESC;
+
+3.画面が変わり施設の詳細情報を表示します。
+select * from 施設マスター where 施設番号 = '123' ;
+
+4.予約テーブルに書き込もうとするレコードが存在するか調べる。
+select * from 予約テーブル where 施設番号 = '123' and 更新日 =
+'1999-08-12 9:10:12';
+
+5.予約テーブルに書き込みを行う。
+insert into 予約テーブル(施設番号, 更新日, ・・・, ・・・) values (
+'123', '1999-08-12 9:10:12', '・・・', '・・・' );
+
+6.書き込んだ内容の確認
+select * from 予約テーブル where 施設番号 = '123' and 更新日 =
+'1999-08-12 9:10:12';
+
+7.最新フラグをセットするため先にすべてのレコードに「0」をセット
+update 予約テーブル set 最新フラグ = '0' where 施設番号 = '123';
+
+8.更新日の最新の日付を検索。
+select * from 予約テーブル where 施設番号 = '123' order by 更新日 DESC;
+
+9.最新の日付のレコードに「1」をセット
+update 予約テーブル set 最新フラグ = '1' where 施設番号 = '123' and更新日
+= '1999-08-12 09:12:42+09' ;
+
+同じような流れで、変更、削除、検索等の処理もあります。
+エラーの出る箇所は、このパターンの場合は毎回、5.のinsert文で出ます。
+
+ pqReadData() -- backend closed the channel unexpectedly.
+        This probably means the backend terminated abnormally
+        before or while processing the request.
+
+各SQL分の実行後に vacuum文 を発行しましたが、結果は同じです。
+
+長くなりましたが、どなたかわかる方おしえてください。
+お願いします。
+
+------------------------------------------
+アイレス電子工業（株）
+　　〒642-0015 和歌山県海南市且来840
+　　TEL 0734-83-2276  FAX 0734-83-1169
+ ＯＡシステム部　前 真司
+　　mail:mae@ailes.co.jp
+------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00338" HREF="msg00338.html">[pgsql-jp 10183] Re: pqReadData()のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00333" HREF="msg00333.html">[pgsql-jp 10178] Re: [pgsql-jp 10174] Re: pqReadData()のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "MINOHATA Norio" &lt;minohata@com-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp 10159] Re: (No Subject in original)</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp 10170] Re: pqReadData()のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> 前 真司 &lt;mae@ailes.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 10173] RE: perlからpgsqlに直接書き込み出来ますか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00330.html">[pgsql-jp 10175] Re: GNUJSP＋Ｐｏｓｔｇｒｅｓの利用例</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 10170] Re: pqReadData()のエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00333.html">[pgsql-jp 10178] Re: [pgsql-jp 10174] Re: pqReadData()のエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00329"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00329"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,269 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1322] SPARC/Linux Port -->
+<!--X-From: Satoshi Ishikawa <power@sekine.densi.gifu&#45;u.ac.jp> -->
+<!--X-Date: Thu, 06 Feb 1997 12:40:25 +0900 -->
+<!--X-Message-Id: 199702060340.MAA24202@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1322] SPARC/Linux Port </TITLE>
+<LINK REV="made" HREF="mailto:power@sekine.densi.gifu-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00033.html">Date Prev</A>][<A HREF="msg00035.html">Date Next</A>][<A HREF="msg00039.html">Thread Prev</A>][<A HREF="msg00031.html">Thread Next</A>][<A HREF="index.html#00034">Date Index</A>][<A HREF="threads.html#00034">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1322] SPARC/Linux Port</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Ishikawa &lt;<A HREF="mailto:power@sekine.densi.gifu-u.ac.jp">power@sekine.densi.gifu-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 06 Feb 1997 12:40:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いしかわ＠岐阜大学です。
+
+SPARC/Linux用のパッチです。
+おまけに、きちんとした自己紹介をつけておきます。
+＃メールでか過ぎますか？
+</PRE>
+<PRE>
+#書式はMklinux のREADMEを借ります。m(__)m
+#
+#おかしなところがあったら教えて下さい。
+
+PostgreSQL 6.0 の SPARC/Linux port について
+							1997/2/6
+					power@densi.gifu-u.ac.jp
+
+
+このパッチは、SPARC/Linux で PostgreSQL6.0 を利用するためのパッチです。
+このパッチは、
+   
+	SparcClassic
+	kernel 2.0.27 + RedHat-colgate
+
+の環境でテストしました。
+
+使い方：
+
+0. postgresql 本体を 
+   <A HREF="ftp://ftp.jaist.ac.jp/pub/dbms/postgres95/postgresql-v6.0.tar.gz">ftp://ftp.jaist.ac.jp/pub/dbms/postgres95/postgresql-v6.0.tar.gz</A>
+   または
+   <A HREF="ftp://ftp.postgreSQL.org/pub/postgresql-v6.0.tar.gz">ftp://ftp.postgreSQL.org/pub/postgresql-v6.0.tar.gz</A>
+   より入手します。
+
+1. /usr/local/pgsql というディレクトリを作り、上記を展開します。src や 
+   doc などのディレクトリができるはずです。
+
+2. sparc_linux patch をあてます。patch を置いてある場所を somewhere と
+   すると、
+
+	% cd /usr/local/pgsql
+        % patch -p1 &lt; somewhere/sparc_linux.patch
+
+3. /usr/local/pgsql/src に行き、custmize というスクリプトを起動します。
+   質問に答えていくと、/usr/local/pgsql/src/Makefile.custom が生成され
+   る仕組みになっています。ポイントは、
+   
+	portname は linux
+	と答える
+
+   ということです。
+	
+4. Makefile.custom に以下の2行を追加します。
+
+	sparc_linux = 1
+	CFLAGS += -Dsparc_linux
+
+5. 後は標準のインストール手順に従います。詳しくは 
+   /usr/local/pgsql/INSTALL を見て頂くとして、概要を述べると、
+
+	% make all
+	% gmake install
+	% initdb --pgdata=/usr/local/pgsql/data --pglib=/usr/local/pgsql/lib
+	% postmaster -D/usr/local/pgsql/data
+
+   でインストールが完了します。
+</PRE>
+<PRE>
+diff -Nru pgsql.org/src/backend/port/linux/Makefile pgsql-6.0/src/backend/port/linux/Makefile
+--- pgsql.org/src/backend/port/linux/Makefile	Sat Nov  9 20:00:46 1996
++++ pgsql-6.0/src/backend/port/linux/Makefile	Wed Feb  5 11:35:03 1997
+@@ -17,7 +17,11 @@
+ CFLAGS+=$(INCLUDE_OPT)
+ 
+ ifdef LINUX_ELF
+-OBJS = port.o
++  ifdef sparc_linux
++  OBJS = port.o tas.o
++  else 
++  OBJS = port.o
++  endif
+ else
+ OBJS = dynloader.o
+ endif
+diff -Nru pgsql.org/src/backend/port/linux/tas.s pgsql-6.0/src/backend/port/linux/tas.s
+--- pgsql.org/src/backend/port/linux/tas.s	Thu Jan  1 09:00:00 1970
++++ pgsql-6.0/src/backend/port/linux/tas.s	Wed Feb  5 11:35:19 1997
+@@ -0,0 +1,50 @@
++	!!
++	!! $Header: /usr/local/cvsroot/postgres95/src/backend/port/sparc_solaris/tas.s,v 1.1.1.1 1996/07/09 06:21:45 scrappy Exp $
++	!!
++	!! this would be a piece of inlined assembler but it appears
++	!! to be easier to just write the assembler than to try to 
++	!! figure out how to make sure that in/out registers are kept
++	!! straight in the asm's.
++	!!
++	.file	"tas.c"
++.section	".text"
++	.align 4
++	.global tas
++	.type	 tas,#function
++	.proc	04
++tas:
++	!!
++	!! this is a leaf procedure - no need to save windows and 
++	!! diddle the CWP.
++	!!
++	!#PROLOGUE# 0
++	!#PROLOGUE# 1
++	
++	!!
++	!! write 0xFF into the lock address, saving the old value in %o0.
++	!! this is an atomic action, even on multiprocessors.
++	!!
++	ldstub [%o0],%o0
++	
++	!!
++	!! if it was already set when we set it, somebody else already
++	!! owned the lock -- return 1.
++	!!
++	cmp %o0,0
++	bne .LL2
++	mov 1,%o0
++		
++	!!
++	!! otherwise, it was clear and we now own the lock -- return 0.
++	!!
++	mov 0,%o0
++.LL2:
++	!!
++	!! this is a leaf procedure - no need to restore windows and 
++	!! diddle the CWP.
++	!!
++	retl
++	nop
++.LLfe1:
++	.size	 tas,.LLfe1-tas
++	.ident	"GCC: (GNU) 2.5.8"
+diff -Nru pgsql.org/src/backend/storage/ipc/s_lock.c pgsql-6.0/src/backend/storage/ipc/s_lock.c
+--- pgsql.org/src/backend/storage/ipc/s_lock.c	Mon Jan 27 08:01:01 1997
++++ pgsql-6.0/src/backend/storage/ipc/s_lock.c	Wed Feb  5 11:35:52 1997
+@@ -164,7 +164,8 @@
+  */
+ 
+ #if defined(i386_solaris) || \
+-    defined(sparc_solaris)
++    defined(sparc_solaris) || \
++    defined(sparc_linux) 
+ /* for xxxxx_solaris, this is defined in port/.../tas.s */
+ 
+ void
+diff -Nru pgsql.org/src/include/config.h pgsql-6.0/src/include/config.h
+--- pgsql.org/src/include/config.h	Fri Jan 31 02:01:16 1997
++++ pgsql-6.0/src/include/config.h	Wed Feb  5 11:33:02 1997
+@@ -154,7 +154,9 @@
+ #  define HAVE_INT_TIMEZONE
+ #  undef HAVE_CBRT
+ #  undef HAVE_CBRT
++# if !defined (sparc_linux)
+ #  define NEED_I386_TAS_ASM
++# endif
+ #  define HAS_TEST_AND_SET
+    typedef unsigned char slock_t;
+ #endif
+</PRE>
+<PRE>
+きちんとした自己紹介を書いておりませんでしたので、
+ここで書いておきます。
+
+仕事：  
+	岐阜大学 工学部 技術部から電子情報工学科へ出向という形で、
+	主に電子コースの学生実験を担当してますが、ハンダも握れん私に何
+	をしろというのか、「むちゃくちゃな人事を行なうところやなぁ」と
+	ずうっと思っております。（大学時代も習っとへんのにぃ）
+	
+	まあ、それがないときはフリーなのでUNIXいじりです。
+
+職場でのコンピュータ環境：
+	Windowsが数台ありますが、好きでないのでSparcClassicをLinuxにしていじっております。
+
+家庭でのコンピュータ環境：
+	TOMWNIIにLinuxを入れて使っております。RAM 48MB でいいのですが、TOWNSのSCSIはちょ〜遅い。
+	AMD5x83-133用のボードが入院しており、ちょっといらいら。
+
+興味を持っていること：
+	DBMSと書かないと(^^;。
+	Linux,tcl/Tk などなど。
+	あとMacTenがいじってみたいな〜と思っとります。
+	Macも安くなってきたしなぁ。
+
+Postgres歴：
+	まだかけだし君です。
+
+以上こんなところで。
+</PRE>
+<PRE>
+
+End Of Message.  
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+石川 諭 （いしかわ さとし）power@densi.gifu-u.ac.jp
+Key fingerprint = 53 12 86 DF BF 21 6D BE  DC A4 7B 31 C0 8D E2 F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00033.html">[postgres95 1321] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00035.html">[postgres95 1323] Re: Benchmark test</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00039.html">[postgres95 1327] Re: pgSQL6.0 on FreeBSD</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00031.html">[postgres95 1319] jikoshoukai</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00034"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00034"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

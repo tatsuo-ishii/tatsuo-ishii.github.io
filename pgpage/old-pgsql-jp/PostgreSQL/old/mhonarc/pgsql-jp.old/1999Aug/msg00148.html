@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10011] (No Subject in original) -->
+<!--X-From: owner&#45;pgsql&#45;jp@sra.co.jp -->
+<!--X-Date: Wed, 4 Aug 99 08:19:25 +0900 -->
+<!--X-Message-Id: 199908032322.IAA05577@nasinsv2.nasu.toshiba.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10011] (No Subject in original) </TITLE>
+<LINK REV="made" HREF="mailto:owner-pgsql-jp@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00147.html">Date Prev</A>][<A HREF="msg00227.html">Date Next</A>][<A HREF="msg00227.html">Thread Prev</A>][<A HREF="msg00147.html">Thread Next</A>][<A HREF="index.html#00148">Date Index</A>][<A HREF="threads.html#00148">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10011] (No Subject in original)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:owner-pgsql-jp@sra.co.jp">owner-pgsql-jp@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 4 Aug 99 08:19:25 +0900</LI>
+<LI><em>Apparently-To</em>: pgsql-jp@sra.co.jp</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+***** UNDELIVERABLE MAIL sent to ota, being returned by nobunaga!ota *****
+mail: Error # 8 'Invalid recipient' encountered on system nobunaga
+
+Received: from [133.199.160.215] by mr.nasu.toshiba.co.jp via SMTP (920330.SGI/911001.SGI)
+	for ota id AA08534; Wed, 4 Aug 99 08:19:23 +0900
+Received: from inet-tsb.toshiba.co.jp by toshiba.co.jp (8.7.1+2.6Wbeta4/3.3W9-TOSHIBA-GLOBAL SERVER) id JAA10130; Mon, 2 Aug 1999 09:33:39 +0900 (JST)
+Received: from sraigw.sra.co.jp by inet-tsb.toshiba.co.jp (8.8.8/3.3W9-04/12/95)
+	id JAA27401; Mon, 2 Aug 1999 09:33:36 +0900 (JST)
+Received: from srapc451.sra.co.jp (srapc451 [133.137.44.37])
+	by sraigw.sra.co.jp (8.8.7/3.7W-sraigw) with ESMTP id JAA05317;
+	Mon, 2 Aug 1999 09:33:24 +0900 (JST)
+Received: (from t-ishii@localhost) by srapc451.sra.co.jp (8.8.8/3.5Wpl7) id JAA12238; Mon, 2 Aug 1999 09:32:22 +0900 (JST)
+Message-Id: &lt;<A HREF="msg00024.html">002101bedc7f$8dbec680$860110ac@baba.mori.co.jp</A>&gt;
+From: "J.Baba" &lt;jbaba@amy.hi-ho.ne.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Date: Mon, 2 Aug 1999 09:39:30 +0900
+Mime-Version: 1.0
+Content-Type: text/plain;
+	charset="iso-2022-jp"
+Content-Transfer-Encoding: 7bit
+X-Priority: 3
+X-Msmail-Priority: Normal
+X-Mailer: Microsoft Outlook Express 4.72.2106.4
+X-Mimeole: Produced By Microsoft MimeOLE V4.72.2106.4
+Reply-To: pgsql-jp@sra.co.jp
+X-Distribute: distribute [version 2.1 (Alpha) patchlevel=24]
+X-Sequence: pgsql-jp 9868
+Subject: [pgsql-jp 9868] RE:RDOによるPostgreSQL　
+	ODBCドライバへのアクセス
+Errors-To: owner-pgsql-jp@sra.co.jp
+Sender: owner-pgsql-jp@sra.co.jp
+
+  J.Baba です。
+
+&gt; J.Babaさまからご助言頂き早速試してみたのですが、
+&gt; 残念ながら以前としてロックがかからず困っています。
+
+  はい。「ロックしなくても、データの一貫性は保てるのでは？」
+という事を言いたかったのですが...。
+
+みなさんからのご意見を参考に、"select for update" を使って、
+あえて、ロックを使うコードを書いてみました。いかがでしょうか？。
+ただし、RDO -&gt; PostgreSQL ODBC 直で行って下さい。
+RDO2.0、PostgreSQL 6.5、PostgreSQL ODBC 6.40.0006 で試しました。
+ポイントは、「Batch カーソル」を使う事と、わざわざ "begin" を
+発行している部分です。
+「ODBC カーソル」は、"for update" を食ってしまいます。
+"begin"がなぜ必要かは、PostgreSQL ODBC ドライバの問題点に
+及びますので、ここではご説明致しません。
+
+Private Sub Command1_Click()
+    Dim en As rdoEnvironment
+    Dim cn As rdoConnection
+    Dim qd As rdoQuery
+    Dim rs As rdoResultset
+
+ On Error GoTo Err_1
+
+    Set en = rdoEngine.rdoCreateEnvironment("", "uid", "pwd")
+    en.CursorDriver = rdUseClientBatch
+
+    Set cn = en.OpenConnection("DSName")
+
+    cn.BeginTrans
+    cn.Execute "begin"  '本来は不要ですが、ここでは必須
+
+    Set qd = cn.CreateQuery("", "")
+
+    qd.SQL = "SELECT * FROM test_t FOR UPDATE"
+
+    Set rs = qd.OpenResultset(rdOpenKeyset, rdConcurValues)
+
+    If Not rs.EOF Then
+        rs.Edit
+        rs.rdoColumns("a1") = rs.rdoColumns("a1") &amp; " "
+        'MsgBox "wait"
+        rs.BatchUpdate
+
+        If Not ferr Then
+            cn.CommitTrans
+        Else
+            cn.RollbackTrans
+        End If
+    End If
+
+    rs.Close
+    cn.Close
+    en.Close
+
+    Exit Sub
+
+  Err_1:
+        ferr = True
+        Resume Next
+End Sub
+
+            馬場  二郎
+            E-Mail : jbaba@amy.hi-ho.ne.jp
+
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00147.html">[pgsql-jp 10010] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00227.html">[pgsql-jp 10012] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00227.html">[pgsql-jp 10012] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00147.html">[pgsql-jp 10010] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00148"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00148"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

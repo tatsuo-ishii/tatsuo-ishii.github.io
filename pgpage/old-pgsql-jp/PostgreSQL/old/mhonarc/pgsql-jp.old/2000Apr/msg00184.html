@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13887] Re: pg_atoi again ? -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Tue, 11 Apr 2000 22:15:14 +0900 -->
+<!--X-Message-Id: v04220204b518d308ff96@[158.214.136.220] -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200004111246.VAA09572@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13887] Re: pg_atoi again ? </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00187.html">Date Prev</A>][<A HREF="msg00185.html">Date Next</A>][<A HREF="msg00181.html">Thread Prev</A>][<A HREF="msg00186.html">Thread Next</A>][<A HREF="index.html#00184">Date Index</A>][<A HREF="threads.html#00184">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13887] Re: pg_atoi again ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 11 Apr 2000 22:15:14 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00181.html">200004111246.VAA09572@sraigw.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt;ひらめと申します。(dial up, FreeBSD2.2.5, postgres6.5.3)
+&gt;
+&gt;みやまえ様は以下のエラーを表示されました。
+&gt;
+&gt; &gt;ダンプファイルを psql -f dumpfile dbname などとやってリスト
+&gt; &gt;アすると、途中で以下のようなエラーが出て失敗することがありま
+&gt; &gt;す。
+&gt; &gt;
+&gt; &gt;COPY "orderformtbl" FROM stdin;
+&gt; &gt;ERROR:  pg_atoi: error in "
+&gt; &gt;": can't parse "
+&gt;
+&gt;これもnumutils.cのpg_atoiの68行目のメッセージだと思うのですが...
+&gt;pg_atoiで68行目でエラーになる場合がなんか多いような気がするの
+&gt;ですが...すこしCの本みながら考えてみます。
+&gt;
+&gt;もしなにかご存知の方がいらっしゃれば、示唆していただけるとあり
+&gt;がたいのですが。
+
+pg_atoi error in の後の文字列に
+数字('0' 〜 '9')以外の文字列が入っていることによって、
+でしょう。
+
+pg_atoi 自体は、ASCII 文字列を数値に変換する関数で、
+utils/adt/numutils.c にあります。atoi は、Ascii TO Integer
+のことです。って「[pgsql-jp 13454] Re: ファイルのコピー」にも
+書いてあります。
+
+ERROR:  pg_atoi: error in "1 ": can't parse " "
+
+も
+
+ERROR: pg_atoi error in "template1" : can't parse "template1"
+
+も、数字('0' 〜 '9')以外の文字列を食わせた結果、エラーを出したという
+ことです。
+
+"1 " という文字列を数値に変換しようとしたが、" " の部分がおかしい
+"template1" という文字列を数値に変換しようとしたが、"template1" の部分がおかしい
+
+したがって、"ERROR: pg_atoi error" が出たからと言って、
+全部が全部、古いバージョンのPostgreSQL がインストールされている
+というわけではないし、initdbだけの問題ではありません。
+ただ単に、何らかの処理で、本来は数字が入って
+いるべきところに数字以外の文字が入っていればこのエラーが出る、
+ということです。
+
+下記のようなことをやっても同じエラーが出ます。
+
+tmp=&gt; create table temp01 ( a int4 );
+CREATE
+tmp=&gt; insert into temp01 values ( 's-kosuge' );
+ERROR:  pg_atoi: error in "s-kosuge": can't parse "s-kosuge"
+tmp=&gt;
+
+というか、ひょっとすると、発生するのは表に数値を入れる時だけ
+かもしれません。pg_atoi がどこから呼ばれているかによりますが、
+この関数自体は「数字を数値に変える」関数で、「表に入れる
+数字を数値に変える」というような、特定用途に限定しているわけ
+ではないですが、そういう特定用途(表に行を入れる)だけに使われて
+いるかもしれません。ソースを見ないとわからないですが。
+
+少なくとも言えるのが、「int4 の列に文字列を入れようとすると
+このエラーが出ます。」
+古いバージョンの件も、データベースを管理する表に行を入れようと
+した時に、その表のスキーマ(形) が新しいバージョンでは変わって
+いて、古い管理テーブル
+では文字列を入れるべきところが新しい管理テーブルではint* 型
+になっていて、"template1" なんていう値を入れようとして
+エラーになってるのかもしれない、、、と思いつつ、調べてから
+回答しようと思いましたが、全然そんな時間はとれないので、誰か
+ごぞんじの方、お願いします。
+
+--  
+
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内5217)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 13889] Re: pg_atoi again ?</A></STRONG>
+<UL><LI><EM>From:</EM> Takeshita Haruhiko &lt;haruhiko@zoo.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00181" HREF="msg00181.html">[pgsql-jp 13884] pg_atoi again ?</A></STRONG>
+<UL><LI><EM>From:</EM> daikin@hkr.ne.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 13890] Re: Servlet + JDBCドライバで日本語が化けてしまいます</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 13888] RE: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00181.html">[pgsql-jp 13884] pg_atoi again ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 13889] Re: pg_atoi again ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00184"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00184"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

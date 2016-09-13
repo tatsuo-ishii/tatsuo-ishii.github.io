@@ -1,0 +1,143 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11588] Re: FreeBSD 3.3 でpostmaster が消失 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 05 Nov 1999 13:23:04 +0900 -->
+<!--X-Message-Id: 199911050423.NAA09874@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199911050208.LAA06447@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11588] Re: FreeBSD 3.3 でpostmaster が消失 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00164.html">Date Prev</A>][<A HREF="msg00163.html">Date Next</A>][<A HREF="msg00155.html">Thread Prev</A>][<A HREF="msg00355.html">Thread Next</A>][<A HREF="index.html#00162">Date Index</A>][<A HREF="threads.html#00162">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11588] Re: FreeBSD 3.3 でpostmaster が消失</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 05 Nov 1999 13:23:04 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;で、上の log からざっと postmaster.c を見てみたところ、
+&gt;
+&gt;* proc_exit が proc_exit(1) で呼ばれるケースは
+&gt;  ExitPostmaster() が ExipPostmaster(1) で呼ばれるとき
+&gt;
+&gt;* PostmasterMain では
+&gt;     status = ServerLoop();
+&gt;     ExitPostmaster(status != STATUS_OK);
+&gt;  で ExitPostmaster が呼ばれる
+&gt;
+&gt;* ServerLoop では
+&gt;     if (select(nSockets, &amp;rmask, &amp;wmask, (fd_set *) NULL,
+&gt;                        (struct timeval *) NULL) &lt; 0)
+&gt;     {
+&gt;             if (errno == EINTR)
+&gt;                     continue;
+&gt;             fprintf(stderr, "%s: ServerLoop: select failed: %s\n",
+&gt;                             progname, strerror(errno));
+&gt;             return STATUS_ERROR;
+&gt;     }
+&gt;  で、select でエラーを返している場合に STATUS_ERROR (= -1)
+&gt;  を返していて、この時のエラーが
+&gt;       ServerLoop: select failed: No child processes
+&gt;  (/usr/include/sys/errno.h では ECHILD の errno = 10) となっ
+&gt;  ている
+&gt;
+&gt;というところまでは追ったのですが、ここで ECHILD が返ってくる
+&gt;場合はなにか、という部分がわからず(man 2 select では EINTR 
+&gt;が返ってくる説明はあれども ECHILD が返ってくる説明がない)、
+&gt;FreeBSD の方のメーリングリストのアーカイブや GNATS なども追っ
+&gt;てみたのですが、select と ECHILD で検索をかけてみた限りでは、
+&gt;このような症例が出てきませんでした。
+
+ECHILD が帰って来る原因は、select() で待ち状態のとき、SIGCHLD が上がり、
+signal hander である reaper (同じ postmaster.c にあります)が、子プロセ
+スを繰り返し wait する処理をして、もはや子プロセスがいなくなった時に 
+errno に ECHILD をセットするのが原因です。で、select()が割り込みから復
+帰した時には errno に ECHILD が残っている状態になります。昔 Solaris で
+も似たような経験をしましたが、ある種の OS ではこのようなことが起こるよ
+うです。
+
+&gt;とりあえず、select はディスクリプタのステータスチェックなの
+&gt;で、と割り切って、EINTR と同様に ECHILD が返ってきた場合も
+&gt;そのまま continue するように postmaster.c を変えてみて、様子
+&gt;を見てみることにしました。
+
+とりあえずそれでもいいと思います。後は、
+
+o reapler() の中で呼ばれたときの errno を退避、復元する
+
+o SIGCHLD をハンドリングしなくて済むようにロジックを変更する
+
+という方法もありますが、ちょっと面倒です。
+
+今開発中の 7.0 では postmaster.c が大幅に書き換えられつつありますが、
+それが落ち着いたら本格的な対処方法を考えてみます。
+
+FreeBSD 以外で同じ現象を経験した方いますか？
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00355" HREF="msg00355.html">[pgsql-jp 11783] Re: FreeBSD 3.3 で postmaster が消失</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00150" HREF="msg00150.html">[pgsql-jp 11577] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 11590] はじめまして＆質問（同期処理について）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 11589] Foreign Key Constraints</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 11581] Re: FreeBSD 3.3 でpostmaster  が消失</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00355.html">[pgsql-jp 11783] Re: FreeBSD 3.3 で postmaster が消失</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00162"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00162"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

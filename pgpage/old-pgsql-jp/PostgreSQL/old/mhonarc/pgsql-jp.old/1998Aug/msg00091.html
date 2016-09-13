@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5022] Re: about pgaccess -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Mon, 10 Aug 1998 15:12:06 +0900 -->
+<!--X-Message-Id: 199808100612.PAA25208@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980810142911W.matznaga@iris.pu&#45;toyama.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5022] Re: about pgaccess </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00090.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00088.html">Thread Prev</A>][<A HREF="msg00104.html">Thread Next</A>][<A HREF="index.html#00091">Date Index</A>][<A HREF="threads.html#00091">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5022] Re: about pgaccess</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Mon, 10 Aug 1998 15:12:06 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;富山県立大学の松永と申します。
+&gt;
+&gt;先日 pgsql のバージョンを 6.3.2 に上げました。
+&gt;
+&gt;＃ そういえば、ベンチマークを 8月 6日の 16:03 分頃に送ったのに
+&gt;＃ ML には流れなかったようです。
+&gt;＃ このメールはちゃんと流れますように。
+
+たぶんこれがその松永さんのメールですね。
+
+Aug  6 16:03:40 srapc451 /kernel: pid 2018 (distribute), uid 1739: exited on signal 11 (core dumped)
+
+申し訳ありませんが、ベンチマークのデータはコアの彼方に消えてしまったの
+で:-)、もう一度投稿して頂けませんでしょうか。
+
+&gt;で、tcl/tk インターフェースを試そうと思ったのですが、うまく行かないの
+&gt;で相談に乗ってください。
+&gt;
+&gt;載せようとしているマシンの OS は Linux/debian (kernel 1.0.30)です。
+&gt;Tcl 7.6 と TK 4.2 の日本語版が動いています。
+&gt;
+&gt;6.3.2 に pactch として、
+&gt;
+&gt;btree_adj980730
+&gt;mb_b3.patch.qz
+&gt;pgaccess.patch
+&gt;tcl.patch
+&gt;
+&gt;を当てました。
+&gt;
+&gt;src/Makefile.custom を作り、中に
+&gt;MB=EUC_JP
+&gt;
+&gt;と書きました。
+&gt;
+&gt;configure を実行しました。
+&gt;--with-template=template_file は付けませんでしたが、なにごともなく無事
+&gt;コンパイルが終わり、
+&gt;
+&gt;% cd src/test/regress
+&gt;% make all runtest
+&gt;           
+&gt;では float8 と geometry だけが fail しましたが、どちらも内容的には問題
+&gt;のないものでした。
+&gt;
+&gt;うまく行ったので、
+&gt;
+&gt;configure --with-tcl 
+&gt;
+&gt;を実行したあと、再度コンパイルしましたが、
+&gt;
+&gt;src/bin/pgaccess/pgaccess.tcl を実行しようとすると、
+&gt;
+&gt;couldn't load file "libpgtcl.so": File not found
+&gt;    while executing
+&gt;"load libpgtcl.so"
+&gt;    (procedure "main" line 3)
+&gt;    invoked from within
+&gt;
+&gt;というメッセージが出て止まってしまいます。
+&gt;
+&gt;いろいろ調べましたら、tcl.h と tk.h がソースでは
+&gt;#include "tcl.h"
+&gt;のように記述してあるのに、私のシステムでは
+&gt;tcl/tcl.h と tk/tk.h として存在していることがわかりました。
+&gt;
+&gt;で、tcl.h と tk.h を #include しているファイルをすべて、書き直したので
+
+debian では、/usr/include/tcl/tcl.h や /usr/include/tk/tk.h として存在
+していると言うことですね。であれば、ソースを書き直さなくても、
+
+ -with-includes="/usr/include/tcl /usr/include/tk"
+
+を configure に付けてあげれば良いと思います。
+
+&gt;すがあいかわらず libpgtcl.so が無いと叱られます。
+
+debian は使ったことがないのではずしているかもしれませんが、おそらく 
+libpq.so もできていないと思います。(libpqshared.patch が必要)
+
+&gt;src/interface/libpgtcl で直接 make をすると libpgtcl.a は出来るのです
+&gt;が、libpgtcl.so は出来ません。
+
+これも libpq.so ができないのと同じようなバグです。
+
+src/interfaces/libpgtcl/Makefile.in に以下のパッチをあて、configure し
+直してから make して下さい。
+(ただし、このパッチはすべてのLinuxがELFだと決めつけているのでご注意)
+---------------------------------------------------------------------
+*** Makefile.in.orig	Mon Aug 10 15:04:45 1998
+--- Makefile.in	Mon Aug 10 15:03:12 1998
+***************
+*** 34,45 ****
+  LIBPQ			= -L $(SRCDIR)/interfaces/libpq -lpq
+  
+  ifeq ($(PORTNAME), linux)
+-   ifdef LINUX_ELF
+      install-shlib-dep	:= install-shlib
+      shlib		:= libpgtcl.so.1
+      CFLAGS		+= $(CFLAGS_SL)
+      LDFLAGS_SL		= -shared
+-   endif
+  endif
+  
+  ifeq ($(PORTNAME), bsd)
+--- 34,43 ----
+---------------------------------------------------------------------
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00104" HREF="msg00104.html">[pgsql-jp 5035] Re: about pgaccess</A></STRONG>
+<UL><LI><EM>From:</EM> 松永均&lt;matznaga@iris.pu-toyama.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00088" HREF="msg00088.html">[pgsql-jp 5019] about pgaccess</A></STRONG>
+<UL><LI><EM>From:</EM> 松永均&lt;matznaga-pgsql@iris.pu-toyama.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 5021] Re: mailing to ML fails? (Re: PostODBC+VB5+DAO)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 5024] Re: 始めまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00088.html">[pgsql-jp 5019] about pgaccess</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00104.html">[pgsql-jp 5035] Re: about pgaccess</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00091"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00091"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

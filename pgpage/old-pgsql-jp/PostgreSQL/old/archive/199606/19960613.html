@@ -1,0 +1,147 @@
+<A NAME="2">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@yukie.rccm.co.jp&gt;
+Date: Thu, 13 Jun 1996 15:11:22 +0900 (JST)
+Subject: [postgres95 494] Re: mask column in pg_hba ?
+Message-Id: &lt;Pine.SUN.3.91LJ1.0.4.960613150631.3848C-100000@yukie&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村＠RCCMです。
+
+&gt; ＮＴＴの金升です。
+&gt; 
+&gt;  &gt;桑村です。
+&gt;  &gt;
+&gt;  &gt;  やっと時間が Postgres95 のメンテに取れるようになりました。会社の
+&gt;  &gt;Postgres95 も(DEC OSF/1, SunOS4.1.1)ともに 1.01 にバージョンアップしま
+&gt;  &gt;した。pg_hba の設定が今一つわからないのですが、&lt;mask&gt; はどんな役割をす
+&gt;  &gt;るのでしょうか？
+&gt; 
+&gt; 私もいろんなパターンを試したわけではないので、自信がないのですが
+&gt; ソースを見る限り、以下の様に比較しています。
+&gt; -------- postgres95/src/backend/libpq/auth.c -----------------------
+&gt;   /*
+&gt;    * Go through the conf array, turn off the bits given by the mask
+&gt;    * and then compare the result with the address.  A match means
+&gt;    * that this address is ok.
+&gt;    */
+&gt;   for (i = 0; i &lt; nconf; ++i)
+&gt;       if ((ip_addr &amp; ~conf[i].mask) == conf[i].adr) return(STATUS_OK);
+&gt; 
+&gt;   /* no match, so we can't approve the address */
+&gt;   return(STATUS_ERROR);
+&gt; }    
+&gt; --------------------------------------------------------------------
+&gt; pg_hba 内の該当データベース名の mask をビット反転し、
+&gt; 接続してきたＩＰアドレスとアンドを取って、pg_hba に設定
+&gt; されているＩＰアドレスと比較し、一致していればＯＫにしている
+&gt; みたいです。
+&gt; 
+&gt; セグメント上の全クライアントにアクセスを許す設定方法をまとめると
+&gt; 
+&gt; &lt;name&gt; にはデータベース名　(all は全ＤＢ)
+&gt; &lt;address&gt; には、ＬＡＮセグメントのネットワークアドレス
+&gt; &lt;mask&gt; にはネットマスクをビット反転したものを設定する。
+&gt; 
+&gt; これでどうでしょう？ ご意見をお待ちしております。
+
+どうもありがとうございます。今日、本家 ML で見つけたのですが、
+
+&gt; # All the host on our internal network can connect to the DBMS
+&gt; all             10.0.0.0        0.0.0.255
+                                        ^^^
+
+というのがありました。&lt;mask&gt;の所が 255 の所がすべて（すなわち、クラスC
+のネットワーク(10.0.0)全体から）アクセスできるわけですね。
+
+
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+
+
+
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: kanemasu@dragon.osaka.ish.cae.ntt.jp
+Date: Thu, 13 Jun 1996 11:40:33 JST +900
+Subject: [postgres95 493] Re: mask column in pg_hba ?
+Message-Id: &lt;199606130236.LAA17711@dragon.osaka.ish.cae.ntt.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+
+ＮＴＴの金升です。
+
+ &gt;桑村です。
+ &gt;
+ &gt;  やっと時間が Postgres95 のメンテに取れるようになりました。会社の
+ &gt;Postgres95 も(DEC OSF/1, SunOS4.1.1)ともに 1.01 にバージョンアップしま
+ &gt;した。pg_hba の設定が今一つわからないのですが、&lt;mask&gt; はどんな役割をす
+ &gt;るのでしょうか？
+
+私もいろんなパターンを試したわけではないので、自信がないのですが
+ソースを見る限り、以下の様に比較しています。
+-------- postgres95/src/backend/libpq/auth.c -----------------------
+  /*
+   * Go through the conf array, turn off the bits given by the mask
+   * and then compare the result with the address.  A match means
+   * that this address is ok.
+   */
+  for (i = 0; i &lt; nconf; ++i)
+      if ((ip_addr &amp; ~conf[i].mask) == conf[i].adr) return(STATUS_OK);
+
+  /* no match, so we can't approve the address */
+  return(STATUS_ERROR);
+}    
+--------------------------------------------------------------------
+pg_hba 内の該当データベース名の mask をビット反転し、
+接続してきたＩＰアドレスとアンドを取って、pg_hba に設定
+されているＩＰアドレスと比較し、一致していればＯＫにしている
+みたいです。
+
+セグメント上の全クライアントにアクセスを許す設定方法をまとめると
+
+&lt;name&gt; にはデータベース名　(all は全ＤＢ)
+&lt;address&gt; には、ＬＡＮセグメントのネットワークアドレス
+&lt;mask&gt; にはネットマスクをビット反転したものを設定する。
+
+これでどうでしょう？ ご意見をお待ちしております。
+-----------------------------------------------------------------
+　ＮＴＴ関西情報システムセンター　
+  金升忠男 E-mail:kanemasu@dragon.osaka.ish.cae.ntt.jp
+-----------------------------------------------------------------
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Jun Kuwamura &lt;juk@rccm.co.jp&gt;
+Date: Thu, 13 Jun 1996 00:28:39 +0900 (JST)
+Subject: [postgres95 492] mask column in pg_hba ?
+Message-ID: &lt;Pine.LNX.3.91LJ1.0.4.960613001954.1515A-100000@penty.rccm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+桑村です。
+
+  やっと時間が Postgres95 のメンテに取れるようになりました。会社の
+Postgres95 も(DEC OSF/1, SunOS4.1.1)ともに 1.01 にバージョンアップしま
+した。pg_hba の設定が今一つわからないのですが、&lt;mask&gt; はどんな役割をす
+るのでしょうか？
+
+--
+ Jun Kuwamura
+rC Cm			E-mail:	JuK@RcCM.Co.jp, Phone: +81-3-3785-3033
+  ^
+  ~
+
+<HR>
+</PRE>

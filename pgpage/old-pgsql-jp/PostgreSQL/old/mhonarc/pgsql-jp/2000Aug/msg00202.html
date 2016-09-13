@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16588] Re: MS Accessから　Postgres  にアクセス出来ません -->
+<!--X-From: Masashi Ohba <ohba@intelight.co.jp> -->
+<!--X-Date: Thu, 10 Aug 2000 15:42:16 +0900 -->
+<!--X-Message-Id: 200008100642.AA00348@titan.intelight.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3992432F.595B1C75@kt.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16588] Re: MS Accessから　Postgres  にアクセス出来ません </TITLE>
+<LINK REV="made" HREF="mailto:ohba@intelight.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00201.html">Date Prev</A>][<A HREF="msg00203.html">Date Next</A>][<A HREF="msg00200.html">Thread Prev</A>][<A HREF="msg00208.html">Thread Next</A>][<A HREF="index.html#00202">Date Index</A>][<A HREF="threads.html#00202">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16588] Re: MS Accessから　Postgres  にアクセス出来ません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masashi Ohba &lt;<A HREF="mailto:ohba@intelight.co.jp">ohba@intelight.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 10 Aug 2000 15:42:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00200.html">3992432F.595B1C75@kt.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大場です。
+
+kaz005@kt.rim.or.jp wrote;
+
+&gt;これはpsqlでの操作を意味するのであれば、「pg_hba.confはクライアントパソ
+&gt;コンから接続可能であるという設定になっている」ということになりませんか？
+
+その場合、キーボードもモニタもWindowsの動いているPCに
+繋がってますが、実際は
+「サーバへ繋がってるモニタとキーボードから操作している」のと等価です。
+ログインしてる場合はlocalで(127.0.1)操作してます。
+
+普段から、会社から自宅のマシンにsshで繋いでます。
+わざわざ、普段のpg_hba.confの設定を書き換えました。
+＃安全の為、ipアドレスだけぼかしておきます。
+
+PostgreSQLを止めておく。
+
+修正してこう書き換えた
+gw# tail /usr/local/pgsql/data/pg_hba.conf
+# By default, allow anything over UNIX domain sockets and localhost.
+local        all                                         trust
+#host         all       127.0.0.1       255.255.255.255   trust
+#host         all       192.168.0.0     255.255.255.0     trust
+#host         all       211.**.***.***  255.255.255.240   trust
+#host         all       210.***.***.*** 255.255.255.240   trust
+#host         all       210.***.**.***  255.255.255.240   trust
+
+local以外使えない状態です。
+
+再起動させて
+gw# /usr/local/etc/rc.d/pgsql.sh start
+
+動いてるのを確認
+gw# ps ax | grep post
+ 7459  ??  Ss     0:00.01 /usr/local/pgsql/bin/postmaster -i -S -o -F (postgres)
+
+自分に戻ってDBに接続
+gw&gt; psql -n ohba
+Welcome to psql, the PostgreSQL interactive terminal.
+
+Type:  \copyright for distribution terms
+       \h for help with SQL commands
+       \? for help on internal slash commands
+       \g or terminate with semicolon to execute query
+       \q to quit
+
+ohba=# \!
+gw&gt;
+で修了。
+
+telnetでログインしておけば127.0.0.1からの
+接続許可だけでohbaがohbaってDBにアクセスできてるでしょ？
+
+＃以上、teratermの画面をペーストしてるんだけど
+＃「全部打ちこんでんじゃないの？」とか言われると
+＃どうしようもないけど、一次一句打ちこむほど暇じゃない
+
+telnetだけで使う、同一サーバでWebもDBも動かすならば
+local、127.0.0.1に許可出すだけでいいはずです。
+pg_hba.confでのアクセス制限に追加するのは
+外部からODBC接続許可
+WebサーバとDBサーバが別の時(PHPなり、javaなり、cgiでDB操作する時)
+等に設定して初めて有効なわけです。
+
+ただし、telnetで外部から繋げるかどうかって設定は
+wrapperの話なのでPostgresqlとはまったく別の設定です。
+
+
+&gt;ODBC経由でパスワードなしで接続できるはずです。少なくとも6.4、6.5と7.02で
+&gt;はパスワード無しで使っています。（ユーザーに対してパスワードを設定してい
+&gt;ない場合です。）
+
+パスワードが無ければ入れる必要無いんだからできるでしょう。
+ただ、そのユーザがはなから登録されて無ければ無理でしょ？
+
+＃閉じたところで使ってるのに関しては何も言いませんが
+＃ノーパスワードで外部から入れるユーザーが登録されている
+＃サーバーを外部に公開しないでください。
+＃クラックされて外部の攻撃の踏み台にされますよ。
+
+------------------------------------------------------------
+大場正志(Masashi Ohba)
+E-Mail  ohba@intelight.co.jp
+(株) インテライト
+<A HREF="http://www.intelight.co.jp">http://www.intelight.co.jp</A>
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00208" HREF="msg00208.html">[pgsql-jp 16594] Re: MS Accessから　Postgres  にアクセス出来ません</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00200" HREF="msg00200.html">[pgsql-jp 16586] Re: MS Access から　Postgres  にアクセス出来ません</A></STRONG>
+<UL><LI><EM>From:</EM> kaz005@kt.rim.or.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00201.html">[pgsql-jp 16587] RE: Access2000で検索更新ができないテーブル</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 16589] RE: (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00200.html">[pgsql-jp 16586] Re: MS Access から　Postgres  にアクセス出来ません</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 16594] Re: MS Accessから　Postgres  にアクセス出来ません</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00202"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00202"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

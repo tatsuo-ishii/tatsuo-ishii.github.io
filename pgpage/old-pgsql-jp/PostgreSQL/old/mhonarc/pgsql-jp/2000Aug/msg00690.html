@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17086] Re: テーブル設計 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 28 Aug 2000 13:43:05 +0900 -->
+<!--X-Message-Id: 39A9EDD9.2866A450@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NEBBIPCKMDIGJJHFKAONEEHECAAA.tokuya@mail.sankyo&#45;unyu.co.jp -->
+<!--X-Reference-Id: 200008280359.AA00595@miho.miyazaki&#45;mu.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17086] Re: テーブル設計 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00689.html">Date Prev</A>][<A HREF="msg00691.html">Date Next</A>][<A HREF="msg00687.html">Thread Prev</A>][<A HREF="msg00693.html">Thread Next</A>][<A HREF="index.html#00690">Date Index</A>][<A HREF="threads.html#00690">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17086] Re: テーブル設計</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 28 Aug 2000 13:43:05 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00683.html">NEBBIPCKMDIGJJHFKAONEEHECAAA.tokuya@mail.sankyo-unyu.co.jp</A>&gt; &lt;<A HREF="msg00687.html">200008280359.AA00595@miho.miyazaki-mu.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Toshinori Tsuji wrote:
+
+。。。。略。。。。
+
+&gt; そのため、トイレがある条件に合致しているかどうかを入力フォーム上で10個程度の
+&gt; チェック項目をもうけており、一つの問題はそのチェック項目の一つ一つを
+&gt; テーブルの項目にしているため、全体の項目数が増えてしまうので、こちらの方を
+&gt; どうにかできないかと思っています。
+&gt; データとしては、１（チェックあり）か０（チェックなし）が入力されるだけです。
+&gt; 
+&gt; 項目変更が多いのもこのチェックボックスの項目を増やすことがほとんどでした。
+&gt; 
+&gt; 現在のところ、チェック項目の追加、変更等については、チェック項目のテーブルを別
+&gt; に作成して、アドバイスしていただきました「ALTER　TABLE」を使用しようと考えています。
+&gt; 
+&gt; ただ、チェック項目を一つ一つのテーブルの項目にしている
+&gt; ことについては、まだ思案中です。
+
+プログラム言語には何を使われていますが？。PHP,Perl,... ?
+
+
+目的に合うかどうかわかりませんが、参考までに、発想を
+逆転させてみるのも一考でしょう。(これも正規化の一環)。
+
+create table トイレ所在地 (
+    トイレコード   int4 not null primary key,
+    場所           text ...... 以下略 ......
+);
+create table トイレ設備 (
+     設備コード int4 not null primary key,
+     設備名     text
+);
+create table トイレ条件 (
+     設備コード     int4 references トイレ設備,
+     トイレコード   int4 references トイレ所在地
+);
+
+新しい条件、例えば、"電動車いすでの利用可能" という条件
+が追加されたとします。
+
+insert into トイレ設備 values( 22, '電動車いすでの利用可能');
+
+insert into トイレ条件 values( 22, 10004); 
+insert into トイレ条件 values( 22, 10008);
+insert into トイレ条件 values( 22, 39002);
+
+--注:1004などは、トイレコード
+.....以下同様......
+
+このようにすれば、新しい条件が増えた時に、データーの
+追加と、プログラム変更だけですみます。
+
+さらに、プログラムで、トイレ設備 ＤＢを読出して、その
+設備名をつけた、チェックボタン の &lt;INPUT ..... &gt; タグ
+を自動生成するようにプログラムしておけば、新しい条件
+増加によるプログラム変更も不要になります。このような
+プログラムは、PHP なら簡単なことです。
+
+実際には、新しい設備にあったトイレ情報を収集する画面
+と、そのデーターで、トイレ条件を更新(INSERT) するプロ
+グラムも必要になります。
+
+また、新しいトイレが設置されたとき、トイレ所在地と、
+トイレ条件の２表の更新が必要になりますが、プログラム
+工数の増加は、無視できる程度です。
+
+参考:２つの表が M:N の関係をもつとき、２つの表の関係
+だけをあらわす表を作るのはよくある手法です。組立て
+工場の部品表などでもよく使われます。
+
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+ (株)ソフト工房     近藤直文     Email:  nkon@shonan.ne.jp 
+    PostgreSQL 汎用DB検索ツール デモ  
+        <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00693" HREF="msg00693.html">[pgsql-jp 17089] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> Toshinori Tsuji &lt;tsuji@miyazaki-mu.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00683" HREF="msg00683.html">[pgsql-jp 17078] RE: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;tokuya@Mail.Sankyo-Unyu.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00687" HREF="msg00687.html">[pgsql-jp 17083] Re: テーブル設計</A></STRONG>
+<UL><LI><EM>From:</EM> Toshinori Tsuji &lt;tsuji@miyazaki-mu.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00689.html">[pgsql-jp 17085] Re: PQCompoの応用 (PGm)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00691.html">[pgsql-jp 17087] Re: [pgsql-jp 17079] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00687.html">[pgsql-jp 17083] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00693.html">[pgsql-jp 17089] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00690"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00690"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

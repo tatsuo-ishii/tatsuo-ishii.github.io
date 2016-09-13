@@ -1,0 +1,361 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3675] about Wisconsin Benchmark test suit -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Tue, 24 Mar 1998 18:05:27 +0900 -->
+<!--X-Message-Id: 199803240905.SAA17816@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3675] about Wisconsin Benchmark test suit </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00242.html">Date Prev</A>][<A HREF="msg00244.html">Date Next</A>][<A HREF="msg00247.html">Thread Prev</A>][<A HREF="msg00242.html">Thread Next</A>][<A HREF="index.html#00243">Date Index</A>][<A HREF="threads.html#00243">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3675] about Wisconsin Benchmark test suit</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 24 Mar 1998 18:05:27 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+Wisconsin Benchmark をやってみたけど、意味が分からないよーという人(私
+もその一人)のために、PostgreSQL に付属の Wisconsin Benchmark test suit 
+の内容を解析してみました(解析という程ではないのですが:-)。以下、ちょっ
+と長いのですが、おつき合い下さい。また、間違っているところがあったら遠
+慮無く突っ込みをお願いします。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+----------------------------------------------------------------------
+PostgreSQL 附属の Wisconsin Benchmark test suit について
+
+はじめに
+
+ML で紹介して頂いた文献
+
+"The Benchmark Handbook"
+For database and transaction processing systems
+second edition
+Edited by Jim Gray
+
+を入手し（以降、単に「文献」と称します）、
+
+Chapter 4 The Wisconsin Benchmark: Past, Present, and Future
+David J. DeWitt
+University of Wisconsin
+
+を斜め読みして PostgreSQL のベンチマークの結果を理解しようとした試みが
+これです。
+
+1. Wisconsin Benchmark の歴史的背景
+
+文献の筆者らが 1981年に DIRECT database machine という RDBMS を開発し
+た時に、そのベンチマークテスト用として作られたのが Wisconsin Benchmark 
+です。主な目的は University Ingress との比較だったようです。当時は汎用
+的なベンチマークが存在していず、Wisconsin Benchmark が事実上最初のデー
+タベースベンチマークとなりました。
+
+Wisconsin Benchmark は、single user のベンチマークテストで、その後現れ
+た TPC などと違ってマルチユーザでのテストには対応していません。その意
+味でも Wisconsin Benchmark は古典的なベンチマークテストと言えます。現
+在では商用ベースのデータベースで Wisconsin Benchmark を使ってパフォー
+マンスを測定しているものはないと思われます。
+
+2. PostgreSQL 附属の Wisconsin Benchmark test suit について
+
+regression test などに出てくる奇妙な "tenk1" などのテーブル名は、文献
+に出てくるものを継承しているようです。ちなみに、tenk1 = Ten K(=1000)
+tupples = 1万個のタプル ということです。
+
+2.1 Benchmark の前提となるテーブル
+
+文献中には２種類の Wisconsin Benchmark が記述されています。最初のベン
+チマーク用テーブルと、その後提案されたバージョンの２種です。後のバージョ
+ンは、「スケーラブル」バージョンで、より大規模のデータベースを考慮して
+いるそうです。PostgreSQL で実際に使われているベンチマークは、この２つ
+の混合のように見えます。
+
+実際にベンチマークに使われるテーブルは、
+
+	1000 タプルのテーブル (onek)
+	10000 タプルのテーブル (tenk1)
+	それと全く同じ内容のテーブル (tenk2)
+	tenk1 から 1000 タプル抜きだしたもの (Bprim)
+
+の4つで、アトリビュートは全部全く同じです。
+
+create table onek(
+	unique1 int4,
+	unique2 int4,
+	two int4,
+	four int4,
+	ten int4,
+	twenty int4,
+	hundred int4,
+	thousand int4,
+	twothousand int4,
+	fivethous int4,
+	tenthous int4,
+	odd int4,
+	even int4,
+	stringu1 char16,
+	stringu2 char16,
+	string4 char16
+);
+
+また、onek, tenk1, tenk2 については、unique1, unique2, hundred に btree
+index が設定されています。
+
+onek (文献中では ONEKTUP)は 1000 タプル (= one Kilo)のテーブルでは、各
+アトリビュートのデータは以下のような人工的な値が設定されています。
+
+	unique1: 0から999までの整数がランダムな順で設定されている。
+		 ただし、重複値はなし。
+	unique2: 0から999までの整数が昇順に設定されている。
+		 （文献中では unique1 と同じようにランダムになっている）
+	two:	0 と 1 がランダムに設定されている。
+	four:	0,1,2,3 がランダムに設定されている。
+
+	以下、twenty は 0-19, hundred は 0-99, thousand は 0-999, 
+	twothousand は 0-1999, fivethous は 0-4999, tenthous は 0-9999
+	の値がランダムに設定されている。
+
+	odd:	0-18 までの偶数がランダムに設定されている。（odd なのに
+		なんで偶数なんだろう？）
+
+	even:	1-19 までの奇数がランダムに設定されている。（even なのに
+		なんで奇数なんだろう？）
+
+	stringu1: 最初の 2 letters を A-Z までのランダムな値に、その後
+		の 4 文字を 'A' に設定している。重複値なし。
+
+	stringu2: 最初の 3 letters を AAA,BAA...ABA,BBA...LMB のように
+		サイクリックに A-Z の値を設定し、その後の 3 文字を 'A' 
+		に設定している。
+
+	string4: AAAAxx,HHHHxx,OOOOxx,VVVVxx のパターンの繰り返し。
+
+onek テーブルの 10000 タプルバージョンが tenk1 と tenk2 です。
+
+2.2 ベンチマークテストが実際に調べようとしていること
+
+Wisconsin Benchmark では、32 個の query を使ってデータベースのパフォー
+マンスを測定します。PostgreSQL でも 32 個の query file を用意している
+かに見えますが、実際には 21,22,24,25 が欠番になっています。
+また、文献では、インデックスの種類について
+
+	a. インデックスなし
+	b. インデックスあり
+	c. clustered index あり
+
+の３つが区別されていますが、PostgreSQL には clustered index という概念
+がないので、b と c は区別されていません。
+
+PostgreSQL では、個々のケースについて、２回同じ問い合わせを実行し、そ
+の結果を合計して結果を評価しています。
+
+"query 0" というのは、ベンチマークとは関係ありません。（しいていえば、
+select 1 as x の実行時間を測定しています）
+
+2.2.1 query1 〜 query 6
+
+ここでは、一定の割合のタプルを選択し、結果を別テーブルに入れます。別テー
+ブルに入れている理由は、タプルの選択率が上がる程負荷がかかるように考慮
+されているからです。
+
+query 1: tenk1(1万タプル)全体のタプル数の 1% のタプルを select し、結
+果を別テーブルに入れる。インデックスなし。
+query 2: tenk1(1万タプル)全体のタプル数の 10% のタプルを select し、結
+果を別テーブルに入れる。インデックスなし。
+query 3: tenk1(1万タプル)全体のタプル数の 1% のタプルを select し、結
+果を別テーブルに入れる。clustered インデックスあり。
+query 4: tenk1(1万タプル)全体のタプル数の 10% のタプルを select し、結
+果を別テーブルに入れる。clustered インデックスあり。
+query 5: tenk1(1万タプル)全体のタプル数の 1% のタプルを select し、結
+果を別テーブルに入れる。インデックスあり。
+query 6: tenk1(1万タプル)全体のタプル数の 1% のタプルを select し、結
+果を別テーブルに入れる。インデックスあり。
+
+postgresql では、インデックスなしのケースはテストしていませんし、また、
+postgresql においては、clustered = non clustered なので、
+
+	query 1 = query 3 = query 5
+	query 2 = query 4 = query 6
+
+になってしまっています。にも関わらず測定値の違いが出ているのは、キャッ
+シュの影響と思われます。
+
+2.2.2 query7 〜 query8
+
+ここでは、backend/frontend の通信性能及び端末の表示性能を測定ことになっ
+ています。
+
+query 7: tenk1 から 1 個のタプルを select する。
+query 8: tenk1 から全体のタプル数の 1% のタプル(つまり 100個)を select する。
+
+7 に比べ、8 の時間が非常に余計にかかっている場合には、backend/frontend 
+の通信性能が悪いと推測できる...という理屈なのですが、postgres の ベン
+チマークでは、直接バックエンドを起動していますから、本来の意義からする
+と意味の無いテストになっています。
+
+2.2.3 query9 〜 query17
+
+JOIN のテストです。9〜11 は index なし, 12〜14 は nonclustered index,
+ですが、posgres ではこの区別していないので、
+
+9 = 12
+10 = 13
+11 = 14
+
+になってしまっています。にも関わらず測定値の違いが出ているのは、キャッ
+シュの影響と思われます。JOIN の条件は以下です。
+
+9: (tenk1.unique2 = tenk1.unique2) and (tenk1.unique2 &lt; 1000)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~全く同じ物を比較している?
+10: tenk1.unique2 = Bprime.unique2;
+11: (onek.unique2 = tenk1.unique2) and (tenk1.unique2 = tenk1.unique2)
+					~~~~~~~~~~~~~~~~~~~~~~~~~~~~~同じ?
+	and (tenk1.unique2 &lt; 1000) and (tenk1.unique2 &lt; 1000);
+	    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~同じ?
+(12,13,14も同じ)
+
+15〜17 も非常に良く似ているのですが、
+
+15: (tenk1.unique2 = tenk2.unique2) and (tenk2.unique2 &lt; 1000)
+
+9 と違って、tenk1, tenk2 の JOIN がある分だけ遅くなるはずです。
+
+16: tenk1.unique1 = Bprime.unique1;
+
+10 と違い、unique1 すなわち値がランダムに設定されているカラムを比較し
+ている分だけ遅くなるはずです。また、Bprime.unique1 には index が設定さ
+れていないので、更に条件が悪くなっています。
+
+ちなみに、MLに寄せられたベンチマーク結果を見ると、この query16 に限っ
+て 6.3 よりも 6.2.1 の方が結果が良いという逆転現象が起きています。
+
+17: (onek.unique1 = tenk1.unique1) and (tenk1.unique1 = tenk2.unique1)
+	and (tenk1.unique1 &lt; 1000) and (tenk2.unique1 &lt; 1000);
+
+18 と違い、unique1 すなわち値がランダムに設定されているカラムを比較し
+ている分だけ遅くなるはずです。
+
+2.2.4 query18, 19
+
+select two, four, ten, twenty, hundred, string4 into table temp from tenk1;
+
+文献では、1% のプロジェクションを行なうとなっていますが、PostgreSQL の
+場合は単なる10000レコードのテーブルコピーになっています？
+
+select * into table temp from onek;
+
+文献では、100% のプロジェクションを行なうとなっています。PostgreSQL も
+同様で、1000タプルのコピーを行なっています。
+
+なお、どちらも文献では select distinct になっていて、duplicate の排除
+性能を見るようになっているのですが...
+
+2.2.5 query20〜query25
+
+文献では、query20:min query21:max query22:sum (no index)、query23:min
+query24:max query25:sum (with index)となっていますが、PostgreSQL では
+なぜか query20 と query23 だけがあり、しかも query20 = query23 です。
+
+2.2.5 query26, query29
+
+１タプルのinsert。文献では26は no index、29 は with index ですが、
+PostgreSQL では区別されてません。
+
+2.2.6 query27, query 30
+
+1タプルの delete。文献では27は no index、30 は with index ですが、
+PostgreSQL では区別されてません。
+
+2.2.7 query28, query31
+
+1タプルの update。文献では28は no index、31 は with
+index ですが、PostgreSQL では区別されてません。
+
+2.2.8 query32
+
+update tenk1 set unique2 = 10020 where tenk1.unique2 =1974;
+update tenk1 set unique2 = 160 where tenk1.unique2 =1140;
+
+Halloween problem というデータベースの問題があります。すなわち、
+salary に index があるときに、
+
+update payroll set salary = salary*1.1
+
+を何も考えずに実行すると、無限ループになります。これを避けるために、あ
+る種のDBMSは index を使わずに、テーブル本体の sequential scan を行ない
+ます。query32 は Halloween problem に似ていますが、実際には index を使っ
+ても無限ループに陥ることはありません。このテストはオプティマイザがだま
+されるかどうかのテストのようです。
+
+
+3. まとめ
+
+o query 0,3,4,5,6,12,13,14,18,19,21,22,23,24,25,29,30,31 は欠番または無意味。
+  query 7,8,32 もあまり意味がない。
+
+o 結局意味があるのは 1,2,9,10,11,15,16,17,20,26,27,28 だけ
+
+o query 1,2 は projection、9,10,11 は負荷の軽い単純な JOIN、
+  query 15,16,17 は負荷の重い JOIN、query 20 が min()、
+  query 26 = insert, 27 = delete, 28 = update
+  のテストを行なっている。
+
+以上。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 3674] Re: Contributing PostgerSQL to Plagiaware.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00244.html">[pgsql-jp 3676] Re: view</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 3679] PosgreSQL 6.3.1 release!</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 3674] Re: Contributing PostgerSQL to Plagiaware.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00243"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00243"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

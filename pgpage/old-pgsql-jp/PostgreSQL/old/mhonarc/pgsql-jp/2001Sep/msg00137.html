@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23094] Re: INSERT  するときのサイズチェック -->
+<!--X-From: 宮川健<tak@hdt.co.jp> -->
+<!--X-Date: Thu, 13 Sep 2001 09:01:02 +0900 -->
+<!--X-Message-Id: 4.3.2&#45;J.20010913081435.00bd9630@ms.hdt.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 4.3.2&#45;J.20010912154559.00bd53a0@ms.hdt.co.jp -->
+<!--X-Reference-Id: 20010912143356.E04A.TYUU@tsubasa.co.jp -->
+<!--X-Reference-Id: 20010912183947.0C4A.TYUU@tsubasa.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23094] Re: INSERT  するときのサイズチェック </TITLE>
+<LINK REV="made" HREF="mailto:tak@hdt.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00135.html">Date Prev</A>][<A HREF="msg00136.html">Date Next</A>][<A HREF="msg00136.html">Thread Prev</A>][<A HREF="msg00139.html">Thread Next</A>][<A HREF="index.html#00137">Date Index</A>][<A HREF="threads.html#00137">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23094] Re: INSERT  するときのサイズチェック</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 宮川健&lt;<A HREF="mailto:tak@hdt.co.jp">tak@hdt.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 13 Sep 2001 09:01:02 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00127.html">4.3.2-J.20010912154559.00bd53a0@ms.hdt.co.jp</A>&gt;&lt;<A HREF="msg00126.html">20010912143356.E04A.TYUU@tsubasa.co.jp</A>&gt;&lt;<A HREF="msg00127.html">4.3.2-J.20010912154559.00bd53a0@ms.hdt.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　みやかわ＠ホビー・データです。
+
+At 午後 07:08 01/09/12 +0900, Hiroshi Morita wrote:
+&gt;で、動的なチェックの場合、
+&gt;計算量は多くなりますが、
+&gt;メンテナンスは DB のみ。
+
+　データベースの定義さえ変更すれば大丈夫で、アプリケーション側は
+メンテナンスフリー、というのは「夢」じゃないでしょうか。
+
+　たとえば、そのフィールドを画面に表示するとして、その表示幅がど
+んな値になってもデザイン的に問題ないような画面デザインってありえ
+そうにないですよね。
+　僕の場合、最終的に帳票に印刷するプログラムが多いので、フィール
+ドの幅の変更って致命的になることが多いんで、特にそう思うのかも知
+れませんけれど。
+
+&gt;メンテナンスするのが一つだけで良いなら、
+&gt;そっちをとったということですね。
+
+　いや、どっちかというと、フィールドの定義をいちいち取得するコー
+ドを書くことが僕にとっては面倒だって印象なんですが。
+　コードの量が増えるとそれだけ潜在的なバグの可能性が増大しますか
+ら、コード量が減らせる工夫はしておいて損はないと思っています。
+　動的にフィールドの定義を取得するコードにバグがあれば、どういう
+ことになるかわからないし、そのコードをテストするのもそう簡単では
+ないでしょう？
+
+# さまざまにフィールド定義を変更して、それでもきちんと動作するこ
+# と確認する必要があると思います。僕はそれは嫌だなあ。
+
+&gt;で、不思議に思ったのが
+&gt; &gt; # それこそ、INSERTした後、たしかにINSERTに成功したかどうかSELECT
+&gt; &gt; # して確認するような態度じゃないです？
+&gt;
+&gt;USER 様が入力を行った後、登録ボタンを押していただくのですが、
+&gt;登録内容を反映したものを画面に、表示しています。
+&gt;
+&gt;USER 様に入力に間違いがないか、確認していただいてますけど、
+&gt;そういう INSERT/UPDATE 後に SELECT 結果を表示って、
+&gt;しないものですか？
+
+　えーと。
+　入力に間違いがないかどうかを確認するのはINSERT/UPDATEの「前」
+にやりません？
+　なぜかといえば、もしINSERT/UPDATEの「後」に入力に間違いがあっ
+たと気づいたとすると、そのときにはINSERT/UPDATEする前の状態に
+テーブルを戻す必要があります。ROLLBACKによってそれを実現するつ
+もりかも知れませんが、僕の理解ではトランザクションはそのような用
+途のために使うものではありません。
+　まあ、INSERT/UPDATEの「前」に確認をしておいた上で、念のために
+INSERT/UPDATEの結果も表示しておくという方法もあるとは思いますが、
+確認それ自体はINSERT/UPDATEの前に行なうべきだと思います。
+
+　それにバックエンド（データベース）に情報を保存するという機能
+とユーザに入力内容を再表示して確認するという機能は独立した機能
+だと思います。というのは、あるテーブルへのアクセスが、常に一種
+類の画面に結びついているとは限らないからです。一方、あるテーブ
+ルに最終的にSQL文を発行するメソッドがプログラムのいろいろな場
+所に存在することはプログラムの保守を困難にすると思います。
+
+----
+宮川健 &lt;tak@hdt.co.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00139" HREF="msg00139.html">[pgsql-jp 23097] Re: INSERT するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00127" HREF="msg00127.html">[pgsql-jp 23085] Re: INSERT  するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> 宮川健&lt;tak@hdt.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00126" HREF="msg00126.html">[pgsql-jp 23084] Re: INSERT  するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Morita &lt;tyuu@tsubasa.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00132" HREF="msg00132.html">[pgsql-jp 23090] Re: INSERT  するときのサイズチェック</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Morita &lt;tyuu@tsubasa.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00135.html">[pgsql-jp 23093] Re: INSERT  するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 23095] Re: INSERT  するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 23095] Re: INSERT  するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00139.html">[pgsql-jp 23097] Re: INSERT するときのサイズチェック</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00137"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00137"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

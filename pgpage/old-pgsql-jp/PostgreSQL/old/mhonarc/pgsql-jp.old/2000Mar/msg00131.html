@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13421] Re: ユ−ザ−別アクセス権を知るには(GRANT UPDATE/DELETE の区別) -->
+<!--X-From: Ikuo Tanaka <ikuo_ml@sannet.ne.jp> -->
+<!--X-Date: Fri, 10 Mar 2000 13:57:09 +0900 -->
+<!--X-Message-Id: 200003100456.NAA05192@svan17.sannet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38C864C0.83A36807@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13421] Re: ユ−ザ−別アクセス権を知るには(GRANT UPDATE/DELETE  </TITLE>
+<LINK REV="made" HREF="mailto:ikuo_ml@sannet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00130.html">Date Prev</A>][<A HREF="msg00132.html">Date Next</A>][<A HREF="msg00129.html">Thread Prev</A>][<A HREF="msg00141.html">Thread Next</A>][<A HREF="index.html#00131">Date Index</A>][<A HREF="threads.html#00131">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13421] Re: ユ−ザ−別アクセス権を知るには(GRANT UPDATE/DELETE の区別)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Ikuo Tanaka &lt;<A HREF="mailto:ikuo_ml@sannet.ne.jp">ikuo_ml@sannet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 10 Mar 2000 13:57:09 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00129.html">38C864C0.83A36807@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中です。
+
+便乗ですが．．．
+
+Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt; wrote:
+
+(cut)
+&gt; 1。GRANT UPDATE と DELETE の区別がないのでしょうか？。
+&gt; 
+&gt; pg_class.relcal も、pg_dump -s DB名 の出力も、UPDATE と 
+&gt; DELETE の区別はないので、postgreSQL では、そもそも、
+&gt; GRANT UPDATE と DELETE を区別していないのでしょうか？。  
+&gt; 
+&gt; 実際にテストしてみると、GRANT で、UPDATE を与えると、自動
+&gt; 的に DELETE 権利も与えられます。  さらに、REVOKE DELETE
+&gt; すると、UPDATE 権までなくなってしまいます。
+&gt; 
+&gt; 実際の運用では、UPDATE は、認めるが、レコ−ド(行)そのもの
+&gt; を消してしまう  DELETE は認めないというケ−スが結構あるので
+&gt; 困っています。
+&gt; # これは、UNIX FILE の permission も同じですが。
+&gt; 
+&gt; GRANT DELETE / UPDATE の区別ができるよう、早急の改善をお
+&gt; 願いできると嬉しいです。 6.5.3 の TODO には、GRANT 関係に
+&gt; ついては、何も書いてありませんでした。 7.0 ではどうでしょう。
+(cut)
+
+そう言えば、「見せたくないけど更新は許す」という使い方も
+出来なくなりましたね。
+
+grant update on &lt;テーブル名&gt; to &lt;ユーザ名&gt;;
+
+のみ与えると、&lt;ユーザ名&gt;はupdate文は実行できるが、
+selectははじかれる
+．．．という使い方が6.5.3では出来なくなってしまいました。
+select権がないと、updateできません。
+
+
+----- ハードコピー(welcomeメッセージはカットしてあります) -----
+
+$ psql -u testdb
+Username: postgres
+Password: 
+testdb=&gt; create table hogehoge ( field_a char(1));
+CREATE
+testdb=&gt; grant insert,update on hogehoge to sqlguest;
+CHANGE
+testdb=&gt; \q
+$ psql -u testdb
+Username: sqlguest
+Password: 
+testdb=&gt; insert into hogehoge values('a');
+INSERT 2081376 1
+testdb=&gt; update hogehoge set field_a='b';
+UPDATE 1
+testdb=&gt; update hogehoge set field_a='c' where field_a='b';
+ERROR:  hogehoge: Permission denied.
+testdb=&gt;
+
+----- ハードコピーおわり -----
+
+update出来ないというよりは、updateに必要なwhereにselect権限が
+必要ということですね。
+insertやwhereなしの全件updateは問題なく実行できますから。
+ちなみに、ハードコピーには入っていませんが、where付きのdelete
+もselect権がないと不可能でした。
+
+過去バージョン(6.4か6.3かは忘れてしまいました)
+は、select権が無くてもwhereが使えたように思います．．．
+
+# SQL92ではどう定義されているのかな？
+
+念の為に、環境は
+Slackware-3.5.0+PJE-0.15(Linux Kernel 2.0.36)
+PostgreSQL 6.5.3
+
+------------------------------------------------------------
+Ikuo Tanaka     ikuo_ml@sannet.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp 13431] Re: ユ−ザ−別アクセス権を知るには(GRANTUPDATE/DELETEの区別)</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00129" HREF="msg00129.html">[pgsql-jp 13419] ユ−ザ−別アクセス権を知るには(GRANT UPDATE/DELETE の区別)</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 13420] 曜日の表示について - その２</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 13422] Re: 曜日の表示について - その２</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00129.html">[pgsql-jp 13419] ユ−ザ−別アクセス権を知るには(GRANT UPDATE/DELETE の区別)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 13431] Re: ユ−ザ−別アクセス権を知るには(GRANTUPDATE/DELETEの区別)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00131"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00131"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

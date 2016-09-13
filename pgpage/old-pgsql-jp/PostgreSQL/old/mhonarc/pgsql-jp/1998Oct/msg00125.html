@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5642] Re: about SQL Statement -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Fri, 16 Oct 1998 17:32:13 +0900 -->
+<!--X-Message-Id: 19981016173213T.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3626F296386.D7E1SIM@smtp.remus.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5642] Re: about SQL Statement </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00124.html">Date Prev</A>][<A HREF="msg00126.html">Date Next</A>][<A HREF="msg00124.html">Thread Prev</A>][<A HREF="msg00144.html">Thread Next</A>][<A HREF="index.html#00125">Date Index</A>][<A HREF="threads.html#00125">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5642] Re: about SQL Statement</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 16 Oct 1998 17:32:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00124.html">3626F296386.D7E1SIM@smtp.remus.dti.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．# ... なんか久しぶりに復活しました (^^;
+
+On Fri, 16 Oct 1998 16:15:34 +0900, Michihide Hotta &lt;sim@remus.dti.ne.jp&gt; wrote:
+&gt; 堀田＠諫早市です。
+&gt; 
+&gt; CREATE TABLE    japanese(
+&gt;     maddr       text        -- メールアドレス
+&gt;       PRIMARY   KEY,
+&gt;     q1          int,        -- 1,2,3,4 ....
+&gt;     q2          int,        -- 1,2,3,4 ...
+&gt;     q3          int,        -- 1,2,3,4 ...
+&gt;     q4          int         -- 1,2,3,4 ...
+&gt; );
+&gt; 
+&gt; んな感じのテーブルを作りまして、q[1-4]の中身はアンケートの選択肢
+&gt; が入っています。
+&gt; 
+&gt; これを、
+&gt; q1==1：xx人
+&gt; q1==2：xx人
+&gt; ...
+&gt; q2==1：xx人
+&gt; ...
+&gt; みたいな感じで集計したいんですが、どういった SQL 文を発行すれば
+&gt; 効率よく結果が取り出せるのでしょうか？
+&gt; 
+&gt; SELECT count(*) FROM japanese WHERE q1 = 1;
+&gt; 
+&gt; だと１つしか取ってこれないんですが、こいつを順列組み合わせで発行
+&gt; するのも何だかダサいような気がしております。
+
+テーブルの定義を少し変更すると綺麗にできると思います．
+
+-- maddr を一つの実体として扱いたい場合は残す．
+-- create table japanese (
+--      maddr text primary key
+-- );
+
+ create table answer (
+      maddr     text,
+      questtion text,
+      choice    int4,
+      primary key (maddr, question)
+ );
+
+こうしておいて，
+
+   select question, choice, count(*)
+   from answer
+   group by question, choice
+   order by 1, 2;
+
+とやれば一回で出来ますね．集計や選択に使うデータを
+メタデータにしてはいけない．というところでしょうか．
+
+なお，PostgreSQL は union view は許していないようですが，
+もしも union view が使えるのなら，
+
+  CREATE VIEW answer 
+  AS SELECT maddr, 'q1'::text AS question, q1 as choice
+     FROM japanese
+   UNION ALL
+     SELECT maddr, 'q2'::text AS question, q2 as choice
+     FROM japanese
+   UNION ALL
+     SELECT maddr, 'q3'::text AS question, q3 as choice
+     FROM japanese
+   UNION ALL
+     SELECT maddr, 'q4'::text AS question, q4 as choice
+     FROM japanese
+
+として作成できますから，同じようなことを
+select ... into と insert ... select ... を組み合わせて
+実現することもできると思います．
+
+# CASE が使えないので，時々これをやらざるを得なくなるわけです．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00144" HREF="msg00144.html">[pgsql-jp 5661] Re:about SQL Statement</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00124" HREF="msg00124.html">[pgsql-jp 5641] about SQL Statement</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 5641] about SQL Statement</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 5643] PostgreSQL に関する質問(fwd)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 5641] about SQL Statement</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 5661] Re:about SQL Statement</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00125"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00125"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

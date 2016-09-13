@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16120] Re: PostgreSQLのリレーションについて (長文注意 ) -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Fri, 14 Jul 2000 14:35:38 +0900 -->
+<!--X-Message-Id: 396EA6AA104.EE73JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 396E2D49140.EE71JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 20000714132250X.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16120] Re: PostgreSQLのリレーションについて (長文注意 ) </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00352.html">Date Prev</A>][<A HREF="msg00354.html">Date Next</A>][<A HREF="msg00352.html">Thread Prev</A>][<A HREF="msg00465.html">Thread Next</A>][<A HREF="index.html#00353">Date Index</A>][<A HREF="threads.html#00353">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16120] Re: PostgreSQLのリレーションについて (長文注意 )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 14 Jul 2000 14:35:38 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00337.html">396E2D49140.EE71JUN-N@mail.ga2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00352.html">20000714132250X.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは！北村です。
+
+On Fri, 14 Jul 2000 13:22:50 +0900
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt; 石井です。
+&gt; 
+（略）
+&gt; &gt; というデータがあります。(最初の id=-1,pid=-1 は、id=0 の時の pid の外部キー
+&gt; &gt; 制約を回避するために、リレーションシップを「定義する前」に入れます(定義す
+&gt; &gt; る前に入れるのがミソで、 id=-1,pid=-1 のレコードは、参照整合性がとれてし
+&gt; &gt; まいます。定義の後だと、pid=-1 が入りません(id=-1 の行が無いから))。
+&gt; 
+&gt; そんな小細工を使わなくても、id = 0 の行で、pid = NULL にすれば参照整合
+&gt; 性のチェックに引っかかりません。
+
+な・・なるほど。汗。
+（私はいつも詰めが甘い。笑）
+
+
+&gt; ちょっとCREATE TABLEが間違っていたのを修正し、(-1, -1)の小細工をやめた
+&gt; バージョンの実行結果を載せておきます(7.0.2で実行)。
+（略）
+
+す・・すばらしい！
+ありがとございます。すごいですね。
+感動です。
+
+
+&gt; ところで、外部キーを定義しておきながら、一時的に参照整合性を制約チェッ
+&gt; クをかけたくない場合もあります。たとえば、参照関係がループしている場合
+&gt; などですね。こういうときは、外部キーの定義時に、
+&gt; 
+&gt; 	DEFERRABLE INITIALLY DEFERRED
+&gt; 
+&gt; というオプションを付けておき、BEGIN;で明示的トランザクションを開始して
+&gt; からデータの追加、更新などを行います。すると、トランザクションがコミッ
+&gt; トした時点か、
+&gt; 
+&gt; 	SET CONSTRAINTS t1test IMMEDIATE;
+&gt; 
+&gt; を発行した時点で始めて参照整合性のチェックが行われます。
+
+うわっ！これもまた・・・素晴らしい！
+参照整合性の制約チェックって、開発途中のシステムのDBで一時的に外したい事
+って多いんですよ（私だけかな？）。WindowsのGUIだと、付けたり外したりが重
+い GUIソフト上でやらないといけないので、かなり面倒だったんですが・・。
+なんか、すごすぎですね &lt; PostgreSQL。
+
+
+&gt; 
+&gt; &gt; (以下、MS-Access、MS-SQL Server のお話)
+（略）
+&gt; あらあら。さすがM$製品というところですね:-)まともな実装ではなさそうで
+&gt; す。
+笑。簡単に説明すると、トリガが実行されると、実行されたテーブルと同じ構成
+の deleted と updated というテーブルが作成されます。
+(削除時:deleted のみ、インサート時 :updated のみ、UPDATE時:両方)。
+で、同一テーブルに対するアクションは、これらのテーブルに一回アクセスする
+だけで終わり・・・です(つまり１順しかしない)。2テーブル以上にまたがるトリ
+ガの循環参照は、16回(だっけな？)でエラーだったような・・・。うろ覚えです
+みません。
+
+&gt; Tatsuo Ishii
+重ね重ねありがとうございます。
+階層を示すテーブルを持つシステムがいくつか在るんですが、PostgreSQLに置き
+換えると、かなりインターフェースの作成が楽できますね。あと速度もアップで
+きそう・・・。良いことづくめだ・・・。
+早速月曜日に提案してみます。(今日、会社はお休み。笑）でもなんか、上司の回
+答は「MS-Accessで出来るんだから、一旦ローカルテーブルにインサートして、処
+理が終わったらサーバー(ODBC経由のアタッチテーブル)の該当レコードを削除し
+て(サーバーのテーブルに)インサートすれば良いじゃんか」って言われそう・・
+涙。何が何でもMS製品を使わせたいらしい・・・。
+
+兎にも角にも、ありがとうございました。
+PostgreSQLが素晴らしいって再認識できました。
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00465" HREF="msg00465.html">[pgsql-jp 16232] Re: PostgreSQLのリレーションについて (MS話)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00337" HREF="msg00337.html">[pgsql-jp 16104] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00352" HREF="msg00352.html">[pgsql-jp 16119] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00352.html">[pgsql-jp 16119] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00354.html">[pgsql-jp 16121] Re: PostgreSQLのリレーションについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00352.html">[pgsql-jp 16119] Re: PostgreSQLのリレーションについて(長文注意)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00465.html">[pgsql-jp 16232] Re: PostgreSQLのリレーションについて (MS話)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00353"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00353"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

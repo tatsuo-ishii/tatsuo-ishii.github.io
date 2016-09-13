@@ -1,0 +1,202 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20475] Re: How about to use a silicon disk on $PGDATA -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Sat, 24 Mar 2001 20:15:03 +0900 -->
+<!--X-Message-Id: 3ABC81B7.A0DF1657@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200103241001.TAA14855@mailhost.e&#45;vision.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00340.html">Date Prev</A>][<A HREF="msg00342.html">Date Next</A>][<A HREF="msg00340.html">Thread Prev</A>][<A HREF="msg00359.html">Thread Next</A>][<A HREF="index.html#00341">Date Index</A>][<A HREF="threads.html#00341">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 24 Mar 2001 20:15:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00340.html">200103241001.TAA14855@mailhost.e-vision.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+似たようなことを考えてる方がいらっしゃるんですね。
+商用DBには、特定の表/インデックスをメモリー常駐指定
+なんてできるので、実行時に、クリティカルネックになる
+特定表だけ、RAMDISK に移せないかと考えてました。
+# 私の場合は、READ ONLY の表と一時表だけですが。
+
+ただ、変な小細工するよりも、DB Server 専用機にして、
+実メモリをごっそりと積んで、UNIX の FILE CACHE に
+任せた方がいいのかもしれませんが。どうなんだろう。
+
+Tsuyoshi SASAMOTO wrote:
+&gt; 
+&gt; Solaris8(x86)+PostgreSQL7.0.3を使っています．
+&gt; 
+&gt; この度，かなり速度を要求される用途に使うことを予定しているのですが，
+&gt; 何か革命的なほどのスピードアップをする方法はないものか，と考えていて，
+&gt; $PGDATAにtmpfs（メモリベースのファイルシステム）を使ってみたらどうなるだろう，
+&gt; ということで，pgbenchを使ってufsの場合と比較してみました．
+&gt; ----------------------------------------------------------------------
+&gt;     [ufs]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 5.089115(including connections establishing)
+&gt; tps = 5.111952(excluding connections establishing)
+
+CPU がわからないけど、この数値は、異常に低いような。
+
+私のとこでテストすると、IDE HDD (ext2 file system)
+で、次のようになります。Linux (TLJ WorkStation 6.0)。
+
+$  ./pgbench     -t 100         pgbench
+vacuuming and deleting history...end.
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 269.956537(including connections establishing)
+tps = 290.519478(excluding connections establishing)
+
+ハード構成は、Pentium III 866 MHz, 主記憶 384 MB
+IDE HDD IBM-DTTA-351010    M/B ASUS CUSL2-C
+
+postmaster の起動パラメーターは、
+su postgres -c "$pgbin/pg_ctl -D $PGDATA 
+    -o '-i -S -N 16 -B 2000 -o \"-S 32000 -F \"' start "
+
+ひょっとして、同期モードで動かしているなんてことは。
+
+
+&gt;     [tmpfs]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 145.582234(including connections establishing)
+&gt; tps = 153.583880(excluding connections establishing)
+&gt; ----------------------------------------------------------------------
+&gt; 当然といえば当然ですが^^;，比べのもにならないぐらい違います．
+
+貴重なデータ─ありがとうございます。
+OS は、違うけど参考になりそう。
+
+(snip)
+
+&gt; ただ，これも当然といえば当然ですが，tmpfsを使った場合の問題としては，
+&gt; サーバが落ちるとデータもろともぶっ飛ぶ，ということです^^;;;;
+
+tmpfs から、定期的に pg_dump すれば、ある程度は救えるか
+もしれませんが。
+
+HDD を使っても、非同期モードで動かしていれば、サーバーが
+クラッシュするとめちゃくちゃになる可能性大ですね。
+中途半端に HDDに残るよりは、きれいさっぱり消えてくれた方が、
+前回のバックアップまで戻る決断がついてかえってスッキリ(^^;;
+
+&gt; そこで考えたのですが......$PGDATAのところにシリコンディスクを
+&gt; 使ったりなんかしたら，一体どうなるんでしょう？
+
+最近広告見ないけど、シリコンディスクなんてまだ売っているん
+でしょうか？。
+
+(snip)
+
+&gt; こちらで実際に使う予定のWebアプリから呼び出す形でテストしたところでは，
+&gt; ufsの場合のパフォーマンスではお話にならないのですが，tmpfsの場合の
+&gt; パフォーマンスなら行けそうなんですけど．
+
+頭のところに書きましたけど、非同期モードで起動
+しているかとか、他の処理がじゃましてないかなど
+確認された方がいいように思います。
+# 非同期モードは、OS クラッシュ等で、データ─が
+# 失われる危険大です。UPS は、必須。
+
+仮に、solaris の tmpfs を使うとしても、$PGDATA/base/
+の下の DB をそっくりシンボリックリンクすると、
+SORT/MERGE JOIN 等の WORK AREA も tmpfs にと
+られて、solaris だと、swap するとか、他の OS
+だと、disk full になったりする問題があります。
+
+表のファイル名で、シンボリックリンクすると、
+1 GB を超えて拡張するときに、tmpfs でなく、
+HDD になってしまいます。
+
+その他、tmpfs や RAMDISK へのシンボリックリンク
+での使用は、いろいろ問題がありりそうで、
+よほどしっかりチェックして対策しないと恐いよう
+に思います。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+           PostgreSQL 汎用DB検索ツール デモ  
+      <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00359" HREF="msg00359.html">[pgsql-jp 20493] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Hirofumi Okuyama &lt;ok@pp.iij4u.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00340.html">[pgsql-jp 20474] How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 20493] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00341"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00341"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

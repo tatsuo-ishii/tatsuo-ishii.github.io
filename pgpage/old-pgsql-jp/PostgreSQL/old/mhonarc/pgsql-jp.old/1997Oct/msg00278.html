@@ -1,0 +1,197 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2864] Re: NATIONAL CHARACTER and COLLATION -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Fri, 31 Oct 1997 19:54:41 +0900 -->
+<!--X-Message-Id: 199710311054.TAA16639@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710310201.LAA16226@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2864] Re: NATIONAL CHARACTER and COLLATION </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00277.html">Date Prev</A>][<A HREF="msg00279.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00251.html">Thread Next</A>][<A HREF="index.html#00278">Date Index</A>][<A HREF="threads.html#00278">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2864] Re: NATIONAL CHARACTER and COLLATION</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 31 Oct 1997 19:54:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00260.html">199710310201.LAA16226@srashd.sra.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．日本語関係はあまり詳しくないので，素朴な疑問です．
+
+In message &lt;<A HREF="msg00260.html">199710310201.LAA16226@srashd.sra.co.jp</A>&gt;, t-ishii@sra.co.jp writes:
+&gt; そう言えば、以前よしおかさんが
+&gt; 
+&gt; CREATE TABLE foo(
+&gt;   c1 CHAR(10) CHARACTER SET ISO8859P1,
+&gt;   c2 CHAR(10) CHARACTER SET JISX0208,
+&gt;   c3 CHAR(10) CHARACTER SET UNICODE);
+&gt; );
+&gt; 
+&gt; という例をあげてましたが、実は
+&gt; 
+&gt; CREATE TABLE foo(
+&gt;   c1 CHAR(10) CHARACTER SET ISO8859P1 ENCODING UTF-7,
+&gt;   c2 CHAR(10) CHARACTER SET JISX0208 ENCODING EUC,
+&gt;   c3 CHAR(10) CHARACTER SET UNICODE ENCODING UTF-8);
+&gt; );
+&gt; 
+&gt; のように、encoding を指定してあげないと実際には意味がないような気がし
+&gt; てます。まあ、encoding は実装依存で、それぞれの CHARACTER SET に対して
+&gt; 一種類しかサポートしない、したがって省略できる、というのもあると思いま
+&gt; すが。
+
+文字セットと文字コードの問題がわからなくなってきました．Date の
+THE SQL STANDARD/4ed では，
+
+	CONVERT converts a specific character string, character by
+	character, into another string of the same length, using
+	a predefined form-of-use conversion that maps a source
+	character set to a garget character set. (p. 297)
+
+とあるので，CONVERT やは "character set" 間の変換指定をするらしい，
+は判るのですが，あとに出てくる例が，
+
+	CONVERT ( S.CITY USING EBCDIC_TO_ASCII)
+
+となっています．EUC/SJIS の違いなどは，丁度 EBCDIC/ASCII の違いに
+似た同一文字群の別コードと言えるのですが (ちょっといいすぎですが...)
+そうなると，JP_EUC のような character set と，JP_SJIS のような
+character set がつくられるのでしょうか．それとも，JAPANESE という単一の
+character set に対して，DEFAULT COLLATE が EUC で，SJIS 変換用の
+COLLATE もあり，という具合いになるのでしょうか．この解釈次第で，
+いくらでも variationが発生すると思いますが．
+
+つまり，
+
+ CREATE TABLE foo(
+   c1 CHAR(10) CHARACTER SET ISO8859P1 COLLATE UTF-7,
+   c2 CHAR(10) CHARACTER SET JISX0208  COLLATE EUC,
+   c3 CHAR(10) CHARACTER SET UNICODE   COLLATE UTF-8);
+
+なのか，
+
+ CREATE TABLE foo(
+   c1 CHAR(10) CHARACTER SET JAPANESE COLLATE ISO8859P1
+   c2 CHAR(10) CHARACTER SET JAPANESE COLLATE JISX0208_EUC
+   c3 CHAR(10) CHARACTER SET JAPANESE COLLATE UNICODE);
+
+なのかよくわからないです．
+
+&gt; &gt;例えば、SQL2/3にはCREATE CHARACTER SETなんてのがあるんですが、そんなの
+&gt; &gt;実装したやつはいないわけで、本当に必要なのだろうか？とか、ドロップする
+&gt; &gt;ならするで、どんな機能が必要なんだろうかとか、いろいろ疑問はつきないの
+&gt; &gt;です。
+&gt; 
+&gt; そういえば、再びこのテーブルで、
+&gt; 
+&gt; CREATE TABLE foo(
+&gt;   c1 CHAR(10) CHARACTER SET ISO8859P1,
+&gt;   c2 CHAR(10) CHARACTER SET JISX0208,
+&gt;   c3 CHAR(10) CHARACTER SET UNICODE);
+&gt; );
+&gt; 
+&gt; select * from foo where c2 = c3;
+&gt; 
+&gt; とやったらどうなるっていうのも謎ですね。
+
+可能性は２つに一つでしょうか．DEFAULT CHARACTER SET が決ってて
+それに implicit conversion をしてから比較するか，あるいは，
+"character set が曖昧ですよ" エラーになるか．
+
+安定した結果をだしてくれそうなのは，明示的に
+
+   CREATE TRANSLATION UNICODE_TO_JISX0208
+   FOR UNICODE
+   TO  JISX0208
+   FROM EXTERNAL ('ms_unicode-to-jisx0208-transaltion-1996')
+
+を定義した上で，(EXTERNAL 以降はいいかげんですいません ....)
+
+   SELECT * FROM foo
+   WHERE c2 = TRANSLATE (c3 USING UNICODE_TO_JISX0208)
+
+などを使うことになるのだと思います．さらにこれに collate 指定が
+入ると，
+
+   SELECT * FROM foo
+   WHERE c2 = COLLATE (TRANSLATE (c3 USING UNICODE_TO_JISX0208))
+                      DAKUON_MUSHI
+
+とか，
+
+   SELECT * FROM foo
+   WHERE c2 = COLLATE (TRANSLATE (c3 USING UNICODE_TO_JISX0208))
+                      _JISX0208 濁音無視
+
+なんて具合いになるのでしょうか．確に一般性はあるのでしょうが，
+使い勝手の良し悪しは default rule 次第ですね．フルセットで
+これらの機能を入れると相当複雑なものになるような気がします．
+
+
+なんんかちゃちゃになってしまいました．間違っていたら教えて下さい．
+
+----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00260" HREF="msg00260.html">[pgsql-jp 2846] Re: NATIONAL CHARACTER and COLLATION</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00277.html">[pgsql-jp 2863] ＰｏｓｔＯＤＢＣはＲＤＯサポート？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00279.html">[pgsql-jp 2865] Re: インストールで困ってます。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 2846] Re: NATIONAL CHARACTER and COLLATION</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 2837] インストールで困ってます。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00278"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00278"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17364] Re: PostgreSQL での排他制御 -->
+<!--X-From: Satoshi Yamada <s&#45;yamada@kh.rim.or.jp> -->
+<!--X-Date: Fri, 08 Sep 2000 19:10:16 +0900 -->
+<!--X-Message-Id: 200009081010.TAA08454@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200009080726.CAA20929@morpheus.host4u.net -->
+<!--X-Reference-Id: 200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Reference-Id: 39B8B4CD280.045DF_KOMOTO@SP3 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17364] Re: PostgreSQL での排他制御 </TITLE>
+<LINK REV="made" HREF="mailto:s-yamada@kh.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00174.html">Date Prev</A>][<A HREF="msg00176.html">Date Next</A>][<A HREF="msg00174.html">Thread Prev</A>][<A HREF="msg00186.html">Thread Next</A>][<A HREF="index.html#00175">Date Index</A>][<A HREF="threads.html#00175">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17364] Re: PostgreSQL での排他制御</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Yamada &lt;<A HREF="mailto:s-yamada@kh.rim.or.jp">s-yamada@kh.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 08 Sep 2000 19:10:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00170.html">200009080726.CAA20929@morpheus.host4u.net</A>&gt;&lt;<A HREF="msg00173.html">200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp</A>&gt;&lt;<A HREF="msg00174.html">39B8B4CD280.045DF_KOMOTO@SP3</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+山田です。
+
+&gt; f_komotoです。
+&gt; On Fri, 08 Sep 2000 18:09:09 +0900
+&gt; Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt; 様
+&gt; &gt;   問1.
+&gt; &gt;   一日あたり数十万ヒットを誇るサイトのアクセスカウントを
+&gt; &gt;   Apache + PHP + PostgreSQL を使って管理することにした。
+&gt; &gt;   ユーザが PHP によって書かれたページにアクセスすると、
+&gt; &gt; 
+&gt; &gt;     UPDATE アクセス数 SET カウント = カウント + 1 WHERE ページ = URL
+&gt; &gt; 
+&gt; &gt;   のような SQL が発行される。このような場合、このクエリーは
+&gt; &gt;   トランザクションを使う必要が
+&gt; &gt;   [ ある] [ ない ]
+&gt; &gt; 
+&gt; &gt;   問2.
+&gt; &gt;   商品データベースを複数の店舗で共有しているお店がある。この
+&gt; &gt;   データベースの定価テーブルにおいて、カテゴリが食料品である
+&gt; &gt;   商品の定価を一律 10% 上げる場合、
+&gt; &gt; 
+&gt; &gt;     UPDATE 商品 SET 定価 = 定価 * 1.1 WHERE カテゴリ = 食料品
+&gt; &gt; 
+&gt; &gt;   のような SQL を発行するが、このような場合にはわざわざトランザク
+&gt; &gt;   ションにする必要は
+&gt; &gt;   [ ある] [ ない ]
+&gt; &gt; 
+&gt; &gt;   なお、このデータベースは各店舗の店長がいつでも自由に定価を
+&gt; &gt;   変更できるものとする。
+&gt; この 質問内容で考えると Pgsqlのトランザクション管理の話しではなく
+&gt; トランザクション管理が必要な業務処理とそうではない業務処理というか
+&gt; 実務レベルでの判断規準になるような気がするのですがいかがでしょうか。
+
+えと、まぁそれはそうかもしれないんですが...
+先のメールにも書きましたが、普段実務に使っているわけでは
+ありませんし、RDBMS に関してはほぼ全く素人ですので、
+そのあたり、設問として詰めが甘いのはお許しください _o_
+
+&gt; 問１．
+&gt;   一日当り数十万カウントも更新されるアクセスカウントが絶対に正しく
+&gt;   なくとも業務に支障が出ると考えにくいので 不要
+
+あれ? ってことは逆にいうと、正しくなくなっちゃうこともあるんですね。
+絶対に正しくないとダメなときにはトランザクションにする必要があると。
+
+&gt; 問２．
+&gt;   一律10%に意味があり、途中まで更新されたデータと更新されないデータ
+&gt;   がシステム上に混在すれば、業務は成り立たないので、すべての更新対象
+&gt;   データが正しく更新されるまでを１トランザクションとし管理する。
+
+おぉ、これも期待していた答えと違う... ^^;
+例えば A B C という商品と、B C D という商品をそれぞれ一回のクエリーで
+同時に更新した場合、まず先にバックエンドが受け取った A B C を
+更新しようとするが、その間、A B C はロックされるので、他方の
+クエリーは待ち状態になる、とかそういう仕組みではないのですね?
+
+&gt; リアルタイムに対象テーブルの１件だけ更新するような処理はトランザクション
+&gt; 管理は不要で、たとえば受注伝票の登録処理ではヘッダーデータと明細データに
+&gt; 分けてテーブルを持つようになると思うのですが、受注伝票としてはそれらが対
+&gt; になっていて始めて意味を持つことになります。
+&gt; この場合のトランザクションはヘッダーの更新開始から明細の更新終了までを
+&gt; １トランザクションにしなければならないはずです。
+
+こちらはテーブルが複数にまたがりますので、納得できます。
+行(レコード)単位の場合も同じ話、ということでしょうか?
+
+何かそのあたり、シーラカンス本に書いてあったような気がするので、
+もう一度よく読んで出て直してきます _o_
+-- 
+<A HREF="mailto:s-yamada@kh.rim.or.jp">mailto:s-yamada@kh.rim.or.jp</A> (山田 智史)
+<A HREF="http://www.kh.rim.or.jp/~s-yamada/">http://www.kh.rim.or.jp/~s-yamada/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 17517] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp 17359] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Ishida Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 17362] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00174" HREF="msg00174.html">[pgsql-jp 17363] Re: PostgreSQL  での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> f_komoto &lt;f_komoto@mx1.tiki.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00174.html">[pgsql-jp 17363] Re: PostgreSQL  での排他制御</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 17399] 重複メールについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00174.html">[pgsql-jp 17363] Re: PostgreSQL  での排他制御</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 17517] Re: PostgreSQL での排他制御</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00175"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00175"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

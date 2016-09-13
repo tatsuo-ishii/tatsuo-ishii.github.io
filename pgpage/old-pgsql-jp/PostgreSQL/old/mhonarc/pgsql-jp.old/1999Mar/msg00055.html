@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7302] Re:shared memory how&#45;to -->
+<!--X-From: Michihide Hotta <sim@remus.dti.ne.jp> -->
+<!--X-Date: Thu, 04 Mar 1999 17:01:46 +0900 -->
+<!--X-Message-Id: 36DE3DEA1CC.113CSIM@smtp.remus.dti.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903040555.OAA28715@srapc451.sra.co.jp -->
+<!--X-Reference-Id: 19990304154521S.indo@evian.sse.bch.ntt.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7302] Re:shared memory how-to </TITLE>
+<LINK REV="made" HREF="mailto:sim@remus.dti.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00054.html">Date Prev</A>][<A HREF="msg00056.html">Date Next</A>][<A HREF="msg00054.html">Thread Prev</A>][<A HREF="msg00063.html">Thread Next</A>][<A HREF="index.html#00055">Date Index</A>][<A HREF="threads.html#00055">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7302] Re:shared memory how-to</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Michihide Hotta &lt;<A HREF="mailto:sim@remus.dti.ne.jp">sim@remus.dti.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 04 Mar 1999 17:01:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00047.html">199903040555.OAA28715@srapc451.sra.co.jp</A>&gt; &lt;<A HREF="msg00050.html">19990304154521S.indo@evian.sse.bch.ntt.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+堀田＠諫早市です。
+
+On Thu, 04 Mar 1999 15:45:21 +0900
+Subject: [pgsql-jp 7297] Re: shared memory how-to
+INDO TAKUYA &lt;indo.takuya@sse.bch.ntt.co.jp&gt; wrote:
+&gt; &gt; o Linux において、SHMMAX を大きくするときの制限としては物理メモリ以
+&gt; &gt; 外の制約があるでしょうか？また、FreeBSD の ipcs -M や Solaris の 
+&gt; &gt; sysdef のように、shared memory のサイズを教えてくれるコマンドはある
+&gt; &gt; でしょうか？
+&gt; 
+&gt; SHMMAXの制限について、Linux関連のML過去ログなどを探してみましたが、分
+&gt; かりませんでした。
+&gt; 
+&gt; ステータス表示コマンドは、Linux(Slackware3.5)では、ipcs コマンドが使用
+&gt; できます。例えば、ipcs -m -l で、以下のような表示がでます。
+&gt; 
+&gt; ------ Shared Memory Limits --------
+&gt; max number of segments = 128
+&gt; max seg size (kbytes) = 32768
+&gt; max total shared memory (kbytes) = 16777216
+&gt; min seg size (bytes) = 1
+&gt; ------ 
+&gt; 
+&gt; max total は Kbytes じゃなくて、bytesの間違いでしょう。
+&gt; Linux for x86 のデフォルトは 16Mと聞いた事があります。
+
+ちょっと実験してみました。
+
+手元の環境は Plamo 1.3 で、IPC 関係は未チューニングです。
+otmrc@rcx01:~$ ipcs -l -m
+
+------ Shared Memory Limits --------
+max number of segments = 128
+max seg size (kbytes) = 32768
+max total shared memory (kbytes) = 16777216
+min seg size (bytes) = 1
+
+otmrc@rcx01:~$ free
+             total       used       free     shared    buffers     cached
+Mem:         47148      45528       1620      22408      16360      13120
+-/+ buffers/cache:      16048      31100
+Swap:        68508          0      68508
+
+otmrc@rcx01:~$ cat a.c
+#include    &lt;linux/ipc.h&gt;
+#include    &lt;linux/shm.h&gt;
+#include    &lt;stdio.h&gt;
+
+#define MB      (1024*1024)
+
+void    main(int argc, char *argv[])
+{
+    int     i, shmid, step=32;
+    char    *p;
+
+    if (argc&gt;1) step=atoi(argv[1]);
+
+    for (i=1; ; i++)    {
+        if ((shmid = shmget(IPC_PRIVATE, step*MB, 0644))&lt;0)    {
+            perror("shmget()"); return;
+        }
+        if ((p = (char *)shmat(shmid, 0, 0))==(char *)-1) {
+            perror("shmat()"); return;
+        }
+        printf("Allocate %d MB of shm OK.\n", i*step);
+    }
+}
+
+てなプログラムを動かしてみますと、
+
+otmrc@rcx01:~$ ./a.out 33
+shmget(): Invalid argument
+otmrc@rcx01:~$ ./a.out 32
+Allocate 32 MB of shm OK.
+Allocate 64 MB of shm OK.
+Allocate 96 MB of shm OK.
+Allocate 128 MB of shm OK.
+Allocate 160 MB of shm OK.
+Allocate 192 MB of shm OK.
+Allocate 224 MB of shm OK.
+shmget(): Out of memory
+otmrc@rcx01:~$ ipcs -m
+
+------ Shared Memory Segments --------
+key        shmid     owner     perms     bytes     nattch    status
+0x00000000 51712     otmrc     644       33554432  0
+0x00000000 51713     otmrc     644       33554432  0
+0x00000000 51714     otmrc     644       33554432  0
+0x00000000 51715     otmrc     644       33554432  0
+0x00000000 51716     otmrc     644       33554432  0
+0x00000000 51717     otmrc     644       33554432  0
+0x00000000 51718     otmrc     644       33554432  0
+
+少なくとも物理メモリの制約はなさそうなのですが、仮想記憶以上のエ
+リアを取れるのはなんでだろ? shmget の実体は kmalloc() でエリアを
+確保しているようですが、その中までは追えませんでした(^^;。
+ ---
+Michihide Hotta&lt;sim@remus.dti.ne.jp&gt;
+URL(<A HREF="http://www.remus.dti.ne.jp/~sim/">http://www.remus.dti.ne.jp/~sim/</A>)
+1999/3/21 Linux users九州OFF開催予定 see -&gt; <A HREF="http://w3.ktarn.or.jp/luky/">http://w3.ktarn.or.jp/luky/</A>
+九州Linuxユーザ会 長崎支部結成しました!(現在3名(^^)v)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00065" HREF="msg00065.html">[pgsql-jp 7312] Re:shared memory how-to</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00063" HREF="msg00063.html">[pgsql-jp 7310] Re:shared memory how-to</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 7294] shared memory how-to</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00050" HREF="msg00050.html">[pgsql-jp 7297] Re: shared memory how-to</A></STRONG>
+<UL><LI><EM>From:</EM> INDO TAKUYA &lt;indo.takuya@sse.bch.ntt.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 7301] Re: shared memory how-to</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00056.html">[pgsql-jp 7303] Re: shared memory how-to</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 7301] Re: shared memory how-to</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 7310] Re:shared memory how-to</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00055"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00055"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,168 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8268] Re^4:マルチユーザーについて -->
+<!--X-From: "K. Takai" <ktakai@mug.biglobe.ne.jp> -->
+<!--X-Date: Fri, 30 Apr 1999 20:49:01 +0900 -->
+<!--X-Message-Id: 372998AD.FC5AA984@mug.biglobe.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199904281437.XAA00625@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8268] Re^4:マルチユーザーについて </TITLE>
+<LINK REV="made" HREF="mailto:ktakai@mug.biglobe.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00457.html">Date Prev</A>][<A HREF="msg00460.html">Date Next</A>][<A HREF="msg00423.html">Thread Prev</A>][<A HREF="msg00424.html">Thread Next</A>][<A HREF="index.html#00459">Date Index</A>][<A HREF="threads.html#00459">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8268] Re^4:マルチユーザーについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "K. Takai" &lt;<A HREF="mailto:ktakai@mug.biglobe.ne.jp">ktakai@mug.biglobe.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 30 Apr 1999 20:49:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00422.html">199904281437.XAA00625@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。K. Takaiです。
+
+　箕畑様にもこちらのスレッドでレスさせていただきます。
+
+　データベースは文献です。元々のファイルはCSVファイルとして、
+１レコード＝１件当たり、
+
+著者名（英語）
+論文名（英語）
+著者名（日本語）
+論文名（日本語）
+巻・号・ページ
+略号キーワード
+
+などのフィールドを構成しております。これらの通し番号のフィールドも
+設けました。勿論これはPostgreSQLテーブルに変換済みですが、ユーザーの要
+求は、例えば（あくまで一例です）、
+
+著者名：「somebody」
+かつ、
+（発行年：1980以降、または
+巻：40巻以降）
+かつ、
+（キーワード：「something」が、これに対応する
+略号キーワードフィールド
+に設定されているか、または、
+論文名フィールド
+に含まれている）文献を列挙せよ
+
+というようなものです。最後には、
+
+-----------------------------------
+$rtn = pg_exec($con,"begin");
+$rtn = pg_exec($con,$querys);
+
+$rtn = pg_exec($con,"fetch $ulimit in c"); /* $ulimit=100 */
+$cnt = pg_numrows($rtn); 
+-----------------------------------
+として、
+$querys="declare c cursor for select ta.recordno, ..... 
+  from literaturedb ta,tmp_tb tb where ta.recordno=tb.recordno";
+
+ともってきております。
+
+　ところが、たった今、psqlのコマンドライン（postgreSQL6.4.2.）から、
+上のようなユーザーの要求を直接文献データベーステーブルにぶつけて、
+where以下にその条件を入れて検索したところ、直ちに結果が返ってきてしま
+いました。おかしいです。postgreSQL6.3.2.で試していたとき、テーブルの
+積（和だったかも知れません）が異常に遅かったため一時テーブルを使うよ
+うに変更していたのですが。著者名フィールド、略号キーワードフィールド
+などは、「author1;author2;author3;...」、「ab1;ab2;ab3;...」というよ
+うにセミコロンでつないだ文字列ですので、「~*」演算子を使いますが、そ
+れでも、or/and条件で、ほぼ一瞬に結果が返ります（レコード数は2,000件
+程度です）。ガーン。
+
+&gt;PostgreSQL 6.3.2 から 6.4 への変更点
+&gt;パフォーマンスの変化
+&gt;   1.OR 検索のときにも index が使われるようになった 
+
+（してみると、遅かったのは「和」だったのかも知れません）
+いずれにしても、
+
+箕畑様&gt;
+# よっぽど複雑な検索でない限り
+# 一時テーブルを使用しなくても書けちゃいそうな気がします。
+
+で 当たり なのかも知れません。再検討してみます。それで、
+
+箕畑様&gt;
+&gt;もし、後者ならば次のように簡単に処理できます。
+
+Ishii様&gt;
+&gt; PostgreSQLの場合(というかまともなDBなら) (1)から(3)までの過程を1個のト
+&gt; ランザクションにすることで、問題を解決できます。
+
+ということで、
+
+Locus「Linux、FreeBSDによるSQLデータベース構築入門」
+
+をもう一度見たところ、「6-6 データの信頼性確保」にも例示が載っており
+ました（このページの手前の「同時アクセスに注意」までは読んでいたので
+すが）。
+
+おおあさ 様&gt;
+&gt;CREATE SEQUENCE foo しておいて nextval('foo') を SELECT すると、
+&gt;件のような瀕雑なステップを踏まなくとも、K. Takai さんがお望みの
+&gt;結果になるのではないでしょうか。
+
+　これはよく分かりませんでした。
+
+---K. Takai
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00422" HREF="msg00422.html">[pgsql-jp 8231] Re: マルチユーザーについて</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00457.html">[pgsql-jp 8267] Re: RE: PostgreSQL 6.4.2+A pache 1.3.4+PHP3.0.6+PHP3 日本語パッ チ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00460.html">[pgsql-jp 8269] Re: varchar or text</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00423.html">[pgsql-jp 8232] Re: マルチユーザーについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00424.html">[pgsql-jp 8233] Re: マルチユーザーについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00459"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00459"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

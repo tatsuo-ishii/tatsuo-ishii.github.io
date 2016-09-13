@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26120] Re: ３つ以上のテーブルを無条件に結合する方法 -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Fri, 24 May 2002 15:28:03 +0900 -->
+<!--X-Message-Id: 3CEDDD73.A58562A4@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 005201c20249$07cdef40$a900a8c0@nbv13 -->
+<!--X-Reference-Id: ri9sn4jgfy8.wl@pfp7.is.ocha.ac.jp -->
+<!--X-Reference-Id: 001001c202ce$331dba60$a900a8c0@nbv13 -->
+<!--X-Reference-Id: 3CEDB310.9A4383AA@komine&#45;ag.co.jp -->
+<!--X-Reference-Id: ri9lmaagmtw.wl@pfp7.is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26120] Re: ３つ以上のテーブルを無条件に結合する方法 </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00354.html">Date Prev</A>][<A HREF="msg00356.html">Date Next</A>][<A HREF="msg00354.html">Thread Prev</A>][<A HREF="msg00325.html">Thread Next</A>][<A HREF="index.html#00355">Date Index</A>][<A HREF="threads.html#00355">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26120] Re: ３つ以上のテーブルを無条件に結合する方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 24 May 2002 15:28:03 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00328.html">005201c20249$07cdef40$a900a8c0@nbv13</A>&gt;		&lt;<A HREF="msg00333.html">ri9sn4jgfy8.wl@pfp7.is.ocha.ac.jp</A>&gt;		&lt;<A HREF="msg00349.html">001001c202ce$331dba60$a900a8c0@nbv13</A>&gt;		&lt;<A HREF="msg00350.html">3CEDB310.9A4383AA@komine-ag.co.jp</A>&gt; &lt;<A HREF="msg00354.html">ri9lmaagmtw.wl@pfp7.is.ocha.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田＠ど根性です。
+
+ichikawa@is.ocha.ac.jp wrote:
+&gt; 
+&gt; 市川です．
+
+&gt;   insert t3 values (7, 'a')
+&gt; 
+&gt; とかをした後には，
+&gt; 
+&gt;  count | i | j | i | j | i | j
+&gt; -------+---+---+---+---+---+---
+&gt;      1 | 0 | a | 0 | c | 3 | c
+&gt;      2 | 1 | b | 2 | b | 5 | d
+&gt;        |   |   | 4 | a |   |
+&gt;        |   |   |   |   | 7 | a
+&gt; (4 rows)
+&gt; 
+&gt; となってしまいます．つまり，t1.count=t3.count を使うか，
+&gt; t2.count=t3.count を使うのかを，t1 と t3 の
+&gt; タプル数に応じて切り換えないとだめです．
+
+いきなり３つJOINせず、最初の２つをJOINしたものに３つめをJOINする。
+countがNULLにならないようにcoalesceを使う。
+これでいけるでしょう。
+
+SELECT coalesce(t12.count,t3c.count) AS count,
+    t1i,t1j,t2i,t2j,t3c.i,t3c.j FROM
+(SELECT coalesce(t1c.count,t2c.count) AS count,
+    t1c.i AS t1i,t1c.j AS t1j,t2c.i AS t2i,t2c.j AS t2j FROM
+ (SELECT count(*),t1a.* FROM t1 AS t1a, t1 AS t1b
+  WHERE t1a.i &gt;= t1b.i
+  GROUP BY t1a.i,t1a.j
+  ORDER BY t1a.i 
+ ) AS t1c
+ FULL JOIN
+ (SELECT count(*),t2a.* FROM t2 AS t2a, t2 AS t2b
+  WHERE t2a.i &gt;= t2b.i
+  GROUP BY t2a.i,t2a.j
+  ORDER BY t2a.i 
+ ) AS t2c
+ ON(t1c.count=t2c.count)
+) AS t12
+FULL JOIN
+(SELECT count(*),t3a.* FROM 
+ t3 AS t3a, t3 AS t3b
+ WHERE t3a.i &gt;= t3b.i
+ GROUP BY t3a.i,t3a.j
+ ORDER BY t3a.i 
+) AS t3c
+ON(t12.count=t3c.count)
+
+同じ名前のカラムがあるのでASが増えて長くなってしまいましたが。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00328" HREF="msg00328.html">[pgsql-jp: 26093] ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Ohyama" &lt;ohyama@ktsnet.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00333" HREF="msg00333.html">[pgsql-jp: 26098] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+<UL><LI><EM>From:</EM> ichikawa@is.ocha.ac.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00349" HREF="msg00349.html">[pgsql-jp: 26114] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "K.Ohyama" &lt;ohyama@ktsnet.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00350" HREF="msg00350.html">[pgsql-jp: 26115] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+<UL><LI><EM>From:</EM> WADA Hiroyuki &lt;wada@komine-ag.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00354" HREF="msg00354.html">[pgsql-jp: 26119] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+<UL><LI><EM>From:</EM> ichikawa@is.ocha.ac.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00354.html">[pgsql-jp: 26119] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp: 26121] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00354.html">[pgsql-jp: 26119] Re: ３つ以上のテーブルを無条件に結合する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00325.html">[pgsql-jp: 26090] レコードを返す関数を作りたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00355"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00355"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

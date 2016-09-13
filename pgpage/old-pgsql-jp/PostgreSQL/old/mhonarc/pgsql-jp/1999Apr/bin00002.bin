@@ -1,0 +1,93 @@
+--- src/backend/utils/adt/nabstime.c.orig	Sun Feb 21 12:49:32 1999
++++ src/backend/utils/adt/nabstime.c	Fri Apr 16 14:34:12 1999
+@@ -77,7 +77,12 @@
+ 		tm = localtime(&now);
+ 
+ 		CDayLight = tm->tm_isdst;
+-		CTimeZone = (tm->tm_isdst ? (timezone - 3600) : timezone);
++		CTimeZone =
++#ifdef __CYGWIN32__
++		(tm->tm_isdst ? (_timezone - 3600) : _timezone);
++#else
++		(tm->tm_isdst ? (timezone - 3600) : timezone);
++#endif 
+ 		strcpy(CTZName, tzname[tm->tm_isdst]);
+ #else
+ #error USE_POSIX_TIME defined but no time zone available
+@@ -167,7 +172,11 @@
+ 		strcpy(tzn, tm->tm_zone);
+ #elif defined(HAVE_INT_TIMEZONE)
+ 	if (tzp != NULL)
++#ifdef __CYGWIN__
++		*tzp = (tm->tm_isdst ? (_timezone - 3600) : _timezone);
++#else
+ 		*tzp = (tm->tm_isdst ? (timezone - 3600) : timezone);
++#endif
+ 	if (tzn != NULL)
+ 		strcpy(tzn, tzname[tm->tm_isdst]);
+ #else
+--- src/backend/utils/adt/dt.c.orig	Sat Mar 20 11:31:45 1999
++++ src/backend/utils/adt/dt.c	Fri Apr 16 14:35:56 1999
+@@ -1476,7 +1476,13 @@
+ #if defined(HAVE_TM_ZONE)
+ 				tz = -(tm->tm_gmtoff);	/* tm_gmtoff is Sun/DEC-ism */
+ #elif defined(HAVE_INT_TIMEZONE)
+-				tz = ((tm->tm_isdst > 0) ? (timezone - 3600) : timezone);
++
++#ifdef __CYGWIN__
++				tz = (tm->tm_isdst ? (_timezone - 3600) : _timezone);
++#else
++				tz = (tm->tm_isdst ? (timezone - 3600) : timezone);
++#endif
++
+ #else
+ #error USE_POSIX_TIME is defined but neither HAVE_TM_ZONE or HAVE_INT_TIMEZONE are defined
+ #endif
+@@ -2474,7 +2480,11 @@
+ 			if (tzn != NULL)
+ 				*tzn = (char *)tm->tm_zone;
+ #elif defined(HAVE_INT_TIMEZONE)
++#ifdef __CYGWIN__
++			*tzp = (tm->tm_isdst ? (_timezone - 3600) : _timezone);
++#else
+ 			*tzp = (tm->tm_isdst ? (timezone - 3600) : timezone);
++#endif
+ 			if (tzn != NULL)
+ 				*tzn = tzname[(tm->tm_isdst > 0)];
+ #else
+@@ -3091,7 +3101,11 @@
+ #if defined(HAVE_TM_ZONE)
+ 			*tzp = -(tm->tm_gmtoff);	/* tm_gmtoff is Sun/DEC-ism */
+ #elif defined(HAVE_INT_TIMEZONE)
++#ifdef __CYGWIN__
++			*tzp = ((tm->tm_isdst > 0) ? (_timezone - 3600) : _timezone);
++#else
+ 			*tzp = ((tm->tm_isdst > 0) ? (timezone - 3600) : timezone);
++#endif
+ #else
+ #error USE_POSIX_TIME is defined but neither HAVE_TM_ZONE or HAVE_INT_TIMEZONE are defined
+ #endif
+--- src/backend/utils/adt/datetime.c.orig	Mon Mar 15 01:40:15 1999
++++ src/backend/utils/adt/datetime.c	Fri Apr 16 14:30:17 1999
+@@ -383,7 +383,11 @@
+ 		if (tzn != NULL)
+ 			*tzn = (char *)tm->tm_zone;
+ #elif defined(HAVE_INT_TIMEZONE)
++#ifdef __CYGWIN__
++		*tzp = (tm->tm_isdst ? (_timezone - 3600) : _timezone);
++#else
+ 		*tzp = (tm->tm_isdst ? (timezone - 3600) : timezone);
++#endif
+ 		if (tzn != NULL)
+ 			*tzn = tzname[(tm->tm_isdst > 0)];
+ #else
+--- src/include/port/win.h.orig	Mon Jan 18 21:43:50 1999
++++ src/include/port/win.h	Sat Apr 17 10:45:24 1999
+@@ -5,3 +5,7 @@
+ #ifndef O_DIROPEN
+ #define O_DIROPEN	0x100000	/* should be in sys/fcntl.h */
+ #endif
++
++#define tzname _tzname /* should be in time.h?*/
++#define USE_POSIX_TIME
++#define HAVE_INT_TIMEZONE /* has int _timezone */

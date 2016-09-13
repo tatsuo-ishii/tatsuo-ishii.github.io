@@ -1,0 +1,254 @@
+<A NAME="3">
+<PRE><B>
+From: Koichi Sato &lt;koichi@ccc.canon.co.jp&gt;
+Date: Wed, 28 Aug 1996 16:19:59 +0900
+Subject: [postgres95 628] Re: FreeBSD2.2+pg95-1.01 fails in createuser
+Message-Id: &lt;199608280720.QAA06815@ds5000gw.ccc.canon.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+佐藤＠キヤノンです。
+
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Subject: [postgres95 616] FreeBSD2.2+pg95-1.01 fails in createuser
+Date: Wed, 28 Aug 1996 15:04:25 +0900
+
+&gt; 石井＠SRAです。代理投稿ですが、FreeBSD2.2+pg95-1.01 でcreateuser が
+&gt; 
+&gt; 	monitor: could not find a valid user name
+&gt; 	createuser: database access faild.
+&gt; 
+&gt; で落ちてしまうと言う問題です。FreeBSD のことは良く知りませんが、たしか
+
+FreeBSD の pg95-1.01 は家に帰らないと確認できないのですが、以前のメール
+にこんなのがあるので、おそらくこれでしょう。
+
+
+---- [postgres95 411] hana@msr.mei.co.jp はなみつさんより ----
+
+&gt;&gt; createuserがうまく行きません。うまく動かない場所は
+&gt;&gt; createuserの
+&gt;&gt; if [ $ADDUSER != &quot;t&quot; ]
+&gt;&gt; の行です。
+FreeBSD でも全く同じです
+おそらく
+
+if [ &quot;$ADDUSER&quot; != &quot;t&quot; ]
+
+のようにすればいいような気がします
+-------------
+
+---- [postgres95 414] hana@msr.mei.co.jp はなみつさんより ----
+
+&gt;&gt;   これは、monitor プログラムがエスケープ・シーケンスを出しているため、
+&gt;&gt; $ADDUSER に &quot;t&quot; に続いて他の文字列も入っているためのようです。
+確認しました
+ついでに対処方法も分かりました
+
+        unsetenv PAGER
+
+結局それかって感じですがうちではうまくいきました
+Linux でも同じかは分かりません
+---------
+
+というわけで、unsetenv PAGER で解決では？
+
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Takeshi Yamada &lt;ken@tyd1.tydfam.iijnet.or.jp&gt;
+Date: Sat, 31 Aug 1996 22:03:13 +0900
+Subject: [postgres95 627] Re: createuser がうまくいきません。
+Message-Id: &lt;199608311303.WAA03334@tyd1.tydfam.iijnet.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+  山田＠町田市です。
+最近、ちょっと暇が出来て、やっと、1.06 にバージョンアップして、
+gmake test まで終りました。(FreeBSD-960801-SNAP です。)
+それで、
+
+JAE00277&gt; % createuser shimizu
+JAE00277&gt; PQexec() -- No response from backend
+JAE00277&gt; createuser: database access failed.
+JAE00277&gt; %
+JAE00277&gt; 
+JAE00277&gt; となります。これも同じなんでしょうか？
+
+  私も同様の現象にブチ当たっています( gmake test は通るし、
+psql -l や createdb XXX も出来るのに、、、)。 それで、createuser 
+を見て見たのですが、これって、shell script なんですね。
+そこで、プリミティブな方法で、全ての ` xxxx` の前後に 
+echo &quot;Step ??&quot; を入れて動かして見ました。
+理由は分からないのですが、 echo &quot;Step ??&quot; を入れると、
+PQexec()  -- No response from backend は表示されるのですが、動い
+てしまいます。そして、ちゃんとユーザが登録されています？！
+
+この PQexec()...... を出している所ですが、
+
+ADDUSER=`$PSQL -c &quot;$QUERY&quot; template1`
+( psql -tq -h localhost -p 5432 -c &quot;select usesuper from pg_user \
+  where usename = 'postgres'&quot; template1 となっている)
+
+と、
+
+RES=`$PSQL -c &quot;$QUERY&quot; template1
+( psql -tq -h localhost -p 5432 -c &quot;select usesysid from pg_user \
+  where usename = 'xxxx'&quot; template1 となっている)
+
+です。
+
+試しに、同じ事を下のように、２ステップで実行すると問題はありません。
+
+postgres: {1} psql -h localhost -p 5432 template1
+Welcome to the POSTGRES95 interactive sql monitor:
+  Please read the file COPYRIGHT for copyright terms of POSTGRES95
+
+   type \? for help on slash commands
+   type \q to quit
+   type \g or terminate with semicolon to execute query
+ You are currently connected to the database: template1
+
+template1=&gt; select usesuper from pg_user where usename = 'postgres';
+usesuper
+--------
+t       
+(1 row)
+
+template1=&gt; 
+
+しかし、一気にやろうと入力すると
+
+postgres: {3} psql -h localhost -p 5432 -c &quot;select usesuper from \
+pg_user where usename = 'postgres'&quot; template1
+PQexec() -- No response from backend
+postgres: {4} 
+
+と、結局 psql の -c オプションがおかしい様なのですが、、、。そこま
+では、まだ見ていません。
+
+取り敢えずの御報告まで。
+以上、長文にて失礼致します。
+
+                                 ken@tydfam.iijnet.or.jp
+                                 PED00213@niftyserve.or.jp
+                                 Takeshi &quot;Ken&quot; Yamada (山田 健)
+--------
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: &quot;清水　孝司 &quot;	&lt;JAE00277@niftyserve.or.jp&gt;
+Date: Sat, 31 Aug 1996 11:32:00 +0900
+Subject: [postgres95 626] はじめまして、清水です。
+Message-Id: &lt;199608310237.LAA11610@inetnif.niftyserve.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+はじめまして、先日 石井さんに代理メールして頂きました
+&quot;createuser が正常に出来ない&quot; 清水 と申します。挨拶が遅れて申し訳ありま
+せん。
+本当はもう少し待って、メールの環境が出来てから参加させて頂こうと思って
+いたのですが、それまでの間だけ Nifty からでも問題がないと 石井さんがお
+っしゃってくださいますので、しばらく Nifty からの参加になります。
+
+職業は自営、業種は産業機器などのコンピュータ関連機器、設計、製造、販売
+です。今でも Z80 や 8255 等、8Bit コンピュータのハード設計やプログラムが
+中心の時代遅れの職業ですが、それでも最近はネットワーク(LAN）等のシステム
+も手掛けるチャンスも増えてきました。今後のためデータベースも勉強しなくて
+は・・・と思っています。
+
+ほとんど趣味ですが、XENIX から始まり 386BSD 0.1 がリリースの時点で乗り換
+え、その後 Linux 今は、FreeBSD を中心に使用しています。（でも Nifty は
+Windows95）その環境で使える データベース と言う事で、2,3年前から postgres
+には興味を持っていましたが、インストールさえ出来ずにいました、が知り合い
+が FreeBSD に postgres95 をインストール（インストールだけらしいのですが）
+ したのを知って、どうしても使ってみたく、更には、SQL も対応と聞いて、早速
+インストールに取り掛かっております。周りに教えてもらう人や相談出来る人が
+少ないため、質問魔になると思いますが、よろしくお願いします。
+
+                                      Nifty@清水 (タスクフォーツ＠清水）
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: &quot;清水　孝司 &quot;	&lt;JAE00277@niftyserve.or.jp&gt;
+Date: Sat, 31 Aug 1996 11:34:00 +0900
+Subject: [postgres95 625] createuser がうまくいきません。
+Message-Id: &lt;199608310237.LAA11515@inetnif.niftyserve.or.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは、清水です。早速ですが、先日からの &quot;createuser が正常に出来な
+い&quot; 問題ですが、1.06 をインストールしたら状況が変わりました。
+
+% createuser shimizu
+PQexec() -- No response from backend
+createuser: database access failed.
+%
+
+となります。これも同じなんでしょうか？
+私がぐずぐずしている間に皆さんからいろいろアドバイス頂きましてありがとう
+御座います。で、その結果ですが
+
+佐藤さんが教えてくださった方法
+＞確認なのですが、この作業は postgres のアカウントで行われているのですよね。
+＞他のユーザーなら、ダメでも当然だと思いますし、そうでないなら、おそらく
+はい、postgres のアカウントからです。
+
+＞if [ &quot;$ADDUSER&quot; != &quot;t&quot; ]
+＞のようにすればいいような気がします
+やっぱり
+PQexec() -- No response from backend
+createuser: database access failed.
+になります。
+＞ついでに対処方法も分かりました
+＞
+＞        unsetenv PAGER
+これも変化無しでした。
+
+坂本さんが教えてくださった方法はまだ未確認です。すいません。
+
+もう一度 sh -x の結果を送付します。よろしくご指導ください。
+
+&gt; sh -x /usr/local/postgres95/bin/createuser shimizu
++ [ -z  ]
++ PGPORT=5432
++ [ -z  ]
++ PGHOST=localhost
++ BINDIR=/usr/local/postgres95/bin
++ PATH=/usr/local/postgres95/bin:/sbin:/usr/local/sbin:/usr/sbin:/usr/local/
+bin:/bin:/usr/bin:/usr/X11R6/bin:/usr/local/postgres95/bin
++ basename /usr/local/postgres95/bin/createuser
++ CMDNAME=createuser
++ [ -z postgres ]
++ [ -n shimizu ]
++ NEWUSER=shimizu
++ shift
++ [ -n  ]
++ AUTHOPT=-a 
++ [ -z  ]
++ AUTHOPT=
++ PARGS=-tq  -h localhost -p 5432
++ PSQL=psql -tq  -h localhost -p 5432
++ QUERY=select usesuper from pg_user where usename = 'postgres'
++ psql -tq -h localhost -p 5432 -c select usesuper from pg_user where 
+usename = 'postgres' template1
+PQexec() -- No response from backend
++ ADDUSER=
++ [ 1 -ne 0 ]
++ echo createuser: database access failed.
+createuser: database access failed.
++ exit 1
+&gt;
+
+いま、色々やっていますので、また結果報告します。
+
+                                      Nifty@清水 (タスクフォーツ＠清水）
+<HR>
+</PRE>

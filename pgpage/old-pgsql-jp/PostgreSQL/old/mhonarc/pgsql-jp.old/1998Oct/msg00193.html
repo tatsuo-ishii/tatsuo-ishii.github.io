@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5710] SELECT 結果の出力形式の変換 -->
+<!--X-From: Mikio Nakajima <minakaji@osaka.email.ne.jp> -->
+<!--X-Date: Mon, 26 Oct 1998 22:50:17 +0900 -->
+<!--X-Message-Id: 19981026225017U.minakaji@osaka.email.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5710] SELECT 結果の出力形式の変換 </TITLE>
+<LINK REV="made" HREF="mailto:minakaji@osaka.email.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00192.html">Date Prev</A>][<A HREF="msg00194.html">Date Next</A>][<A HREF="msg00217.html">Thread Prev</A>][<A HREF="msg00209.html">Thread Next</A>][<A HREF="index.html#00193">Date Index</A>][<A HREF="threads.html#00193">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5710] SELECT 結果の出力形式の変換</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mikio Nakajima &lt;<A HREF="mailto:minakaji@osaka.email.ne.jp">minakaji@osaka.email.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Oct 1998 22:50:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  中島＠あさひねっとです。
+
+  SKK 10.x (Emacs の IM) + PostgreSQL の実験を続けていますが、「Wnn や
+Canna となら比較できるスピードかもしれないが、ネイティブ SKK (個人辞書
+を Emacs バッファの中に持っている状態で検索するのでそりゃ速いんですが...)
+とは比較にならないぐらい遅い」というのが大方の意見となりつつあり、なん
+とかならないか、ともがいています。
+
+例えば、個人辞書テーブルは、minakaji というユーザーが使用する場合であ
+れば、
+
+CREATE TABLE minakaji_private_jisyo (
+	okuriari int2 NOT NULL,
+	yomi varchar(50) NOT NULL, -- longest entry of yomi in SKK-JISYO.L is 
+				   -- 'ほくりくせんたんかがくぎじゅつだいがくいんだいがく'
+	kanji text NOT NULL,
+	okurigana varchar(4),
+	date abstime NOT NULL
+);
+CREATE INDEX minakaji_private_yomi_index ON minakaji_private_jisyo USING BTREE (yomi varchar_ops);
+
+として作っておいて、
+
+=&gt; SELECT kanji,date FROM %s WHERE yomi = '%s' AND okuriari = %s AND okurigana = '%s' ORDER BY date DESC;
+
+(%s には適当な文字列が入ります) というようなコマンドで検索しているので
+すが、例えば、「なかじま」という文字列の変換のためにこれを検索しますと、
+
+skk=&gt; SELECT kanji,date FROM minakaji_private_jisyo WHERE yomi = 'なかじま' AND okuriari = 0 ORDER BY date DESC; 
+^Mkanji                                                          |date                        
+---------------------------------------------------------------+----------------------------
+中島＠あさひねっと                                             |Mon Oct 26 06:22:52 1998 JST
+中島幹夫                                                       |Sat Oct 24 17:52:45 1998 JST
+中陦                                                           |Wed Sep 16 23:37:45 1998 JST
+中島                                                           |Wed Sep 16 23:37:39 1998 JST
+中嶋                                                           |Wed Sep 16 23:37:34 1998 JST
+中島＠ニフティ                                                 |Wed Sep 16 23:37:28 1998 JST
+中島幹夫 &lt;minakaji@osaka.email.ne.jp&gt;                          |Tue Sep 15 18:03:34 1998 JST
+中島幹夫 &lt;gy2m-nkjm@asahi-net.or.jp&gt;                           |Tue Sep 15 17:55:37 1998 JST
+中島幹夫 (gy2m-nkjm@asahi-net.or.jp, PBC01764@niftyserve.or.jp)|Tue Sep 15 15:00:08 1998 JST
+中島幹夫 (PBC01764@niftyserve.or.jp, gy2m-nkjm@asahi-net.or.jp)|Sun Sep 13 14:36:47 1998 JST
+(10 rows)
+
+のように出力されます (Emacs のバッファ内で psql を走らせると何故か余分
+な ^M が一つ混入します)。
+
+本当は、このコマンドに対し、
+
+/中島＠あさひねっと/中島幹夫/中陦/中島/中嶋/中島＠ニフティ/中島幹夫 &lt;minakaji@osaka.email.ne.jp&gt;/中島幹夫 &lt;gy2m-nkjm@asahi-net.or.jp&gt;/中島幹夫 (gy2m-nkjm@asahi-net.or.jp, PBC01764@niftyserve.or.jp)/中島幹夫 (PBC01764@niftyserve.or.jp, gy2m-nkjm@asahi-net.or.jp)/
+
+のように kanji フィールドだけを `/' をデリミタにして 1 行で出力できれ
+ば、Emacs 内での加工の手間がかなり省け、高速化がかなうのですが、現在の
+PostgreSQL 6.3 では、ORDER BY で指定したフィールドは、SELECT の引数に
+も指定しなければならない、という制限が付いているので、難しいと思います。
+
+しかし、この制限が取れた場合、あるいは ORDER BY しないで済むのであれば、
+このような出力は可能でしょうか？  できるとすればどのような方法で設定すれ
+ば良いのでしょうか？  ORDER BY のこのような制限は 6.4b では取れている
+のでしょうか？  ご教示下さいませ。よろしくお願いいたします。
+
+中島幹夫 &lt;minakaji@osaka.email.ne.jp&gt;
+<A HREF="http://www.asahi-net.or.jp/~gy2m-nkjm/">http://www.asahi-net.or.jp/~gy2m-nkjm/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 5726] Re: SELECT 結果の出力形式の変換</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00192.html">[pgsql-jp 5709] Re: PostgreSQLのスピードに関して</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 5711] file lock?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 5734] Re: file lock?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 5726] Re: SELECT 結果の出力形式の変換</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00193"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00193"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

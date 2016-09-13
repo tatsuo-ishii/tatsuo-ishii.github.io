@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 648] Re: pg_dump doesn't work -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Tue, 03 Sep 1996 17:59:31 +0900 -->
+<!--X-Message-Id: 199609030859.RAA22057@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9609030222.AA01239@SPI002.sumitomopharm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 648] Re: pg_dump doesn't work </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00021.html">Date Next</A>][<A HREF="msg00017.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 648] Re: pg_dump doesn't work</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 03 Sep 1996 17:59:31 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00017.html">9609030222.AA01239@SPI002.sumitomopharm.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、おみつ@Tramp です。
+
+&gt; 外していたら、ごめんなさい。
+&gt; これって、前に桑村さんがおっしゃっていた、date型が、ヨーロッパ
+&gt; 仕様でどうとかいう話しとは無関係なのでしょうか？
+&gt; Makefile.globalに、何かそれらしい設定がありますが。
+その通りです。申し訳ありません、見逃しておりました。
+
+'src/backend/utils/adt/datetimes.c' に、'date_*'という
+関数群がきっと date型のものなのでしょうね。
+#勝手な推測に過ぎないのですが
+
+デフォルトでは、アメリカ型の表記になっている(v1.02)ので、
+悪くはないんですが、アウトプットはやはり自身の関数など
+を使って書き換えたところです。
+# '05-02-1971' よりも 'May-02-1971' の方が個人的に好みで ;-)
+
+KUWAMURA&gt; 
+KUWAMURA&gt;   DATE型がヨーロピアンになってたりもします。どなたか、SQL 文の中で DATE
+KUWAMURA&gt; フォーマットを変更する関数をご存知無いですか？
+KUWAMURA&gt; 
+
+こんなのはいかがでしょうか。
+==============================================
+-----mitsu_date.c
+text *
+dateout(int4 dateVal)
+{
+  DateADT *date;
+  text *datestr=(text *)palloc(VARHDRSZ+12);
+  memset(datestr,0,VARHDRSZ+12);
+
+  date=(DateADT*)&amp;dateVal;
+  VARSIZE(datestr)=VARHDRSZ+12;
+
+  sprintf(VARDATA(datestr),"%3s-%02d-%04d",
+	  month_name[date-&gt;month-1],
+	  (int)date-&gt;day,
+	  (int)date-&gt;year);
+
+  return datestr;
+}
+
+-----mitsu_date.sql
+CREATE FUNCTION dateout(date) RETURNS text
+As '/fenet/postgres95/mitsu_date.so'
+LANGUAGE 'C';
+
+-----psql mydb
+mydb=&gt; \i mitsu_data.sql
+...
+CREATE
+mydb=&gt; SELECT name AS NAME, dateout(birthday) AS BIRTH
+mydb=&gt; FROM BD;
+NAME             |BIRTH      
+-----------------+-----------
+Mitsuhiro Maeda  |May-02-1971
+
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00017" HREF="msg00017.html">[postgres95 646] Re: pg_dump doesn't work</A></STRONG>
+<UL><LI><EM>From:</EM> Chihiro Higuchi &lt;higuchi@sumitomopharm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[postgres95 647] Re: flex について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00021.html">[postgres95 650] まとめてメールです。ちょっと失礼</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00017.html">[postgres95 646] Re: pg_dump doesn't work</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[postgres95 649] Re: pg_dump doesn't work</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

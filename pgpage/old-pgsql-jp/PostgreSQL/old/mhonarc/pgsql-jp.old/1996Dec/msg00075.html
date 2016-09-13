@@ -1,0 +1,1677 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1166] Japanese PHP/FI beta -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Sun, 15 Dec 1996 04:32:26 +0900 -->
+<!--X-Message-Id: 199612141932.EAA04761@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199612130303.MAA23714@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1166] Japanese PHP/FI beta </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00073.html">Date Prev</A>][<A HREF="msg00076.html">Date Next</A>][<A HREF="msg00074.html">Thread Prev</A>][<A HREF="msg00066.html">Thread Next</A>][<A HREF="index.html#00075">Date Index</A>][<A HREF="threads.html#00075">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1166] Japanese PHP/FI beta</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 15 Dec 1996 04:32:26 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00065.html">199612130303.MAA23714@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。おみつ@Tramp です。
+
+かねてから問題のあった PHP/FI の日本語化ですが、
+とりあえず動作するものができましたので投稿することにします。
+
+# mmap() 関数での高速化はとりあえず次の課題にしてしまいました ^^;;
+# いろいろと情報を頂きました杉田様ありがとうございます。
+
+
+一応の動作の確認はしてみましたが、
+またバグる可能性はあると思いますのであしからず ... m0m
+
+
+このファイルの下の部分を kanji2.0b9.patch に保存して、
+PHP/FI 2.0b9 のソースのトップディレクトリ(.../php-2.0b9/)で
+
+% patch -p1 &lt; kanji2.0b9.patch 
+
+を実行して、あとは PHP/FI のトップディレクトリ
+(.../php-2.0b9/)にて通常通りの ./install とします。
+
+
+*** HOW-TO ***
+
+このパッケージは、PHP/FI 上で漢字コードを使う際に内部コードを
+ EUC に統一し、その出力コードをセットするものです。
+
+関数「SetKanjiOutput("モード")」を指定することで、
+その出力コードを指定することができます。
+
+[モード]
+  モードは { EUC | JIS | SJIS } の 3種類 です。
+  文字列として指定します。
+
+
+Apache サーバーの場合には、
+.htaccess ファイルの中で
+
+    phpKanjiOutput モード
+
+を指定することで、出力コードを統一します。デフォルトでは EUC になります。
+
+
+*** EXAMPLE ***
+
+&lt;? 
+  ...
+  $str="おみつ"; /* この時点で内部コードは EUC になります */
+  pg_exec("select * from address where person='$str'");
+  ...
+
+  $res=" 検索結果 : $str ";
+
+  SetKanjiOutput("JIS"); /* ブラウザに JIS で表示 */
+  echo "&lt;h2&gt; $res &lt;/h2&gt;";
+  ...
+
+  SetKanjiOutput("SJIS"); /* ファイルへ SJIS で保存 */
+  $fp=fopen("/dos/result.txt","w");
+    fputs($fp,$res);
+  fclose($fp);
+  ...
+
+&gt;
+
+ブラウザのみならず、ファイルへの出力も制御できます。
+デバイスへの出力前に使用して下さい。
+
+デフォルトの出力コードは「EUC」です。
+
+
+*** MACHINE ***
+
+確認済み動作環境は、
+  Linux 1.2.13 (Slackware 3.0) + JE 0.9.7
+ + postgres95-1.06 + pg95-1.06-jp.patch
+ + apache_1.1.1 + php-2.0b9
+のみです。
+
+
+*** CHANGES ***
+
+前回流した「KanjiConv(文字列,モード)」は、内部コード
+を統一したことによって機能しなくなりましたので、
+削除させて頂きました。
+
+
+*** NOTICE ***
+
+「とりあえず動くもの」を大前提として組みましたので
+なにかしら問題もあるかと思われますが、完全に無保証です。
+各人の責任において御使用ください。
+
+ここから kanji2.0b9.patch
+----------------------------------------------------------------------
+
+diff -c -r -N php-2.0b9/README.kanji.euc kanji-2.0b9/README.kanji.euc
+*** php-2.0b9/README.kanji.euc	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/README.kanji.euc	Sun Dec 15 04:01:03 1996
+***************
+*** 0 ****
+--- 1,110 ----
++ README.kanji.euc  === PHP/FI 漢字コードハンドリング 第 2 版 ===
++ 
++ *** INTRO ***
++ PHP/FIにて漢字コードの変換を実現するパッケージを組んでみました。
++ ですが、このコードはほぼすべて「ぱくり」です ;-) 
++ 
++ ベースは、
++ 1. shige@csk.JUNET さんの filters-2.0
++ 2. 佐藤公彦(K.Sato)の qkc 1.0
++ から拝借いたしました。
++ 
++ 
++ PHP/FI 2.0b9 のソースのトップディレクトリ(.../php-2.0b9/)で
++ 
++ % patch -p1 &lt; kanji2.0b9.patch 
++ 
++ を実行して、あとは PHP/FI のトップディレクトリ
++ (.../php-2.0b9/)にて通常通りの ./install とします。
++ 
++ 
++ *** HOW-TO ***
++ 
++ このパッケージは、PHP/FI 上で漢字コードを使う際に内部コードを
++  EUC に統一し、その出力コードをセットするものです。
++ 
++ 関数「SetKanjiOutput("モード")」を指定することで、
++ その出力コードを指定することができます。
++ 
++ [モード]
++   モードは { EUC | JIS | SJIS } の 3種類 です。
++   文字列として指定します。
++ 
++ 
++ Apache サーバーの場合には、
++ .htaccess ファイルの中で
++ 
++     phpKanjiOutput モード
++ 
++ を指定することで、出力コードを統一します。デフォルトでは EUC になります。
++ 
++ これを変更した場合には、お手数ですが、ソースツリー(.../php-2.0b9/src/)
++ にある kanjiconv.cを手動で変更して下さい。
++ Apache の場合 61行目、それ以外では 63行目の
++ 
++     output_kanji_code=EUC;
++ 
++ の「EUC」の部分を JIS または SJIS に変更して下さい。
++ ( ここでは、文字列にはしないで下さい。
++   php.h の中で #define された int型 になります )
++ 
++ *** EXAMPLE ***
++ 
++ &lt;? 
++   ...
++   $str="おみつ"; /* この時点で内部コードは EUC になります */
++   pg_exec("select * from address where person='$str'");
++   ...
++ 
++   $res=" 検索結果 : $str ";
++ 
++   SetKanjiOutput("JIS"); /* ブラウザに JIS で表示 */
++   echo "&lt;h2&gt; $res &lt;/h2&gt;";
++   ...
++ 
++   SetKanjiOutput("SJIS"); /* ファイルへ SJIS で保存 */
++   $fp=fopen("/dos/result.txt","w");
++     fputs($fp,$res);
++   fclose($fp);
++   ...
++ 
++ &gt;
++ 
++ ブラウザのみならず、ファイルへの出力も制御できます。
++ デバイスへの出力前に使用して下さい。
++ 
++ デフォルトの出力コードは「EUC」です。
++ 
++ 
++ *** MACHINE ***
++ 
++ 確認済み動作環境は、
++   Linux 1.2.13 (Slackware 3.0) + JE 0.9.7
++  + postgres95-1.06 + pg95-1.06-jp.patch
++  + apache_1.1.1 + php-2.0b9
++ のみです。
++ 
++ 
++ *** CHANGES ***
++ 
++ 前回流した「KanjiConv(文字列,モード)」は、内部コード
++ を統一したことによって機能しなくなりましたので、
++ 削除させて頂きました。
++ 
++ 
++ *** NOTICE ***
++ 
++ 「とりあえず動くもの」を大前提として組みましたので
++ なにかしら問題もあるかと思われますが、完全に無保証です。
++ 各人の責任において御使用ください。
++ 
++ 
++ *** TODO ***
++ 
++ 高速化 mmap() の対応
++ 
++ 
++ ======================================================================
++ 12-14-1996 前田充宏
++ mitsu@tramp.co.jp
++ 
+diff -c -r -N php-2.0b9/config.h.in kanji-2.0b9/config.h.in
+*** php-2.0b9/config.h.in	Thu Dec  5 10:50:27 1996
+--- kanji-2.0b9/config.h.in	Sun Dec 15 02:46:45 1996
+***************
+*** 40,46 ****
+  #undef HAVE_STRCASECMP
+  
+  /* Define if you have the mmap function.  */
+! #undef HAVE_MMAP
+  
+  /* Define if you have the putenv function.  */
+  #undef HAVE_PUTENV
+--- 40,46 ----
+  #undef HAVE_STRCASECMP
+  
+  /* Define if you have the mmap function.  */
+! /* #undef HAVE_MMAP */
+  
+  /* Define if you have the putenv function.  */
+  #undef HAVE_PUTENV
+diff -c -r -N php-2.0b9/src/Makefile.in kanji-2.0b9/src/Makefile.in
+*** php-2.0b9/src/Makefile.in	Fri Dec  6 11:55:34 1996
+--- kanji-2.0b9/src/Makefile.in	Sun Dec 15 02:45:51 1996
+***************
+*** 107,113 ****
+  	  reg.o exec.o file.o crypt.o head.o info.o post.o \
+  	  type.o conf.o acc.o local.o dns.o log.o sort.o dir.o rand.o \
+  	  gd.o mime.o fsock.o microtime.o pg95.o pool.o \
+! 	  uniqid.o mysql.o solid.o mail.o
+  
+  all: $(PHP_PROGS) @MODULE_TARGET@
+  
+--- 107,114 ----
+  	  reg.o exec.o file.o crypt.o head.o info.o post.o \
+  	  type.o conf.o acc.o local.o dns.o log.o sort.o dir.o rand.o \
+  	  gd.o mime.o fsock.o microtime.o pg95.o pool.o \
+! 	  uniqid.o mysql.o solid.o mail.o \
+! 	  kanjiconv.o etoj.o etos.o jtoe.o jtos.o stoe.o stoj.o
+  
+  all: $(PHP_PROGS) @MODULE_TARGET@
+  
+diff -c -r -N php-2.0b9/src/etoj.c kanji-2.0b9/src/etoj.c
+*** php-2.0b9/src/etoj.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/etoj.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,104 ----
++ /*								*/
++ /*	etoj.c	2.0	62.06.17	by shige@csk.JUNET	*/
++ /*								*/
++ /*	etoj	EUC code convert into JIS code.			*/
++ /*								*/
++ /*		KI	KO					*/
++ /*		^[$B	^[(B	JIS 83				*/
++ /*								*/
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ #include &lt;string.h&gt;
++ 
++ #define ESC 	'\033'
++ #define KI1 	'$'
++ #define KI2 	'B'
++ #define KO1 	'('
++ #define KO2 	'B'
++ #define	KANAIN		0x0e
++ #define	KANAOUT		0x0f
++ #define	SS2		0x8e	/* Hankaku Kana */
++ 
++ void
++ etoj(unsigned char *dest, const unsigned char *src)
++ {
++   register int stat;
++   register unsigned char c;
++ 
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++ 
++   i=0;
++   pos=0;
++   stat = 0;
++   while ((c = src[i++]) != '\0') {
++     switch (stat) {
++     case 0:
++       if(0xa1 &lt;= c &amp;&amp; c &lt;= 0xfe) { /* ZENKAKU */
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	dest[pos++]=KI2;
++ 	dest[pos++]=(c &amp; 0x7f);
++ 	stat = 1;
++       }
++       else if(c == SS2) { /* Hankaku Kana */
++ 	dest[pos++]=KANAIN;
++ 	c = src[i++];
++ 	dest[pos++]=(c &amp; 0x7f);
++ 	stat = 3;
++       }
++       else /* ASCII */
++ 	dest[pos++]=c;
++       break;
++     case 1:
++       stat = 2;
++       dest[pos++]=(c &amp; 0x7f);
++       break;
++     case 2:
++       if(0xa1 &lt;= c &amp;&amp; c &lt;= 0xfe) { /* ZENKAKU */
++ 	dest[pos++]=(c &amp; 0x7f);
++ 	stat = 1;
++       }
++       else {
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	dest[pos++]=KO2;
++ 	i--;
++ 	stat = 0;
++       }
++       break;
++     case 3:				 /* hankaku kana */
++       if(c == SS2) {
++ 	c=src[i++];
++ 	dest[pos++]=(c &amp; 0x7f);
++       }
++       else {
++ 	dest[pos++]=KANAOUT;
++ 	i--;
++ 	stat = 0;
++       }
++       break;
++     }
++   }
++   if ( stat == 1 || stat == 2 ) {
++     /* put KANJI-OUT */
++     dest[pos++]=ESC;
++     dest[pos++]=KO1;
++     dest[pos++]=KO2;
++   }
++   else if (stat == 3) 
++     dest[pos++]=KANAOUT;
++ 
++   /* terminate */
++   dest[pos]='\0';
++ }
+diff -c -r -N php-2.0b9/src/etos.c kanji-2.0b9/src/etos.c
+*** php-2.0b9/src/etos.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/etos.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,82 ----
++ /*
++  *	EUC --&gt; Sift_JIS  Convert Routine
++  */
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ #include &lt;string.h&gt;
++ 
++ #define	Z_BEGIN		0xa1	/* Zenkaku Begin */
++ #define	Z_END		0xfe	/* Zenkaku END */
++ #define SS2    		0x8e	/* Hankaku Kana */
++ 
++ static void
++ JIS_IBM(jis1,jis2,ibm1,ibm2)
++      register unsigned char jis1,jis2,*ibm1,*ibm2;
++ {
++   if(jis1 &gt;= 0x5f)    jis1 += 0x80;
++   
++   if((jis1 % 2) == 0) {
++     *ibm1 = (jis1 - 0x30)/2 + 0x88;
++     *ibm2 = jis2 + 0x7e;
++   }
++   else {
++     if(jis2 &gt;= 0x60)
++       jis2 = jis2 + 0x01;
++     *ibm1 = (jis1 - 0x31)/2 + 0x89;
++     *ibm2 = jis2 + 0x1f;
++   }
++   *ibm1 &amp;= 0xff;
++   *ibm2 &amp;= 0xff;
++ }
++ 
++ void
++ etos(unsigned char *dest, const unsigned char *src)
++ {
++   register int stat;
++   register unsigned char c,c1,c2;
++   unsigned char s1,s2;
++   
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++ 
++   i=0;
++   pos=0;
++   stat = 0;
++   while ((c = src[i++]) != '\0') {
++     switch (stat) {
++     case 0:
++       if (Z_BEGIN &lt;= c  &amp;&amp; c &lt;= Z_END) { /* Zenkaku */
++ 	c1 = c &amp; 0x7f;
++ 	stat = 1;
++       }
++       else if (c == SS2) { /* Hankaku Kana */
++ 	c = src[i++];
++ 	dest[pos++]=c;
++       }
++       else /* ASCII */
++ 	dest[pos++]=c;
++       break;
++     case 1:
++       stat = 0;
++       c2 = c &amp; 0x7f;
++       JIS_IBM(c1,c2,&amp;s1,&amp;s2); /* Convert JIS to Sift_JIS */
++       dest[pos++]=s1;
++       dest[pos++]=s2;
++       break;
++     }
++   }
++ 
++   /* terminate */
++   dest[pos]='\0';
++ }
++ 
+diff -c -r -N php-2.0b9/src/file.c kanji-2.0b9/src/file.c
+*** php-2.0b9/src/file.c	Thu Dec  5 08:09:44 1996
+--- kanji-2.0b9/src/file.c	Sun Dec 15 02:52:09 1996
+***************
+*** 22,27 ****
+--- 22,28 ----
+  /* $Id: file.c,v 1.36 1996/12/04 17:32:29 rasmus Exp $ */
+  #include "php.h"
+  #include &lt;stdlib.h&gt;
++ #include &lt;string.h&gt;
+  #ifdef HAVE_UNISTD_H
+  #include &lt;unistd.h&gt;
+  #endif
+***************
+*** 1048,1053 ****
+--- 1049,1055 ----
+  		Push("",STRING);
+  		return;
+  	}
++ 	conv2euc(buf,len);
+  	Push((buf=AddSlashes(buf,1)),STRING);
+  }
+  
+***************
+*** 1083,1088 ****
+--- 1085,1091 ----
+  		Push("",STRING);
+  		return;
+  	}
++ 	conv2euc(buf,len);
+  	rbuf=estrdup(1,buf);
+  	c = *buf;
+  	lc=(char)0;
+***************
+*** 1180,1186 ****
+  	}
+  	ParseEscapes(buf);
+  	StripSlashes(buf);
+! 	ret = fputs(buf,fp);
+  	sprintf(temp,"%d",ret);
+  	Push(temp,STRING);
+  }	
+--- 1183,1189 ----
+  	}
+  	ParseEscapes(buf);
+  	StripSlashes(buf);
+! 	ret = kanji_fputs(buf,fp);
+  	sprintf(temp,"%d",ret);
+  	Push(temp,STRING);
+  }	
+diff -c -r -N php-2.0b9/src/jtoe.c kanji-2.0b9/src/jtoe.c
+*** php-2.0b9/src/jtoe.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/jtoe.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,188 ----
++ /*								*/
++ /*	jtoe.c	2.0	62.06.17	by shige@csk.JUNET	*/
++ /*								*/
++ /*	jtoe	all JIS code convert into EUC code.		*/
++ /*								*/
++ /*		KI	KO					*/
++ /*		^[$@	^[(H	JIS 78  &amp;  (incorrect code)	*/
++ /*		^[$@	^[(J	JIS 78  &amp;  JIS_ROMAN		*/
++ /*		^[$@	^[(B	JIS 78  &amp;  ASCII		*/
++ /*		^[$B	^[(J	JIS 83  &amp;  JIS_ROMAN		*/
++ /*		^[$B	^[(B	JIS 83  &amp;  ASCII		*/
++ /*								*/
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ #include &lt;string.h&gt;
++ 
++ #define ESC '\033'
++ #define KI1 '$'
++ #define KI2 '@'
++ #define KI3 'B'
++ #define KO1 '('
++ #define KO2 'J'
++ #define KO3 'H'
++ #define KO4 'B'
++ #define	KANAIN	0x0e
++ #define	KANAOUT	0x0f
++ #define	SS2	0x8e
++ 
++ static void 
++ JIS_EUC(jis1,jis2,euc1,euc2)
++      register unsigned char jis1,jis2,*euc1,*euc2;
++ {
++   *euc1 = jis1 | 0x80;
++   *euc2 = jis2 | 0x80;
++ }
++ 
++ void
++ jtoe(unsigned char *dest, const unsigned char *src)
++ {
++   register int stat;
++   register unsigned char c, c1, c2;
++   unsigned char s1, s2;
++   static int js78on = 0, js83on = 0;
++   
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++   
++   i=0;
++   pos=0;
++   stat = 0;
++   while ((c = src[i++]) != '\0') {
++     switch (stat) {
++     case 0:
++       if (c == ESC) 
++ 	stat = 1;
++       else if(c == KANAIN)
++ 	stat = 6;
++       else
++ 	dest[pos++]=c;
++       break;
++     case 1: /*  ESC ----&gt; ?  */
++       switch(c) {
++       case KO1:
++ 	stat = 2;
++ 	break;
++       case KI1:
++ 	stat = 3;
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 2: /* ESC --&gt; KO1 --&gt; ? */
++       switch(c){
++       case KO2: /* ^[(J : KOUT (to JIS_ROMAN) */
++       case KO4: /* ^[(B : KOUT (to ASCII) */
++ 	if (js78on || js83on){ /* JIS 78 or JIS 83 KANJI */
++ 	  js83on = 0;
++ 	  js78on = 0;
++ 	  stat = 0;
++ 	}
++ 	break;
++       case KO3: /* ^[(H : incorrect but used */
++ 	if (js78on){ /* JIS 78 KANJI */
++ 	  js78on = 0;
++ 	  stat = 0;
++ 	}
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	stat = 1;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 3: /* ESC --&gt; KI1 --&gt; ? */
++       switch(c){
++       case KI2: /* ^[$@ : JIS 78 KIN */
++ 	stat = 4;
++ 	js78on = 1;
++ 	break;
++       case KI3: /* ^[$B : JIS 83 KIN */
++ 	stat = 4;
++ 	js83on = 1;
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	stat = 1;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 4: /* JIS KANJI 1st */
++       if (c == ESC)
++ 	stat = 1;
++       else if (c == KANAIN) ;
++       else {
++ 	c1 = c;
++ 	stat = 5;
++       }
++       break;
++     case 5: /* JIS KANJI 2nd */
++       c2 = c;
++       JIS_EUC(c1,c2,&amp;s1,&amp;s2);
++       dest[pos++]=s1;
++       dest[pos++]=s2;
++       stat = 4;
++       break;
++     case 6: /* HANKAKU KANA */
++       if(c == KANAIN) ;
++       else if(c == KANAOUT)
++ 	stat = 0;
++       else {
++ 	if((c &gt;=0x21) &amp;&amp; (c &lt;= 0x5f))
++ 	  c |= 0x80;
++ 	dest[pos++]=SS2;
++ 	dest[pos++]=c;
++       }
++       break;
++     }
++   }
++ 
++   /* terminate */
++   dest[pos]='\0';
++ }
++ 
+diff -c -r -N php-2.0b9/src/jtos.c kanji-2.0b9/src/jtos.c
+*** php-2.0b9/src/jtos.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/jtos.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,200 ----
++ /*								*/
++ /*	jtos.c	2.0	62.06.17	by shige@csk.JUNET	*/
++ /*								*/
++ /*	jtos	all JIS code convert into SJIS code.		*/
++ /*								*/
++ /*		KI	KO					*/
++ /*		^[$@	^[(H	JIS 78  &amp;  (incorrect code)	*/
++ /*		^[$@	^[(J	JIS 78  &amp;  JIS_ROMAN		*/
++ /*		^[$@	^[(B	JIS 78  &amp;  ASCII		*/
++ /*		^[$B	^[(J	JIS 83  &amp;  JIS_ROMAN		*/
++ /*		^[$B	^[(B	JIS 83  &amp;  ASCII		*/
++ /*								*/
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ #include &lt;string.h&gt;
++ 
++ #define ESC '\033'
++ #define KI1 '$'
++ #define KI2 '@'
++ #define KI3 'B'
++ #define KO1 '('
++ #define KO2 'J'
++ #define KO3 'H'
++ #define KO4 'B'
++ #define	KANAIN	0x0e
++ #define	KANAOUT	0x0f
++ 
++ static void
++ JIS_SJIS(jis1,jis2,sjis1,sjis2)
++      register unsigned char jis1,jis2,*sjis1,*sjis2;
++ {
++   if(jis1 &gt;= 0x5f)
++     jis1 += 0x80;
++   
++   if((jis1 % 2) == 0) {
++     *sjis1 = (jis1 - 0x30)/2 + 0x88;
++     *sjis2 = jis2 + 0x7e;
++   }
++   else {
++     if(jis2 &gt;= 0x60)
++       jis2 = jis2 + 0x01;
++     *sjis1 = (jis1 - 0x31)/2 + 0x89;
++     *sjis2 = jis2 + 0x1f;
++   }
++   *sjis1 &amp;= 0xff;
++   *sjis2 &amp;= 0xff;
++ }
++ 
++ void
++ jtos(char *dest, const char *src)
++ {
++   int stat;
++   register unsigned char c, c1, c2;
++   unsigned char s1, s2;
++   static int js78on=0, js83on=0;
++ 
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++ 
++   i=0;
++   pos=0;
++   stat = 0;
++   while((c = src[i++]) != '\0'){
++     switch (stat) {
++     case 0:
++       if (c == ESC) 
++ 	stat = 1;
++       else if(c == KANAIN)
++ 	stat = 6;
++       else
++ 	dest[pos++]=c;
++       break;
++     case 1: /*  ESC ----&gt; ?  */
++       switch (c) {
++       case KO1:
++ 	stat = 2;
++ 	break;
++       case KI1:
++ 	stat = 3;
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 2: /* ESC --&gt; KO1 --&gt; ? */
++       switch(c){
++       case KO2: /* ^[(J : KOUT (to JIS_ROMAN) */
++       case KO4: /* ^[(B : KOUT (to ASCII) */
++ 	if (js78on || js83on){ /* JIS 78 or JIS 83 KANJI */
++ 	  js83on = 0;
++ 	  js78on = 0;
++ 	  stat = 0;
++ 	}
++ 	break;
++       case KO3: /* ^[(H : incorrect but used */
++ 	if(js78on){ /* JIS 78 KANJI */
++ 	  js78on = 0;
++ 	  stat = 0;
++ 	}
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	stat = 1;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KO1;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 3:			/* ESC --&gt; KI1 --&gt; ? */
++       switch(c){
++       case KI2:		/* ^[$@ : JIS 78 KIN */
++ 	stat = 4;
++ 	js78on = 1;
++ 	break;
++       case KI3:		/* ^[$B : JIS 83 KIN */
++ 	stat = 4;
++ 	js83on = 1;
++ 	break;
++       case KANAIN:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	stat = 6;
++ 	break;
++       case ESC:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	stat = 1;
++ 	break;
++       default:
++ 	dest[pos++]=ESC;
++ 	dest[pos++]=KI1;
++ 	dest[pos++]=c;
++ 	stat = 0;
++ 	break;
++       }
++       break;
++     case 4:		/* JIS KANJI 1st */
++       if (c == ESC)
++ 	stat = 1;
++       else if (c == KANAIN) ;
++       else {
++ 	c1 = c;
++ 	stat = 5;
++       }
++       break;
++     case 5:		/* JIS KANJI 2nd */
++       c2 = c;
++       JIS_SJIS(c1,c2,&amp;s1,&amp;s2);
++       dest[pos++]=s1;
++       dest[pos++]=s2;
++       stat = 4;
++       break;
++     case 6:		/* HANKAKU KANA */
++       if(c == KANAIN) ;
++       else if(c == KANAOUT)
++ 	stat = 0;
++       else {
++ 	if((c &gt;=0x21) &amp;&amp; (c &lt;= 0x5f))
++ 	  c |= 0x80;
++ 	dest[pos++]=c;
++       }
++       break;
++     }
++   }
++ 
++   /* terminate */
++   dest[pos]='\0';
++ 
++ }
++ 
+diff -c -r -N php-2.0b9/src/kanjiconv.c kanji-2.0b9/src/kanjiconv.c
+*** php-2.0b9/src/kanjiconv.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/kanjiconv.c	Sun Dec 15 02:42:45 1996
+***************
+*** 0 ****
+--- 1,304 ----
++ /************************************************************************/
++ /*                                                                      */
++ /* kanjiconv.c                                                          */
++ /*                                                                      */
++ /* by o3(mitsu@tramp.co.jp)                                             */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /* Usage in PHP script :                                                */
++ /*   SetKanjiOutput("&lt;mode&gt;");                                          */
++ /*                                                                      */
++ /* ARGS                                                                 */
++ /*    &lt;mode&gt;  : EUC | SJIS | JIS                                        */
++ /*                                                                      */
++ /* EXAMPLE                                                              */
++ /*   SetKanjiOutput("EUC");                                             */
++ /*                                                                      */
++ /************************************************************************/
++ #include &lt;stdio.h&gt;
++ #include &lt;string.h&gt;
++ #include "php.h"
++ #include "parse.h"
++ #if APACHE
++ #include "http_protocol.h"
++ #endif
++ 
++ extern void etoj(unsigned char *,unsigned char *);
++ extern void etos(unsigned char *,unsigned char *);
++ extern void jtoe(unsigned char *,unsigned char *);
++ extern void jtos(unsigned char *,unsigned char *);
++ extern void stoe(unsigned char *,unsigned char *);
++ extern void stoj(unsigned char *,unsigned char *);
++ 
++ /* Kanji Code for output */
++ int output_kanji_code=EUC;
++ 
++ /* (*function_table[dest][src])(dest,src) */
++ static FUNC function_table[4][4]={
++   { (void*)strcpy, (void*)strcpy, (void*)strcpy, (void*)strcpy}, /* dest : NONE */
++   { (void*)strcpy, (void*)strcpy, jtoe, stoe}, /* dest :  EUC */
++   { (void*)strcpy, etoj, (void*)strcpy, stoj}, /* dest :  JIS */
++   { (void*)strcpy, etos, jtos, (void*)strcpy}  /* dest : SJIS */
++ };
++ 
++ #if APACHE
++ void php_init_kanji(php_module_conf *conf)
++ #else
++ void php_init_kanji(void)
++ #endif
++ {
++ #if APACHE
++   if(conf-&gt;KanjiOutput){
++     if(!strcasecmp(conf-&gt;KanjiOutput,"EUC"))
++       output_kanji_code=EUC;
++     else if(!strcasecmp(conf-&gt;KanjiOutput,"JIS"))
++       output_kanji_code=JIS;
++     else if(!strcasecmp(conf-&gt;KanjiOutput,"SJIS"))
++       output_kanji_code=SJIS;
++     else
++       output_kanji_code=EUC;
++    }
++    else output_kanji_code=EUC;
++ #else
++   output_kanji_code=EUC;
++ #endif
++ }
++ 
++ static int
++ _checkforward(unsigned char *p)
++ {
++   unsigned char c;
++ 
++   if(*++p=='\0')
++     return EUC;
++   
++   while(1){
++     if(c=='\033'){
++       if((c=*p++)=='\0')
++ 	break;
++       if(c=='$'){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(c=='B' || c=='@')
++ 	  return JIS;
++ 	else
++ 	  continue;
++       }
++       else if(c=='K')
++ 	return JIS;
++       else
++ 	continue;
++     }
++     else if(c&gt;=0x81){
++       if(c==0x8e){
++ 	if((*++p)=='\0')
++ 	  break;
++       }
++       else if(c&lt;=0x9f){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iskanji2nd(c))
++ 	  return SJIS;
++ 	else
++ 	  continue;
++       }
++       else if(c&gt;=0xa1 &amp;&amp; c&lt;=0xdf){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iskana(c))
++ 	  continue;
++ 	else if (iseuc(c))
++ 	  return EUC;
++ 	else
++ 	  continue;
++       }
++       else if(c!=0xa0)
++ 	return EUC;
++     }
++     if((c=*p++)=='\0')
++       break;
++   }
++ 
++   return EUC;
++ }
++ 
++ static int 
++ _kanjicode(unsigned char *buf)
++ {
++   unsigned char *p,c;
++   int unknownstat = 0;
++ 
++   if(buf==NULL || buf[0]=='\0')
++     return NONE;
++ 
++   p=buf;
++   c=*p++;
++   while(1){
++     if(c=='\033'){
++       if((c=*p++)=='\0')
++ 	break;
++       if(c=='$'){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(c=='B' || c=='@')
++ 	  return JIS;
++ 	else
++ 	  continue;
++       }
++       else if(c=='K')
++ 	return JIS;
++       else
++ 	continue;
++     }
++     else if(c&gt;=0x81){
++       if(c==0x8e){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iskana(c))
++ 	  unknownstat |= 2;
++ 	else if (iskanji2nd(c))
++ 	  return SJIS;
++ 	else
++ 	  continue;
++       }
++       else if(c&lt;=0x9f){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iskanji2nd(c))
++ 	  return SJIS;
++ 	else
++ 	  continue;
++       }
++       else if(c&gt;=0xa1 &amp;&amp; c&lt;=0xdf || c==0xfd || c==0xfe){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iseuc(c))
++ 	  if(iskana(c))
++ 	    if(*(p+1)=='\0')
++ 	      return EUC;
++ 	    else
++ 	      return _checkforward(p);
++ 	  else
++ 	    return EUC;
++ 	else
++ 	  continue;
++       }
++       else if(c&gt;=0xe0 &amp;&amp; c&lt;=0xfc){
++ 	if((c=*p++)=='\0')
++ 	  break;
++ 	if(iskanji2nd(c))
++ 	  if(iseuc(c))
++ 	    unknownstat |= 1;
++ 	  else
++ 	    return SJIS;
++ 	else
++ 	  if(iseuc(c))
++ 	    return EUC;
++ 	  else
++ 	    continue;
++       }
++     }
++     if((c=*p++)=='\0')
++       break;
++   }
++ 
++   if(unknownstat==2)
++     return SJIS;
++   else
++     return NONE;
++ 
++ }
++ 
++ int
++ conv2euc(char *src,long file_size)
++ {
++   char *temp;
++ #if DEBUG
++   int i;
++   i=_kanjicode(src);
++   Debug("conv2euc: converted %i to EUC\n",i);
++ #endif
++   temp=emalloc(1,file_size+1);
++   (*function_table[EUC][_kanjicode(src)])(temp,src);
++   strcpy(src,temp);
++ #if DEBUG
++   Debug(" conv2euc * 2 : src=%d temp=%d\n",strlen(src),strlen(temp));
++   Debug(" conv2euc * 3 : converted [%s]\n",temp);
++ #endif
++   return strlen(temp);
++ }
++ 
++ void
++ SetKanjiOutput(void)
++ {
++   Stack *s;
++   unsigned char *ret;
++ 
++   s=Pop();
++   if(!s){
++     Error("Stack error in KanjiConv");
++     return;
++   }
++ 
++   if(!strcasecmp(s-&gt;strval,"EUC")){
++     output_kanji_code=EUC;
++ #if DEBUG
++     Debug("SetKanjiOutput to EUC\n");
++ #endif
++   }
++   else if(!strcasecmp(s-&gt;strval,"JIS")){
++ #if DEBUG
++     Debug("SetKanjiOutput to JIS\n");
++ #endif
++     output_kanji_code=JIS;
++   }
++   else if(!strcasecmp(s-&gt;strval,"SJIS")){
++ #if DEBUG
++     Debug("SetKanjiOutput to SJIS\n");
++ #endif
++     output_kanji_code=SJIS;
++   }
++   else {
++ #if DEBUG
++     Debug("SetKanjiOutput to *DEFAULT*\n");
++ #endif
++     output_kanji_code=EUC;
++   }
++   return;
++ }
++ 
++ 
++ int
++ kanji_puts(char *str)
++ {
++   unsigned char *ret;
++ 
++   ret=(unsigned char*)emalloc(1,2*strlen(str)+1);
++ 
++   (*function_table[output_kanji_code][EUC])(ret,str);
++ 
++ #if APACHE
++ #if APACHE_NEWAPI
++   return rputs(ret,php_rqst);
++ #else
++   return rprintf(php_rqst,"%s",ret);
++ #endif
++ #else
++   return fputs(ret,stdout);
++ #endif
++ 
++ }
++ 
++ int
++ kanji_fputs(char *str,FILE *fp)
++ {
++   int i;
++   unsigned char *ret;
++ 
++   ret=(unsigned char*)emalloc(1,2*strlen(str)+1);
++ 
++   (*function_table[output_kanji_code][EUC])(ret,str);
++ 
++   return fputs(ret,fp);
++ }
++ 
+diff -c -r -N php-2.0b9/src/lex.c kanji-2.0b9/src/lex.c
+*** php-2.0b9/src/lex.c	Fri Dec  6 09:36:27 1996
+--- kanji-2.0b9/src/lex.c	Sun Dec 15 02:57:14 1996
+***************
+*** 356,361 ****
+--- 356,362 ----
+  	  { "solid_fieldnum", INTFUNC2,Solid_fieldNum },
+  	  { "solid_fetchrow", INTFUNC1,Solid_fetchRow },
+  	  { "msql_listindex", INTFUNC3,MsqlListIndex },
++ 	  { "setkanjioutput", INTFUNC1,SetKanjiOutput},
+  	  { NULL,0,NULL } },
+  
+  	{ { "msql_freeresult", INTFUNC1,MsqlFreeResult }, /* 15 */
+***************
+*** 1276,1281 ****
+--- 1277,1284 ----
+  		fp = fdopen(fd,"r");
+  		pa = emalloc(0,file_size + 1);
+  		fread(pa,1,file_size,fp);
++ 		pa[file_size]='\0';
++ 		gsize = conv2euc(pa,file_size);
+  		pa_pos = 0L;
+  		fclose(fp);
+  		}
+***************
+*** 1289,1296 ****
+  		state = 2;
+  		pa = fbuf;
+  		pa_pos = 0L;
+  	}
+- 	gsize = file_size;
+  	inpos = -1;
+  	tokenmarker=0;
+  	yylex_linenumber = 0;
+--- 1292,1299 ----
+  		state = 2;
+  		pa = fbuf;
+  		pa_pos = 0L;
++ 		gsize = file_size;
+  	}
+  	inpos = -1;
+  	tokenmarker=0;
+  	yylex_linenumber = 0;
+diff -c -r -N php-2.0b9/src/main.c kanji-2.0b9/src/main.c
+*** php-2.0b9/src/main.c	Thu Dec  5 08:09:45 1996
+--- kanji-2.0b9/src/main.c	Sun Dec 15 03:04:44 1996
+***************
+*** 79,84 ****
+--- 79,85 ----
+  	php_init_gd();
+  #endif
+  	php_init_cond();
++ 	php_init_kanji();
+  
+  	if(argc&gt;1) {
+  		if(!strcasecmp(argv[argc-1],"info")) {
+***************
+*** 184,189 ****
+--- 185,191 ----
+  	php_init_gd();
+  #endif
+  	php_init_cond();
++ 	php_init_kanji(conf);
+  
+  	TreatHeaders();  /* Check to see if there are any special HTTP headers */
+  
+diff -c -r -N php-2.0b9/src/mod_php.c kanji-2.0b9/src/mod_php.c
+*** php-2.0b9/src/mod_php.c	Tue Dec  3 13:44:51 1996
+--- kanji-2.0b9/src/mod_php.c	Sun Dec 15 03:09:38 1996
+***************
+*** 70,75 ****
+--- 70,76 ----
+  	new-&gt;MsqlLogHost=NULL;
+  	new-&gt;AccessDir=NULL;
+  	new-&gt;MaxDataSpace=8192;
++ 	new-&gt;KanjiOutput=NULL;
+  	return new;
+  }
+  
+***************
+*** 117,122 ****
+--- 118,126 ----
+  	case 5:
+  		conf-&gt;MsqlLogHost = pstrdup(cmd-&gt;pool,arg);
+  		break;
++ 	case 6:
++ 		conf-&gt;KanjiOutput = pstrdup(cmd-&gt;pool,arg);
++ 		break;
+  	}
+  	return NULL;
+  }
+***************
+*** 130,135 ****
+--- 134,140 ----
+  	{ "phpAccessDir",phptake1handler,(void *)3,OR_FILEINFO,TAKE1,"directory" },
+  	{ "phpMaxDataSpace",phptake1handler,(void *)4,OR_FILEINFO,TAKE1,"number of kilobytes" },
+  	{ "phpMsqlLogHost",phptake1handler,(void *)5,OR_FILEINFO,TAKE1,"hostname" },
++ 	{ "phpKanjiOutput",phptake1handler,(void *)6,OR_FILEINFO,TAKE1,"kanji-code name" },
+  	{ NULL }
+  };
+  
+diff -c -r -N php-2.0b9/src/mod_php.h kanji-2.0b9/src/mod_php.h
+*** php-2.0b9/src/mod_php.h	Tue Nov 12 12:36:13 1996
+--- kanji-2.0b9/src/mod_php.h	Sun Dec 15 03:09:51 1996
+***************
+*** 30,33 ****
+--- 30,34 ----
+  	char *MsqlLogHost;
+  	char *AccessDir;
+  	int MaxDataSpace;
++ 	char *KanjiOutput;
+  } php_module_conf;
+diff -c -r -N php-2.0b9/src/php.h kanji-2.0b9/src/php.h
+*** php-2.0b9/src/php.h	Fri Dec  6 09:36:28 1996
+--- kanji-2.0b9/src/php.h	Sun Dec 15 02:42:29 1996
+***************
+*** 1025,1027 ****
+--- 1025,1058 ----
+  
+  /* mail.c */
+  void Mail(void);
++ 
++ /* kanjiconv.c */
++ #define NONE 0
++ #define EUC  1
++ #define JIS  2
++ #define SJIS 3
++ 
++ typedef void (*FUNC)();
++ 
++ #define iskanji1st(c) ((c) &gt;= 0x81 &amp;&amp; (c) &lt;= 0x9f || (c) &gt;= 0xe0 &amp;&amp; (c) &lt;= 0xfc)
++ #define iskanji2nd(c) ((c) &gt;= 0x40 &amp;&amp; (c) &lt;= 0xfc &amp;&amp; (c) != 0x7f)
++ #define iseuc(c) ((c) &gt;= 0xa1 &amp;&amp; (c) &lt;= 0xfe)
++ #define isjis(c) ((c) &gt;= 0x21 &amp;&amp; (c) &lt;= 0x7f)
++ #define iskana(c) ((c) &gt;= 0xa0 &amp;&amp; (c) &lt;= 0xdf)
++ 
++ extern int output_kanji_code;
++ 
++ void SetKanjiOutput(void);
++ int conv2euc(char *,long);
++ 
++ int kanji_fputs(char*,FILE*);
++ int kanji_puts(char*);
++ #undef PUTS(a)
++ #define PUTS(a) kanji_puts(a)
++ /* PUTC will be ok w/o conversion */
++ 
++ #if APACHE
++ void php_init_kanji(php_module_conf *);
++ #else
++ void php_init_kanji(void);
++ #endif;
+diff -c -r -N php-2.0b9/src/post.c kanji-2.0b9/src/post.c
+*** php-2.0b9/src/post.c	Tue Dec  3 13:09:23 1996
+--- kanji-2.0b9/src/post.c	Sun Dec 15 02:56:48 1996
+***************
+*** 318,323 ****
+--- 318,324 ----
+  				}
+  			}
+  			parse_url(t+1);
++ 			conv2euc(t+1,strlen(t+1));
+  			tmp = estrdup(1,t+1);
+  			Push((ret=AddSlashes(tmp,1)),CheckType(t+1));
+  			SetVar(s,itype,inc);
+diff -c -r -N php-2.0b9/src/stoe.c kanji-2.0b9/src/stoe.c
+*** php-2.0b9/src/stoe.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/stoe.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,80 ----
++ /*
++  *	Sift_JIS ----&gt; EUC  Convert Routine
++  */
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ 
++ #include &lt;string.h&gt;
++ 
++ #define	SS2		0x8e	/* Hankaku Kana */
++ 
++ static
++ sj_to_euc(sj1,sj2,euc1,euc2)
++      register unsigned char sj1,sj2,*euc1,*euc2;
++ {
++   if (sj1 &gt;= 0xe0) /* The 2nd standard of JIS */
++     sj1 -=  0x40;
++   
++   if (sj2 &gt;= 0x9f) {
++     *euc1 = (sj1 - 0x88)*2 + 0xb0;
++     *euc2 = sj2 + 0x02;
++   }
++   else {
++     if (sj2 &gt;= 0x7f)
++       sj2 -= 0x01;
++     *euc1 = (sj1 - 0x89)*2 + 0xb1;
++     *euc2 = sj2 + 0x61;
++   }
++ }
++ 
++ void
++ stoe(unsigned char *dest, const unsigned char *src)
++ {
++   register int stat;
++   register unsigned char c,c1;
++   unsigned char s1,s2;
++   
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++ 
++   i=0;
++   pos=0;
++   stat = 0;
++   while ((c = src[i++]) != '\0') {
++     switch (stat) {
++     case 0:
++       if((c&gt;=0x81 &amp;&amp; c&lt;=0x9f) || (c&gt;=0xe0 &amp;&amp; c&lt;=0xfc)) {
++ 	c1 = c; /* ZENKAKU */
++ 	stat = 1;
++       }
++       else if((0xa1 &lt;= c) &amp;&amp; (c &lt;= 0xdf)){ /* Hankaku Kana */
++ 	dest[pos++]=SS2;
++ 	dest[pos++]=c;
++       }
++       else /* ASCII */
++ 	dest[pos++]=c;
++       break;
++     case 1:
++       stat = 0;
++       sj_to_euc(c1,c,&amp;s1,&amp;s2); /* Change Shift_JIS into EUC */
++       dest[pos++]=s1;
++       dest[pos++]=s2;
++       break;
++     }
++   }
++ 
++   /* terminate */
++   dest[pos]='\0';
++ 
++ }
++ 
+diff -c -r -N php-2.0b9/src/stoj.c kanji-2.0b9/src/stoj.c
+*** php-2.0b9/src/stoj.c	Thu Jan  1 09:00:00 1970
+--- kanji-2.0b9/src/stoj.c	Sun Dec 15 02:40:41 1996
+***************
+*** 0 ****
+--- 1,127 ----
++ /*								*/
++ /*	stoj.c	2.0	62.06.17	by shige@csk.JUNET	*/
++ /*								*/
++ /*	stoj	SJIS code convert into JIS code.		*/
++ /*								*/
++ /*		KI	KO					*/
++ /*		^[$B	^[(B	JIS 83				*/
++ /*								*/
++ 
++ /************************************************************************/
++ /*                                                                      */
++ /* Modified (a lot ;-) by o3(mitsu@tramp.co.jp)                         */
++ /*   adding this to PHP/FI as internal function                         */
++ /*                                                                      */
++ /************************************************************************/
++ 
++ #include &lt;string.h&gt;
++ 
++ #define ESC '\033'
++ #define KI1 '$'
++ #define KI2 'B'
++ #define KO1 '('
++ #define KO2 'B'
++ #define	KANAIN	0x0e
++ #define	KANAOUT	0x0f
++ 
++ static void
++ SJIS_JIS(sjis1,sjis2,jis1,jis2)
++      register unsigned char sjis1,sjis2,*jis1,*jis2;
++ {
++   if (sjis1 &gt;= 0xe0)	/* The 2nd standard of JIS */
++     sjis1 -=  0x40;
++ 	
++   if (sjis2 &gt;= 0x9f) {
++     *jis1 = (sjis1 - 0x88)*2 + 0x30;
++     *jis2 = sjis2 - 0x7e;
++   }
++   else {
++     if (sjis2 &gt;= 0x7f)
++       sjis2 -= 0x01;
++     *jis1 = (sjis1 - 0x89)*2 + 0x31;
++     *jis2 = sjis2 - 0x1f;
++   }
++ }
++ 
++ void
++ stoj(char *dest, const char *src)
++ {
++   register int stat;
++   register unsigned char c,c1,c2;
++   unsigned char s1,s2;
++ 
++   int i,pos;
++ 
++   if(src==NULL || !strlen(src)){
++     dest[0]='\0';
++     return;
++   }
++ 
++   i=0;
++   pos=0;
++   stat = 0;
++   while ((c = src[i++]) != '\0') {
++     switch (stat) {
++     case 0:
++       if((c&gt;=0x81 &amp;&amp; c&lt;=0x9f) || (c&gt;=0xe0 &amp;&amp; c&lt;=0xfc)) {
++ 	c1 = c;	           
++ 	stat = 1;
++ 	dest[pos++]=ESC; /* put KANJI-IN */
++ 	dest[pos++]=KI1;
++ 	dest[pos++]=KI2;
++       }
++       else if((0xa1 &lt;= c) &amp;&amp; (c &lt;= 0xdf)) { /* hankaku kana */
++ 	dest[pos++]=KANAIN;
++ 	c &amp;= 0x7f;
++ 	dest[pos++]=c;
++ 	stat = 3;
++       }
++       else
++ 	dest[pos++]=c; /* put ASCII code */
++       break;
++     case 1:
++       stat = 2;
++       c2 = c;
++       SJIS_JIS(c1,c2,&amp;s1,&amp;s2);  /* change shift-JIS into JIS */
++       dest[pos++]=s1; /* put KANJI code */
++       dest[pos++]=s2;
++       break;
++     case 2:
++       if((c&gt;=0x81 &amp;&amp; c&lt;=0x9f) || (c&gt;=0xe0 &amp;&amp; c&lt;=0xfc)) {
++ 	c1 = c;	           
++ 	stat = 1;
++       } else {
++ 	dest[pos++]=ESC; /* put KANJI-OUT */
++ 	dest[pos++]=KO1;
++ 	dest[pos++]=KO2;
++ 	i--;
++ 	stat = 0;
++       }
++       break;
++     case 3:				 /* hankaku kana */
++       if((0xa1 &lt;= c) &amp;&amp; (c &lt;= 0xdf)) {
++ 	c &amp;= 0x7f;
++ 	dest[pos++]=c;
++       }
++       else {
++ 	dest[pos++]=KANAOUT;
++ 	i--;
++ 	stat = 0;
++       }
++       break;
++     }
++   }
++   if ( stat == 1 || stat == 2 ) {
++     /* put KANJI-OUT */
++     dest[pos++]=ESC;
++     dest[pos++]=KO1;
++     dest[pos++]=KO2;
++   }
++   else if (stat == 3)
++     dest[pos++]=KANAOUT;
++ 
++   /* terminate */
++   dest[pos]='\0';
++ 
++ }
++ 
+
+----------------------------------------------------------------------
+ここまで kanji2.0b9.patch
+
+== おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00065" HREF="msg00065.html">[postgres95 1156] Re: introduction&amp;questions</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00073.html">[postgres95 1164] Re:**3 introduction&amp;questions</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00076.html">[postgres95 1167] Re: [PG95]: New Mailing Lists *and* Upcoming v6.0  Release (fwd)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00074.html">[postgres95 1165] Re: Re of Re:introduction&amp;questions</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00066.html">[postgres95 1157] Re: introduction&amp;questions</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00075"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00075"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

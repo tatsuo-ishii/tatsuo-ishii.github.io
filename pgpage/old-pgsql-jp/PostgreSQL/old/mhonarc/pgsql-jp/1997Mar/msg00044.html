@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1541] cursor -->
+<!--X-From: Teruyuki Komiya <komiteru@slab.sfc.keio.ac.jp> -->
+<!--X-Date: Fri, 07 Mar 1997 10:27:45 +0900 -->
+<!--X-Message-Id: 199703070127.KAA22255@neo.slab.sfc.keio.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1541] cursor </TITLE>
+<LINK REV="made" HREF="mailto:komiteru@slab.sfc.keio.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00043.html">Date Prev</A>][<A HREF="msg00045.html">Date Next</A>][<A HREF="msg00050.html">Thread Prev</A>][<A HREF="msg00045.html">Thread Next</A>][<A HREF="index.html#00044">Date Index</A>][<A HREF="threads.html#00044">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1541] cursor</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Teruyuki Komiya &lt;<A HREF="mailto:komiteru@slab.sfc.keio.ac.jp">komiteru@slab.sfc.keio.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 07 Mar 1997 10:27:45 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小宮＠慶應大学 と申します。
+
+知人の方に言われて気づいたのですが、
+postgresでカーソルがうまく動作しないのです。
+
+  1回目のカーソル宣言  →  正しく動作     (3 rows)
+  2回目のカーソル宣言  →  値が正しくない (0 rows)
+
+となってしまいます。このあとさらに
+
+  3回目のカーソル宣言  →  バックエンドとの通信が切れる
+
+ともなります。試した環境は、
+
+PC/AT互換機	FreeBSD 2.1.5R	postgres95-1.09 + jp-patch
+PC/AT互換機	BSD/OS 2.1	postgreSQL-6.0 (jp-patchなし)
+
+で、どちらも同じ症状です。
+この件に関して何らかの情報をご存知の方はいらっしゃいませんでしょうか?
+
+以下に、実際に実行した問い合わせを添付します。
+
+------------------------------------------------------
+create table A (ID integer, Name varchar(16));
+insert into A (ID, Name) values (0, 'AAA');
+insert into A (ID, Name) values (10, 'BBB');
+insert into A (ID, Name) values (20, 'CCC');
+
+
+create table B (HID integer, HName varchar(16));
+insert into B (HID, HName) values (0, 'AAA');
+insert into B (HID, HName) values (10, 'BBB');
+insert into B (HID, HName) values (20, 'CCC');
+------------------------------------------------------
+
+------------------------------------------------------
+begin;
+create view V1 as select * from A;
+create view V2 as select * from B;
+create view V3 as select * from V1, V2 where V1.ID = V2.HID;
+
+declare CN0 cursor for select * from V3;
+fetch all in CN0;
+close CN0;
+
+declare CN1 cursor for select * from V3;
+fetch all in CN1;
+close CN1;
+
+declare CN2 cursor for select * from V3;
+fetch all in CN2;
+close CN2;
+
+drop view V1;
+drop view V2;
+drop view V3;
+end;
+------------------------------------------------------
+
+実行結果
+------------------------------------------------------
+% psql -f query.sql sampleDB
+begin;
+BEGIN
+create view V1 as select * from A;
+INSERT 28923
+create view V2 as select * from B;
+INSERT 28984
+create view V3 as select * from V1, V2 where V1.ID = V2.HID;
+INSERT 29054
+declare CN0 cursor for select * from V3;
+SELECT
+fetch all in CN0;
+ID|Name|HID|HName
+--+----+---+-----
+ 0|AAA |  0|AAA  
+10|BBB | 10|BBB  
+20|CCC | 20|CCC  
+(3 rows)
+
+close CN0;
+CLOSE
+declare CN1 cursor for select * from V3;
+NOTICE:copyObject: don't know how to copy 28923
+SELECT
+fetch all in CN1;
+ID|Name|HID|HName
+--+----+---+-----
+(0 rows)
+
+close CN1;
+CLOSE
+declare CN2 cursor for select * from V3;
+NOTICE:copyObject: don't know how to copy 28923
+NOTICE:copyObject: don't know how to copy 1
+NOTICE:copyObject: don't know how to copy 1
+PQexec() -- Request was sent to backend, but backend closed the channel before responding.  This probably means the backend terminated abnormally before or while processing the request.
+We have lost the connection to the backend, so further processing is impossible.  Terminating.
+------------------------------------------------------
+
+
+    ====================================================================
+     慶應義塾大学大学院    ■■■ ■■■   小 宮 輝 之 (Teruyuki Komiya)
+    政策・メディア研究科     ●     ●     komiteru@slab.sfc.keio.ac.jp
+        修士課程 1年                       komiteru@mag.keio.ac.jp
+    ====================================================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00045" HREF="msg00045.html">[postgres95 1542] Re: cursor</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00043.html">[postgres95 1540] 始めまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00045.html">[postgres95 1542] Re: cursor</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00050.html">[postgres95 1547] Re: 6.0 on SunOS</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00045.html">[postgres95 1542] Re: cursor</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00044"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00044"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

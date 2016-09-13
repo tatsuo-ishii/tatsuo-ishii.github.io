@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8850] Re: PostgreSQL 6.5 released -->
+<!--X-From: Youichi Iwakiri <yiwakiri@st.rim.or.jp> -->
+<!--X-Date: Tue, 15 Jun 1999 21:00:23 +0900 -->
+<!--X-Message-Id: 199906151200.VAA29858@mail.st.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199906150849.RAA02217@srapc451.sra.co.jp -->
+<!--X-Reference-Id: 199906151120.UAA23330@mail.st.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8850] Re: PostgreSQL 6.5 released </TITLE>
+<LINK REV="made" HREF="mailto:yiwakiri@st.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00283.html">Date Prev</A>][<A HREF="msg00285.html">Date Next</A>][<A HREF="msg00283.html">Thread Prev</A>][<A HREF="msg00319.html">Thread Next</A>][<A HREF="index.html#00284">Date Index</A>][<A HREF="threads.html#00284">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8850] Re: PostgreSQL 6.5 released</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:yiwakiri@st.rim.or.jp">yiwakiri@st.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 15 Jun 1999 21:00:23 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00279.html">199906150849.RAA02217@srapc451.sra.co.jp</A>&gt;&lt;<A HREF="msg00283.html">199906151120.UAA23330@mail.st.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+Youichi Iwakiriさんの&lt;<A HREF="msg00283.html">199906151120.UAA23330@mail.st.rim.or.jp</A>&gt;から
+ &gt;取りあえず、regressionの結果とbenchmarkの結果です
+ &gt;% gmake bigtest
+ &gt;のnumeric_bigは、45分我慢しましたが終わりませんでした。
+ &gt;topで見るとCPUを99.02%占有しており、
+ &gt;results/numeric_big.outは吐き出されており
+ &gt;expected/numeric_big.outは一緒でした。
+
+間違ってました。
+numeric_big.sqlの後から2つ目のqueryで失敗してます。
+
+-- ******************************
+-- * Logarithm base 10 check
+-- ******************************
+DELETE FROM num_result;
+INSERT INTO num_result SELECT id, 0, LOG('10'::numeric, ABS(val))
+    FROM num_data
+    WHERE val != '0.0';
+SELECT t1.id1, t1.result, t2.expected
+    FROM num_result t1, num_exp_log10 t2
+    WHERE t1.id1 = t2.id
+    AND t1.result != t2.expected;
+
+上記SQLのINSERTでserverloopとなるようです。
+
+以下にpostmaster -d 3 &gt;&amp; log 
+の結果を載せます。
+
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+binding ShmemCreate(key=52e2c1, size=1063936)
+/usr/local/pgsql/bin/postmaster: ServerLoop:		handling reading 4
+/usr/local/pgsql/bin/postmaster: ServerLoop:		handling reading 4
+/usr/local/pgsql/bin/postmaster: ServerLoop:		handling writing 4
+/usr/local/pgsql/bin/postmaster: BackendStartup: environ dump:
+-----------------------------------------
+	TERM=cons25
+	PATH=/usr/sbin:/usr/local/bin:/usr/games:/usr/bin:/sbin:/bin:/usr/X11R6/bin:/usr/local/pgsql/bin
+	MAIL=/var/mail/postgres
+	BLOCKSIZE=K
+	SHELL=/usr/local/bin/tcsh
+	HOME=/usr/local/pgsql
+	LOGNAME=postgres
+	USER=postgres
+	HOSTTYPE=FreeBSD
+	VENDOR=intel
+	OSTYPE=FreeBSD
+	MACHTYPE=i386
+	SHLVL=1
+	PWD=/usr/local/pgsql/postgresl-6.5/src/test/regress
+	GROUP=unknown
+	HOST=iwa.jkk.hitachi.co.jp
+	EDITOR=vi
+	PAGER=more
+	crt=24
+	MANPATH=/usr/share/man:/usr/X11R6/man:/usr/local/man:/usr/local/pgsql/man
+	POSTGRES_HOME=/usr/local/pgsql
+	PGLIB=/usr/local/pgsql/lib
+	PGDATA=/usr/local/pgsql/data
+	LD_LIBRARY_PATH=/usr/local/pgsql/lib
+	POSTPORT=5432
+	POSTID=2147483647
+	PG_USER=postgres
+	IPC_KEY=5432000
+-----------------------------------------
+/usr/local/pgsql/bin/postmaster: BackendStartup: pid 304 user postgres db regression socket 4
+/usr/local/pgsql/bin/postmaster child[304]: starting with (/usr/local/pgsql/bin/postgres -d3 -v131072 -p regression )
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+debug info:
+	User         = postgres
+	RemoteHost   = localhost
+	RemotePort   = 0
+	DatabaseName = regression
+	Verbose      = 3
+	Noversion    = f
+	timings      = f
+	dates        = Normal
+	bufsize      = 64
+	sortmem      = 512
+	query echo   = f
+InitPostgres
+	reset_client_encoding()..
+	reset_client_encoding() done.
+StartTransactionCommand
+query: select getdatabaseencoding()
+ProcessQuery
+CommitTransactionCommand
+StartTransactionCommand
+query: SET client_encoding = 'EUC_JP'
+ProcessUtility: SET client_encoding = 'EUC_JP'
+CommitTransactionCommand
+StartTransactionCommand
+query: DELETE FROM num_result;
+ProcessQuery
+CommitTransactionCommand
+StartTransactionCommand
+query: INSERT INTO num_result SELECT id, 0, LOG('10'::numeric, ABS(val)) FROM num_data WHERE val != '0.0';
+ProcessQuery
+pmdie 2
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00319" HREF="msg00319.html">[pgsql-jp 8885] Re: PostgreSQL 6.5 released</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 8845] PostgreSQL 6.5 released</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00283" HREF="msg00283.html">[pgsql-jp 8849] Re: PostgreSQL 6.5 released</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 8849] Re: PostgreSQL 6.5 released</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 8851] is /usr/local/pgsql/ necessary?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00283.html">[pgsql-jp 8849] Re: PostgreSQL 6.5 released</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00319.html">[pgsql-jp 8885] Re: PostgreSQL 6.5 released</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00284"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00284"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

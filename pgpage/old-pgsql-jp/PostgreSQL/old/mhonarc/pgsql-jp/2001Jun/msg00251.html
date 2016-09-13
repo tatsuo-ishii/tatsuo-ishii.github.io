@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21873] Re: 日本語検索 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 18 Jun 2001 20:55:03 +0900 -->
+<!--X-Message-Id: 20010618205503N.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: znXAEEgxnNlbALC6GJfxWyUTuT.nc8Qet7F3kwjfr1hbWkb4uuuEFU6usXWDsA7k@com&#45;com.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21873] Re: 日本語検索 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00250.html">Date Prev</A>][<A HREF="msg00252.html">Date Next</A>][<A HREF="msg00244.html">Thread Prev</A>][<A HREF="msg00258.html">Thread Next</A>][<A HREF="index.html#00251">Date Index</A>][<A HREF="threads.html#00251">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21873] Re: 日本語検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 18 Jun 2001 20:55:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00244.html">znXAEEgxnNlbALC6GJfxWyUTuT.nc8Qet7F3kwjfr1hbWkb4uuuEFU6usXWDsA7k@com-com.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; 石井さんがおっしゃった通り、./configureをするときに
+&gt; --enable-localeオプションをはずすと上手くいきました。
+&gt; ありがとうございます。僕もRedHatのせいだろうと思って、
+&gt; ＭＬに投稿する前にネットで検索してみたんですが、その時には
+&gt; 当たらなくて、諦めムードでした。RedHatのロケールのバグは、
+&gt; Javaを使う時にもお世話になって(笑)、ほとほと困り果てています。
+&gt; カーネルも大分安定してきたみたいだし、そろそろ入れ替えよう
+&gt; かなぁ…と思っています。
+
+入れ替えって，RedHat 7.1にですか? これでも locale のバグは直ってないか
+も知れません．付属の小さなプログラムを実行してみてください(EUC_JP でセー
+ブしてからコンパイルしてくださいね)．
+
+0
+0
+
+と出たら locale がバグってます．
+
+-8
+8
+
+なら正常です．
+
+また，これとはちょっと違いますが，RH 7.1上の glibc に起因する locale 
+関係の関数(strcoll)のバグが報告されていました．vacuum analyze すると落
+ちるそうなので，凶悪です．glibc-2.2.3 に upgrade で直ったという報告も
+あります．
+
+&gt; ＞　そもそも PostgreSQL 7.1.2 の configure のオプションに
+&gt; ＞--enable-multibyte=EUC_JP
+&gt; ＞はなく、
+&gt; ＞--enable-multibyte
+&gt; ＞だけだったはずですが。
+
+それは間違いです．--enable-multibyte=EUC_JP でも，--enable-multibyte
+だけでもどっちでもあります．
+# --enable-multibyte っていうのは，実際には
+# --enable-multibyte=SQL_ASCII と同じです．
+
+&gt; ＞　（私はこれだけでうまく日本語が実行できてます。簡単なことしかやってませんが）
+
+これだと一見うまく行っているようですが，LIKE や正規表現でぼろが出るは
+ずです．
+# createdb -E EUC_JP やっていれば別
+
+&gt; ご指摘の通り、7.1.2だと
+&gt;   --enable-multibyte
+&gt; だけでした。どうやらインストールする際に間違えてつけていたみたい
+&gt; ですね。で、--enable-multibyte=EUC_JPオプションをつけて./configure
+&gt; を掛けてみたところ、問題なく動作するようです。上のことを考慮に入れると
+&gt;   $ ./configure --enable-multibyte --with-java
+&gt; で上手くいきました。それで
+&gt; 　$ ./configure --enable-multibyte=EUC_JP --with-java
+&gt; としても正常に動作しました。が、PGCLIENTENCODINGをSJISにしたり…
+&gt; などと色々試したワケではないので、陶山の言われたとおり、
+&gt; --enable-multibyteだけの方がいいでしょう。
+
+EUC_JPがメインの人は，--enable-multibyte=EUC_JP にしておいた方がいいで
+すよ．でないと，いちいち createdb で -E EUC_JP しなければならなくなり
+ます．
+--
+Tatsuo Ishii
+
+#include &lt;string.h&gt;
+#include &lt;locale.h&gt;
+main()
+{
+  static char *s1 = "あ";
+  static char *s2 = "お";
+
+  setlocale(LC_ALL,"");
+
+  printf("%d\n",strcoll(s1,s2));
+  printf("%d\n",strcoll(s2,s1));
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00262" HREF="msg00262.html">[pgsql-jp 21884] Re: 日本語検索</A></STRONG>
+<UL><LI><EM>From:</EM> sugimura@infoscience.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00260" HREF="msg00260.html">[pgsql-jp 21882] Re: 日本語検索</A></STRONG>
+<UL><LI><EM>From:</EM> Masaru Araseki &lt;masaru.araseki@toshiba.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00258" HREF="msg00258.html">[pgsql-jp 21880] Re: 日本語検索</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuhide OMORI / 大森保英&lt;omori@m-t.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00244" HREF="msg00244.html">[pgsql-jp 21866] Re: 日本語検索</A></STRONG>
+<UL><LI><EM>From:</EM> emperor@com-com.ne.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 21872] Re: お詫びとお礼。（パスワード認証DBの自動バックアップについて）</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00252.html">[pgsql-jp 21874] Re: 日本語検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00244.html">[pgsql-jp 21866] Re: 日本語検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00258.html">[pgsql-jp 21880] Re: 日本語検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00251"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00251"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

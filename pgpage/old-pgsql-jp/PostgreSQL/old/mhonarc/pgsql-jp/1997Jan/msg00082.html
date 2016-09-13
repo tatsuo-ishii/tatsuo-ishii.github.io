@@ -1,0 +1,183 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1266] Re: result of regression test (Re: Compile error on SPARC/Linux) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 28 Jan 1997 11:39:32 +0900 -->
+<!--X-Message-Id: 199701280239.LAA29745@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199701270858.RAA02664@sekine.densi.gifu&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1266] Re: result of regression test (Re: Compile error on SP </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00081.html">Date Prev</A>][<A HREF="msg00083.html">Date Next</A>][<A HREF="msg00081.html">Thread Prev</A>][<A HREF="msg00090.html">Thread Next</A>][<A HREF="index.html#00082">Date Index</A>][<A HREF="threads.html#00082">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1266] Re: result of regression test (Re: Compile error on SPARC/Linux)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 28 Jan 1997 11:39:32 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。
+
+&gt;皆さんこんにちは。
+&gt;いしかわ＠岐阜大です。
+&gt;
+&gt;port name sparc_linuxもどきをつくって、Solaris用のコードを使って
+&gt;（石井さんに教えていただいたsystem callの代用でない方法で）コンパイルし
+&gt;ました。
+&gt;tas.oがbackend/obj/tas.oではなくbackend/tas.oにいってしまうわけわからん
+&gt;状況になりつつも成功しました。
+&gt;＃素直にcp tas.o obj/しました(^^;
+
+なぜこうなるのかは知りませんが...どうせ 6.0 では obj なんてなくなっちゃ
+うので、深く追求しないことにしましょう:-)
+
+&gt;そこで、regression testを行ないexpected.outと比較しました。
+&gt;＃Webページには、diff obj/regress.out sample.regress.out
+&gt;＃とありますが diff obj/regress.out obj/expected.outですよね？
+
+はい、間違いです。御指摘ありがとうございます。
+
+&gt;diff -Nru obj/expected.out obj/regress.out |lessとやると、
+&gt;@@ -700,15 +699,15 @@
+&gt; QUERY: SELECT '' AS eleven, ABSTIME_TBL.*;
+&gt; eleven|f1
+&gt; ------+----------------------------
+&gt;-      |Sun Jan 14 03:14:21 1973 PST
+&gt;-      |Mon May 01 00:30:30 1995 PDT
+&gt;+      |Sun Jan 14 03:14:21 1973 JST
+&gt;+      |Mon May 01 16:30:30 1995 JST
+&gt;       |epoch
+&gt;       |current
+&gt;       |infinity
+&gt;       |-infinity
+&gt;-      |Mon May 10 23:59:12 1943 PWT
+&gt;-      |Thu Mar 07 10:00:00 1946 PST
+&gt;-      |Wed Dec 31 15:59:59 1969 PST
+&gt;+      |Mon May 10 23:59:12 1943 JST
+&gt;+      |Thu Mar 07 10:00:00 1946 JST
+&gt;+      |Thu Jan 01 08:59:59 1970 JST
+&gt;       |Invalid Abstime
+&gt;       |Invalid Abstime
+&gt; (11 rows)                           
+
+これはタイムゾーンの違いによるものですね。無視して結構だと思います。ど
+うしても気になる場合は、postmaster を起動する前にタイムゾーンを 
+US/Pacific に切替えます。手元の Solaris だと、
+
+	setenv TZ US/Pacific
+
+でOKです。
+
+&gt;とか、
+&gt;
+&gt;@@ -3929,13 +3928,13 @@
+&gt; QUERY: SELECT count(*) FROM onek where oidrand(onek.oid, 10);
+&gt; count
+&gt; -----
+&gt;-   97
+&gt;+   92
+&gt; (1 row)
+&gt;
+&gt; QUERY: SELECT count(*) FROM onek where oidrand(onek.oid, 10);
+&gt; count
+&gt; -----
+&gt;-  101
+&gt;+   98
+&gt; (1 row)
+
+oidrand() は、乱数を使って あるテーブルのレコード数の 約 1/第２引数 の数
+のレコードを返すのに使う関数です。この例だと、onek テーブルのレコード
+数の 約 1/10 をカウントした結果が query の結果になります。というわけで、
+expect とはぴったり結果が一致しなくても正常なわけですね。
+
+&gt;あるいは、
+&gt;               
+&gt;@@ -6714,7 +6713,7 @@
+&gt; POLYGON_TBL
+&gt; RELTIME_TBL
+&gt; TINTERVAL_TBL
+&gt;-a,775132
+&gt;+a,775837
+&gt; a_star
+&gt; aggtest
+&gt; arrtest 
+&gt;
+&gt;あと精度の違いなどが、あるみたいなんですがこれはうまくいってないという
+&gt;ことでしょうか？
+
+これは深く追求してないんで今は分かりません。
+
+&gt;＃regression testでは、30%-40%なる違いは感じられないですねぇ。
+
+regression ではなく、bench ではどうなりますか？
+
+&gt;＃どっちにしても時間（40分ぐらい？）がかかる。
+
+ハードは何をお使いですか？手元の SS5+Solaris2.4 ではいくらなんでも 40
+分はかかりませんが。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[postgres95 1274] Re: result of regression test</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[postgres95 1265] Re: result of regression test (Re: Compile error on SPARC/Linux)</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@sekine.densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00081.html">[postgres95 1265] Re: result of regression test (Re: Compile error on SPARC/Linux)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00083.html">[postgres95 1267] Zasshi Kiji (Software Design)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00081.html">[postgres95 1265] Re: result of regression test (Re: Compile error on SPARC/Linux)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00090.html">[postgres95 1274] Re: result of regression test</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00082"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00082"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

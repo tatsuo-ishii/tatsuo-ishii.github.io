@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1829] BUGS REPORT(about PHP/FI&#45;2.0b11) -->
+<!--X-From: MOTOYAMA mashio <moto@ba.mbn.or.jp> -->
+<!--X-Date: Tue, 20 May 1997 00:21:03 +0900 -->
+<!--X-Message-Id: 199705191521.AAA00542@gitane.enki.lunatic.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1829] BUGS REPORT(about PHP/FI-2.0b11) </TITLE>
+<LINK REV="made" HREF="mailto:moto@ba.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00080.html">Date Prev</A>][<A HREF="msg00083.html">Date Next</A>][<A HREF="msg00092.html">Thread Prev</A>][<A HREF="msg00080.html">Thread Next</A>][<A HREF="index.html#00081">Date Index</A>][<A HREF="threads.html#00081">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1829] BUGS REPORT(about PHP/FI-2.0b11)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: MOTOYAMA mashio &lt;<A HREF="mailto:moto@ba.mbn.or.jp">moto@ba.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 20 May 1997 00:21:03 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、本山＠熊工大です。
+
+Postgres とは直接関係のない話なのですが、PHP/FI 2.0b11
+にあまり笑えないバグがありましたので、配付元へ連絡する
+と同時にこちらでもお知らせしておきます。
+
+
+Platform :
+
+1. PHP/FI2.0b11 + Apache1.1.3 on SUN4
+2. PHP/FI2.0b11 + Apache1.2b7 on Linux2.0.27
+
+現象:
+
+1. For SUN4
+
+     a.  mod_perl(Ver.0.98) と mod_php を組み込んだとき
+
+        PATH_DIR に passwd ファイルの一部と Perl のソース
+        が紛れ込み、echo $PATH_DIR でその内容が表示される。
+
+     b.  mod_php のみ組み込んだとき
+
+        PATH_DIR にパスの先頭の３文字だけがセットされる。
+        # SUN4 の場合 sizeof(env) == 4 
+
+2. For Linux
+
+     a. mod_php のみ組み込んだとき
+
+        PATH_DIR にパスの先頭の３文字だけがセットされる。
+
+
+そして５回に１〜２回の割合で、直前にロードしたファイルの
+内容が PATH_DIR に紛れ込んで表示されます。(SUN4, Linux 共に)
+
+mod_perl は Apache1.1.3 で使えるように少し書き換えてある
+ので、1. a. の症状にはこれが関係しているかもしれません。
+
+以下はこの症状の対策パッチで、オリジナルの PHP/FI2.0b11
+用と、日本語パッチを当てたものへの二種類あります。
+
+
+=========== for orign ===============
+
+*** file.c	Mon May 19 18:20:32 1997
+--- file.c.new	Mon May 19 18:21:46 1997
+***************
+*** 391,397 ****
+  				  pd = getenv(PHP_PUB_DIRNAME_ENV);
+  #endif
+  				  if (pd == 0) pd = PHP_PUB_DIRNAME;
+- 				  sprintf(path,"%s/%s%s",pw-&gt;pw_dir,pd,temp);
+  				  strcpy(path,pw-&gt;pw_dir);
+  				  strcat(path,"/");
+  				  strncat(path, pd, sizeof(path) - strlen(path) - 1);
+--- 391,396 ----
+***************
+*** 1476,1484 ****
+  		*s='\0';
+  #ifdef PHP_ROOT_DIR
+  		strcpy(env,PHP_ROOT_DIR);
+! 		strncat(env,pd,sizeof(env));
+  #else
+! 		strncpy(env,pd,sizeof(env));
+  #endif
+  		*s='/';
+  	}
+--- 1475,1483 ----
+  		*s='\0';
+  #ifdef PHP_ROOT_DIR
+  		strcpy(env,PHP_ROOT_DIR);
+! 		strcat(env,pd);
+  #else
+! 		strcpy(env,pd);
+  #endif
+  		*s='/';
+  	}
+
+========= for Japanized PHP/FI ==============
+
+*** file.c	Sun May 18 21:35:03 1997
+--- file.c.new	Sun May 18 21:43:36 1997
+***************
+*** 1465,1475 ****
+  #ifdef PHP_ROOT_DIR
+  	char *env = emalloc(0,sizeof(char) * (strlen(pd) + strlen(PHP_ROOT_DIR) + 2));
+  #else
+! 	char *env = emalloc(0,sizeof(char) * (strlen(pd)+2));
+  #endif
+  	s = strrchr(pd,'/');
+  #ifdef PHP_ROOT_DIR
+! 	if(!s) strncpy(env,PHP_ROOT_DIR,sizeof(env));
+  #else
+  	if(!s) strcpy(env,"/");
+  #endif
+--- 1465,1475 ----
+  #ifdef PHP_ROOT_DIR
+  	char *env = emalloc(0,sizeof(char) * (strlen(pd) + strlen(PHP_ROOT_DIR) + 2));
+  #else
+! 	char *env = emalloc(0,sizeof(char) * (strlen(pd) + 2));
+  #endif
+  	s = strrchr(pd,'/');
+  #ifdef PHP_ROOT_DIR
+! 	if(!s) strcpy(env, PHP_ROOT_DIR);
+  #else
+  	if(!s) strcpy(env,"/");
+  #endif
+***************
+*** 1477,1485 ****
+  		*s='\0';
+  #ifdef PHP_ROOT_DIR
+  		strcpy(env,PHP_ROOT_DIR);
+! 		strncat(env,pd,sizeof(env));
+  #else
+! 		strncpy(env,pd,sizeof(env));
+  #endif
+  		*s='/';
+  	}
+--- 1477,1485 ----
+  		*s='\0';
+  #ifdef PHP_ROOT_DIR
+  		strcpy(env,PHP_ROOT_DIR);
+! 		strcat(env,pd);
+  #else
+! 		strcpy(env,pd);
+  #endif
+  		*s='/';
+  	}
+-------------
+MOTOYAMA,mashio  &lt;moto@ba.mbn.or.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00080.html">[postgres95 1828] hajimemasite</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00083.html">[postgres95 1831] Re: How to install postgres6.0 on linux</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00092.html">[postgres95 1840] 初めまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00080.html">[postgres95 1828] hajimemasite</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00081"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00081"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

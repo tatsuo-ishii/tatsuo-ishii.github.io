@@ -1,0 +1,187 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11888] Re: tmp/.s.PGSQL.5432を削除した場合 -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 22 Nov 1999 10:30:46 +0900 -->
+<!--X-Message-Id: 38389CC612C.7510NKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9911171438.AA01915@PC401.po.yukichi.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11888] Re: tmp/.s.PGSQL.5432を削除した場合 </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00454.html">Date Prev</A>][<A HREF="msg00456.html">Date Next</A>][<A HREF="msg00452.html">Thread Prev</A>][<A HREF="msg00406.html">Thread Next</A>][<A HREF="index.html#00455">Date Index</A>][<A HREF="threads.html#00455">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11888] Re: tmp/.s.PGSQL.5432を削除した場合</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 22 Nov 1999 10:30:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00407.html">9911171438.AA01915@PC401.po.yukichi.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。  
+
+On Wed, 17 Nov 1999 23:38:15 +0900
+shinchan@po.yukichi.ne.jp (塩田　伸一) wrote:
+
+&gt; 　シーラカンス本Ｐ１９６の件で質問した塩田ともうします。Postgresqlが立ち上が
+&gt; ってないようだったので、tmp/.s.PGSQL.5432を削除したところ、（Ｐ４４のところを
+&gt; そう読んでしまいました）postmaster -sしても
+&gt; IPC MemoryCreate;shmget failed (Identifier removed) 
+&gt; key=5342010,size=24588,permission=700
+&gt; となりPostgersqlはうまく立ち上がりません。
+&gt; Postgresqlの再インストールをやっても同じです。Linuxからやり直すべきでしょうか
+
+『立ち上らなかったようなので』というのは、どうやって
+確認されたのでしょうか？。 /etc/rc.d/init.d/postgresql status
+や、ps -ax で確認されましたか？。
+
+ご質問の内容と類似の答は、PostgreSQL のオンラインマニュ
+アルに載っています。まずマニュアルを見ましょう。
+
+−−−−−−−−PostgreSQL マニュアルより抜粋−−−−−−−
+IpcMemoryCreate: shmget failed (Invalid argument) key=5440001, size=83918612, permission=600
+FATAL 1:  ShmemCreate: cannot create region
+    A message like this probably means that your kernel's limit on the size
+    of shared memory areas is smaller than the buffer area that Postgres
+    is trying to create.  (Or it could mean that you don't have SysV-style
+    shared memory support configured into your kernel at all.)  As a temporary
+    workaround, you can try starting the postmaster with a smaller-than-normal
+    number of buffers (-B switch).  You will eventually want to reconfigure
+    your kernel to increase the allowed shared memory size, however.
+    You may see this message when trying to start multiple postmasters on
+    the same machine, if their total space requests exceed the kernel limit.
+−−−−−−−−−−−
+
+OS 等環境は是非書いておいてください。もし、最近の
+Linux ならば、デフォルトでも、Shared Memory は十分
+に確保されているはずです。Linux でないと、拡張しな
+いといけないかもしれません。
+
+共有メモリ関係は、man ipcs で関係コマンドを調べて
+どういう設定になっているか確認すると良いでしょう。
+
+ちなみに、私の環境(Vine 1.1 PostgreSQL6.5.0)では、
+下記ようになっていました。
+
+何らかの異常設定などで、Postmaster が終了している
+のに、postmaster 用の共有メモリが残っている場合は、
+ipcrm で、当該共有メモリを削除してから、postmaster
+を再スタートさせないと、共有メモリ取得エラーになる
+ことがあります。
+
+共有メモリ削除用に、PostgreSQL 6.5から、ipcclean
+というコマンドが追加になったそうです。私は未だ使っ
+たことがありませんが。
+
+------------- PostgreSQL マニュアルより抜粋 ------
+New utilities:
+ * ipcclean added to the distribution
+   ipcclean usually does not need to be run, but if your backend crashes
+   and leaves shared memory segments hanging around, ipcclean will
+   clean them up for you.
+   
+   
+# ところで、PostgreSQL の共有メモリーのキー値は、
+# どこで設定しているんでしょうか？。マニュアルを
+# ちらっとみたけど気が付かなかった。今のところKEY
+# が重複しる心配はないのですが。
+
+
+−−−−参考−−−−
+$ ipcs -l	# 各リソースの上限値を出力
+
+------ Shared Memory Limits --------
+max number of segments = 128
+max seg size (kbytes) = 32768
+max total shared memory (kbytes) = 16777216
+min seg size (bytes) = 1
+
+------ Semaphore Limits --------
+max number of arrays = 128
+max semaphores per array = 32
+max semaphores system wide = 4096
+max ops per semop call = 32
+semaphore max value = 32767
+
+------ Messages: Limits --------
+max queues system wide = 128
+max size of message (bytes) = 4056
+default max size of queue (bytes) = 16384
+
+$ ipcs		# 全てのリソースの現状
+
+------ Shared Memory Segments --------
+key        shmid     owner     perms     bytes     nattch    status
+0x80031042 4         root      666       4104      1
+0x89031042 5         root      666       4104      1
+0xa1031042 6         root      666       241832    1
+
+------ Semaphore Arrays --------
+key       semid     owner     perms     nsems     status
+
+------ Message Queues --------
+key       msqid     owner     perms     used-bytes  messages
+
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+ CSLWEBFORM V00.50 11/20 公開(解説は近日)
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00407" HREF="msg00407.html">[pgsql-jp 11837] tmp/.s.PGSQL.5432を削除した場合</A></STRONG>
+<UL><LI><EM>From:</EM> shinchan@po.yukichi.ne.jp (塩田　伸一)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00454.html">[pgsql-jp 11887] Re: セッション管理</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 11889] Re: 何番目かを知る方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00452.html">[pgsql-jp 11885] Re: tmp/.s.PGSQL.5432を削除した場合</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00406.html">[pgsql-jp 11836] Table A にありTableBにないレコードの選択</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00455"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00455"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

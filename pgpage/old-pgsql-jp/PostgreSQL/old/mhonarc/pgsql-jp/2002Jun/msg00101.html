@@ -1,0 +1,133 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26322] Re: 記念日等の範囲検索 -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Fri, 07 Jun 2002 21:13:54 +0900 -->
+<!--X-Message-Id: 3D00A382.DE1E387A@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020606083047.2B56.ISSY777@entrance&#45;e.com -->
+<!--X-Reference-Id: u3wutd432j.wl@lespaul.lantc.cs.fujitsu.co.jp -->
+<!--X-Reference-Id: 20020606111640.6690.ISSY777@entrance&#45;e.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26322] Re: 記念日等の範囲検索 </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00100.html">Date Prev</A>][<A HREF="msg00102.html">Date Next</A>][<A HREF="msg00081.html">Thread Prev</A>][<A HREF="msg00086.html">Thread Next</A>][<A HREF="index.html#00101">Date Index</A>][<A HREF="threads.html#00101">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26322] Re: 記念日等の範囲検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 07 Jun 2002 21:13:54 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00075.html">20020606083047.2B56.ISSY777@entrance-e.com</A>&gt; &lt;<A HREF="msg00076.html">u3wutd432j.wl@lespaul.lantc.cs.fujitsu.co.jp</A>&gt; &lt;<A HREF="msg00081.html">20020606111640.6690.ISSY777@entrance-e.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田です。
+
+Hiroshi Ishiura wrote:
+&gt; ネックになるのがやはり年情報です。
+&gt; そう考えると、次いつ誕生日がくるかという判別をもたせる意味あいでphpで処
+&gt; 理をさせてcronでＤＢ更新をする（３）の方法がベストなのでしょうか＾＾
+
+記念日というのが誕生日なら、月日だけでなくdate型にしておいた方がいい
+でしょう。年のない記念日でも0000年とか1900年とか適当な値にしておけば
+よくて、範囲を指定する際にもdate型にすれば、「開始日の前日の年齢と
+終了日の年齢が異なるもの」という検索でできます。
+ということで、
+
+&gt; &gt;  加藤＠川崎です。
+
+&gt; &gt; (3)memorial_dayに年情報を加える
+
+がいいと思います。
+
+&gt; &gt; (3)memorial_dayに年情報を加える
+&gt; &gt;    (2)とは memorial_dayの型を初めから date 型(timestamp)にしておくとこ
+&gt; &gt;    ろが異なります。くわえて、cronなどで日に1度(例えば0時に)現在よりも
+&gt; &gt;    古い日の年情報を更新してしまいます。
+
+&gt; &gt;    注意点としては、「誕生日」は更新しても「生年月日」は更新してはいけ
+&gt; &gt;    ない、、、そりゃそうですよね。誕生日は毎年やってきますが、生年月日
+&gt; &gt;    は一生で一度ですから。このようにカラムの入力値に依存する関係を忘れ
+&gt; &gt;    て無闇に更新するとDBの意味がなくなったりします。
+
+年齢を求める関数を作っておけば、tableに入れるのは「生年月日」でいい
+ので、毎日更新する必要はないです。たとえば
+
+CREATE FUNCTION nenrei(date, date) RETURNS int AS'
+SELECT cast(extract(YEAR FROM $2) - extract(YEAR FROM $1)
+ - CASE WHEN extract(MONTH FROM $2) &lt; extract(MONTH FROM $1) OR
+ extract(MONTH FROM $2) = extract(MONTH FROM $1) AND
+ extract(DAY FROM $2) &lt; extract(DAY FROM $1) THEN 1 ELSE 0 END
+ AS int);
+' LANGUAGE 'SQL';
+
+で、$s_dayが範囲の開始１日前で$e_dayが範囲の終りの日とすると
+select * from "user" where
+  nenrei(memorial_day, $s_day) &lt;&gt; nenrei(memorial_day, $e_day);
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp: 26296] 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Ishiura &lt;issy777@entrance-e.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp: 26297] Re: 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Takao Kato &lt;sirius@jp.fujitsu.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00081" HREF="msg00081.html">[pgsql-jp: 26302] Re: 記念日等の範囲検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Ishiura &lt;issy777@entrance-e.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00100.html">[pgsql-jp: 26321] Re: PostgreSQL + PHP の講習会ありませんか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00102.html">[pgsql-jp: 26323] 一定期間になったらレコードを削除</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00081.html">[pgsql-jp: 26302] Re: 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp: 26307] Re: 記念日等の範囲検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00101"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00101"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,133 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23314] RE: 「階層問い合せ（Connect By 句）」は？ -->
+<!--X-From: yosidam@bell24.co.jp -->
+<!--X-Date: Wed, 3 Oct 2001 22:41:21 +0900  -->
+<!--X-Message-Id: F1AF4AA92A61D5118EE100105A069AD02CBE05@mailtokyo.bell24.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23314] RE: 「階層問い合せ（Connect By 句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:yosidam@bell24.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00058.html">Date Prev</A>][<A HREF="msg00060.html">Date Next</A>][<A HREF="msg00060.html">Thread Prev</A>][<A HREF="msg00051.html">Thread Next</A>][<A HREF="index.html#00059">Date Index</A>][<A HREF="threads.html#00059">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23314] RE: 「階層問い合せ（Connect By 句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yosidam@bell24.co.jp">yosidam@bell24.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 3 Oct 2001 22:41:21 +0900 </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+吉田です。
+
+&gt; テスト用として適当かどうかわかりませんが、こんなんです。
+
+和田さん、ありがとうございます。早速自分のプログラムをかけて
+みました。このようなツールが、すぱっと作れるというのはすごい
+武器ですねえ。
+
+こちらで想定ではルートのノードの割合は２％位なので0.02として
+まず１００００件のデータを作成したところ、
+
+祖先　階層　キー特定時間　データ検索時間
+１　　　１８　　　　３８（秒）　　　　５８(秒)
+２　　　１６　　　　１０　　　　　　　１２
+３　　　１３　　　　　２　　　　　　　　５
+１００　？　　　　　1秒以下　　　1秒以下
+
+と、ずいぶんばらつきのあるデータになってしまいました。
+１の子孫を数えてみると１８階層で3448件となってしまい、
+１を先祖として検索をかけると９６秒、これがこのデータでの
+ワーストケースではありますが、使い物にならないスピード
+です。（Pen��400）
+（ユーザーの待ち時間はキー特定時間＋データ検索時間＋
+ブラウザ表示時間で１００秒近く）
+
+データがあまりにも実情にそぐわなかったので、最初に２％の
+ルートを作り、残りを適当に割り振っていくように変えてみました。
+
+DROP FUNCTION insertdata(int4);
+CREATE FUNCTION insertdata(int4) RETURNS boolean AS '
+DECLARE
+  num ALIAS FOR $1;
+BEGIN
+  TRUNCATE TABLE tKaisou;
+  For i IN 1..num LOOP
+    INSERT INTO tkaisou VALUES(i, CASE WHEN i&lt;0.02*num THEN null
+        ELSE i*random() END, \'random\');
+  END LOOP;
+  return true;
+END;
+'
+language 'plpgsql';
+
+select insertdata(32000);
+
+こちらでは、子孫の数が大体３０から１００と階層が１０階層程度と
+実際のデータより階層が深い感じですが、いい感じになってきま
+した。
+　32000件に増やしても、適当に設定したどの先祖でも大体３〜５秒
+くらいで処理できています。3秒〜5秒が長いのと極端なケースに
+おいて使い物にならないので、データが成長する前に、切り出す
+最大の深さと数に制限をつけるなど、別の方法を考えねばならない
+ようです。
+　また汎用的には使えません。おそらく1つのルートからなるUNIXの
+ファイルシステムのようなデータにおいてルートに近いディレクトリを
+探した場合に最悪になります。
+
+　（しまった、偏ったデータの場合の北村さんの方式のパフォーマン
+スをとり忘れた。）
+
+　とりあえず、このような事実があるということを認識し、一度頭を
+冷やし、目先のコード書きに戻ります。
+（悲しいけど全体の進捗も進めなければならないもんで．．．）
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 23313] Re: 「階層問い合せ（Connect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00060.html">[pgsql-jp 23315] Re: postgres on New Mac OS10.1</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00060.html">[pgsql-jp 23315] Re: postgres on New Mac OS10.1</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 23306] RE: 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00059"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00059"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

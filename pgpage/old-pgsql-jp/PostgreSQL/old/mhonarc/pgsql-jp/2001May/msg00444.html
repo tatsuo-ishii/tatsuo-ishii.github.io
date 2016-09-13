@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21399] Re: コピーコマンドについて改めPQfinish()について -->
+<!--X-From: "Masao Kumagishi" <kumagishi@jfc&#45;net.co.jp> -->
+<!--X-Date: Wed, 23 May 2001 00:04:58 +0900 -->
+<!--X-Message-Id: 012901c0e2d0$94bc0980$c900a8c0@IBM -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 49256A54.004E347A.00@notesmailgw -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21399] Re: コピーコマンドについて改めPQfinish()について </TITLE>
+<LINK REV="made" HREF="mailto:kumagishi@jfc-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00443.html">Date Prev</A>][<A HREF="msg00446.html">Date Next</A>][<A HREF="msg00443.html">Thread Prev</A>][<A HREF="msg00447.html">Thread Next</A>][<A HREF="index.html#00444">Date Index</A>][<A HREF="threads.html#00444">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21399] Re: コピーコマンドについて改めPQfinish()について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Masao Kumagishi" &lt;<A HREF="mailto:kumagishi@jfc-net.co.jp">kumagishi@jfc-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 May 2001 00:04:58 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00443.html">49256A54.004E347A.00@notesmailgw</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+熊岸です。
+
+&gt; 齋藤＠寺岡精工です。
+&gt;  熊岸様御返答ありがとうございます。
+&gt; 
+&gt; &gt;7.0.2のfe-misc.cを見ると、
+&gt; &gt;pqWriteReady(PGconn *conn)のなかで、次のような個所があります。
+&gt; &gt;（pqReadReady(PGconn *conn)も同じような感じ）
+&gt;  中略
+&gt; &gt;select()の中でシグナルに割込まれた場合（接続が切れた場合など）、再びselect()を
+&gt; &gt;実行しますが、input_maskが更新されないままなので、無限ループになるのだと思いま
+&gt; す。
+&gt; &gt;正しくはretryはFD_ZEROの前になければなりません。
+&gt; &gt;7.1.1のfe-misc.cのソースもそのように修正されています。
+&gt; 
+&gt; 確かに！！これはまずいですね。ただ、これを修正してもロックはしました(トホホ
+&gt; ．．．）
+&gt; ロックしている個所は、fe-misc.cのpqWait()の
+&gt;                 if (select(conn-&gt;sock + 1, &amp;input_mask, &amp;output_mask, (fd_set *)
+&gt;  NULL,
+&gt;                                    (struct timeval *) NULL) &lt; 0)
+&gt; から返ってこなくなります。（gdbでみたところ）
+&gt; （引数としてはconn-&gt;sock = 4, input_mask = 0 &lt;repeat 33 times&gt; output_mask = 16,
+&gt;  0 &lt;repeat 31 times&gt;
+&gt;   となっています。）
+&gt; このselectでは、timeoutが無限でおこなわれているため、そうなっているようなのです
+&gt; が
+&gt; なぜ返ってこない条件があるのかがよくわからずじまいとなってしまいました。
+&gt; 皆様のお知恵をお貸しください。
+&gt; 宜しくお願いいたします。
+&gt; 
+これは私の早合点でしたね。失礼しました。
+ところで、pqWait()についても、7.0.2→7.1.1では修正がなされています。
+"except_mask"を追加するというものですが、これの効果はどうでしょうか？
+
+---ここから
+int
+pqWait(int forRead, int forWrite, PGconn *conn)
+{
+    fd_set  input_mask;
+    fd_set  output_mask;
+    fd_set  except_mask;                                  ←追加
+
+             ・・・
+
+    if (forRead || forWrite)
+    {
+retry:
+        FD_ZERO(&amp;input_mask);
+        FD_ZERO(&amp;output_mask);
+        FD_ZERO(&amp;except_mask);                        ←追加
+        if (forRead)
+            FD_SET(conn-&gt;sock, &amp;input_mask);
+        if (forWrite)
+            FD_SET(conn-&gt;sock, &amp;output_mask);
+        FD_SET(conn-&gt;sock, &amp;except_mask);                   ←追加↓
+        if (select(conn-&gt;sock + 1, &amp;input_mask, &amp;output_mask, &amp;except_mask,
+                            (struct timeval *) NULL) &lt; 0)
+        {
+            if (errno == EINTR)
+                goto retry;
+---ここまで
+
+
+---
+熊岸 正夫
+kumagishi@jfc-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00443" HREF="msg00443.html">[pgsql-jp 21398] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> Fumikatu_Saitoh@hq.digi.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00443.html">[pgsql-jp 21398] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00446.html">[pgsql-jp 21401] Re: ODBC ドライバーを使用して、C++Builderからラージオブジェクトにアクセスする方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00443.html">[pgsql-jp 21398] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00447.html">[pgsql-jp 21402] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00444"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00444"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,130 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23894] C ¸À¸ì¥È¥ê¥¬ÍÑ¥æ¡¼¥¶ÄêµÁ´Ø¿ô¤Ç°ìÈÌ¥æ¡¼¥¶¤¬¥é¡¼¥¸¥ª¥Ö¥¸¥§¥¯¥È¤ò°·¤¦¤Ë¤Ï¡© -->
+<!--X-From: g98911 <g98911@edu.otaru&#45;uc.ac.jp> -->
+<!--X-Date: Fri, 30 Nov 2001 18:16:11 +0900 -->
+<!--X-Message-Id: 200111300916.AA00001@J1&#45;4.edu.otaru&#45;uc.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23894] C ¸À¸ì¥È¥ê¥¬ÍÑ¥æ¡¼¥¶ÄêµÁ´Ø¿ô¤Ç°ìÈÌ¥æ¡¼¥¶¤¬¥é¡¼¥¸¥ª¥Ö¥¸¥ </TITLE>
+<LINK REV="made" HREF="mailto:g98911@edu.otaru-uc.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00304.html">Date Prev</A>][Date Next][Thread Prev][<A HREF="msg00303.html">Thread Next</A>][<A HREF="index.html#00305">Date Index</A>][<A HREF="threads.html#00305">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23894] C ¸À¸ì¥È¥ê¥¬ÍÑ¥æ¡¼¥¶ÄêµÁ´Ø¿ô¤Ç°ìÈÌ¥æ¡¼¥¶¤¬¥é¡¼¥¸¥ª¥Ö¥¸¥§¥¯¥È¤ò°·¤¦¤Ë¤Ï¡©</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: g98911 &lt;<A HREF="mailto:g98911@edu.otaru-uc.ac.jp">g98911@edu.otaru-uc.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 30 Nov 2001 18:16:11 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+°Ê²¼¤Î¥Æ¡¼¥Ö¥ëobjs¤Ë¥é¡¼¥¸¥ª¥Ö¥¸¥§¥¯¥È¤¬ÁÞÆþ¤µ¤ì¤¿¤é¡¢¥È¥ê¥¬¤òµ¯Æ°¤·¤Æ¡¢¤½¤Î
+¥é¡¼¥¸¥ª¥Ö¥¸¥§¥¯¥È¤òÅ¬Åö¤Ê¥Ç¥£¥ì¥¯¥È¥ê/home/postgres/object/¤Ë¥³¥Ô¡¼¤·¤¿¤¤¤È»×¤¤¤Þ¤¹¡£
+
+         Table "objs"
+ Attribute | Type | Modifier
+-----------+------+----------
+ id        | oid  |
+ fname     | text |
+
+
+¤½¤³¤Ç°Ê²¼¤Î¥È¥ê¥¬ÍÑ¥æ¡¼¥¶ÄêµÁ´Ø¿ô¤òºîÀ®¤·¤Þ¤·¤¿¡£
+
+#include "executor/spi.h"
+#include "commands/trigger.h"
+
+Datum obj_copy(PG_FUNCTION_ARGS);
+
+PG_FUNCTION_INFO_V1(obj_copy);
+
+Datum
+obj_copy(PG_FUNCTION_ARGS)
+{
+        TriggerData 	*trigdata = (TriggerData *)fcinfo-&gt;context;
+        TupleDesc	tupdesc;
+        HeapTuple	tuple;
+        int		fnumber_id;
+        int		fnumber_fname;
+        int		fieldval_id;
+        char		*fieldval_fname;
+        char		query[512];
+	bool		isnull;
+	int		ret;
+
+	tuple = trigdata-&gt;tg_trigtuple;			/*¥È¥ê¥¬¤¬È¯¹Ô¤µ¤ì¤¿¥¿¥×¥ë¤Ø¤Î¥Ý¥¤¥ó¥¿¤ò¼èÆÀ*/
+
+	tupdesc = trigdata-&gt;tg_relation-&gt;rd_att;		/*ÂÐ¾Ý¥¿¥×¥ë¤Îµ­½Ò»Ò¤ò¼èÆÀ*/
+
+	ret = SPI_connect();
+
+      	fnumber_id = SPI_fnumber(tupdesc, "id");		/*»ØÄêÂ°À­¤ÎÂ°À­ÈÖ¹æ¤ò¼èÆÀ*/
+        fnumber_fname = SPI_fnumber(tupdesc, "fname");
+
+        fieldval_id = SPI_getbinval(tuple, tupdesc, fnumber_id, &amp;isnull);		/*»ØÄêÂ°À­¤ÎÃÍ¤ò¼èÆÀ*/
+        fieldval_fname = SPI_getvalue(tuple, tupdesc, fnumber_fname);
+
+        snprintf(query, sizeof(query), "select lo_export(%d, '/home/postgres/object/%s')",fieldval_id, fieldval_fname); 	/*Ìä¤¤¹ç¤ï¤»Ê¸¤ÎÀ¸À®*/
+
+        ret = SPI_exec(query,1);	/*Ìä¤¤¹ç¤ï¤»¤Î¼Â¹Ô*/
+
+        ret = SPI_finish();
+
+	PG_RETURN_VOID();
+}
+
+¤³¤Î¥æ¡¼¥¶ÄêµÁ´Ø¿ô¤Ï¥¹¡¼¥Ñ¥æ¡¼¥¶postgres¤¬¥Æ¡¼¥Ö¥ëobjs¤Ë¥Ç¡¼¥¿¤òÁÞÆþ¤·¤¿¾ì¹ç¤Ï
+Àµ¤·¤¯Æ°ºî¤¹¤ë¤Î¤Ç¤¹¤¬¡¢¥µ¡¼¥Ð¥µ¥¤¥Élo_export¤ò»ÈÍÑ¤·¤Æ¤¤¤ë¤Î¤Ç¡¢°ìÈÌ¥æ¡¼¥¶¤¬ÁÞÆþ¤·¤è¤¦
+¤È¤¹¤ë¤È°Ê²¼¤Î¥¨¥é¡¼¤È¤Ê¤Ã¤Æ¤·¤Þ¤¤¤Þ¤¹¡£
+
+ERROR:  You must have Postgres superuser privilege to use server-side lo_export().
+        Anyone can use the client-side lo_export() provided by libpq.
+
+Æ±ÍÍ¤Î½èÍý¤ò°ìÈÌ¥æ¡¼¥¶¤Ç¤â¤Ç¤­¤ë¤è¤¦¤Ë¤¹¤ë¤Ë¤Ï¤É¤Î¤è¤¦¤ËÊÑ¹¹¤¹¤ì¤Ð¤è¤¤¤Ç¤·¤ç¤¦¤«¡£
+
+----
+Hiroki Watanabe 
+g98911@edu.otaru-uc.ac.jp 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 23888] Re: JDBC ¥É¥é¥¤¥Ð¤ÎÀßÄê¤¬¤¦¤Þ¤¯¤¤¤­¤Þ¤»¤ó</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00303.html">[pgsql-jp 23887] Re: JDBC ¥É¥é¥¤¥Ð¤ÎÀßÄê¤¬¤¦¤Þ¤¯¤¤¤­¤Þ¤»¤ó</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00305"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00305"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

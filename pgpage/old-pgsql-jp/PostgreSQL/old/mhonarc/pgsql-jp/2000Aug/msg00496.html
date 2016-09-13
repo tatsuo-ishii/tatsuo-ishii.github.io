@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16882] Re: pg_dump &#45;oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 23 Aug 2000 13:42:00 +0900 -->
+<!--X-Message-Id: 20000823134200R.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000823122642.259E5338@zaqcad091da.zaq.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16882] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00495.html">Date Prev</A>][<A HREF="msg00497.html">Date Next</A>][<A HREF="msg00494.html">Thread Prev</A>][<A HREF="msg00498.html">Thread Next</A>][<A HREF="index.html#00496">Date Index</A>][<A HREF="threads.html#00496">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16882] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 13:42:00 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00494.html">20000823122642.259E5338@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; 問題を起こした pg_dump -o で作成されたファイルを全てここで紹介するのは妥当だと思えませんが、OIDに係わる行として、最初の５行に
+&gt; 
+&gt; CREATE TABLE pgdump_oid (dummy int4);
+&gt; COPY pgdump_oid WITH OIDS FROM stdin;
+&gt; 2147483647      0
+&gt; \
+&gt; DROP TABLE pgdump_oid;
+&gt; 
+&gt; なる５行が pg_dump -o の出力結果として存在しました。
+&gt; ここのOIDの数値によって新しいOIDの発生原点が決められたことだと
+&gt; 考えられます。ソースよりインストールした pgsql/doc 下を
+
+そうですね。
+
+&gt; 参照しましたが、pg_dump のマニュアルは探せたのですが、
+&gt; pg_dump -o で作成される前述の５行の、特にOIDセット番号を
+&gt; どのように生成するのかのルールを明記されたマニュアルの場所か、
+&gt; そのものずばりの解答を、どなたか、ご存知ないでしょうか？
+
+このへんのドキュメントはソースしかありません:-)
+
+それにしても、
+
+2147483647と言えば、2^31 -1 ですからね。どう考えてもおかしな値です。
+
+このような場合、さらの 7.0.2 にデータをロードする＊前＊であれば、とり
+あえず以下のような方法で修正できるような気がしますが、試したわけではな
+いので保証の限りではありません。
+
+1. 適当にテーブルを作ってその中に行を insert してみる
+
+2. 出力されたOIDがおそらく現在のカウント値なので、それを覚えておく。
+
+3. pg_dump -o の結果ファイルから最大の OID 値を調べる。
+
+4. 2 と 3 の OID を調べ、大きい方の OID に適当に(安全を見て) 10000 位
+足したものを最大OIDに決める。
+
+5. pg_dump の出力データの
+
+---------------------
+CREATE TABLE pgdump_oid (dummy int4);
+COPY pgdump_oid WITH OIDS FROM stdin;
+2147483647      0
+\
+DROP TABLE pgdump_oid;
+---------------------
+
+の中の 2147483647を 4 で決めた値に変更する
+
+6. psql で pg_dump のデータをロードする
+
+&gt; そして、一度このように、OID = 2147483647 と設定されてしまった
+&gt; 現在のPostgreSQL7.0.3のOID環境をリセットさせる手段はあるのでしょうか？
+
+うーん、わかりません。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00498" HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00494" HREF="msg00494.html">[pgsql-jp 16880] pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00495.html">[pgsql-jp 16881] Re: [pgsql-jp 16871] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00497.html">[pgsql-jp 16883] Re: [pgsql-jp 16880] pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください【警告】★★</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00494.html">[pgsql-jp 16880] pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00496"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00496"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,810 @@
+<A NAME="16">
+<PRE><B>
+From: minematu@aimcom.co.jp (Hiroki Minematu)
+Date: Thu, 26 Sep 1996 23:06:52 +0900
+Subject: [postgres95 765] Postgres95 1.07 for EWS-UX/V(Rel 4.2MP)
+Message-Id: &lt;199609261406.XAA07650@admin.aimcom.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みねまつ＠あいむ です。
+
+先日、Postgres95 1.07 を入手して、さっそく EWS4800への移植を
+開始したのですが、svr4 用の Makefileを 利用して ちょこちょこと
+あちこちの書き換えを行い、 何とか gmake all runtest は動作して
+います。
+
+ＯＳのバージョンは、EWS-UX/V(Rel 4.2MP) RELEASE 10.1 です。
+
+で、regress.out を眺めていたのですが、
+
+WARN:Load of file /home/postgres/postgres95/src/test/regress/obj/\
+regress.so failed: dynamic linker: /home/postgres/postgres95/bin/\
+postgres: relocation error: symbol not found: FailedAssertion
+(行を途中で折ってます)
+の行から結構な行の WARN:行が入ってきている状況です)
+
+FailedAssertion という Symbolは externされているようですが、実体を
+発見できませんでした。
+
+この現在の状況を改善できそうなアドバイスを頂ければ幸いです。
+
+------------------------------------------------------------------ 
+_/_/  Hiroki Minematu|(New mail addr) &lt;minematu@aimcom.co.jp&gt; _/_/
+_/_/    峰松  浩樹   |                                        _/_/ 
+_/_/                 |      http://www.aimcom.co.jp/minematu/ _/_/
+------------------------------------------------------------------ 
+
+
+
+<HR>
+</PRE>
+<A NAME="15">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Sep 1996 17:18:40 +0900
+Subject: [postgres95 764] Re: pg95+MkLinux 
+Message-Id: &lt;199609260818.RAA23099@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;はないです
+&gt;
+&gt;石井さん:
+&gt;&gt; &gt;早速 dld-3.3 を取ってきましたが、残念ながら、サポートされているのは
+&gt;&gt; （中略）
+&gt;&gt; &gt;ということで、PowerPC-*-linux(?)がサポートされるのを待つしかないみたい
+&gt;&gt; &gt;です。
+&gt;
+&gt;うーん、それはちょっとカナシイですねぇ。
+
+ですね。
+
+&gt;ところで、PORTNAME はやっぱり &quot;linux&quot; なんでしょうか？
+&gt;もしそうだとすると、dynamic loading は GNU の dld を仮定することに
+&gt;なってしまいますよね？
+
+いえ、さすがに linux のままではいかないので、&quot;mklinux&quot; という PORTNAME 
+をデッチあげました。（もちろん、もとになったのは linux(ELF なし)です）
+それと、dld を呼び出しているあたりも書き換え、呼ばれたらエラーを返すよ
+うにしました。この時にエラーメッセージが出るわけですね。
+
+&gt;例えば、MkLinux には他の dynamic loader がある、などということは
+&gt;ないのでしょうか？ dlopen(3) とかは無いのでしょうか？
+&gt;＃ 石井さんのことだからチェックしてらっしゃるとは思いますけど ;-)
+
+ないです。すべて staic link の世界です。
+
+&gt;ゲンジツ問題としては、dynamic loading が必要な場面ていうのは
+&gt;自分で関数作って組み込む時くらいなのかな？
+&gt;そうだとすると、面白さは半減しますが、取り敢えず遊ぶことはできますよね。
+
+そうですね。ただ、最悪、関数を static link で postgres に組み込むとい
+う手がありそうです。create function で、関数の種類を指定するところで、'c'
+ではなくて 'internal' を選べばそうなるとニランデいるのですが...
+
+&gt;&gt; ハードウェア: PowerMac 7100/66AV(memory 48MB)
+	補足：２次キャッシュなし
+&gt;&gt; MacOS のバージョン: 漢字Talk 7.5.1
+&gt;&gt; MkLinux kernel のバージョン: 1.2.13
+&gt;&gt; gcc のバージョン: 2.7.2
+&gt;&gt; flex のバージョン: 2.5.2
+&gt;&gt; postgres95 のバージョン: 1.06+jp patch
+&gt;
+&gt;ううむ…
+&gt;速いですか？
+
+思ったよりも速いんでびっくりしてます。感覚的には、SS5(64MB, Solaris)の
+半分位かな。それと、今の port は、spin lock を SysV のセマフォで実現し
+ているので、ここをアセンブラに書き直せば、倍くらいの速さになるはずです。
+実際、Intel 版の Linux pg95 はそういう実装になっていると思います。残念
+ながら、PowerPC のアセンブラが分からないもので、手も足も出ないんですが:-)
+
+P.S. MkLinux をインストールしたディスクを１週間後には他の目的に転用し
+なければならないので、この世界初(?)の pg95+MkLinux は後１週間で消滅し
+てしまいます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="14">
+<PRE><B>
+From: Hanai Hiroyuki &lt;hanai@astec.co.jp&gt;
+Date: Thu, 26 Sep 1996 16:53:40 +0900
+Subject: [postgres95 763] Re: pg95+MkLinux 
+Message-Id: &lt;9609260753.AA07663@domino.astec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+はないです
+
+石井さん:
+&gt; &gt;早速 dld-3.3 を取ってきましたが、残念ながら、サポートされているのは
+&gt; （中略）
+&gt; &gt;ということで、PowerPC-*-linux(?)がサポートされるのを待つしかないみたい
+&gt; &gt;です。
+
+うーん、それはちょっとカナシイですねぇ。
+
+&gt; くやしいので、とりあえず dynamice loading を飛ばしてコンパイルしてみま
+&gt; した。regression test を掛けてみると、C 関数をロードして使っているとこ
+&gt; ろは
+&gt; 	WARN:dynamic load not supported
+
+ところで、PORTNAME はやっぱり &quot;linux&quot; なんでしょうか？
+もしそうだとすると、dynamic loading は GNU の dld を仮定することに
+なってしまいますよね？
+例えば、MkLinux には他の dynamic loader がある、などということは
+ないのでしょうか？ dlopen(3) とかは無いのでしょうか？
+＃ 石井さんのことだからチェックしてらっしゃるとは思いますけど ;-)
+
+&gt; となってしまいますが（このメッセージは私が追加したものです）、それ以外
+&gt; はまともに動いているようです。とりあえずの報告でした。
+
+ゲンジツ問題としては、dynamic loading が必要な場面ていうのは
+自分で関数作って組み込む時くらいなのかな？
+そうだとすると、面白さは半減しますが、取り敢えず遊ぶことはできますよね。
+
+&gt; ハードウェア: PowerMac 7100/66AV(memory 48MB)
+&gt; MacOS のバージョン: 漢字Talk 7.5.1
+&gt; MkLinux kernel のバージョン: 1.2.13
+&gt; gcc のバージョン: 2.7.2
+&gt; flex のバージョン: 2.5.2
+&gt; postgres95 のバージョン: 1.06+jp patch
+
+ううむ…
+速いですか？
+
+-----はない
+<HR>
+</PRE>
+<A NAME="13">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Sep 1996 16:00:39 +0900
+Subject: [postgres95 762] Re: pg95+MkLinux 
+Message-Id: &lt;199609260700.QAA16996@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;&gt;はないです
+&gt;&gt;
+&gt;&gt;&gt; MkLinux をインストールする機会があったので、試しに postgres95 をコンパ
+&gt;&gt;&gt; イルしているのですが、dld library なるものが必要だと怒られました。恐ら
+&gt;&gt;&gt; く dynamic loading で必要になるものだと思いますが、MkLinux に適用でき
+&gt;&gt;&gt; る dld library は存在するでしょうか？
+&gt;&gt;
+&gt;&gt;BSD/OS 1.1 とか 2.0 とか 2.0.1 の頃は dynamic loader(って言うのかしらん?)
+&gt;&gt;が無かったので(今はBSD/OSとは無縁なので知りません)、GNU の dld を使ってま
+&gt;&gt;した。
+&gt;&gt;MkLinux で動くかどうかはよくわかりませんが、試してみてはイカガでしょう？
+&gt;&gt;GNU の dld は適当な anonymous ftp サーバに置いてると思います。
+&gt;
+&gt;早速 dld-3.3 を取ってきましたが、残念ながら、サポートされているのは
+（中略）
+&gt;ということで、PowerPC-*-linux(?)がサポートされるのを待つしかないみたい
+&gt;です。
+
+くやしいので、とりあえず dynamice loading を飛ばしてコンパイルしてみま
+した。regression test を掛けてみると、C 関数をロードして使っているとこ
+ろは
+	WARN:dynamic load not supported
+
+となってしまいますが（このメッセージは私が追加したものです）、それ以外
+はまともに動いているようです。とりあえずの報告でした。
+
+ハードウェア: PowerMac 7100/66AV(memory 48MB)
+MacOS のバージョン: 漢字Talk 7.5.1
+MkLinux kernel のバージョン: 1.2.13
+gcc のバージョン: 2.7.2
+flex のバージョン: 2.5.2
+postgres95 のバージョン: 1.06+jp patch
+
+postgres のサイズは 1.4MB でした。（-O あり、-g なし）
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="12">
+<PRE><B>
+From: ASADA Kazuhisa &lt;asada@trust.co.jp&gt;
+Date: Thu, 26 Sep 1996 13:35:05 +0900
+Subject: [postgres95 761] Re: memmove
+Message-Id: &lt;199609260435.NAA00876@pigeon.trust.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+ 浅田＠トラストです。
+
+&gt; それで、Sunでコンパイルしてみたのですが、最後にphp.cgiを
+&gt; 作る段になって、以前、石井さんが問題にされていたmemmoveが
+&gt; ないとの事で中断してしまいました。
+
+ これは転送元と転送先の領域が重なっていても構わない形式のメモリ
+コピーですので、BSD では bcopy が相当します。引数の順序が次のプ
+ロトタイプの様に異なるので注意してください。
+
+  void *memmove(void *dst, void *src, size_t len);
+  void bcopy(void *src, void *dst, size_t len);
+  (SunOS 4.X では bcopy(char *src, char *dst, int len) ですが)
+
+ # マクロで置換するか、bcopy 呼び出しの関数を書くかですね。
+
+  ******************************************************
+    株式会社トラストシステム  オープンシステムグループ
+        浅田和久         E-mail: asada@trust.co.jp
+            TEL: 06-389-6119  FAX: 06-338-5938
+  ******************************************************
+<HR>
+</PRE>
+<A NAME="11">
+<PRE><B>
+From: Chihiro Higuchi &lt;higuchi@sumitomopharm.co.jp&gt;
+Date: Thu, 26 Sep 1996 12:51:12 +0900
+Subject: [postgres95 760] memmove
+Message-Id: &lt;9609260351.AA01283@SPI002.sumitomopharm.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+樋口＠住友製薬です。
+
+ftp.jaist.ac.jpにphp-2.0b7が置いてありました。
+それで、Sunでコンパイルしてみたのですが、最後にphp.cgiを
+作る段になって、以前、石井さんが問題にされていたmemmoveが
+ないとの事で中断してしまいました。詳しく見てはいませんが、
+phpのソースの中で正規表現関連のディレクトリがあり、そのソースの
+一部で、memmoveを使っていました。
+
+Linuxではコンパイル出来ました。
+
+また、先のサイトに、pgstkというのが置いてました。
+どんどん、利用できる言語が広がっていく。^_^
+
+----
+Chihiro Higuchi
+Sumitomo Pharmaceuticals Research Center
+Research Coordination &amp; General Affairs Department 
+1-98 Kasugadenaka 3-choume, Konohana-ku, Osaka 554, Japan
+Phone: 81-6-466-5219 E-Mail: higuchi@sumitomopharm.co.jp
+<HR>
+</PRE>
+<A NAME="10">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Thu, 26 Sep 1996 12:47:37 +0900
+Subject: [postgres95 759] Re: How to field connect ?
+Message-Id: &lt;v0213050eae701f27c8e0@[133.135.240.253]&gt;
+</A>
+</B></PRE>
+<PRE>
+
+深谷＠川鉄情報システムです。
+
+おみつさん、はじめまして。
+
+Mitsuhiro Maeda さんが 96.09.26ごろに
+「[postgres95 754] Re: How to field connect ?」の件で：
+&gt; こんにちは。おみつ@Tramp です。
+&gt; ユーザーマニュアルを座右の書として格闘してる Postgres ビギナーです。
+&gt;
+&gt; From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+&gt; Subject: [postgres95 753] Re: How to field connect ?
+&gt; Date: Thu, 26 Sep 1996 09:43:29 +0900
+&gt; &gt;...
+&gt; &gt; ついでに、PHP/FIのメーリングリストを御存知の方がいらっしゃいましたら、
+&gt; &gt; 教えていただけませんか。
+&gt; 「http://www.vex.net/php/」 で、ML の申込ができたと思いますが。
+
+さっそく、申し込みしてきました(^_^;
+きっと、MLは全て英語なんでしょうねー。
+
+&gt; どうも、いまのところ、「select field1||field2 ・・」といった結合は
+&gt; 見たことがないんですが、どうなんでしょう ;-&gt;
+&gt;
+&gt; 解決法として私が思い当たるのが、
+&gt;   1. 「where field1='blah' or field2='blah'」として、「OR」で検索する。
+
+結局、この１番の方法が簡単で自然ですね。
+
+         where field1 like '%値%' or field2 like '%値%'　・・・
+
+というふうにしました。
+
+&gt;   3. 自身でオペレータ&quot;||&quot;を作る。
+・・・
+&gt; Postgres95 は、強引に関数をつくることができるのが長所のひとつですね。
+
+そのうち、自分で関数を作れるようになりたいです。
+
+どうもありがとうございました。
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>
+<A NAME="9">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Sep 1996 12:46:13 +0900
+Subject: [postgres95 758] Sorry about too many hops mail error
+Message-Id: &lt;199609260346.MAA16755@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠ML管理人です。最近
+
+	Returned mail: too many hops 18 (17 max): 
+
+のエラーで当MLのメールが配送できないことがありました。見ての通り、バケ
+ツリレーで転送される回数が１７回を越えたためのエラーです。中には 
+.forward の書き間違いなどでメールがループしてこのエラーメッセージが出
+ることもあるのですが、調べてみるとそうでないケースもありました。
+
+この MLではメールの配送に distribute というパッケージを使っていまして、
+これを使うとデフォルトでは、
+
+投稿したホスト-&gt;...-&gt;sramhe.sra.co.jp-+-&gt;...-&gt;ML メンバー1
+				      |-&gt;...-&gt;ML メンバー2
+				      |-&gt;...-&gt;ML メンバー3
+				      :
+				      :
+のような配送経路がすべて保存され、運が悪い ML メンバー n さんは転送回
+数が１７回を越えることになります。そこで今回 [投稿したホスト-
+&gt;...-&gt;sramhe.sra.co.jp]の配送経路に関する情報をすべて削除するオプショ
+ンを distribute に与えることにしました。これで too many hops によるエ
+ラーが少なくなるとおもいます。もしメールがロストしていると思われた方は、
+http://www.sra.co.jp/people/t-ishii/postgres95/ でバックナンバーを見て
+頂くか、Web の利用が不可能な場合には t-ishii@sra.co.jp までバックナン
+バーをご請求下さい。
+
+御迷惑をおかけした方々には、お詫びを申し上げます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="8">
+<PRE><B>
+From: &quot;&quot;町野   賢 /Satoshi	 MACHINO&quot;&quot; &lt;machino@mach.supd.nara.sharp.co.jp&gt;
+Date: Thu, 26 Sep 1996 12:26:51 +0900
+Subject: [postgres95 757] Re: ML archive
+Message-Id: &lt;199609260326.DAA00396@mach.supd.nara.sharp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+町野＠SHARP です。
+
+t-ishii&gt; さっき作りました:-)過去のメール全部を tar+gzip したものが 
+t-ishii&gt; http://www.sra.co.jp/people/t-ishii/postgres95/からたどって入手できま
+t-ishii&gt; す。
+
+ありがとうございます。素早い対応ですね(^^;)。
+先程、get させて頂きました。
+
+これから、マニュアル(和訳もあったんですね．．．関係者の皆様ありがとうございます)と
+過去の ML のメールを参考に postgres95 の勉強を始めなくては。
+
+--------------------------------------------------------------------------------------
+シャープ(株) プリントシステム事業本部
+サプライ事業部 第２技術部
+町野  賢 (Satoshi MACHINO)
+e-mail:machino@supd.nara.sharp.co.jp
+
+ 
+<HR>
+</PRE>
+<A NAME="7">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Sep 1996 12:01:34 +0900
+Subject: [postgres95 756] test
+Message-Id: &lt;199609260301.MAA14188@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+Sorry, this is a test.
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="6">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Thu, 26 Sep 1996 11:25:32 +0900
+Subject: [postgres95 755] ML archive
+Message-Id: &lt;199609260225.LAA11389@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠SRAです。サブジェクト変えました。
+
+&gt;postgres95 メーリングリストの皆さん、はじめまして。
+&gt;町野と申します。
+
+ようそこ pg95 ML へ。
+
+&gt;majordomo&gt; o ML のホームページができました。過去のメールのアーカイブなどがありま
+&gt;majordomo&gt; すので、御利用下さい。URL は、
+&gt;
+&gt;早速なんですが、過去のメールアーカイブですが、全部あるいは一定の期間分を一括して
+&gt;取り寄せることは出来ないのでしょうか？ 
+
+さっき作りました:-)過去のメール全部を tar+gzip したものが 
+http://www.sra.co.jp/people/t-ishii/postgres95/からたどって入手できま
+す。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+<HR>
+</PRE>
+<A NAME="5">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Thu, 26 Sep 1996 10:57:37 +0900
+Subject: [postgres95 754] Re: How to field connect ?
+Message-Id: &lt;199609260157.KAA20138@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+こんにちは。おみつ@Tramp です。
+ユーザーマニュアルを座右の書として格闘してる Postgres ビギナーです。
+
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Subject: [postgres95 753] Re: How to field connect ?
+Date: Thu, 26 Sep 1996 09:43:29 +0900
+&gt;...
+&gt; ついでに、PHP/FIのメーリングリストを御存知の方がいらっしゃいましたら、
+&gt; 教えていただけませんか。
+「http://www.vex.net/php/」 で、ML の申込ができたと思いますが。
+
+&gt;...
+&gt; たとえば、テーブルの中に「姓」と「名」という項目があったとすると、
+&gt; これを結合して「姓名」という項目を作成したいというものです。
+&gt; これだけなら、検索後に項目を結合すればよさそうですが、
+&gt; where句で検索条件にしたいのです。姓もしくは名のいずれかに該当する
+&gt; 文字を入力し、それを含む行を選択したいという要望です。
+&gt; 
+どうも、いまのところ、「select field1||field2 ・・」といった結合は
+見たことがないんですが、どうなんでしょう ;-&gt;
+
+解決法として私が思い当たるのが、
+  1. 「where field1='blah' or field2='blah'」として、「OR」で検索する。
+  2. PHP/FI にて、
+      &lt;? 
+         ...
+         $x =pg_Result($result,$i,&quot;field1&quot;);
+         $x+=pg_Result($result,$i,&quot;field2&quot;);
+         if(reg_match(&quot;blah&quot;,$x));
+            ...処理...
+         endif;
+         ...
+       &gt;
+      などとする。(ちょっと強引でしょうか ;-)
+  3. 自身でオペレータ&quot;||&quot;を作る。
+      ...
+      text*
+      text_pl(text* t1, text* t2)
+      {
+        int i;
+        text *str=(text*)palloc(VARSIZE(t1)+VARSIZE(t2));
+        int d1=(int)strlen(VARDATA(t1));
+        int d2=(int)strlen(VARDATA(t2));
+      
+        memset(str,0,VARSIZE(t1)+VARSIZE(t2));
+        VARSIZE(str)=VARSIZE(t1)+VARSIZE(t2);
+      
+        for(i=0;i&lt;d1;i++)
+          (VARDATA(str))[i]=(VARDATA(t))[i];
+        for(i=d1;i&lt;d1+d2;i++)
+          (VARDATA(str))[i]=(VARDATA(t))[i-d1];
+        (VARDATA(str))[i]='\0';
+      
+        return str;
+      }
+      ...
+      load '/contrib/text_pl';
+      create operator || (leftarg=text,rightarg=text,procedure=text_pl)
+      ...
+      なんて感じで。(どうも動作が怪しいので御自分でどうぞ :-)
+
+の3つです。
+
+Postgres95 は、強引に関数をつくることができるのが長所のひとつですね。
+
+===========================
+Mitsuhiro Maeda
+    Tramp Data Service, Co.
+
+mitsu@tramp.co.jp
+===========================
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Thu, 26 Sep 1996 09:43:29 +0900
+Subject: [postgres95 753] Re: How to field connect ?
+Message-Id: &lt;v02130508ae6fff103eda@[133.135.240.253]&gt;
+</A>
+</B></PRE>
+<PRE>
+
+深谷＠川鉄情報システムです。
+
+坂本さん、さっそくフォローを戴き、ありがとうございます。
+
+Kazuki Sakamoto さんが 96.09.26ごろに
+「[postgres95 752] Re: How to field connect ?」の件で：
+&gt; 坂本＠中央電子です。
+&gt;
+&gt; &lt;v02130503ae6ff41cac10@[133.135.240.253]&gt;の記事にて
+&gt; 1996年09月26日(木)、fukaya@chubu.ksd.co.jpさんの記述は:
+&gt; # 文章を前後させてます、すみません。
+&gt;  &gt; たぶん、私の調査があまいのだと思うのですが、
+&gt;  &gt; Postgres95では、SELECTの時に、text項目どうしの結合は
+&gt;  &gt; できるのでしょうか？　できるのであれば、どのように指定するのでしょうか？
+・・・
+&gt; PHP/FIを御使用ならば、
+&gt;
+&gt; &lt;?
+&gt;         /* 略 */
+&gt;
+&gt;         $sql = &quot;select * &quot;;
+&gt;         $sql += &quot;FROM test_data &quot;;
+&gt;         $sql += &quot;name = '$firstname$lastname'&quot;;
+&gt;         $sql += &quot;;&quot;;
+&gt;
+&gt;         $result = pg_Exec($conn, &quot;$sql&quot;);
+&gt; &gt;
+&gt;
+&gt; と、こんな感じにPHP/FIスクリプト側で
+&gt; 結合させてやれば良いのではないでしょうか。
+
+PHP/FIスクリプトの勉強になりました。ありがとうございます。
+ついでに、PHP/FIのメーリングリストを御存知の方がいらっしゃいましたら、
+教えていただけませんか。
+
+&gt; # 見当違いかな? (^^;)
+
+ちょっと、私の希望と違っていました(^_^;
+
+たとえば、テーブルの中に「姓」と「名」という項目があったとすると、
+これを結合して「姓名」という項目を作成したいというものです。
+これだけなら、検索後に項目を結合すればよさそうですが、
+where句で検索条件にしたいのです。姓もしくは名のいずれかに該当する
+文字を入力し、それを含む行を選択したいという要望です。
+
+よろしくお願いします。
+
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Date: Thu, 26 Sep 96 09:26:13 JST
+Subject: [postgres95 752] Re: How to field connect ?
+Message-Id: &lt;9609260026.AA13202@mugi.cec.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+坂本＠中央電子です。
+
+&lt;v02130503ae6ff41cac10@[133.135.240.253]&gt;の記事にて
+1996年09月26日(木)、fukaya@chubu.ksd.co.jpさんの記述は:
+# 文章を前後させてます、すみません。
+ &gt; たぶん、私の調査があまいのだと思うのですが、
+ &gt; Postgres95では、SELECTの時に、text項目どうしの結合は
+ &gt; できるのでしょうか？　できるのであれば、どのように指定するのでしょうか？
+
+私はSQLに関して、Postgres95のマニュアル以上のことは
+「まったく」知らないのですが、
+
+
+ &gt; 最近Postgres95とPHP/FIを使ってWWWとデータベースの連携の試行を
+ &gt; 始めました。質問内容は、このこととは直接関係ありません。
+
+PHP/FIを御使用ならば、
+
+&lt;?
+	/* 略 */
+
+	$sql = &quot;select * &quot;;
+	$sql += &quot;FROM test_data &quot;;
+	$sql += &quot;name = '$firstname$lastname'&quot;;
+	$sql += &quot;;&quot;;
+
+	$result = pg_Exec($conn, &quot;$sql&quot;);
+&gt;
+
+と、こんな感じにPHP/FIスクリプト側で
+結合させてやれば良いのではないでしょうか。
+
+# 見当違いかな? (^^;)
+
+sakamoto@cec.co.jp
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: &quot;&quot;町野   賢 /Satoshi	 MACHINO&quot;&quot; &lt;machino@mach.supd.nara.sharp.co.jp&gt;
+Date: Thu, 26 Sep 1996 09:04:20 +0900
+Subject: [postgres95 751] 自己紹介です (Re: Welcome to postgres95)
+Message-Id: &lt;199609260004.AAA00297@mach.supd.nara.sharp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+postgres95 メーリングリストの皆さん、はじめまして。
+町野と申します。
+
+majordomo&gt; 新規にこのMLに加入された方は、まずは自己紹介を投稿して下さるようにお願
+majordomo&gt; いします。フォーマットは自由です。購読者相互の理解を深めるためですので、
+majordomo&gt; 御協力のほどをお願いします。
+
+最近 Postgres95 の存在を知り、早速 Linux Box (kernel 2.0.20)に
+PHP／FI と install だけしてみた新参者です。
+RDBS は勿論、UNIX に関しても若葉マークですが、この ML で勉強して行きたいと
+思っています。
+よろしくお願い致します。
+
+majordomo&gt; o ML のホームページができました。過去のメールのアーカイブなどがありま
+majordomo&gt; すので、御利用下さい。URL は、
+
+早速なんですが、過去のメールアーカイブですが、全部あるいは一定の期間分を一括して
+取り寄せることは出来ないのでしょうか？ 
+
+--------------------------------------------------------------------------------------------
+シャープ(株) プリントシステム事業本部
+サプライ事業部 第２技術部
+町野  賢 (Satoshi MACHINO)
+e-mail:machino@supd.nara.sharp.co.jp
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Tanaka Minoru &lt;green@keiken.co.jp&gt;
+Date: Wed, 25 Sep 1996 22:08:24 +0900
+Subject: [postgres95 750] Re: Large object 
+Message-Id: &lt;9609251308.AA02976@onbashira&gt;
+</A>
+</B></PRE>
+<PRE>
+
+田仲＠ケイケンです。
+
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;さん：
+t-ishii&gt; 石井＠SRAです。
+t-ishii&gt; 
+t-ishii&gt; &gt; &gt;というわけで、正直なところ現在の large object の
+t-ishii&gt; &gt; &gt;実装は「使えないな」という印象を受けています。
+...
+t-ishii&gt; そこで私が今考えているのは、postgres のころはあって、
+t-ishii&gt; postgres95 で無くなった &quot;Unix ファイルを使う large
+t-ishii&gt; object&quot; の復活です。といっても、簡単で、
+t-ishii&gt; lo_import(), lo_export() と同じことを Unix ファイル
+t-ishii&gt; に対してやる関数を作るだけです。後は検索関数の中で、
+t-ishii&gt; 単に Unix ファイルを read すれば良いのです。ディス
+t-ishii&gt; ク容量がシビアな場合には、gzip で圧縮しておくのも手
+t-ishii&gt; ですね。
+
+なーるほど。これなら使えそうですね。期待してます。^_^)
+
+これだけじゃ、なんなんで empress という市販のRDBMSの似たよう
+なものの仕様を書いておきます。(つーか、当然、推測した仕様です)
+
+empress の場合、テーブル毎にひとつファイルがあり、そこに不定
+長の属性があるときは属性毎に「オーバーフローファイル」があり
+ます。不定長属性を定義するときにはパラメータとして、
+
+	selectで表示する時の1行のバイト数
+	メインファイルに格納するバイト数
+	オーバーフローファイルに格納する1レコードのバイト数
+	メインファイルから直接参照できるオーバーフローファイルのレコード数
+
+を指定します。(最後のやつは今ひとつ理解できてません)
+
+で、insertすると最初の部分がメインファイルに入ります。そして
+ハミ出た部分は固定長レコードのオーバーフローファイルに入りま
+す。データ長と開始レコードはメインファイル側に記録してあるよ
+うです。オーバーフローファイルでのデータの扱いですが、
+
+updateの場合
+	データ量が小さくなる時 --&gt; そのまま
+	データ量が大きくなる時 --&gt; ファイル末尾に移動
+deleteの場合
+	何もしない
+
+となるようです。更新が激しいと未使用レコードが増え、ファイル
+がどんどん大きくなります。ただし、ダミーの alter コマンドを
+発行すれば、オーバーフローファイルの再作成とデータ移動が行な
+われるので、圧縮？することができます。
+
+empress のは元々、バイナリの音声データを格納するために実装さ
+れたようです。めったに更新されない小さいデータがたくさんある
+時は、こういうやり方がいいのかもしれません。データ量が大きい
+時はどうなんでしょう？
+
+t-ishii&gt; # もう少し時間ができたら作ってみようかと思います。
+
+頑張ってください(c)金子茂  &lt;---うぅ、プロレス辞書
+
+＃ empressといえば桑村さんのお名前をempress.comのweb pageで見
+＃ かけたような。人違いでしたらごめんなさい。
+-
+田仲 稔 (Tanaka Minoru)  （株）ケイケンエンジニアリングシステム 諏訪支社
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: fukaya@chubu.ksd.co.jp (Fukaya/深谷)
+Date: Thu, 26 Sep 1996 08:52:38 +0900
+Subject: [postgres95 749] Q: How to field connect ?
+Message-Id: &lt;v02130503ae6ff41cac10@[133.135.240.253]&gt;
+</A>
+</B></PRE>
+<PRE>
+
+川鉄情報システムの深谷です、こんにちは。
+
+普段はＲＯＭをしてまして、さらに超ＦＡＱの質問をしようという
+ふとどき者です。お許し下さい m(_._)m
+
+最近Postgres95とPHP/FIを使ってWWWとデータベースの連携の試行を
+始めました。質問内容は、このこととは直接関係ありません。
+
+たぶん、私の調査があまいのだと思うのですが、
+Postgres95では、SELECTの時に、text項目どうしの結合は
+できるのでしょうか？　できるのであれば、どのように指定するのでしょうか？
+
+他のDBMSでは　select field1||field2 ・・　のような感じで「||」を
+使って結合ができるものもあります。
+
+この質問はPostgres95の問題ではなくSQLの仕様に依存するものでしょうか？
+
+＃長い前ふりですいませんでした
+
+--
+深谷 直文             (Naofumi Fukaya)
+川鉄情報システム(株)  (KAWASAKI STEEL Systems R&amp;D Corp.)
+TEL/FAX : +81-569-24-2234  / +81-569-24-2026
+E-Mail  : fukaya@ksd.co.jp / fukaya@cup.com (Private)
+URL     : http://www.cup.com/fukaya/        (Private) 
+
+
+<HR>
+</PRE>

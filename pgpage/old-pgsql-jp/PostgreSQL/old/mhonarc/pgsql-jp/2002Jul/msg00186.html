@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26735] Re: Likeの部分一致で検索 -->
+<!--X-From: "Hashimoto, Masaru" <hashimoto&#45;m@comtecc.net> -->
+<!--X-Date: Wed, 17 Jul 2002 17:50:49 +0900 -->
+<!--X-Message-Id: 20020717172632.1C35.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020717113640.1C1A.HASHIMOTO&#45;M@comtecc.net -->
+<!--X-Reference-Id: 20020717155548.6F50.LINUX@nao&#45;star.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26735] Re: Likeの部分一致で検索 </TITLE>
+<LINK REV="made" HREF="mailto:hashimoto-m@comtecc.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00187.html">Date Prev</A>][<A HREF="msg00188.html">Date Next</A>][<A HREF="msg00175.html">Thread Prev</A>][<A HREF="msg00190.html">Thread Next</A>][<A HREF="index.html#00186">Date Index</A>][<A HREF="threads.html#00186">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26735] Re: Likeの部分一致で検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hashimoto, Masaru" &lt;<A HREF="mailto:hashimoto-m@comtecc.net">hashimoto-m@comtecc.net</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 17 Jul 2002 17:50:49 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00159.html">20020717113640.1C1A.HASHIMOTO-M@comtecc.net</A>&gt; &lt;<A HREF="msg00175.html">20020717155548.6F50.LINUX@nao-star.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+橋本です。
+
+&gt; &gt; ・キーワードは[windows][ウィンドウズ][ウインドウズ]です。
+&gt; &gt; ・すべてORで検索しています。
+&gt; 
+&gt; 現状、複数のキーワードを指定すると、OR で追加されていくようですが
+&gt; 検索する方の立場としたら、AND で絞り込みしてくれたほうがうれしい
+&gt; 気がします。
+&gt; 
+&gt; その方がパフォーマンスも良くなるような気がしますし。
+&gt; 
+また説明不足です。申し訳ありません。
+
+実は通常はANDで絞込みを行っています。
+ですが、特定のキーワードの場合(今回はwindows)を入力されると
+[windows][ウィンドウズ][ウインドウズ]のどれかが一致しても
+結果に表示するような仕様となっています。
+なのでその場合はORで検索を行っています。
+
+ちなみにANDでやってみると、少しだけ早くなりました。
+（4.457秒が4.447秒に・・・）
+
+&gt; #ところで キーワードに 'win' と 'windows' が指定されたとき、
+&gt; 
+&gt; 〜 WHERE Field ILIKE '%win%' AND Field ILIKE '%windows%'
+&gt; より
+&gt; 〜 WHERE Field ILIKE '%windows%' AND Field ILIKE '%win%'
+&gt; 
+&gt; の方が早いのでしょうか？
+&gt; キーワードの順番って検索スピードに影響するのかちょっと知りたいです。
+&gt; 
+私が出したメールに記述したCountのSQL文で試してみました。
+
+○win → windows の順番の場合
+2.824秒
+
+○windows → win の順番の場合
+2.884秒
+
+若干ですが違いがありました。
+また、ウィンドウズとwindowsで試してみました。
+
+○ウィンドウズ → windows の順番の場合
+7.030秒
+
+○windows → ウィンドウズ の順番の場合
+3.825秒
+
+こちらは倍近くの差が出ました！
+ちょっとビックリです。
+以前、WHERE句ではじめの条件がヒットしたら後の条件は
+見にいかないというような記述を見た覚えがあるのですが、
+それのためにこの差が出たのでしょうか？
+たしかに、以下のようにヒット件数に差があります。
+
+○winだけで検索した場合
+12,193件
+
+○windowsだけで検索した場合
+11,884件
+
+○ウィンドウズだけで検索した場合
+92件
+
+[windows]が先に来たWHEREだと、[windows]でヒットするから、
+あとの[ウィンドウズ]の条件は行っていないとうことでしょうか？
+それとも単純に、アルファベットの条件が先に来たほうが
+LIKEは早くなるとか？
+（日本語のLIKEは遅いような気がするので）
+
+でもどれがヒットするかなんて検索してみないとわかりませんから
+順番を入れ替えるの難しいですよね・・・
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00159" HREF="msg00159.html">[pgsql-jp: 26708] Re: Likeの部分一致で検索</A></STRONG>
+<UL><LI><EM>From:</EM> "Hashimoto, Masaru" &lt;hashimoto-m@comtecc.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp: 26724] Re: Likeの部分一致で検索</A></STRONG>
+<UL><LI><EM>From:</EM> NAO★&lt;linux@nao-star.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp: 26736] Re: Likeの部分一致で検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00188.html">[pgsql-jp: 26737] Re: large object (lob)のファイルサイズが６ページになる</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00175.html">[pgsql-jp: 26724] Re: Likeの部分一致で検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00190.html">[pgsql-jp: 26739] Re: Likeの部分一致で検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00186"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00186"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

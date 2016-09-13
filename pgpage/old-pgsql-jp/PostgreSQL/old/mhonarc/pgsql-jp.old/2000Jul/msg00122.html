@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15889] Re: データベースからの切断 -->
+<!--X-From: 綾乃介 <aya@big.or.jp> -->
+<!--X-Date: Thu, 06 Jul 2000 15:30:37 +0900 -->
+<!--X-Message-Id: 3964278DB3.F529AYA@mail.cgi&#45;space.to -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3963FB2235B.2CD3AYA@mail.cgi&#45;space.to -->
+<!--X-Reference-Id: 20000706034120.22741@mail.3024.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15889] Re: データベースからの切断 </TITLE>
+<LINK REV="made" HREF="mailto:aya@big.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00120.html">Date Prev</A>][<A HREF="msg00123.html">Date Next</A>][<A HREF="msg00112.html">Thread Prev</A>][<A HREF="msg00124.html">Thread Next</A>][<A HREF="index.html#00122">Date Index</A>][<A HREF="threads.html#00122">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15889] Re: データベースからの切断</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 綾乃介 &lt;<A HREF="mailto:aya@big.or.jp">aya@big.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 06 Jul 2000 15:30:37 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00109.html">3963FB2235B.2CD3AYA@mail.cgi-space.to</A>&gt; &lt;<A HREF="msg00112.html">20000706034120.22741@mail.3024.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　綾乃介です。
+
+On Wed, 5 Jul 2000 20:41:19 -0700
+Kaz Goto &lt;kazu@5net.com&gt; wrote:
+
+&gt;  はじめましてゴトウともうします。
+&gt; 
+&gt;  ... "[pgsql-jp 15876] Re: データベースからの切断"
+&gt;      綾乃介 ...
+&gt; 
+&gt; &gt; &gt; &gt; 　作成には、Perl+Pgを使っています。
+&gt; &gt; &gt; 
+&gt; &gt; &gt; こちらは使っていないのでパス。
+&gt; &gt; &gt; # 要するにソケットをクローズすればいいのですが、、、
+&gt; &gt; 
+&gt; &gt; 　なるほど・・・。
+&gt; &gt; 　Pgのold styleには、
+&gt; &gt; PQfinish($conn);
+&gt; &gt; という、切断の命令があるんですけど、new styleにはないんですよね・・・。
+&gt; 
+&gt;  Perl だけの話になってしまいますがこういうのはいかがでしょう
+&gt;  か？
+&gt; 
+&gt;    $conn = null;
+&gt; 
+&gt;  テストした結果、バックエンドプロセスはきちんと停止しました。
+
+　ありがとうございます。
+　ただ、この場合は、$conn-statusも使えなくなっちゃいますね。
+う〜ん。
+　あと、Perlだと、
+$conn = undef;
+じゃないですか？(恩をあだで返してるような(^^;;)
+
+&gt; &gt; 　というか、このプログラムは可能であれば数ヶ月は動きつづけてもらいたいの
+&gt; &gt; で・・・。そんな長い間つなげてても大丈夫でしょうか？
+
+&gt;  私の場合は SQL 実行をする自前の関数（たとえば exec）で接続な
+&gt;  どのチェックもするようにしています。そのときは $conn が
+&gt;  defined かどうか、$conn-&gt;status が PGRES_CONNECTION_OK かど
+&gt;  うかなどをチェックして、接続が切れていたら再接続しています。
+
+　ゴトウさんの意見を参考にしてこんな感じにしてみました。
+
+sub nic_pass_check{
+	local($uid,$ups) = @_;
+	local($ret) = 0;
+	local($c)   = 0;  # redo カウント用
+
+	$conn = undef;
+	
+	CONECT:	if (defined $conn &amp;&amp; $conn-&gt;status == PGRES_CONNECTION_OK) {
+		$result = $conn-&gt;exec("select nicname,password from $table_main where nicname = '$uid';");
+		if($result-&gt;ntuples &gt; 0 &amp;&amp; $result-&gt;getvalue(0,1) eq $ups){
+			$ret = 1;	# 成功
+		}else{
+			$ret = 0;	# 失敗
+		}
+	}else{
+		$c++;
+		$conn = Pg::connectdb("dbname=$dbname");
+		redo CONECT if $c &lt;= 3;
+		$ret = -1;	# 失敗
+	}
+	
+	return $ret;
+}
+
+　ただ、この場合、Labelが見つからないといわれてエラーになってしまいます。
+
+　ゴトウさんは、どのようにして実現してるんでしょうか。
+よろしければ、サンプルなどを教えていただけるとうれしいです。
+
+　よろしくお願いします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 15892] Re: データベースからの切断</A></STRONG>
+<UL><LI><EM>From:</EM> Kaz Goto &lt;kazu@5net.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00124" HREF="msg00124.html">[pgsql-jp 15891] Re: データベースからの切断</A></STRONG>
+<UL><LI><EM>From:</EM> 綾乃介 &lt;aya@big.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00109" HREF="msg00109.html">[pgsql-jp 15876] Re: データベースからの切断</A></STRONG>
+<UL><LI><EM>From:</EM> 綾乃介 &lt;aya@big.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00112" HREF="msg00112.html">[pgsql-jp 15879] Re: データベースからの切断</A></STRONG>
+<UL><LI><EM>From:</EM> Kaz Goto &lt;kazu@5net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 15887] Re: PostgreSQLから取得した変数との比較</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00123.html">[pgsql-jp 15890] Re: PostgreSQLから取得した変数との比較</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00112.html">[pgsql-jp 15879] Re: データベースからの切断</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 15891] Re: データベースからの切断</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00122"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00122"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

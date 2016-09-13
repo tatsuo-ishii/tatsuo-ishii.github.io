@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索 -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Wed, 14 Mar 2001 05:17:30 +0900 -->
+<!--X-Message-Id: 3AAE805A2E4.BCFCKITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 010401c0abe4$5185f2c0$020019ac@rimserver.yo.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索 </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00191.html">Date Prev</A>][<A HREF="msg00193.html">Date Next</A>][<A HREF="msg00191.html">Thread Prev</A>][<A HREF="msg00194.html">Thread Next</A>][<A HREF="index.html#00192">Date Index</A>][<A HREF="threads.html#00192">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20326] Re: 検索の負荷と論理演算判定を使用したテーブル検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Mar 2001 05:17:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00191.html">010401c0abe4$5185f2c0$020019ac@rimserver.yo.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠アシェットです。
+
+&gt; select 会社．会社名称, 個人．名前　from 会社、社員、個人、個人特徴
+&gt; where 会社．会社ID＝社員．会社ID
+&gt; and　　社員．個人ID＝個人特徴．個人ID
+&gt; and　　社員．個人ID＝個人．個人ID
+&gt; and    会社．会社名称漢字 like '%%'
+&gt; and    会社．会社名称かな like '%%'
+&gt; and    個人．名前漢字 like '%%'
+&gt; and    個人．名前かな like '%%'
+&gt; and   (個人特徴．特徴ID＝１　or　個人特徴．特徴ID＝２
+&gt; or　　　個人特徴．特徴ID＝３　or　個人特徴．特徴ID＝４)
+&gt; group by 個人．名前
+&gt; having count(個人．名前）＞＝特徴数（４）
+(略)
+&gt; ***************
+&gt; ここで質問です。
+&gt; 私のやろうとしている検索方法は一般的ではなく、かなり効率の悪い
+&gt; 検索方法なのでしょうか？
+
+テーブルは正規化されていますし、一般的な設計だと思います。
+ただ、このクエリは効率悪そうですね。explain を頭につけて実行すると、内部
+でどのようなプランで検索が行なわれてるのかを見ることができます。試してみ
+てください。
+
+&gt; または、like 検索に負荷がかかっているのでしょうか？
+
+だと思います。like '%○○%' では、インデックスが(あったとしても)使われま
+せんので遅くなります。
+
+実際にキーワードを %% に挟むとしても、全てのカラムでの事では無いと思いま
+す。例えば会社名称漢字だけキーワードを受け取った、とかですね。
+その場合、キーワードが空白文字でなければ、
+and 会社．会社名称漢字 like '%キーワード%'
+を加える・・という処理の方が良いと思います。
+
+さらに、特徴の部分ですが特徴1、2に該当する人物は1人でも2行出力されてしま
+いますよね。それを Group By でまとめているようですが、ここでも負荷が発生
+します。
+個人特徴テーブルの条件部分は相関サブクエリ使った方が良いと思います。
+サブクエリは、
+and exists (select * from 個人特徴
+ where 個人.個人ID = 個人特徴.個人ID and 個人特徴.特徴ID=1)
+and exists (select * from 個人特徴
+ where 個人.個人ID = 個人特徴.個人ID and 個人特徴.特徴ID=2)
+(以下略)
+とつなげていっても(それなりに)速いと思います。
+または、
+and (select count(*) = 特徴数(=4) from 個人特徴
+ where 個人.個人ID = 個人特徴.個人ID and 
+ (個人特徴.特徴ID = 1 or 個人特徴.特徴ID = 1 or (以下略) )
+)
+としても良いと思います。(どっちが速いか知らないけど)
+
+(特徴1〜4 までを兼ね備えている人 が検索対象ですよね？もし、何れかの特徴を
+・・だったら、変わってきます)。例のごとく試験していないので、間違いがある
+かもしれません(可能性大)。
+
+&gt; また、これを解決する為に個人特徴テーブルを
+&gt; 　個人特徴テーブル（個人ID,　個人特徴ビット情報）
+&gt; と変更しようと思います。
+(略)
+&gt; ***************
+&gt; 再度質問です。
+&gt; postgres で where 句に対しての上記のような論理演算判定は可能で
+&gt; しょうか？
+&gt; 自分でも調べたのですが見当たりませんでした。
+&gt; ***************
+
+「ビット演算」をキーワードとして過去ログを検索すると出てくると思いますが、
+確か出来なかったと思います。
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> "Voice" &lt;voice@blues.interq.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 20327] i モードからPostgreSQLを操ってみませんか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 20328] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00192"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00192"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

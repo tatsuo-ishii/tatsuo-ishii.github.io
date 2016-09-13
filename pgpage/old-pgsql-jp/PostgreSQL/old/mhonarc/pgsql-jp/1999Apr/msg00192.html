@@ -1,0 +1,259 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8001] How to Transaction ? -->
+<!--X-From: baba takanori <baba@tfive.co.jp> -->
+<!--X-Date: Wed, 14 Apr 1999 09:38:54 +0900 -->
+<!--X-Message-Id: 199904140054.JAA05029@ns.tfive.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8001] How to Transaction ? </TITLE>
+<LINK REV="made" HREF="mailto:baba@tfive.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00191.html">Date Prev</A>][<A HREF="msg00193.html">Date Next</A>][<A HREF="msg00202.html">Thread Prev</A>][<A HREF="msg00196.html">Thread Next</A>][<A HREF="index.html#00192">Date Index</A>][<A HREF="threads.html#00192">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8001] How to Transaction ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: baba takanori &lt;<A HREF="mailto:baba@tfive.co.jp">baba@tfive.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Apr 1999 09:38:54 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+PostgreSQL メーリングリストの皆さん、こんにちは。
+
+始めまして。
+馬場＠（株）ティーファイブ
+と申します。
+しばらく前から、当ＭＬを拝見させて頂いていましたが、
+最近になって自己紹介しなければいけない事を知りまして、
+自己紹介するのが遅れてしまいました。申し訳ありませんでした。m(_ _)m
+
+　私は、これまで主に組み込みのソフトウェアを開発してきました
+（エンジニアというより職人に近いです）
+が、この度、Web上から検索するデータベースを構築することになり、
+日々、悪戦苦闘（七転八倒？）している者です。
+「ベータベース」とか、「ＳＱＬ」「ＵＮＩＸ」という分野につい
+ては、全くの度素人です。
+　素人ゆえの、トンチンカンな質問など発するかと思いますが、何卒
+ご指導下さいませ。−＞諸先輩方。
+
+　私が現在使っている環境は、だいたい下記のようなものです。
+
+　　サーバ：
+	CPU		AMD K6-2 350MHz
+	チップセット	VIA MVP3
+	メモリ		64MB SIMM(EDO)
+	HDD		8GB x ２
+	OS		redhat Linux 4.2
+	データベース	PostgreSQL 6.4.2
+			（postgresql-6_4_2-patched-990217_tar.gz）
+			HORB 1.3b1にてリモートアクセス
+
+　　クライアント＆開発環境
+	OS		Windows95
+	開発言語	Java（JDK 1.1.6）
+	開発環境	JBuilder2
+	開発者スキル	なし (^_^;)
+
+　PostgreSQL、HORBのインストールをなんとか乗り越え、PostgreSQLの
+配列の機能に制限があることを確かめもしないで使ったためにSELECT句
+やWHERE句ではまり、当MLの記事（無断で覗いてました。スミマセン）や
+石井さんの「シーラカンス本（これはちゃんと買いました）」に導かれ、
+どうにか、データの登録、削除、検索などの基本的なことが行えるよう
+になりました。
+ありがとうございました。
+
+　さっそくですが、ここから本題に入らせて頂きます。
+
+　実は、困っていることがあります。それは、複数のトランザクション
+が重なってしまった場合のことなのです。
+当ML 「[pgsql-jp 6896] Re:テーブルロックのリリース」で石井さんが
+述べておられるようなケースで、私のプログラムでは、「2相ロック」とか
+「テーブルの整合性」以前に、
+
+　・先に実行されているトランザクションT1がある場合、後から別のトラン
+　　ザクションT2が実行されると、T2はT1が終了するまで待ち状態となる。
+　・しかし、T1はT2が実行されたときエラーを起こし、終了してしまう。
+　・T1が終了すると、T2は処理を開始し、正常に終了する。
+ （トランザクション内でアクセスするテーブルは必ずロックしています）
+
+　と、いうような現象が出ます。
+　T1で発生するエラーは、ＳＱＬのSELECT文の結果として返されるはずの
+ResultSet（java言語を使用しているので）内のカラムが無差別に消失して
+しまい、SQLException が発生する。というものです。
+　T2が実行された時点で、T1の ResultSet そのものが消失してしまってい
+るようです。
+　この現象は、T1が単独で実行された場合には出ませんし、複数のトラン
+ザクションが重なってしまった場合、T1側にほとんど必ず出ます。
+
+　トランザクションT1,T2の処理内容は、下記のようなものです。
+
+1.BEGIN WORK を発行
+2.テーブル A をロック。(LOCK A)
+3.SELECT * FROM A WHERE ..... を発行
+4.ResultSetが空になるまで各行のカラムのデータを読み出す
+5.COMMIT WORK を発行
+
+　T1の処理中に、4.の時点でT2が実行されるといけないようです。
+
+※もしかして、4. のあとで、UNLOCK が必要？＜−UNLOCKというコマンド
+　　　　　　　　　　　　　　　　　　　　　　　を知りませんでした。
+※今、psqlで
+　=&gt; BEGIN WORK;
+　=&gt; LOCK テーブル名;
+　=&gt; SELECT .........
+　=&gt; UNLOCK テーブル名;
+
+　とやってみましたが "UNLOCK テーブル名;" のところで
+　ERROR:  parser: parse error at or near "unlock"
+　と、おこられてしまいました。 ？？？？
+
+　=&gt; \h unlock
+
+　とやったら、
+　command not found, try \h with no arguments to see available help
+　と出ました。
+
+
+当ML 「[pgsql-jp 6896] Re:テーブルロックのリリース」にて
+石井さん曰く
+
+Mr.Ishii＞例：
+Mr.Ishii＞テーブル A と B があり、A には初期値として 10 が入っています(簡単のた
+Mr.Ishii＞めに、A, B はそれぞれ 1 レコードしかないとします)。あるアプリケーショ
+Mr.Ishii＞ンは、次のように、2相ロックに従わない処理をします。
+Mr.Ishii＞
+Mr.Ishii＞1. テーブル A をロック。(LOCK A)
+Mr.Ishii＞2. A を読み出す。(READ A)
+Mr.Ishii＞3. Aの値を +1 した値を得る。
+Mr.Ishii＞4. その値を A に書き戻す。(WRITE A)
+Mr.Ishii＞5. A のロックを解除する。(UNLOCK A)
+Mr.Ishii＞6. テーブル B をロック。(LOCK B)
+Mr.Ishii＞7. A と同じ値を B に書き込む。(WRITE B)
+Mr.Ishii＞8. B のロックを解除する。(UNLOCK B)
+Mr.Ishii＞
+Mr.Ishii＞そして、この同じアプリケーションが、別々のユーザから起動され、トランザ
+Mr.Ishii＞クション T1, T2 として走ったとします。
+Mr.Ishii＞
+Mr.Ishii＞T1 が完全に終了した後に T2 が走った場合、B の値は 12 になっていること
+Mr.Ishii＞が期待されます。
+Mr.Ishii＞
+Mr.Ishii＞しかし、T1 が5 まで進んだときに T2 が走りだしてそのまま完了し、次に T1 
+Mr.Ishii＞が 6 から再開すると T1 が終了したときには B の値は 11 になっています。
+Mr.Ishii＞
+Mr.Ishii＞しかし、そのアプリケーションが、
+Mr.Ishii＞
+Mr.Ishii＞1. テーブル A をロック。(LOCK A)
+Mr.Ishii＞2. A を読み出す。(READ A)
+Mr.Ishii＞3. その値に +1 する。
+Mr.Ishii＞4. その値を A に書き戻す。(WRITE A)
+Mr.Ishii＞5. テーブル B をロック。(LOCK B)
+Mr.Ishii＞6. A と同じ値を B に書き込む。(WRITE B)
+Mr.Ishii＞7. A のロックを解除する。(UNLOCK A)
+Mr.Ishii＞8. B のロックを解除する。(UNLOCK B)
+Mr.Ishii＞
+Mr.Ishii＞というように2相ロックにしたがっていれば T1, T2 の実行順がどうであって
+Mr.Ishii＞も T1, T2 が終ったときに常にBの値は 12 になります。
+
+　上記の内容や、これまで皆さんが議論なさっているのを拝見しますと、トランザ
+クション内でアクセスするテーブルがロックされている場合、
+
+　・先に実行されているトランザクションT1がある場合、後から別のトランザクシ
+　　ョンT2が実行されると、T2はT1が終了するまで待ち状態となる。
+　・T1が終了すると、T2は処理を開始する。
+
+　のように理解できます。実際、psqlなどで試すと、そのように動作します。
+
+　が、「標準ＳＱＬガイド 改訂第４版（アスキー出版局）」を見ますと、
+　「第５章 接続、セッション、トランザクション」の６３ページから６４ページに
+　かけて、
+
+　＞ただし、ＳＱＬエージェントによって開始されたＳＱＬトランザクションは、
+　＞次のトランザクションが開始される前に実行を完了しなければならないことに
+　＞注意してほしい。つまり、ＳＱＬトランザクションは入れ子にできない。
+
+　とか、同書６４ページ６行目から、
+
+　＞ＳＱＬエージェントは任意の数のＳＱＬ接続を確立できるため、任意の数の
+　＞ＳＱＬセッションが開始されることになる。ＳＱＬ接続の場合は、新しい接続を
+　＞確立する前に、それまでの接続を終了する必要がない。ただし、新しい接続を確
+　＞立すると、それまでの接続が「休止状態」となる。
+　＞
+　＞　　　　−中略−
+　＞
+　＞SET CONNECTIONステートメントを利用すれば、休止状態のＳＱＬ接続をカレント
+　＞に戻すことができる。
+
+　というような記述もあったりなどして、
+
+　・先に実行されているトランザクションT1は、後から別のトランザクションT2が
+　　実行されると、T2が終了するまで休止状態となる。
+　・T2が終了すると、T1は休止する以前の処理を続行する。
+
+　のようにも解釈できます。
+
+
+　といったような案配で、私としては、何が分かってないのかすらよく分からない
+状態です。
+　諸先輩方のご指導を、よろしくお願い致します。 m(_ _)m 深々..
+
+------------------------------------------------------------
+馬場孝典                Email   baba@tfive.co.jp
+  (株)ティーファイブ    WWW     工事中です
+   TEL     03-5626-0731
+   FAX     03-5626-0730
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00196" HREF="msg00196.html">[pgsql-jp 8005] Re: How to Transaction ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 8000] Re: Q on document compilation</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 8002] Re: ［Ｑ］６．４で、「ＭＡＸ」操作がおかしい。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00202.html">[pgsql-jp 8011] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 8005] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00192"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00192"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

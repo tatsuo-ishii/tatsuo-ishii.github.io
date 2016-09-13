@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20181] Re: perl からラージオブジェクト再び -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Sat, 3 Mar 2001 12:53:56 +0900 -->
+<!--X-Message-Id: 006301c0a395$97ed74b0$0a00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 372628080.983587680035.JavaMail.javamailuser@localhost -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20181] Re: perl からラージオブジェクト再び </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00046.html">Date Prev</A>][<A HREF="msg00048.html">Date Next</A>][<A HREF="msg00045.html">Thread Prev</A>][<A HREF="msg00030.html">Thread Next</A>][<A HREF="index.html#00047">Date Index</A>][<A HREF="threads.html#00047">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20181] Re: perl からラージオブジェクト再び</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 3 Mar 2001 12:53:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00045.html">372628080.983587680035.JavaMail.javamailuser@localhost</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: "website004" &lt;website004@yo-mail.co.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Saturday, March 03, 2001 11:48 AM
+Subject: [pgsql-jp 20179] perl からラージオブジェクト再び
+
+
+&gt; 以下は”みかまま様のソースを私なりの環境でかきかえたものです
+とのことですが、なぜこれが
+&gt;     $len = 256;
+&gt;     while ($db-&gt;lo_read($fd, $buf, $len)&gt;0) {
+&gt;         print $buf;
+&gt;     }
+このように
+&gt;     $len = 256;
+&gt;     $db-&gt;lo_read($fd, $buf, $len);
+&gt;         print $buf;
+変更したのでしょう？
+256バイトにおさまるような画像なんてないと思いますが。
+またプラットホームがわからないのですが、Windows系では
+binmodeにしないダメです。
+
+ex.
+    print $cgi-&gt;header(-type=&gt;$mime);
+    $len = 256;
+    binmode STDOUT; #追加
+    while ($db-&gt;lo_read($fd, $buf, $len)&gt;0) {
+        print $buf;
+    }
+
+&gt; ブラウザー上ではimageがきちんと出力されておらず"ばってん"印がでてしまいま
+す
+&gt; IE5.5で確認しています。HTMLのソースをみようとしてもみれないので
+&gt; Application/octet-streamというMIMEタイプで出力はされているとは思いますが
+Application/octet-streamだったりするとダウンロードしようとする
+ような気もしますが。
+＃この辺りはいろいろと話題のIE5.5なので動きはわかりませんが。
+
+いきなりCGIにするのではなく、一旦普通のファイルに出力して確認してみては
+いかがですか？
+
+とかいいながら、自分のところで確認したスクリプト
+
+#!/usr/bin/perl
+use strict;
+use CGI;
+use Pg;
+use constant GetSize =&gt; 256;
+my $oConn = Pg::connectdb("dbname=gotdate user=postgres");
+die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+my $result = $oConn-&gt;exec("SELECT * FROM STIMG");
+die $oConn-&gt;errorMessage if($oConn-&gt;errorMessage);
+
+my $oid = $result-&gt;getvalue(0, 1);
+$oConn-&gt;exec('begin');
+my $lFd = $oConn-&gt;lo_open($oid, PGRES_INV_READ);
+binmode STDOUT;
+my $oCgi = new CGI;
+print $oCgi-&gt;header(-type =&gt; 'image/jpeg');
+my $sBuff = '';
+while($oConn-&gt;lo_read($lFd, $sBuff, GetSize)) {
+    print $sBuff;
+}
+$oConn-&gt;lo_close($lFd);
+$oConn-&gt;exec('end');
+
+#どうもPgだけを使うのは立場上問題になるので(^^)
+#それにDBIのほうが好きだから、DBIで書いたもの
+
+#!/usr/bin/perl
+use strict;
+use DBI;
+use CGI;
+use constant GetSize =&gt; 256;
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;0, RaiseError=&gt;1}) ||
+      die "OPEN ERROR:" . $DBI::errstr;
+
+$hDb-&gt;commit;
+my $hSt = $hDb-&gt;prepare('SELECT * FROM STIMG');
+$hSt-&gt;execute();
+my $iRow = 0;
+my $raRow = $hSt-&gt;fetchrow_arrayref();
+my $oFd = $hDb-&gt;func($raRow-&gt;[1],
+                    $hDb-&gt;{pg_INV_READ}, 'lo_open');
+binmode STDOUT;
+my $oCgi = new CGI;
+print $oCgi-&gt;header(-type =&gt; 'image/jpeg');
+my $sBuff='';
+while($hDb-&gt;func($oFd, $sBuff, GetSize, 'lo_read')) {
+    print $sBuff;
+}
+$hDb-&gt;func($oFd, 'lo_close');
+$hDb-&gt;commit;
+$hSt-&gt;finish;
+$hDb-&gt;disconnect;
+
+==============================================
+川合 孝典(Hippo2000)
+  GCD00051@nifty.ne.jp kwitknr@cpan.org
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00045" HREF="msg00045.html">[pgsql-jp 20179] perl からラージオブジェクト再び</A></STRONG>
+<UL><LI><EM>From:</EM> website004 &lt;website004@yo-mail.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 20180] perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 20182] Re: マニュアル？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 20179] perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00030.html">[pgsql-jp 20164] VIEW やPROCEDUREの作り直し</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00047"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00047"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

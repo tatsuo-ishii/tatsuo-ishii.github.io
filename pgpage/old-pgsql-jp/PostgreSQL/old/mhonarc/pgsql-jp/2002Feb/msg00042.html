@@ -1,0 +1,401 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24637] 表示がダブります -->
+<!--X-From: Minoru Yoshimura <myoshi@edu.yamanashi.ac.jp> -->
+<!--X-Date: Tue, 05 Feb 2002 16:14:16 +0900 -->
+<!--X-Message-Id: 3C5F8648.2BFE401B@edu.yamanashi.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24637] 表示がダブります </TITLE>
+<LINK REV="made" HREF="mailto:myoshi@edu.yamanashi.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00041.html">Date Prev</A>][<A HREF="msg00043.html">Date Next</A>][<A HREF="msg00091.html">Thread Prev</A>][<A HREF="msg00043.html">Thread Next</A>][<A HREF="index.html#00042">Date Index</A>][<A HREF="threads.html#00042">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24637] 表示がダブります</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Minoru Yoshimura &lt;<A HREF="mailto:myoshi@edu.yamanashi.ac.jp">myoshi@edu.yamanashi.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 05 Feb 2002 16:14:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+-- 吉村＠紅葉葉マークです。
+
+　バリバリの方々にはつまらない話です。また、PostgreSQLか
+　PHPの問題がも区別がつきません。こちらに登録してあるので
+　こちらに問い合わせした次第です。　　　悪しからず
+ 
+　歴史時代の日々の日本の天気データのデータベースを作成中です。
+　学生に助けられての作業でしたが、事情で学生が退学し放置されて
+　ています。当時気づかなかったのですが、検索部でなく、表示部に
+　バグがあるのではないかと考えるようになりました。素人の悲しさ
+　解決しません。ご指摘をいただけたら幸いです。
+
+　<A HREF="http://kinpu.ak2.yamanashi.ac.jp/hwdev/にあります。">http://kinpu.ak2.yamanashi.ac.jp/hwdev/にあります。</A>
+
+　　　ユーザ登録をしたのちの画面で
+
+　　Ｂ　天気表：１ヶ月間　を表示させてた最下段のデータがその上
+　　　　　　　　の地点のデータを表示してしまうというものです。
+　　
+　　１　地点数が多いとき、少ないときに関係有りません
+　　２　地点名は正しいものが表示されます。
+　　３　表示がおかしいことは、A　天気地図：２日間と比較すると
+　　　　わかります。
+
+　チェックは
+　　データ検索部の地点数を増やしたり減らしたりして表示され
+　　る変化をみました。
+
+　　データ検索はそのままにして、画面表示する（画面に書く）
+　地点数をいろいろ変更してみました。
+
+　　下に示すプログラムが先の問題を除き一番安定しています（警告
+　等がでない）
+
+　環境　Laser 5 ver6.0?
+        PostgreSQL 7.01?
+        PhP        4.?    最後の二つは昨年夏の最新版です。
+
+　以下に関係すると思われる部分のListをつけました。長くて恐縮です。
+
+-- &lt;? // -*-C++-*-
+
+require_once ("HW.php");
+require_once ("Gregorian.php");
+//////////////////////////////////////////////////////////// declaration
+function getAreaName ($area) {
+  $areacode = addslashes ($area);
+  //
+  $result = pg_exec (HW_GetConnection (),
+                     "SELECT name ".
+                     "  FROM area ".
+                     " WHERE area.code = '$areacode' ".
+                     " LIMIT 1".
+                     "");
+  $ret = pg_result ($result, 0, 0);
+  pg_freeresult ($result);
+  //
+  return $ret;
+}
+
+function echoMonthdayTable ($y, $m, $page, $area) {
+  $isGood = ($page== "good");
+  $dom = Gregorian_DaysOfMonth ($y, $m);
+  $areaname = getAreaName ($area);
+  //$colors = array ("#eeeeee","#dddddd","#cccccc","#bbbbbb");
+  //$colors = array ("skyblue","pink","skyblue","pink");
+  //$colors = array ("#dddddd","#cccccc","#bbbbbb","#aaaaaa");
+  $colors = array ("#ccbbaa","#bbccaa","#aaccbb","#aabbcc");
+  $hspc = 6;
+  $basewidth = 31 * 16 + floor (31 / 5) * $hspc;
+  //
+  $nen = $y - 1000;
+  $tk = $m;
+  $gbColumn = $isGood ? "min (tg)" : "max (tb)";
+  $areacode = $area;
+  //
+  $spotnames = array ();
+  $spotMdWeather = array ();
+  // cons $spotnames
+  $result = pg_exec (HW_GetConnection (),
+                     "SELECT idx, name ".
+                     "  FROM spot ".
+                     "");
+  $count = pg_numrows ($result);
+  for ($i = 0; $i &lt; $count; $i++) {
+    $spotidx  = pg_result ($result, $i, 0);
+    $spotname = pg_result ($result, $i, 1);
+    $spotnames[$spotidx] = $spotname;
+  }
+  pg_freeresult ($result);
+  // cons $spotMdWeather
+  $result = pg_exec (HW_GetConnection (),
+                     "SELECT spot.idx  AS spotidx ".
+                     "     , hi        AS md ".
+                     "     , $gbColumn AS weathercode ".
+                     "  FROM area ".
+                     "  JOIN spot ON (areaid = area.id) ".
+                     "  JOIN sample ON (titen = spot.code) ".
+                     " WHERE nen = $nen ".
+                     "   AND tk = $tk ".
+                     "   AND area.code = '$areacode' ".
+                     " GROUP BY spotidx, md ".
+                     " ORDER BY spotidx, md ".
+                     "");
+  $count = pg_numrows ($result);
+  for ($i = 0; $i &lt; $count; $i++) {
+
+
+
+    $mdWeather =&amp; $spotMdWeather[pg_result ($result, $i, 0)];
+    
+     if (is_null ($mdWeather)) {
+      $mdWeather = array ();
+    }
+
+
+
+    $weather =&amp; $mdWeather[pg_result ($result, $i, 1)];
+     
+    if (is_null ($weather)) { // the first value only
+      $weather = hexdec (pg_result ($result, $i, 2));
+    }
+    
+  } 
+  pg_freeresult ($result);
+  //
+?&gt;
+&lt;table border=0 cellspacing=2 cellpadding=2 align=center&gt;
+&lt;tr&gt;
+  &lt;td colspan=2 align=center bgcolor=#dddddd&gt;
+&lt;font size=+1&gt;&lt;b&gt;&lt;?= $y ?&gt;&lt;/b&gt;&lt;/font&gt;年
+&lt;font size=+1&gt;&lt;b&gt;&lt;?= $m ?&gt;&lt;/b&gt;&lt;/font&gt;月の
+&lt;? if ($isGood) { ?&gt;
+&lt;font color=orangered size=+1&gt;●&lt;/font&gt;
+&lt;? } else { ?&gt;
+&lt;font color=slateblue size=+1&gt;▲&lt;/font&gt;
+&lt;? } ?&gt;
+&lt;font size=+1&gt;&lt;b&gt;&lt;?= $isGood ? "いい方" : "わるい方" ?&gt;&lt;/b&gt;&lt;/font&gt;の天気
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+  &lt;th bgcolor=gold&gt;地点&lt;/th&gt;
+  &lt;th bgcolor=gold width="&lt;?= $basewidth ?&gt;"&gt;天気の変化&lt;/th&gt;
+&lt;/tr&gt;
+&lt;? #/********************* ?&gt;
+&lt;tr&gt;
+  &lt;td&gt;&lt;/td&gt;
+  &lt;td&gt;
+&lt;table border=0 cellspacing=0 cellpadding=0&gt;
+&lt;tr&gt;
+&lt;? for ($i = 0; $i &lt; 31; $i += 5) { ?&gt;
+&lt;?   if ($i != 0) { ?&gt;
+  &lt;td width="&lt;?= $hspc ?&gt;"&gt;&lt;/td&gt;
+&lt;?   } ?&gt;
+&lt;?   for ($j = 0; $j &lt; 5 &amp;&amp; ($md = $i + $j + 1) &lt;= 31; $j++) { ?&gt;
+&lt;?     if ($md &lt;= $dom) { ?&gt;
+  &lt;td align=center width=16 bgcolor="&lt;?= $colors[floor ($i / 10)]
+?&gt;"&gt;&lt;?= /*(floor (($md % 5) / 2) == 0) ? "&lt;b&gt;$md&lt;/b&gt;" :*/ "&lt;font
+size=-1&gt;$md&lt;/font&gt;" ?&gt;&lt;/td&gt;
+&lt;?     } else { ?&gt;
+  &lt;td align=center width=16 bgcolor=black&gt;&lt;font size=-1
+color=gold&gt;&lt;b&gt;&lt;i&gt;&lt;?= $md - $dom ?&gt;&lt;/i&gt;&lt;/b&gt;&lt;/font&gt;&lt;/td&gt;
+&lt;?     } ?&gt;
+&lt;?   } ?&gt;
+&lt;? } ?&gt;
+&lt;/tr&gt;
+&lt;/table&gt;
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;? #*********************/ ?&gt;
+&lt;? foreach ($spotMdWeather as $spot =&gt; $mdWeather) { ?&gt;
+&lt;tr height=16&gt;
+  &lt;td bgcolor=#dddddd nowrap align=right&gt;&lt;font size=-1&gt;&lt;?=
+$spotnames[$spot] ?&gt;&lt;/font&gt;&lt;/td&gt;
+  &lt;td nowrap width="&lt;?= $basewidth ?&gt;"&gt;&lt;?
+    for ($md = 1; $md &lt;= $dom; $md++) {
+      if ($md != 1 &amp;&amp; ($md - 1) % 5 == 0) {
+?&gt;&lt;img width="&lt;?= $hspc ?&gt;" height=16 src="images/spc-ws-h.png"&gt;&lt;?
+      }
+                        
+      $code = sprintf ("%02d", $mdWeather[$md]);
+?&gt;&lt;img width=16 height=16 src="&lt;?= HW_GetFilledSymbolPath ($code) ?&gt;"&gt;&lt;?
+    }
+?&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;? } ?&gt;
+&lt;/table&gt;
+&lt;?
+} // function
+
+
+//////////////////////////////////////////////////////////// main
+
+HW_Auth();
+HW_TouchUsecount ("list");
+
+$ucExceeded = !HW_Usecount ("list");
+
+$area = "Japan";
+$now = getdate ();
+
+// validation
+if (is_null ($y) || is_null ($m) || is_null ($page)) {
+  $y = 1800;
+  $m = $now['mon'];
+  $page = "good";
+}
+
+?&gt;
+&lt;HTML&gt;
+&lt;HEAD&gt;
+&lt;? HW_EchoHTMLDocHeads (); ?&gt;
+&lt;TITLE&gt;&lt;?= "HWDB Japan $y/$m" ?&gt;&lt;/TITLE&gt;
+&lt;script language="JavaScript" src="Controller.js"
+charset="EUC-JP"&gt;&lt;/script&gt;
+&lt;/HEAD&gt;
+&lt;BODY BGCOLOR=#eeeeee TEXT=black LEFTMARGIN=0 TOPMARGIN=0 BOTTOMMARGIN=0
+MARGINWIDTH=0 MARGINHEIGHT=0&gt;
+
+
+&lt;!-- CONTROLLER --&gt;
+&lt;table border=0 cellpadding=4 cellspacing=0 width=100%&gt;
+&lt;tr&gt;
+  &lt;td bgcolor=#dddddd&gt;&lt;b&gt;天気表&lt;/b&gt; - 歴史時代の日本&lt;/td&gt;
+  &lt;td align=center bgcolor=gold&gt;
+
+&lt;? $ucRest = HW_GetUsecountRest ("list"); ?&gt;
+&lt;? if ( $ucRest == -1 ) { ?&gt;
+&lt;b&gt;回数制限なし&lt;/b&gt;
+&lt;? } else { ?&gt;
+あと &lt;b&gt;&lt;?= $ucRest ?&gt;&lt;/b&gt; 回
+&lt;? } ?&gt;
+
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+  &lt;td colspan=2 bgcolor=#dddddd&gt;
+&lt;table border=0 cellpadding=0 cellspacing=0 align=center&gt;
+&lt;form name="formC"&gt;
+        &lt;tr&gt;
+                &lt;td&gt;
+&lt;input type=text name="y" value="&lt;?= $y ?&gt;" size=4 maxlength=4&gt;
+                &lt;/td&gt;
+                &lt;td&gt;
+&lt;div&gt;&lt;a href="javascript:incY (document.formC)"&gt;&lt;img alt="次の年"
+src="images/button-up.png" border=0&gt;&lt;/a&gt;&lt;/div&gt;
+&lt;div&gt;&lt;a href="javascript:decY (document.formC)"&gt;&lt;img alt="前の年"
+src="images/button-down.png" border=0&gt;&lt;/a&gt;&lt;/div&gt;
+                &lt;/td&gt;
+                &lt;td&gt;年&lt;/td&gt;
+                &lt;td width=4&gt;&lt;/td&gt;
+                &lt;td&gt;
+&lt;select name="m"&gt;
+&lt;? for ($i = 1; $i &lt;= 12; $i++) { ?&gt;
+  &lt;option&lt;?= ($i == $m) ? " selected" : "" ?&gt;&gt;&lt;?= $i ?&gt;&lt;/option&gt;
+&lt;? } ?&gt;
+&lt;/select&gt;
+                &lt;/td&gt;
+                &lt;td&gt;
+&lt;div&gt;&lt;a href="javascript:incM (document.formC)"&gt;&lt;img alt="次の月"
+src="images/button-up.png" border=0&gt;&lt;/a&gt;&lt;/div&gt;
+&lt;div&gt;&lt;a href="javascript:decM (document.formC)"&gt;&lt;img alt="前の月"
+src="images/button-down.png" border=0&gt;&lt;/a&gt;&lt;/div&gt;
+                &lt;/td&gt;
+                &lt;td&gt;月&lt;/td&gt;
+                &lt;td width=4&gt;&lt;/td&gt;
+                &lt;td&gt;の&lt;/td&gt;
+                &lt;td width=4&gt;&lt;/td&gt;
+                &lt;td&gt;
+&lt;select name="page"&gt;
+  &lt;option&lt;?= ($page == "good") ? " selected" : "" ?&gt; value="good"&gt;◎ い
+い方の天気&lt;/option&gt;
+  &lt;option&lt;?= ($page != "good") ? " selected" : "" ?&gt; value="bad"&gt;△ わる
+い方の天気&lt;/option&gt;
+&lt;/select&gt;
+                &lt;/td&gt;
+                &lt;td&gt;
+&lt;a href="javascript:togglePage (document.formC)"&gt;&lt;img alt="その反対"
+src="images/button-down.png" border=0&gt;&lt;/a&gt;
+                &lt;/td&gt;
+                &lt;td width=4&gt;&lt;/td&gt;
+                &lt;td&gt;を&lt;/td&gt;
+                &lt;td width=4&gt;&lt;/td&gt;
+                &lt;td&gt;
+&lt;input type=button value="表で見る" onClick="checkandgo (form)"
+style='background-color: orange'&gt;
+                &lt;/td&gt;
+        &lt;/tr&gt;
+&lt;/form&gt;
+&lt;/table&gt;
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;/table&gt;
+&lt;!-- /CONTROLLER --&gt;
+
+&lt;hr&gt;
+
+&lt;!-- TABLE --&gt;
+&lt;? if ($ucExceeded) { ?&gt;
+&lt;table align=center border=0 cellpadding=0 cellspacing=0&gt;
+&lt;tr&gt;
+  &lt;td&gt;
+&lt;IMG SRC="images/overuse.png"&gt;
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;/table&gt;
+&lt;? } else { ?&gt;
+&lt;? echoMonthdayTable ($y, $m, $page, $area); ?&gt;
+&lt;? } ?&gt;
+&lt;!-- /TABLE --&gt;
+
+&lt;? HW_EchoFooter (); ?&gt;
+
+&lt;/BODY&gt;
+&lt;/HTML&gt;
+
+
+
+
+********************************************
+  Minoru Yoshimura     吉村 稔
+  山梨大学教育人間科学部ソフトサイエンス講座
+  Tel  055-220-8159    Fax  055-220-8158
+　　　　myoshi@edu.yamanashi.ac.jp
+********************************************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00043" HREF="msg00043.html">[pgsql-jp 24638] Re: 自己解決しました</A></STRONG>
+<UL><LI><EM>From:</EM> Minoru Yoshimura &lt;myoshi@edu.yamanashi.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00041.html">[pgsql-jp 24636] Re: 複数行を返す関数からcolumn を取り出すときの効率について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 24638] Re: 自己解決しました</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 24686] Re: テーブルへのデータインポートエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 24638] Re: 自己解決しました</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00042"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00042"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

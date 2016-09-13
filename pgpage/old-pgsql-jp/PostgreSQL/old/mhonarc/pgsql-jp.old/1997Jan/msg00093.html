@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1277] Re: Authorization on httpd (Re: hello) -->
+<!--X-From: "神田大輔[Daisuke Kanda]" <small@first.tsukuba.ac.jp> -->
+<!--X-Date: Wed, 29 Jan 1997 20:11:09 +0900 -->
+<!--X-Message-Id: 199701291111.UAA10990@matsumi.first.tsukuba.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9701291025.AA04663@rdspa104.roland.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1277] Re: Authorization on httpd (Re: hello) </TITLE>
+<LINK REV="made" HREF="mailto:small@first.tsukuba.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00092.html">Date Prev</A>][<A HREF="msg00094.html">Date Next</A>][<A HREF="msg00092.html">Thread Prev</A>][<A HREF="msg00094.html">Thread Next</A>][<A HREF="index.html#00093">Date Index</A>][<A HREF="threads.html#00093">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1277] Re: Authorization on httpd (Re: hello)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "神田大輔[Daisuke Kanda]" &lt;<A HREF="mailto:small@first.tsukuba.ac.jp">small@first.tsukuba.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 Jan 1997 20:11:09 +0900</LI>
+<LI><em>Cc</em>: <A HREF="mailto:small@first.tsukuba.ac.jp">small@first.tsukuba.ac.jp</A></LI>
+<LI><em>References</em>: &lt;<A HREF="msg00092.html">9701291025.AA04663@rdspa104.roland.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+  どうも、神田＠筑波大です。
+＃php-2.0b9 の jp パッチが当たらない…
+
+Kageyamaさんの書かれた、
+	「[postgres95 1276] Re: hello 」
+からの引用です。
+
+Kageyama&gt; 影山です。
+Kageyama&gt; 
+Kageyama&gt; まだ、httpd の認証というのが理解できていないのですが。
+Kageyama&gt; 
+Kageyama&gt; Wed, 29 Jan 1997 18:34:24 JST
+Kageyama&gt; small@first.tsukuba.ac.jp writes:
+Kageyama&gt; &gt;
+Kageyama&gt; &gt;  結局方法としては、 
+Kageyama&gt; &gt;    ・httpd の認証機能を使う。
+Kageyama&gt; &gt;    ・Kerberos を入れてがんばる。
+Kageyama&gt; &gt;    ・CGI を起動するときに実効UID を変更する。
+Kageyama&gt; &gt;    ・httpd を別のユーザーで立ち上げる。
+Kageyama&gt; &gt;
+Kageyama&gt; &gt;  といったところですか。
+Kageyama&gt; &gt;  ただ、一番目は別のユーザーが自力で progres にアクセスするページを書いたら
+Kageyama&gt; &gt;改変できてしまうので、ちょっとパス。
+Kageyama&gt; 
+Kageyama&gt; これが理解できないのですが、postgres は httpd が動いている WS しか
+Kageyama&gt; アクセスする権限を与えない。
+Kageyama&gt; そして、データベースをアクセスするページには passwd を設定する。
+Kageyama&gt; その passwd を設定した同じディレクトリにデータベースにアクセスする CGI も
+Kageyama&gt; おいておく。または passwd の設定されたディレクトリにおく。
+Kageyama&gt; もし CGI が postgres にアクセスする権限がなければ実行時ユーザー ID か
+Kageyama&gt; 実行時グループ ID を設定する。
+Kageyama&gt; 
+Kageyama&gt; これでも認証にまだ不足している部分があるのでしょうか?
+
+  これなら十分です。でもこれは 三番目の奴に含めちゃってました。
+  一番目が不十分といったのは、
+  まず、httpd が w3master ユーザーで動いているとします。
+  postgres のデータベースも w3master がオーナーになっている。
+  これなら CGI でアクセスできると思うけど、その CGI を呼ぶページに制限かけて
+も別のユーザーのホームページから CGI なりで postgres にアクセスされちゃう。
+  ということです。
+
+Kageyama&gt; &gt;  3番はいくつか実現方法がありますが。
+Kageyama&gt; &gt;  うちの httpd は色々 CGI 関係入っているので、それとの整合性がちょっと恐い
+Kageyama&gt; &gt;からモジュールはパス。
+Kageyama&gt; &gt;  自分で setUID か chpwuid(だっけ?) するプログラムを書くしかないけど、あま
+Kageyama&gt; &gt;り好きじゃないなぁ。
+
+Kageyama&gt; あれ setuid でスーパーユーザーの権限がないと実行できないと
+Kageyama&gt; 思ったけど。
+
+  これも分かりにくいですね(__)
+
+  setUID と書いたのが、パーミッション 4000 です。これをそのデータベース更新
+可能なユーザーで立てておく。ついでに内部でパスワードチェック。
+
+  chpwuid は setuid でした(^^;
+  上と同じようにして、root で 4000 建てておいて、中で実効UID を変える。
+
+Kageyama&gt; httpd は root では普通動かさないと思うのですが。
+
+  CGI を そのオーナーの権限で実行してくれる Apacheモジュールがあるんです。
+それ使えば簡単だけど、具体的に言うと FastCGI が入っているんです。FastCGI が、
+ちゃんとその sucgi(だったかな)に対応して権限を落してくれるのか分からないか
+ら入れなかったんです。
+
+    筑波大学自然学類三年次神田大輔 
+	e-mail:	small@first.tsukuba.ac.jp
+	WWW:	<A HREF="http://www.first.tsukuba.ac.jp/~small">http://www.first.tsukuba.ac.jp/~small</A>
+	PGP fingerprint:09 35 5B 57 5B B7 C8 8B  9C 87 7C 57 8F 2F BE 8B
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00101" HREF="msg00101.html">[postgres95 1285] Re: Authorization on httpd (Re: hello)</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi Sato &lt;koichi@ccc.canon.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00095" HREF="msg00095.html">[postgres95 1279] Re: Authorization on httpd (Re: hello)</A></STRONG>
+<UL><LI><EM>From:</EM> Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00094" HREF="msg00094.html">[postgres95 1278] Re: Authorization on httpd (Re: hello)</A></STRONG>
+<UL><LI><EM>From:</EM> Morihiro Kageyama &lt;kageyama@roland.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00092" HREF="msg00092.html">[postgres95 1276] Re: hello</A></STRONG>
+<UL><LI><EM>From:</EM> Morihiro Kageyama &lt;kageyama@roland.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00092.html">[postgres95 1276] Re: hello</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00094.html">[postgres95 1278] Re: Authorization on httpd (Re: hello)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00092.html">[postgres95 1276] Re: hello</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00094.html">[postgres95 1278] Re: Authorization on httpd (Re: hello)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00093"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00093"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

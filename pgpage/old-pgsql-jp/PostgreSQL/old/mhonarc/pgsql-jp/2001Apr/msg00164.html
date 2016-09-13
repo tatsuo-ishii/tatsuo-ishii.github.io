@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20739] Re: JDBC にてNUMERIC桁数取得する方法 -->
+<!--X-From: "ALIHALA Hiroshi" <arihara@tokyo.se.fujitsu.co.jp> -->
+<!--X-Date: Tue, 17 Apr 2001 09:16:45 +0900 -->
+<!--X-Message-Id: 008b01c0c6d3$afc58350$186315ac@tsc.tokyo.se.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200104161201.VAA02376@smtp.solid.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20739] Re: JDBC にてNUMERIC桁数取得する方法 </TITLE>
+<LINK REV="made" HREF="mailto:arihara@tokyo.se.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00163.html">Date Prev</A>][<A HREF="msg00165.html">Date Next</A>][<A HREF="msg00163.html">Thread Prev</A>][<A HREF="msg00165.html">Thread Next</A>][<A HREF="index.html#00164">Date Index</A>][<A HREF="threads.html#00164">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20739] Re: JDBC にてNUMERIC桁数取得する方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "ALIHALA Hiroshi" &lt;<A HREF="mailto:arihara@tokyo.se.fujitsu.co.jp">arihara@tokyo.se.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 17 Apr 2001 09:16:45 +0900</LI>
+<LI><em>Organization</em>: FUJITSU LIMITED</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00160.html">200104161201.VAA02376@smtp.solid.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+# 少し PostgreSQL から外れます。Java(JDBC)寄りです。
+----- Original Message -----
+From: "Naosuke MORITA" &lt;nmorita@quarkcat.com&gt;
+Sent: Monday, April 16, 2001 9:01 PM
+Subject: [pgsql-jp 20735] JDBC にて NUMERIC 桁数取得する方法
+
+
+| 森田と申します。JDBCにてNUMERIC桁数取得する方法をお教えいただきたくメー
+| ルいたします。
+|
+| 最初に、バージョンは
+| OS          :  Vine Linux 2.1 製品版
+| PosgreSQL   :  7.0.2  (Vine Linux 2.1附録のもの)
+| JDBCドライバ: PostgreSQL v7.0.3 多言語対応JDBCドライバ
+|              (<A HREF="http://siisise.net/の">http://siisise.net/の</A> SoftLibからダウンロード)
+| です。
+|
+| さてあるテーブルに NUMERIC(6,2) というフィールドがあったとします。この
+| フィールドの桁数(6と2)をJDBCにて取得する方法がわかりません。
+&lt;snip&gt;
+| そこで次に ResultSetMetaDataで調べました。
+| ResultSetMetaData#getPrecision()取得値は 0でした。また、
+| ResultSetMetaData#getScale()取得値も0でした。
+| 唯一、最大表示長取得の ResultSetMetaData#getColumnDisplaySize()取得値
+| は 9でした。
+|
+| このResultSetMetaDataクラスを使用する方法でも、NUMERICの桁数を取得でき
+| ませんでした。
+|
+| JDBCにてNUMERICの桁数を取得するには、どうすればよいのでしょうか？上記
+| の私の方法で取得できないのは、JDBCドライバ、PostgreSQLどちらの問題なの
+| でしょうか？
+
+　判るところだけ。
+　手元の PostgreSQL 6.5.3 のソースディレクトリ下にある
+ResultSetMetaData.java(postgresql-6.5.3/src/interfaces/jdbc/postgresql/jdbc2
+/の下)を追いかけていくと、次の様な記述があります：
+
+public int getPrecision(int column) throws SQLException
+{
+  int sql_type = getField(column).getSQLType();
+  switch (sql_type)
+    {
+    case Types.SMALLINT:
+      return 5;
+    case Types.INTEGER:
+      return 10;
+    case Types.REAL:
+      return 8;
+    case Types.FLOAT:
+      return 16;
+    case Types.DOUBLE:
+      return 16;
+    case Types.VARCHAR:
+      return 0;
+    default:
+      return 0;
+    }
+}
+
+　この通り NUMERIC の場合は「0」が返ります。メソッド getScale() も同様の記述
+です。
+　また、メソッド getColumnDisplaySize() はきちんと(？) char 型での int 値を
+返すように記述されているようですので「9」を取得できたのでしょう。
+
+　従って、JDBC ドライバの問題、といえば問題ということになるのではないかと(引
+用の通りで"仕様"ということでしょうか)。調べたのは 6.5.3 ですが、7.0.3 も多分
+似た記述ではないかと推測します。
+--
+__________________________________________________________________________
+富士通(株) システムサポート本部 カスタマリレーション統括部 お客様デスク部
+ 在原  浩 [ arihara@tokyo.se.fujitsu.co.jp ]  ☆:.
+＿＿＿＿＿[ arihara.hiroshi@jp.fujitsu.com ] ☆★::.::..＿＿＿＿＿＿＿＿＿
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00165" HREF="msg00165.html">[pgsql-jp 20740] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp 20735] JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+<UL><LI><EM>From:</EM> "Naosuke MORITA" &lt;nmorita@quarkcat.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 20738] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00165.html">[pgsql-jp 20740] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 20738] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00165.html">[pgsql-jp 20740] Re: JDBC にてNUMERIC桁数取得する方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00164"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00164"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17189] Re: 複数キーワードから検索するDB -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Fri, 01 Sep 2000 02:37:26 +0900 -->
+<!--X-Message-Id: 39AE97D6FA.9D70JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: xepya1fkot2.fsf@ic.src.ricoh.co.jp -->
+<!--X-Reference-Id: 20000831032745552.AAA237@ntsrv02.jecc.co.jp@px.honsya.jec -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17189] Re: 複数キーワードから検索するDB </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00000.html">Date Prev</A>][<A HREF="msg00002.html">Date Next</A>][<A HREF="msg00003.html">Thread Prev</A>][<A HREF="msg00002.html">Thread Next</A>][<A HREF="index.html#00001">Date Index</A>][<A HREF="threads.html#00001">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17189] Re: 複数キーワードから検索するDB</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 01 Sep 2000 02:37:26 +0900</LI>
+<LI><em>References</em>: &lt;xepya1fkot2.fsf@ic.src.ricoh.co.jp&gt; &lt;20000831032745552.AAA237@ntsrv02.jecc.co.jp@px.honsya.jec&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。北村です。
+
+On Thu, 31 Aug 2000 12:26:20 +0900
+eeb01@jecc.co.jp (_EE_BAITO01) wrote:
+
+&gt; こんにちは。石野といいます。
+&gt; &gt; 1.  各オブジェクトに一異なID番号を発行して、そのIDとキーワードのペアの
+&gt; &gt; テーブルを作る。ID, キーワードともに複数の列に現れる。
+&gt; &gt; select object_id from table_name where keyword = 'KEYWORD';
+&gt; &gt; のような形でIDを得て、それを使って元のオブジェクトを別テーブルから取り
+&gt; &gt; 出す。
+&gt; （略）
+&gt; &gt; 2.
+&gt; &gt; それぞれのオブジェクトと一緒のレコードにキーワードを','などで区切って
+&gt; &gt; 書き込んだvarcharなどの文字列フィールドを一つつけておく。検索はlikeな
+&gt; &gt; どで部分文字列一致を用いて行う。
+(略)
+&gt; 他の方からのレスにもあるように、通常は１のほうが妥当だと思うんですが、
+&gt; そのときはどうしても１つのSQLで検索したくて、２の方法をとっちゃいました^^;
+
+私は、近藤さんの意見に賛成で、1の案で作成しますね。（というより作成したの
+ですが)。ただし、単語テーブルと同義語ファイルと別にして、1単語1IDで作成し
+ました。
+
+近藤さんの引用
+&gt;キーワード自体もコード化して、
+&gt;(1)シノニム表
+&gt;   CREATE TABLE synonymtab(keyid int4, keyword text);
+&gt;(2)キーワードIDと検索対象のIDだけの表。
+&gt;   CREATE TABLE retrieve(keyid int4, objid int4);
+&gt;(3)検索対象のオブジェクト
+&gt;   CREATE TABLE objdata(objid serial, objtext text ...... );
+これを少しかえて、
+(0)単語表
+   CREATE TABLE keywords(keyid int4, keyword text);
+(1)シノニム表
+   CREATE TABLE synonymtab(keyid int4, rkeyid int4);
+としました。シノニム表には、ある単語と別の単語の関係を格納します。
+そして、keyid から、関係する keyid を導き出すファンクションを作りま
+す。
+こうしておけば、類義語から、単語とオブジェクトの関係を引っ張ってこれます。
+7.0から使える外部参照を使えば、これらのテーブルの整合性が容易に取れます。
+(と思います。作ったのは6.5.3だったので・・・）
+
+本題ですが、
+(2)のテーブルを利用すれば、
+&gt; １だと例えば、"くま"と"ひつじ"の両方のキーワードを持ち、"やぎ"は持たない、
+&gt; または"うま"を持つ、みたいな条件をシンプルなSQLで表現するのは難しいと思います。
+は、たしかに、where で書くと、面倒くさそうです。
+そういう場合は、 intersect や except、 union を使うと、 1条件の SQL を羅
+列する形で比較的シンプルに作成できます。 (これをシンプルと言わないという
+話も。苦笑）
+端折って書きますが、「((くま intersect ひつじ) except やぎ) union うま」
+で、目的の objid の羅列が得られませんかね？（それぞれの動物名は、SELECT文
+です。くま は、
+SELECT t1.objid
+ FROM retrive t1, keywords t2
+ WHERE t1.keyid = t2.keyid
+ and t2.keyword = 'くま'  &lt;- この部分を随時変更する
+・・・という意味です）。
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00278" HREF="msg00278.html">[pgsql-jp 17609] Re: 複数キーワードから検索するDB</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi INOUE &lt;inoue@argv.org&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 17190] お礼のメール</A></STRONG>
+<UL><LI><EM>From:</EM> "坂本　直樹" &lt;n_sakamo@argotechnos.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00000.html">[pgsql-jp 17188] ML Policy</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 17190] お礼のメール</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00003.html">[pgsql-jp 17191] pg_indexes について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 17190] お礼のメール</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00001"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00001"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

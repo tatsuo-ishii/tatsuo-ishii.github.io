@@ -1,0 +1,264 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2644] Re: 6.2jp S&#45;4/CL SPARC/Linux bench -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Wed, 08 Oct 1997 13:57:50 +0900 -->
+<!--X-Message-Id: 199710080457.NAA13174@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19971008132403M.power@densi.gifu&#45;u.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2644] Re: 6.2jp S-4/CL SPARC/Linux bench </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00057.html">Date Prev</A>][<A HREF="msg00059.html">Date Next</A>][<A HREF="msg00057.html">Thread Prev</A>][<A HREF="msg00059.html">Thread Next</A>][<A HREF="index.html#00058">Date Index</A>][<A HREF="threads.html#00058">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2644] Re: 6.2jp S-4/CL SPARC/Linux bench</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Wed, 08 Oct 1997 13:57:50 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;いしかわ＠岐阜大です。
+&gt;
+&gt;Machine	: S-4/CL 
+&gt;OS	: SPARC/Linux
+&gt;CPU	: MicroSparc 50MHz
+&gt;Memory	: 32M	
+&gt;
+&gt;gcc 	: 2.7.2.1 
+&gt;libc	: 5.3.12
+&gt;make	: 3.75
+&gt;flex	: 2.5.4
+&gt;
+&gt;での結果です。
+&gt;ちなみに、そのままmakeするとinitdbが返ってこなくなるようです。
+&gt;本家MLによると以下のようにすればいいようなことがありました。
+&gt;＃たぶん
+
+patch を当てようとしたら、reverse patch だと言われました。そこで確認で
+すが...
+
+このパッチは、354 行目を
+} while (!_res!= 0); \
+から
+} while (_res != 0); \
+にするパッチですよね？であれば、手元の 6.2 はすでにそうなっているので
+すが...
+
+本家MLの該当記事はこれかな？
+--------------------------------------------------------------------
+From: Bruce Momjian &lt;maillist@candle.pha.pa.us&gt;
+Message-Id: &lt;199710021830.OAA21213@candle.pha.pa.us&gt;
+Subject: Re: [PORTS] spinlocks and sparc linux
+To: maillist@candle.pha.pa.us (Bruce Momjian)
+Date: Thu, 2 Oct 1997 14:30:10 -0400 (EDT)
+Cc: szybist@boxhill.com, pgsql-ports@postgreSQL.org
+In-Reply-To: &lt;199710021718.NAA19456@candle.pha.pa.us&gt; from "Bruce Momjian" at Oct 2, 97 01:18:22 pm
+X-Mailer: ELM [version 2.4 PL25]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=US-ASCII
+Content-Transfer-Encoding: 7bit
+Sender: owner-pgsql-ports@hub.org
+Precedence: bulk
+
+&gt; 
+&gt; I am inclined to make this change for 6.2.  Any comments?  He seems to
+&gt; have researched it, and I don't have that platform here.
+
+Applied, and will be in 6.2.
+
+&gt; 
+&gt; &gt; 
+&gt; &gt; In message &lt;199710021629.MAA17112@candle.pha.pa.us&gt;, Bruce Momjian writes:
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; Hello, I've been tracking down a problem with postgres when compiled
+&gt; &gt; &gt; &gt; with -O2.  I new to this list, so please excuse me if I'm out of touch.
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; I running this on a sparc LX, Red Hat 4.2, kernel 2.0.30. gcc 2.7.2.3.
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; This has been happening with all 6.2 betas, and 6.2.
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; I believe the problem is in the spin lock macro S_LOCK in 
+&gt; &gt; &gt; &gt; include/storage/s_lock.h This used to be a function prior to 6.2
+&gt; &gt; &gt; &gt; 
+&gt; &gt; &gt; &gt; The test condition for the loop was changed from while ( res != 0 ) to
+&gt; &gt; &gt; &gt; while (!_res != 0 ).  I don't see how ( !_res != 0 ) can work. 
+&gt; &gt; &gt; 
+&gt; &gt; &gt; I see the old source as:
+&gt; &gt; &gt; 	
+&gt; &gt; &gt; 	#if defined(linux) &amp;&amp; defined(sparc)
+&gt; &gt; &gt; 	
+&gt; &gt; &gt; 	void
+&gt; &gt; &gt; 	S_LOCK(slock_t *lock)
+&gt; &gt; &gt; 	{
+&gt; &gt; &gt; 	        slock_t         res;
+&gt; &gt; &gt; 	
+&gt; &gt; &gt; 	        do
+&gt; &gt; &gt; 	        {
+&gt; &gt; &gt; 	                __asm__("ldstub [%1], %0"
+&gt; &gt; &gt; 	:                               "=&amp;r"(res)
+&gt; &gt; &gt; 	:                               "r"(lock));
+&gt; &gt; &gt; 	        } while (!res != 0);
+&gt; &gt; &gt; 	}
+&gt; &gt; &gt; 
+&gt; &gt; &gt; and the new source as:
+&gt; &gt; &gt; 	
+&gt; &gt; &gt; 	#if (defined(linux) || defined(__NetBSD__)) &amp;&amp; defined(sparc)
+&gt; &gt; &gt; 	
+&gt; &gt; &gt; 	#define S_LOCK(lock)    do \
+&gt; &gt; &gt; 	                        { \
+&gt; &gt; &gt; 	                            slock_t     _res; \
+&gt; &gt; &gt; 	                            do \
+&gt; &gt; &gt; 	                            { \
+&gt; &gt; &gt; 	                                __asm__("ldstub [%1], %0" \
+&gt; &gt; &gt; 	                        :       "=&amp;r"(_res) \
+&gt; &gt; &gt; 	                        :       "r"(lock)); \
+&gt; &gt; &gt; 	                            } while (!_res != 0); \
+&gt; &gt; &gt; 	                        } while (0)
+&gt; &gt; &gt; 
+&gt; &gt; &gt; Can you send me samples of the before/after problem you see?  We only
+&gt; &gt; &gt; have a few hours.
+&gt; &gt; &gt; 
+&gt; &gt; &gt; -- 
+&gt; &gt; &gt; Bruce Momjian
+&gt; &gt; &gt; maillist@candle.pha.pa.us
+&gt; &gt; &gt; 
+&gt; &gt; 
+&gt; &gt; 6.1.1 source has this: 
+&gt; &gt; 
+&gt; &gt; #if defined(linux) &amp;&amp; defined(sparc)
+&gt; &gt; 
+&gt; &gt; int
+&gt; &gt; tas(slock_t *m)
+&gt; &gt; {
+&gt; &gt;   slock_t res;
+&gt; &gt;   __asm__("ldstub [%1], %0"
+&gt; &gt;           : "=&amp;r" (res)
+&gt; &gt;           : "r" (m));
+&gt; &gt;   return (res != 0);
+&gt; &gt; }
+&gt; &gt; 
+&gt; &gt; void
+&gt; &gt; S_LOCK(slock_t *lock)
+&gt; &gt; {
+&gt; &gt;     while (tas(lock))
+&gt; &gt;         ;
+&gt; &gt; }
+&gt; &gt; 
+&gt; &gt; 
+&gt; &gt; This (6.1.1) works for me.  The original problem I was having was that
+&gt; &gt; postgres would just hang.  I recompile without -O2, and it worked,
+&gt; &gt; or so I thought.  I traced the hang with -O2 down to the S_LOCK macro.
+&gt; &gt; I took a closer look and compared it with 6.1.1, and noticed the
+&gt; &gt; difference.  If you follow the logic closely in 6.2, you will see that
+&gt; &gt; it doesn't do anything.  This may have been confusing the optimizer.
+&gt; &gt; 
+&gt; &gt; ldstub will always set lock to true and set _res to whatever lock was.
+&gt; &gt; If lock is initally false, after the first time through the loop, lock is
+&gt; &gt; true and _res is false, the loop then repeats. (!_res != 0 evaluates true).
+&gt; &gt; Now after the second time through the loop, lock is true again, and _res
+&gt; &gt; is now true.  The loop will now exit.  (!_res != 0 evaluates false). You
+&gt; &gt; can see that the loop will also exit if lock is initially true.  So,
+&gt; &gt; it doesn't matter if lock is true or false.
+&gt; &gt; 
+&gt; &gt; 6.1.1 works.  If lock is initally false, after the first time through the
+&gt; &gt; loop, lock is true and _res is false, the loop then exits.  res != 0
+&gt; &gt; returns false. If lock is intially true, _res will be true, res != 0
+&gt; &gt; will return true, and the loop will spin, until lock become false.
+&gt; &gt; 
+&gt; &gt; 
+&gt; &gt; I changed (!_res != 0) to (_res != 0) in my 6.2 source.  It compiled and ran
+&gt; &gt; the regression test without a problem.  However, I understand the regression
+&gt; &gt; test will not catch this.
+&gt; &gt; 
+&gt; &gt; I hope this explains the problem.  I'm dashing this off in a hurry.
+&gt; &gt; 
+&gt; &gt; If you really need, can reimpliment the macro as a function and send gdb
+&gt; &gt; output.
+&gt; &gt; 
+&gt; &gt; Thanks,
+&gt; &gt; 
+&gt; &gt; Tom Szybist
+&gt; &gt; szybist@boxhill.com
+&gt; &gt; 
+&gt; 
+&gt; 
+&gt; -- 
+&gt; Bruce Momjian
+&gt; maillist@candle.pha.pa.us
+&gt; 
+&gt; 
+
+
+-- 
+Bruce Momjian
+maillist@candle.pha.pa.us
+
+
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00059" HREF="msg00059.html">[pgsql-jp 2645] Re: 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00057" HREF="msg00057.html">[pgsql-jp 2643] 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Ishikawa &lt;power@densi.gifu-u.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 2643] 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 2645] Re: 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 2643] 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 2645] Re: 6.2jp S-4/CL SPARC/Linux bench</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00058"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00058"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

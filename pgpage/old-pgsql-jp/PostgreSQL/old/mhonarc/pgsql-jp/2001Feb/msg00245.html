@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20002] Re: Help I can't insert  data of date type -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 19 Feb 2001 00:16:38 +0900 -->
+<!--X-Message-Id: 3A8FE756.A2656139@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010218161258A.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 3A8F9A5C.86C2F1E7@miraclelinux.com -->
+<!--X-Reference-Id: 3A8FAF9F28A.54EBKITAMURA@mail.assiette.net -->
+<!--X-Reference-Id: 3A8FB85A.A0AB782C@miraclelinux.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20002] Re: Help I can't insert  data of date type </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00244.html">Date Prev</A>][<A HREF="msg00246.html">Date Next</A>][<A HREF="msg00243.html">Thread Prev</A>][<A HREF="msg00248.html">Thread Next</A>][<A HREF="index.html#00245">Date Index</A>][<A HREF="threads.html#00245">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20002] Re: Help I can't insert  data of date type</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 19 Feb 2001 00:16:38 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00226.html">20010218161258A.t-ishii@sra.co.jp</A>&gt; &lt;<A HREF="msg00233.html">3A8F9A5C.86C2F1E7@miraclelinux.com</A>&gt; &lt;<A HREF="msg00235.html">3A8FAF9F28A.54EBKITAMURA@mail.assiette.net</A>&gt; &lt;<A HREF="msg00239.html">3A8FB85A.A0AB782C@miraclelinux.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。お久しぶりです。
+
+Hidekazu Ikeda wrote:
+&gt; 
+&gt; 池田です。
+
+(snip)
+
+&gt; 　が、Oracle の NUMBERは索引張れるんですが、PostgreSQL
+&gt; で索引が張れる有効桁数が多い数値項目ってないのかな？
+
+PostgreSQL 6.5 では、NUMERIC 型の CREATE INDEX が
+できなかったけど、version 7 からできるようになった
+はずです。7.0.2 で、数百桁の NUMERIC を作って、CREATE
+INDEX できました。
+
+(snip)
+
+&gt; &gt; &gt; 　・MVCCの考え方は Oracle と同様だがさらに rbs の大きさに
+&gt; &gt; &gt; 　　依存しないので便利
+&gt; 
+&gt; 　Oracle の場合には、トランザクションが終わるごとに vacuum
+&gt; されているイメージに近いですね。ですから、読み取りしている側
+&gt; に旧データが途中で読めないエラーが戻ることもある。
+
+さすが赤い彗星。説明がうまいですね。
+高速のメモリーで後始末まできれにしてしまうのと、
+でっかい HDD を使うのでチューニングは簡単(という
+か殆んどチューニングするところがない)だけども、
+DB を止めて VACUUM でお掃除しなければならないのと
+の違いですね。ゲルググ とジムのようなもんかな。
+(オタクなfreeネタ御免。(^_^)。)
+
+(snip)
+
+&gt; 　うーん、MVCC の実装方法によってはファントムは発生して
+&gt; しまうと考えます。
+&gt; 　Oracle は、、、昔に調べたのを忘れてます（爆）。
+
+２〜３年前だけど、日経BPのムック本でカラーの図入り
+のオラクルのわかりやすし説明本があったと思ったけど
+見つからない。もう売ってないだろうな。
+
+Oracle の MVCC って、タイムスタンプを使うんでした
+っけ。(スイマセン。Oracle 使ったことないもんで)。
+
+PostgreSQL のマニュアルには次のように書いてあります。
+Serializable にしないと、phantom はでちゃうみたいで
+すね。
+
+-------------------- マニュアル引用開始 ------------------------
+phantom read
+    A transaction re-executes a query returning a set of rows that satisfy
+    a  search  condition  and  finds  that  additional  rows satisfying the
+    condition has been inserted by another committed transaction.
+
+The  four  isolation  levels  and the corresponding behaviors are described
+below.
+
+Table 13-1. Postgres Isolation Levels
+┌────────┬──────┬──────────┬──────┐
+│                │Dirty Read  │Non-Repeatable Read │Phantom Read│
+├────────┼──────┼──────────┼──────┤
+│Read uncommitted│Possible    │Possible            │Possible    │
+├────────┼──────┼──────────┼──────┤
+│Read committed  │Not possible│Possible            │Possible    │
+├────────┼──────┼──────────┼──────┤
+│Repeatable read │Not possible│Not possible        │Possible    │
+├────────┼──────┼──────────┼──────┤
+│Serializable    │Not possible│Not possible        │Not possible│
+└────────┴──────┴──────────┴──────┘
+-------------------- マニュアル引用終了 ------------------------
+
+
+Oracle で、'' を NULL と同一視するのは、互換性のためだったん
+ですね。歴史ある製品だし、互換性を大事にするのは、とてもいい
+ことですが、せめて、インストール時のオプション指定かなにかで、
+ANSI モードと 互換性モードと切り替られるようになっていないの
+でしょうか。
+
+Informix は、ANSI SQL からの拡張があまりないので、比較
+しずらいけど、ANSI モードと、Informix 独自モードを ESQL/C
+のコンパイル時に指定できました。
+
+Oracle の入門書をちらちら見てたら、SQL の比較述語に、
+&lt;&gt; の他に、 !=  や ^= があるんですね。そういえば、十数年
+前の UNIFY 4.0 (ANSI SQL 制定前)では、不等号は、&lt;&gt; でなく
+^= と記述しなければいけなかったです。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文   Email:  nkon@shonan.ne.jp 
+           PostgreSQL 汎用DB検索ツール デモ  
+      <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00248" HREF="msg00248.html">[pgsql-jp 20005] Re: Help I can't insert  data of date type</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00226" HREF="msg00226.html">[pgsql-jp 19983] Re: Help I can't insert  data of date type</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00233" HREF="msg00233.html">[pgsql-jp 19990] Re: Help I can't insert  data of date type</A></STRONG>
+<UL><LI><EM>From:</EM> Hidekazu Ikeda &lt;hikeda@miraclelinux.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00235" HREF="msg00235.html">[pgsql-jp 19992] Re: Help I can't insert  data of date type</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00239" HREF="msg00239.html">[pgsql-jp 19996] Re: Help I can't insert  data of date type</A></STRONG>
+<UL><LI><EM>From:</EM> Hidekazu Ikeda &lt;hikeda@miraclelinux.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00244.html">[pgsql-jp 20001] Re: Help Ican't insert data of date type</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 20003] Re: NULL (Re:pgsql-jp 19970)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00243.html">[pgsql-jp 20000] Re: Help I can't insert  data of date type</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00248.html">[pgsql-jp 20005] Re: Help I can't insert  data of date type</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00245"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00245"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

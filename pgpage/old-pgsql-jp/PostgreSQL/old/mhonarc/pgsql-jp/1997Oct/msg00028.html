@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2613] Re: regression test failed -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Sat, 04 Oct 1997 15:39:23 +0900 -->
+<!--X-Message-Id: 199710040639.PAA02124@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710031507.AAA16070@kitsun4.manage.kanazawa&#45;it.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2613] Re: regression test failed </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00026.html">Date Prev</A>][<A HREF="msg00029.html">Date Next</A>][<A HREF="msg00027.html">Thread Prev</A>][<A HREF="msg00024.html">Thread Next</A>][<A HREF="index.html#00028">Date Index</A>][<A HREF="threads.html#00028">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2613] Re: regression test failed</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 04 Oct 1997 15:39:23 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00027.html">199710031507.AAA16070@kitsun4.manage.kanazawa-it.ac.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+In message &lt;<A HREF="msg00027.html">199710031507.AAA16070@kitsun4.manage.kanazawa-it.ac.jp</A>&gt;, Nobuyuki T
+amaoki writes:
+&gt; 玉置＠金沢工大です
+&gt; 
+&gt; PostgreSQL 6.1.1 で regression test を失敗した私は
+&gt; PostgreSQL 6.2 でも regression test で失敗しました。
+&gt; 自分なりに失敗した理由を調べてみたのですが、再び壁
+&gt; にぶつかってしまいメールを出した次第です。
+&gt; みなさんの知恵をお貸していただけないでしょうか
+&gt; 
+&gt; 現象は前回と同じく regression test 中にプログラムか
+&gt; らの応答がなくなります。以下が regression test の結
+&gt; 果です。テスト'misc'の時に応答がなくなります。
+
+... [ざっくり] ...
+
+&gt; #0  0x1b600 in heapgettup (relation=0x204fd8, tid=0x0, dir=1, b=0x213bbc, 
+&gt;     timeQual=0x0, nkeys=0, key=0x0) at heapam.c:432
+&gt; 432                             
+&gt;     HeapTupleSatisfies(lpp, relation, *b, (PageHeader) dp,
+&gt; (gdb) where
+&gt; #0  0x1b600 in heapgettup (relation=0x204fd8, tid=0x0, dir=1, b=0x213bbc, 
+&gt;     timeQual=0x0, nkeys=0, key=0x0) at heapam.c:432
+&gt; #1  0x1be8c in heap_getnext (scandesc=0x213ba8, backw=0, b=0xefffd2cc)
+&gt;     at heapam.c:985
+&gt; #2  0x44bc8 in SeqNext (node=0x212e28) at nodeSeqscan.c:73
+&gt; #3  0x3fa60 in ExecScan (node=0x212e28, accessMtd=0x44ba0 &lt;SeqNext&gt;)
+&gt;     at execScan.c:102
+&gt; #4  0x44c14 in ExecSeqScan (node=0x44ba0) at nodeSeqscan.c:138
+
+    6.2 のソースが未入手ですので何とも言えないのですが，一応関連コメントとして
+お読み頂ければと思います．
+
+    heapam.c は X86_Solaris2.5.1 の 6.0 で異常が発生した場所と同じです．
+結局  assembly language 部分を fix したのですが，エラーの兆候が酷似しています．
+SPARC で同じバグが出ているとはちょっと思えないのですが，もしも時間があれば
+heap_getnext() の先頭にある
+
+    register HeapScanDesc sdesc = scandesc;
+
+の ``register'' の部分を殺してみて下さい:
+
+    /*register*/ HeapScanDesc sdesc = scandesc;
+
+実害はありません．関係なければ速度が遅くなるだけ，関係があれば別な部分で
+エラーが出るか，走ってしまうかのどちらかです．
+
+    X86_Solaris2.5.1 の時にはこれをきっかけに assembly language error を見つけ
+たのですが，SPARC assembly lang. については確信はありません．ただあまりにも
+兆候が似ているので worth trying ではと思っただけです．
+
+# もしも全然無関係でしたら本当にすいません．あくまでご参考程度ということで ...
+# 時間がなくて 6.1.1 から 6.2 に上げる時間が取れないのです． (T T;.
+
+-----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp 2612] regression test failed</A></STRONG>
+<UL><LI><EM>From:</EM> tamaoki@manage.kanazawa-it.ac.jp (Nobuyuki Tamaoki)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00026.html">[pgsql-jp 2611] Re: [Q]テーブルの不一致</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 2614] Hi nice to meet you</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 2612] regression test failed</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00024.html">[pgsql-jp 2609] [Q]テーブルの不一致</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00028"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00028"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

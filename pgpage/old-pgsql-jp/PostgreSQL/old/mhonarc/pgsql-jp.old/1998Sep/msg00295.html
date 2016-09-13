@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5504] Re: ShmemCreate: cannot create region -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 29 Sep 1998 15:19:09 +0900 -->
+<!--X-Message-Id: 199809290619.PAA13133@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199809290520.OAA00968@libpc01.pb.ascii.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5504] Re: ShmemCreate: cannot create region </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00294.html">Date Prev</A>][<A HREF="msg00296.html">Date Next</A>][<A HREF="msg00294.html">Thread Prev</A>][<A HREF="msg00296.html">Thread Next</A>][<A HREF="index.html#00295">Date Index</A>][<A HREF="threads.html#00295">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5504] Re: ShmemCreate: cannot create region</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 29 Sep 1998 15:19:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;塩崎です。
+&gt;お手数かけてすみません。
+
+いえ、そんなことないです。このような問題がクリアされて行かないと、
+PostgreSQLの信頼性が上がりません。
+
+&gt;[On Sep 29, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:]
+&gt;&gt;
+&gt;&gt;たのですが。ところで、これは 6.4 ですか？
+&gt;
+&gt;jaistでの
+&gt;	postgresql.snapshot.tar.gz . . .  [Sep 26 22:01]   4067k
+&gt;です。
+
+うーむ、そうですか。できるならβフェーズのうちに解決したいですね。
+
+&gt;&gt;素朴な疑問ですが、重複データを挿入しようとしてトランザクションがアボー
+&gt;&gt;トしているとのことですが、普通挿入する前に重複があるかどうかチェックし
+&gt;&gt;ませんか？
+&gt;
+&gt;それだと重複していないときに二度手間かなと思いまして。それに、確認から挿
+&gt;入までの間に別のプロセスが確認しにきたら、結局はぶつかる可能性があるかな、
+&gt;と思って単に挿入を試みていました。こういう使い方自体が間違ってますか?
+
+私もRDBで業務システムを組んだ経験が豊富、っていうわけではないのですが、
+私の場合、必ず事前にチェックしてました。
+それと、プロセス間の競合については、LOCK を使えば良いのではないでしょ
+うか。
+
+BEGIN
+LOCK
+SELECT
+もし重複がなければINSERT
+END
+
+ってな感じです。
+
+&gt;で、さらに試していて、バックエンドを必ず落すSQL文を見つけました。
+&gt;ただ、こっそりと落ちるので、attachしてもbreakpointの設定しようがなくて困っ
+&gt;ています。/var/log/messagesには
+&gt;Sep 29 13:54:42 libsvr05 /kernel: pid 25925 (postgres), uid 95: exited on signal 5
+&gt;というのが記録されますが。
+&gt;そのときにpsql側では、
+&gt;DBNAME=&gt; insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');
+&gt;pqReadData() -- backend closed the channel unexpectedly.
+&gt;	This probably means the backend terminated abnormally before or while processing the request.
+&gt;We have lost the connection to the backend, so further processing is impossible.  Terminating.
+&gt;という風になります。ただ、きれいなデータベースにこの表を用意して同じSQL
+&gt;文を流しても落ちません。
+
+postgres を直接起動し、SQL文を喰わせてみてはどうでしょう。shmem からみ
+で落ちている場合は駄目ですが。
+
+% gdb ./postgres
+% run -D /usr/local/pgsql/data dbnae
+insert into reference values ('<A HREF="http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html">http://www-master.wp.ascii.co.jp:80/ascii24/issue/980311/hard02.html</A>', '<A HREF="http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?">http://www-master.wp.ascii.co.jp:80/adv/ascii24/side03-04click.cgi?</A>');
+
+で捕まえられないかな？
+
+&gt;そうこうしているうちに、postmaster自体が立ち上がらなくなってしまいました。
+&gt;# これでは、pg_dumpもできない...
+&gt;こちらはback traceが取れてます。
+&gt;結局共有メモリ不足(=データが多すぎる?)なんでしょうか。
+
+いえ、そんなことないはずです。少ないなら少ないなり処理するのが正しい姿
+でしょう。
+あくまで想像ですが、トランザクションがアボートしたときに、正しく shmem 
+を解放できてないのではないでしょうか。
+
+# ちなみに、データは何件くらいあるのですか？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00296" HREF="msg00296.html">[pgsql-jp 5505] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00293" HREF="msg00293.html">[pgsql-jp 5502] Re: ShmemCreate: cannot create region</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 5503] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 5505] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00294.html">[pgsql-jp 5503] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 5505] Re: ShmemCreate: cannot create region</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00295"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00295"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

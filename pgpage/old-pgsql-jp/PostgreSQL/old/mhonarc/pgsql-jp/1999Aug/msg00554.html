@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10402] Re: large_object and Transaction -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 25 Aug 1999 10:48:17 +0900 -->
+<!--X-Message-Id: 199908250148.KAA01232@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37C2EB56186.341ANKON@mail.shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10402] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00553.html">Date Prev</A>][<A HREF="msg00555.html">Date Next</A>][<A HREF="msg00550.html">Thread Prev</A>][<A HREF="msg00508.html">Thread Next</A>][<A HREF="index.html#00554">Date Index</A>][<A HREF="threads.html#00554">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10402] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 25 Aug 1999 10:48:17 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 申し訳ないですが、私の Informix のはなしは、最新版
+&gt; ではなくて５年前くらいにでた少し古い版についての情
+&gt; 報ですので、誤解内容よろしくお願します。
+
+はい、分かっております。
+
+&gt; ＃最新版の情報が必要なら、ML i4l に具体的質問を出す
+&gt; ＃か、私が中継します。運が良ければ誰か教えてくれる
+&gt; ＃かもしれません。i4l は、閑古鳥がないていて、開店
+&gt; ＃休業状態なもので。
+
+お手数ですが、中継いただけますでしょうか。
+
+&gt; &gt; 自動的にテーブルロックになってくれるわけではないのですか？
+&gt; 
+&gt; マニュアルが手元にないのでうろ覚えですが、テーブル
+&gt; ロックに昇格する場合もあるはずですが、UPDATE ATABLE
+&gt; SET A=0; みたいな単純な更新で LOCK TABLE を指定しな
+&gt; いで、設定ロック数を超えると、long transaction error
+&gt; がよく発生していました。最新版ではどうなったか知りません。
+
+なるほど。
+
+&gt; &gt; ということは、この場合数GBのデータを一気に削除しようとしたりすると、エ
+&gt; &gt; ラーになってしまうのですね。それともとたんにMTが回り出すのでしょうか？
+&gt; 
+&gt; 数GBのデーターを一気に削除するような場合は、自動
+&gt; モードで、ディスクのログファイルを逐次MTに出力する
+&gt; ようにするしかないと思います。やったことはないですが。
+
+うーん、遅そう:-)まあ、実際には大量データの削除のようなバッチ処理は、
+厳密に計画を建てて実行するでしょうから、途中でMTが回り出すような間抜け
+なことにはならないと思いますが。
+
+&gt; &gt; 248バイト／行のデータを、5000万件一気にcopyしました。
+&gt; &gt; RedHat 6.0、PostgreSQL 6.5.1、主記憶512MBです。
+&gt; 
+&gt; これはすごい。単純計算で 12.4 GB。管理領域や、ページ
+&gt; ( 8KB かな)の端数を入れるともっとおおきいですね。
+
+いえ、248バイトと言うのはできたDBファイルサイズを件数で割った結果の値
+なので、実際に12GBほどのテーブルになっています。
+
+&gt; Linux だと１ファイルの最大が 2GB だけど、１ TABLE を
+&gt; 複数ファイルで構成するにはどうするんでしょう。6.5.0
+&gt; のマニュアル見たけどわかりませんでした。
+&gt; 
+&gt; HISOTRY には、 Fix for tables over 2gigs(Peter)と書いて
+&gt; あるからできるんですね。
+&gt;
+&gt; 過去ML見ると、Date: Wed, 02 Jun 1999 20:18:39 +0900 
+&gt; Subject:  [pgsql-jp 8602] に、特別な設定はいらないと
+&gt; あるので、 2GB超えそうになると勝手にファイルを作って
+&gt; くれるんでしょうか。（今 HDD に空がなくてテストできない）。
+
+はい。実際には1GB単位で自動的にファイル分割します(セグメントファイル)。
+それと、ファイル分割をテストするだけでしたら、include/config.hの
+
+#define RELSEG_SIZE	(0x40000000 / BLCKSZ)
+
+を修正して小さな値にすれば、ディスクがなくても分割の様子を観察できます。
+ちなみに、RELSEG_SIZEはセグメントファイルのブロック数です。デフォルト
+では1ブロック = 8192バイトなので、RELSEG_SIZE*8192 = 1073741824バイト 
+= 1GBがセグメントファイルのサイズになっています。
+
+&gt; でも、HDD VOLUME の指定はどうするんでしょう。
+&gt; 複数 HDD に Partitioning したいときは、mv して、シ
+&gt; ンボリックリンクを手作業で作るのかな。PostgreSQL
+&gt; 自体には、Partitoning 機能はなかったですね。
+
+このあたりが現在のPostgreSQLではつらいところですね。一つのデータベース
+一つのパーティションに収まっていないといけません。データベースが異なれ
+ば別パーティションに分割できるのですが...
+
+ちなみに、実際にシンボリックリンクは試したことがありません。できそうな
+気もしますが...
+---
+Tatsuo Ishii
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00550" HREF="msg00550.html">[pgsql-jp 10398] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00553.html">[pgsql-jp 10401] レコード参照にロックをかける方法は？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00555.html">[pgsql-jp 10403] About pgsql_perl5</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00550.html">[pgsql-jp 10398] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00508.html">[pgsql-jp 10354] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00554"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00554"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

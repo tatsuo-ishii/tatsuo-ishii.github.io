@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6861] Re: jdbcのパッチ -->
+<!--X-From: Hiroyoshi　Shigenaga<sigenaga@allnet.ne.jp> -->
+<!--X-Date: Fri, 29 Jan 1999 22:20:24 +0900 -->
+<!--X-Message-Id: 36B1B598.7F4A3D3E@allnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901281426.XAA00638@ext16.sra.co.jp -->
+<!--X-Reference-Id: 19990129134724V.mochid@tpj.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6861] Re: jdbcのパッチ </TITLE>
+<LINK REV="made" HREF="mailto:sigenaga@allnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00447.html">Date Prev</A>][<A HREF="msg00449.html">Date Next</A>][<A HREF="msg00433.html">Thread Prev</A>][<A HREF="msg00418.html">Thread Next</A>][<A HREF="index.html#00448">Date Index</A>][<A HREF="threads.html#00448">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6861] Re: jdbcのパッチ</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroyoshi　Shigenaga&lt;<A HREF="mailto:sigenaga@allnet.ne.jp">sigenaga@allnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 29 Jan 1999 22:20:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00422.html">199901281426.XAA00638@ext16.sra.co.jp</A>&gt; &lt;<A HREF="msg00433.html">19990129134724V.mochid@tpj.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+重永　裕祥です
+大変，ご丁寧な返信で恐縮しています
+
+&gt;
+&gt;  あのパッチを当てると、
+&gt;
+&gt;   1) Java が外の世界（ファイルや端末など）の入出力時に仮定する
+&gt;     エンコーディング
+&gt;   2) PostgreSQL バックエンドとのやりとりで使用するエンコーディング
+&gt;
+&gt; の 2 つを、分離してあつかうようになります。
+&gt;
+
+わかりました。
+
+&gt;
+&gt;  1) は、一般的に、Java の載る環境（OS など）の設定が引き継がれます。
+&gt; Solaris で LANG=ja ならば、エンコーディングは EUC_JP に自動的に
+&gt; なります。MS-Windows や Macintosh では SJIS になります。
+&gt;
+&gt;  例えば、
+&gt;
+&gt;     byte[] eucbytes = "漢字".getBytes();
+&gt;     String javaString = new String(eucbytes);
+&gt;
+&gt; の String → byte[], byte[] → String の変換は、多言語を取り混ぜて
+&gt; 扱うことのできる String と、多言語を同時には扱えない OS 環境等との間での
+&gt; 変換であって、エンコーディングを明示的に指定しない場合はそれぞれの
+&gt; 環境でのデフォルトのエンコーディング（EUC_JP や SJIS 等）が
+&gt; 使用されます。
+
+「多言語を同時に扱えないOS」の意味がわかりませんが・・・普通は同時に扱えません
+よね？
+ディフォルトのエンコーディングとは，環境変数の内容で判断するということですか？
+これが，後で出てくる，正しくJAVA環境に伝わってないという事ですか？
+
+&gt;
+&gt;  2) は、パッチ無しの状態では 1) と同じ方法で  byte[] &lt;-&gt; String 変換を
+&gt; 行うのですが、パッチを当てると、PostgreSQL バックエンド（の DB）の
+&gt; エンコーディングは別に扱うようになります。6.4 以降では
+&gt; "select getdatabaseencoding()" で DB のエンコーディングが
+&gt; 取得できますので、EUC_JP が取得できたとすると、
+&gt; バックエンドとの送受信には、
+&gt;
+&gt;     byte[] eucbytes = "漢字".getBytes("EUC_JP");
+&gt;                                       ^^^^^^^^
+&gt;     String javaString = new String(eucbytes, "EUC_JP");
+&gt;                                              ^^^^^^^^
+&gt; を使います。
+&gt;
+&gt;  つまり、たまたま 1) と 2) が同じエンコーディングだった場合、
+&gt; パッチがなくても正常に動作します※1。
+&gt;
+&gt;  で、ここからまたややこしい話なのですが、Java の file.encoding という
+&gt; プロパティを java 起動時に設定すると、1) の、OS 環境との間でやりとりする
+&gt; エンコーディングが指定のものに変更されます※2 。JDBC MB パッチを
+&gt; 当てない状態で、-Dfile.encoding=EUC_JP で文字が正しく表示されるように
+&gt; なった、ということは、
+&gt;
+&gt;   1. DB とのエンコーディングは EUC_JP で正しい。
+
+パッチを当てていないと，EUC_JPになるということですね
+
+&gt;   2. OS 環境との間は EUC_JP で正しい。
+
+&gt;   3. Java は OS 環境から EUC_JP の指示を受け取れていない。
+&gt;
+
+では，これが，正常に受け取れていれば，-Dfile.encoding=EUC_JPも不用ということで
+すか？
+
+&gt;
+&gt;  もっと上手に説明できるといいんですが、
+&gt; -Dfile.encoding=EUC_JP というのは、Java の環境に対する指示であって、
+&gt; JDBC ドライバのパッチとは本来関係の無いことなんです。
+&gt;
+
+ここは，理解できます。
+
+&gt;
+&gt;  patch コマンドは、標準入力からパッチ（diff コマンドによる
+&gt; 差分情報）を読み込み、カレントディレクトリ以下のファイルツリーに
+&gt; 適用します。あっ、UNIX じゃないんでしょうか? 以下 UNIX じゃないと
+&gt; ダメだと思いますが、
+&gt;
+
+UNIXです
+
+&gt;
+&gt;   % cd src/interfaces/jdbc
+&gt;   % gunzip &lt; pg64jdbc-mb-19981214.patch.gz | patch -p1
+&gt;
+&gt; で src/interfaces/jdbc/ ディレクトリ以下のソースコードが変更されます。
+&gt; ということで、
+&gt;
+
+ｄｉｆｆコマンドから勉強してみます。とりあえず，パッチの当て方は理解できました
+
+文字化けの件は，頭の中がこんがらがってしまいました。理解できているのか，
+どうか，自分でもわかりません
+少しずつ確認してみることにします
+
+--
+*************************************
+  重永　裕祥
+　〒　277-0066
+      千葉県柏市中新宿3-8-13
+  mail: sigenaga@allnet.ne.jp
+  Ham Radio: JA4UDD
+************************************　　　　　
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00422" HREF="msg00422.html">[pgsql-jp 6836] Re: jdbcのパッチ</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00433" HREF="msg00433.html">[pgsql-jp 6846] Re: jdbcのパッチ</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@tpj.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00447.html">[pgsql-jp 6860] Re: Can't build PostgreSQL6.4.2 on TurboLinux2.0</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00449.html">[pgsql-jp 6862] Re: Can't build PostgreSQL6.4.2 on TurboLinux2.0</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00433.html">[pgsql-jp 6846] Re: jdbcのパッチ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00418.html">[pgsql-jp 6831] Big5 patch</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00448"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00448"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

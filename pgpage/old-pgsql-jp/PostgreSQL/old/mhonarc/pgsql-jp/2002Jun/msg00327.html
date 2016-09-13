@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26547] Re: % で始まる文字のLIKE検索 -->
+<!--X-From: Hajime Lucky Okada <luckyo@tpk.toppan.co.jp> -->
+<!--X-Date: Sun, 30 Jun 2002 15:51:32 +0900 -->
+<!--X-Message-Id: 3D1EAA74.7030308@tpk.toppan.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3D1D6AF4.5040101@luckyo.8m.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26547] Re: % で始まる文字のLIKE検索 </TITLE>
+<LINK REV="made" HREF="mailto:luckyo@tpk.toppan.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00328.html">Date Prev</A>][<A HREF="msg00323.html">Date Next</A>][<A HREF="msg00329.html">Thread Prev</A>][<A HREF="msg00306.html">Thread Next</A>][<A HREF="index.html#00327">Date Index</A>][<A HREF="threads.html#00327">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26547] Re: % で始まる文字のLIKE検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hajime Lucky Okada &lt;<A HREF="mailto:luckyo@tpk.toppan.co.jp">luckyo@tpk.toppan.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 30 Jun 2002 15:51:32 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00322.html">3D1D6AF4.5040101@luckyo.8m.com</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (Windows; U; Windows NT 5.0; ja-JP; rv:1.0rc2) Gecko/20020512 Netscape/7.0b1</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岡田です。 みなさまありがとうございます。
+
+昨日はへろへろで返事が遅くなり申し訳ありませんでした。
+
+結果論として LIKE 検索パターンの中で '%' 文字自身を表すためには、
+「エスケープ文字をエスケープさせなければならない」ということでした。
+
+私もあのドキュメントを読んで上記の内容は想像出来なかった一人として、
+事実を知った時は瞳孔が開き 道でこけかけましたが、ある意味 目から鱗で
+感動でした♪  一番最初にコメントを下さった三村さんが実は近かったんですね。
+失礼致しました。
+
+昨日のサンプルに文字列の中に '%' の存在する４件目のデータ 'te%st' を
+追加し、、、
+
+mountdb=# select * from aaa;
+ id | content
+----+----------
+  1 | ぽよよん
+  2 | %test
+  3 | どかーん
+  4 | te%st
+(4 rows)
+
+mountdb=# -- (頭 % の文字列 検索)
+mountdb=# select * from aaa where content like '\\%%';
+ id | content
+----+---------
+  2 | %test
+(1 row)
+
+mountdb=# -- (% を含む文字列 検索)
+mountdb=# select * from aaa where content like '%\\%%';    
+ id | content
+----+---------
+  2 | %test
+  4 | te%st
+(2 rows)
+
+確かに、想定通りの結果を確認出来ました。
+（文字の中／語尾にだけ '%' 文字の検索には、やはり正規表現だけが
+  可能なんでしょぅね）
+
+
+折角なので、本家のドキュメントを引っ張ってみました。
+<A HREF="http://www.postgresql.org/idocs/index.php?functions-matching.html">http://www.postgresql.org/idocs/index.php?functions-matching.html</A>
+
+「 To match a literal underscore or percent sign without matching other characters,
+the respective character in pattern must be preceded by the escape character.
+The default escape character is the backslash but a different one may be selected
+by using the ESCAPE clause. To match the escape character itself, write two escape
+characters. 」
+
+私の能力では、このまま読めばあの和訳そのものになりますね。
+% をエスケープするには、\ の一文字で十分と読め、まさか この \ までもエスケープ
+しなければならないと訳すのは、やはり超訳の部類に入るといっても仕方ないと考えます。
+
+
+最後に少し気になる点は、この記述は Postgres では有効としても、
+他のＤＢへの互換性はどうなんでしょうね。
+
+
+ありがとうございました。
+
+岡田はじめ
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00322" HREF="msg00322.html">[pgsql-jp: 26535] % で始まる文字のLIKE 検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hajime Lucky Okada &lt;paraiso@luckyo.8m.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp: 26546] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00323.html">[pgsql-jp: 26548] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00329.html">[pgsql-jp: 26539] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00306.html">[pgsql-jp: 26527] テーブルの結合について教えてください。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00327"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00327"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

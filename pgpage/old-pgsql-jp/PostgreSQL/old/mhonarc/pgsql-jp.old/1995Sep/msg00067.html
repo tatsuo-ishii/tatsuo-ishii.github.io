@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 169] Re: seach time -->
+<!--X-From: HENMI Kentoshi/逸見謙年<hen@graphtec.co.jp> -->
+<!--X-Date: Tue, 19 Sep 1995 17:47:50 +0900 -->
+<!--X-Message-Id: 199509190847.RAA02507@eds6.graphtec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199509151025.TAA26193@srashc.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 169] Re: seach time </TITLE>
+<LINK REV="made" HREF="mailto:hen@graphtec.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00066.html">Date Prev</A>][<A HREF="msg00068.html">Date Next</A>][<A HREF="msg00054.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00067">Date Index</A>][<A HREF="threads.html#00067">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 169] Re: seach time</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HENMI Kentoshi/逸見謙年&lt;<A HREF="mailto:hen@graphtec.co.jp">hen@graphtec.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 Sep 1995 17:47:50 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00054.html">199509151025.TAA26193@srashc.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+逸見＠グラフテックです。
+
+&gt;&gt;&gt;&gt;&gt; "miyata" == miyata shigeaki &lt;miyata@sra.co.jp&gt; writes:
+
+miyata&gt; 文字列の途中から(何文字目からは不定)の部分一致検索になると思いますが、
+miyata&gt; 私の経験からすると、Info?mixでも Ora?le でも S?base でも
+miyata&gt; これには、全件検索するしかなく、それなりの時間がかかると思います。
+
+まわりに、商用のデータベースが無いので、うちでは比較出来ませんが。
+そーいうもんですか。参考になります。
+
+miyata&gt; 単純文字列検索に、ボイヤームーアアルゴリズムとか、
+miyata&gt; GNU grepで使用してるアルゴリズムを使ってるDBというのは
+miyata&gt; 見たことないので、結局時間がかかってしまうのでは？
+
+そーなんですよね。grepでtext検索で同様の検索だと
+1秒もかからないでできるんですが
+
+&gt;&gt;&gt;&gt;&gt; "石井" == t-ishii@sra.co.jp (Tatsuo Ishii) writes:
+
+&gt;&gt; 前方一致だと、普通は index を使用するのですが...
+
+石井&gt; そうですね。postgres95では、"~"オペレータのときは
+石井&gt; index が使われないそうですし。
+
+ですよね。
+
+&gt;&gt; 単純文字列検索に、ボイヤームーアアルゴリズムとか、
+&gt;&gt; GNU grepで使用してるアルゴリズムを使ってるDBというのは
+&gt;&gt; 見たことないので、結局時間がかかってしまうのでは？
+
+石井&gt; 私の日本語パッチを当てると、結果的にGNU のアルゴリズムが
+石井&gt; 使われると思います。ただ、今回に限って言えば、
+石井&gt; 他の要素もあります。
+
+石井&gt; (1)  実際にヒットした件数が何件か。1万件もヒットすると、
+石井&gt; 結果をクライアント側に転送するだけでも結構な時間がかかります。
+
+現在使用しているデータと検索条件ででヒットする件数は11件です。 
+ので、転送時間はほとんど無視して良いと思います。
+
+石井&gt; (2) 正規表現をコンパイルするオーバーヘッド。beta-0.03 では、
+石井&gt; 1レコードごとに正規表現をコンパイルしています。つまり4万件
+石井&gt; データがあれば、4万回コンパイルするわけです。1.0 からは、
+石井&gt; コンパイル結果をキャッシュするようになったそうなので、
+石井&gt; ひょっとすると大分改善されるかもしれません。
+
+これは、なんか期待出来そうですね。
+ただ、こちらは、まだですが。
+
+石井&gt; (番外) もうやってると思いますが、Makefile.global を修正し、
+石井&gt; デバッグモードを外す。optimize がかかるし、ASSERT や
+石井&gt; -g が外れるので、postgresのロードモジュールサイズも
+石井&gt; 10MB が 1MB になります。(SunOSの場合)
+
+これは、やっていませんでしたので、やってみました。
+結果報告です。
+本当ですね。なんかえらくサイズが変わりますね。
+-g 付き
+-r-xr-xr-x  1 postgres  9805824 Aug  3 12:27 /usr/local/postgres95/bin/postgres
+-g なし
+-r-xr-xr-x  1 postgres   909312 Sep 19 17:11 /usr/local/postgres95/bin/postgres
+
+で、検索時間ですが、-g無しでやると11秒でした。
+v4も合わせて比較すると
+
+  postgres95-beta0.03+日本語patch (-g 無し)     11秒
+  postgres95-beta0.03+日本語patch (-g 有り)     13秒
+  postgres-v4.2+日本語patch       (-g 有り)     27秒
+
+となります。
+
+次は、V1.0でやってみようと思います。
+
+＃ ところでV1.0の日本語化patchってしばらくかかりそうですか?
+
+	逸見 謙年 (Kentoshi Henmi)  hen@graphtec.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[postgres95 175] Re: seach time</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00054" HREF="msg00054.html">[postgres95 156] Re: seach time</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00066.html">[postgres95 168] Re: POSTGRES95　VR1.0について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00068.html">[postgres95 170] Re: POSTGRES95　VR1.0について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00054.html">[postgres95 156] Re: seach time</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[postgres95 175] Re: seach time</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00067"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00067"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

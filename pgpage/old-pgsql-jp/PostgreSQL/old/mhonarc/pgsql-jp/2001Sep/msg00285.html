@@ -1,0 +1,130 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23249] function 内でのtemp使用について -->
+<!--X-From: Tsuiki Takuma <ttsuiki@ether.co.jp> -->
+<!--X-Date: Sat, 29 Sep 2001 20:57:39 +0900 -->
+<!--X-Message-Id: 20010929201422.5E47.TTSUIKI@ether.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23249] function 内でのtemp使用について </TITLE>
+<LINK REV="made" HREF="mailto:ttsuiki@ether.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00284.html">Date Prev</A>][<A HREF="msg00286.html">Date Next</A>][<A HREF="msg00288.html">Thread Prev</A>][<A HREF="msg00284.html">Thread Next</A>][<A HREF="index.html#00285">Date Index</A>][<A HREF="threads.html#00285">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23249] function 内でのtemp使用について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuiki Takuma &lt;<A HREF="mailto:ttsuiki@ether.co.jp">ttsuiki@ether.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 29 Sep 2001 20:57:39 +0900</LI>
+<LI><em>Organization</em>: Ether Planic Inc.</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お世話になっております。立木と申します。
+
+現在、functionを研究しているのですが、
+function内でcreate temp table ??? as .....といったSQLを使って、
+temp tableを利用しようとしているのですが、同一トランザクション内
+で、２回そのfunctionを実行すると下記のようなエラーとなります。
+
+create table aaa (
+	a1	varchar(3)	primary key,
+	a2	numeric(15,0)	not null
+);
+
+insert into aaa
+select '001',10
+union
+select '002',20
+union
+select '003',30
+union
+select '004',40
+union
+select '005',50;
+
+create function test1() returns numeric as '
+begin
+create temp table temp_aaa as
+	select sum(a2) as a2s from aaa;
+create temp table temp_bbb as 
+	select a1,a2,(a2/a2s) as a2r from aaa, temp_aaa;
+drop table temp_aaa;
+drop table temp_bbb;
+return 0;
+end;
+'language 'plpgsql';
+
+select test1();
+
+test1
+----
+    0
+(1 row)
+
+select test1();
+
+ERROR: Relation 8819546 dose not exist
+
+１回だけcreate temp table ??? as ....をした後、drop table ???と
+しただけなら上記のエラーにはならず。
+作成したtemp tableを使ったselect文があるとなるようです。
+
+ちなみに、8819546という番号は毎回変わりますので、OIDではないかと
+思いますが、定かではありません。
+function内でtempを使うことには、何か問題があるのでしょうか？
+
+何かご存知の方が御座いましたら、ご教授下さい。
+
+= 環境 =
+PostgreSQL 7.1.2
+Red Hat Linux 6.2J
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 23250] 利用実態調査について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00286.html">[pgsql-jp 23251] Re: 利用実態調査について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 23253] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 23250] 利用実態調査について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00285"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00285"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

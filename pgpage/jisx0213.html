@@ -1,0 +1,104 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html;charset=iso-2022-jp">
+<link rev=made href="mailto:t-ishii@sra.co.jp">
+<title>PostgreSQL and JIS X 0213</title>
+<style type="text/css">
+<!--
+td {
+  background-image:url(midashi.png);
+  width: 1024;
+  font-weight: bold
+}
+
+-->
+</style>
+</head>
+<body bgcolor="#ffffff">
+<!-- hhmts start -->
+Last modified: Thu Mar 22 09:18:33 JST 2007
+<!-- hhmts end -->
+<h1>PostgreSQLにおけるJIS X 0213サポートに関する考察メモ</h1>
+
+<table><tr><td><font color="Purple">はじめに</font></td></tr></table>
+<p>
+PostgreSQLでは(8.2現在)，JIS X 0213はサポートされていません．このページでは，
+PostgreSQLでJIS X 0213をサポートする際の問題点などを検討します．
+</p>
+
+<table><tr><td><font color="Purple">JIS X 0213とは</font></td></tr></table>
+<p>
+詳しく書いている時間がないのでとりあえず<a href="http://ja.wikipedia.org/wiki/JIS_X_0213">ここ</a>を見てください．
+</p>
+
+<p>
+概要としては，以下．
+
+<ul>
+<li>2000年に制定，2004年にupdate
+<li>「第1面」と「第2面」からなり，第1面にはJIS X 0208の非漢字，JIS第1,2,3水準漢字を，
+第2面には第4水準漢字を割り当てている
+<li>第1面は基本的にJIS X 0208の上位互換，第2面はJIS X 0212と対比されるが互換性はない
+</ul>
+
+</p>
+
+<table><tr><td><font color="Purple">JIS X 0201，JIS X 0208，JIS X 0212との互換性</font></td></tr></table>
+<p>
+<ul>
+<li>JIS X 0213第1面はJIS X 0208の空いている領域に字を増やした(JIS X 0208の「保留領域」を使っている)ので，
+JIS X 0208の上位互換として使うことができるということになっているが，
+実際にはベンダーがすでに外字領域としてこの「保留領域」を使っているため業界には受け入れられていない
+<li>JIS X 0213 第2面はJIS X 0212とは互換性はない．共存もできない
+<li>基本的にJIS X 0201(1バイトカナ)は併用しない
+</ul>
+</p>
+
+<table><tr><td><font color="Purple">各ベンダー，他規格との関係</font></td></tr></table>
+<p>
+<ul>
+<li>JIS X 0213のエンコーディング(符号化方式)は，ISO/IEC 2022に準拠したISO-2022-JP-2004，Shift_JIS-2004，EUC-JIS-2004が定義されている．
+<li>Shift JISと類似のエンコーディングShift_JIS-2004があるが，有力ベンダーの反対で「参考」扱いになっている
+<li>これらはIANAには登録されていない．
+<li>Unicode(ISO/IEC 10646, JIS X 0221)との変換表が定義されている
+<li>Microsoftは長らくJIS X 0213をサポートしないとしていたが，次期バージョン「 Vista」でサポートすることを表明した
+</ul>
+</p>
+
+<table><tr><td><font color="Purple">PostgreSQLでのJIS X 0213の実装(案)</font></td></tr></table>
+<p>
+<ul>
+<li>バックエンドのエンコーディングとしてはEUC-JPと同じ実装が利用できるが，文字集合がJIS X 0208+JIS X 0212とは異なるし，上位互換でもないため，EUC-JPとは別のエンコーディングとして新たに定義すべき．名称は「EUC_JIS_2004」でよいだろう．
+<li><strike>JIS X 0201を許すかどうかは微妙なところ</strike>．
+<a href="http://ja.wikipedia.org/wiki/EUC-JIS-2004">Wiki Pedia</a>によれば，EUC-JIS-2004では
+ASCIIとJIS X 0213，およびJIS X 0201片仮名をサポートしているという．実装はこれでよいだろう．
+	 JIS X 0213をサポートするという，Windows Vistaではどうなんだろう？
+<li>UTF-8とのマッピング表は規格で定義済み．オンラインのマッピングがJISX0213 InfoCenterで入手可能
+<li>Shift_JIS_2004をクライアントエンコーディングとして追加，EUC_JIS_2004，UTF-8との変換を行う．
+Shift_JIS_2004とUTF-8との変換表もJISX0213 InfoCenterで入手可能
+<li>JIS X 0213とUnicodeの対応表は<a href="http://x0213.org">プロジェクトX 0213</a>で入手できるものがよさそう．
+<li>問題は，(EUCの)A4F7 -> U+304B+309A (鼻濁音)のような1文字 <--> 2文字の変換があること．まあ，なんとかなるか...
+<li>EUC_JIS_2004とShif_JIS_2004の間の変換はロジックだけでいけるのか，テーブルが必要なのかは未確認．
+<li>mule_interalとの変換は必要?
+</ul>
+</p>
+
+<table><tr><td><font color="Purple">参考文献, URL</font></td></tr></table>
+<ul>
+<li><a href="http://x0213.org">プロジェクトX 0213</a>
+<li><a href="http://www.jca.apc.org/~earthian/aozora/0213.html">JISX0213 InfoCenter</a>
+<li><a href="http://www.itscj.ipsj.or.jp/ISO-IR/">ISO/IECのページ</a>
+<li><a href="http://www.itscj.ipsj.or.jp/ISO-IR/233.pdf">JIS X 0213第1面(2004 update版)文字表</a>
+<li><a href="http://www.itscj.ipsj.or.jp/ISO-IR/229.pdf">JIS X 0213第2面文字表</a>
+<li><a href="http://homepage3.nifty.com/jgrammar/ja/tools/codeval0.htm">文字符号値参照道具</a>
+<li><a href="http://www.asahi-net.or.jp/~wq6k-yn/code/enc-x0213.html">JIS X 0213の代表的な符号化方式</a>
+<li><a href="http://www.m17n.org/m17n2000_all_but_registration/proceedings/kawabata/jisx0213.html">JIS X 0213の特徴と、Emacs上での実装</a>
+<li><a href="http://www.asahi-net.or.jp/~wq6k-yn/code/meadowx0213.html.euc-jp">MeadowでJIS X 0213を使う</a>
+<li><a href="http://www.horagai.com/www/moji/Asakura1.htm">インターネットと漢字</a>
+<li><a href="http://members11.tsukaeru.net/rare/">IS2000とJIS2004についての情報とそれに関わるフォントのサイト</a>
+<li><a href="http://homepage1.nifty.com/nomenclator/unicode/jisx0213.htm">JIS X 0213とUCS/Unicodeとの対応について</a>
+
+</ul>
+</body>
+</html>

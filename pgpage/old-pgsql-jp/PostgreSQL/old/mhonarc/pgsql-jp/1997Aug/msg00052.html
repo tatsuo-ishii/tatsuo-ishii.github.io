@@ -1,0 +1,209 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2326] Re: Warning! phf CGI attack. -->
+<!--X-From: chonan@flowering.ne.jp (Hiroshi Chonan) -->
+<!--X-Date: Wed, 13 Aug 1997 12:45:05 +0900 (JST) -->
+<!--X-Message-Id: 199708130345.MAA29219@dsysv1.flowering.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708130127.KAA22777@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2326] Re: Warning! phf CGI attack. </TITLE>
+<LINK REV="made" HREF="mailto:chonan@flowering.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00051.html">Date Prev</A>][<A HREF="msg00053.html">Date Next</A>][<A HREF="msg00051.html">Thread Prev</A>][<A HREF="msg00053.html">Thread Next</A>][<A HREF="index.html#00052">Date Index</A>][<A HREF="threads.html#00052">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2326] Re: Warning! phf CGI attack.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:chonan@flowering.ne.jp">chonan@flowering.ne.jp</A> (Hiroshi Chonan)</LI>
+<LI><em>Date</em>: Wed, 13 Aug 1997 12:45:05 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+長南です。
+セキュリティ関連の話題ですが、ちょっと混乱しやすいので私なりにですが
+まとめてみました。
+
+まず、jpcertの<A HREF="http://www.jpcert.or.jp/info/97-0003/97-0003-01.html">http://www.jpcert.or.jp/info/97-0003/97-0003-01.html</A>
+の文章ですが、これは基本的に CERT AdvisoriesのCA-96.06.cgi_example_code
+の内容とほぼ同じことを警告しているようです。
+
+CA-96.06.cgi_example_code で何が問題とされているかというと、
+
+1.  Description
+
+    A security vulnerability has been reported in example CGI code, as
+    provided with the NCSA httpd 1.5a-export and APACHE httpd 1.0.3 (and
+    possibly previous distributions of both servers).  The example code
+    contains a library function escape_shell_cmd() (in cgi-src/util.c).  This
+    function, which attempts to prevent exploitation of shell-based library
+    calls, such as system() and popen(), contains a vulnerability.
+
+    Any program which relies on escape_shell_cmd() to prevent exploitation
+    of shell-based library calls may be vulnerable to attack.  
+
+という点で、CGI スクリプトで system() や popen() を行なう際には、httpサーバ
+のescape_shell_cmd()を使うのだけれども、escape_shell_cmd()に問題があるため
+に不正にコマンドを実行される可能性があるという事が本質で、
+
+    In particular, this includes the "phf" program which is also distributed
+    with the example code.  Some sites may have installed phf by default,
+    even though it is not required to run httpd successfully.
+
+"phf"なるサンプルCGIプログラムは通常httpサーバインストール時にデフォルトで
+インストールされるため、これを利用して不正にコマンドを実行される可能性があ
+るということです。
+
+このセキュリティホールがあるのは NCSA httpd 1.5a-export および
+APACHE httpd 1.0.3 より古いバージョンのhttpサーバのようです。個人的には
+サーバが古いままだとセキュリティ上の弱点が厳然として存在し続け、他のCGI
+プログラムで再現する可能性があるということ、それから phfスクリプトの存在で
+アタックの標的になりやすいという点から
+
+・httpdサーバを最新のものに入れ換える
+・phfスクリプトを削除する
+
+の両方を行なうべきだと思います。
+
+ここまでは、PHP/FIに限らずhttpサーバ一般に言えることで、"phf"という名前が
+"PHP/FI"に似ているということで混乱されている方が多いのではないかと思います。
+
+次に桑村さんが指摘して下さった
+
+桑村さまは 1997年08月13日(水) 09時27分43秒頃、
+「[pgsql-jp 2319] Warning! phf CGI attack.」に書きました。
+
+桑村さま曰く&gt;&gt;
+&gt; 
+&gt;   最近、 phf CGI を利用した WEB サーバのアタックがあるようなのでご注意下
+&gt; さい。 PostgreSQL を WEB ページから参照するようにするために、 PHP/FI の
+&gt; phf CGI を利用されているサイトがあると思います。少し古いバージョンの phf
+&gt; では、メモリのオーバフローを利用してコマンドを実行できるようです。
+&gt; 
+&gt; <A HREF="http://www.secnet.com/sni-advisories/sni-11.php_overflow.advisory.html">http://www.secnet.com/sni-advisories/sni-11.php_overflow.advisory.html</A>
+&gt; 
+&gt; この結果、パスワードファイルやシステムの設定ファイルが流出してしまったり、
+&gt; 不正なコマンドが実行されてしまう可能性があるようです。
+
+の弱点ですが、これはここ数カ月いろいろなOSで報告されていた
+"Buffer Overflow vulnerability" の危険性が pgp.cgi にも存在するということで
+Web ページを参照してみると
+
+Problem Description
+
+In the function FixFilename() function in file.c, PHP attempts to pass 
+strings whose length may be as long as 8 kilobytes into buffers as small 
+as 128 bytes. This overwrites the stack, making it possible for an attacker
+to obtain shell access to the machine running the web server. 
+
+ということで、QUERY_STRING 等の環境変数は 8KBまで設定できるのに対して
+php.cgiの内部では128byteのみを参照し、環境変数から内部文字バッファへ
+単純にstrcpyしている実装のため、内部文字バッファを溢れさせ、スタックに
+不正なデータを送り込んで誤動作をひきおこし、場合によっては不正なコマンド
+の実行が行なわれるというのが概要のようです。
+
+この現象は
+
+Vulnerable Systems
+
+Any computer running a web server with php.cgi 2.0beta10 or earlier is 
+vulnerable, irrespective of what operating system it is running, provided 
+that PHP is run as a cgi, and not as an Apache module. When compiled as 
+an Apache module, PHP does not appear to execute the problem code. 
+
+To determine whether a system is running a web server with php.cgi 
+installed as a cgi, use your favorite web browser to access the URL 
+
+<A HREF="http://hostname/cgi-bin/php.cgi">http://hostname/cgi-bin/php.cgi</A> 
+
+If you see something like: 
+
+PHP/FI Version 2.0b10
+
+...
+
+Then the machine hostname is running PHP/FI. 
+
+とある通り、2.0beta10以前でかつ非ApacheモジュールのPHP/FIが危険だという
+事のようです。
+
+ですので、
+
+石井さまは 1997年08月13日(水) 10時27分24秒頃、
+「[pgsql-jp 2321] Re: Warning! phf CGI attack. 」に書きました。
+
+石井さま曰く&gt;&gt;
+&gt; 石井＠SRAです。桑村さん、貴重な情報を有難うございます。
+&gt; ちょっと質問ですが、PHP/FI をモジュールとして Apache に組み込んでいる
+&gt; 場合は問題が無いと言うことでしょうか？
+
+最新のPHP/FIをApacheモジュールに組み込んでいる場合はこの問題は該当
+しません。
+
+php.cgi のほうはともかく、phfのほうの弱点はサーバ附属のスクリプトで
+インストールされている確率が高く、URLも類推しやすいという点で、
+管理がとどこおりがちなサイトには非常に大きな脅威となっているようです。
+
+---
+// Internet の花束を     | 長南  浩(Hiroshi Chonan) (株)データシステム米沢
+//     貴方にあげたい... |   E-Mail    : chonan@flowering.ne.jp
+//                       |   DENDEN-Net: DEN0111[ ひろし ]
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00053" HREF="msg00053.html">[pgsql-jp 2327] Re: Warning! phf CGI attack.</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 2321] Re: Warning! phf CGI attack.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 2325] Re: Warning! phf CGI attack.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 2327] Re: Warning! phf CGI attack.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 2325] Re: Warning! phf CGI attack.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 2327] Re: Warning! phf CGI attack.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00052"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00052"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

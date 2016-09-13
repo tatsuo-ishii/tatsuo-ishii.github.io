@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21525] ecpg メモリリーク -->
+<!--X-From: SAKAIDA Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Sun, 27 May 2001 12:15:09 +0900 -->
+<!--X-Message-Id: 20010527120036.946C.SAKAIDA@psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21525] ecpg メモリリーク </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00568.html">Date Prev</A>][<A HREF="msg00570.html">Date Next</A>][<A HREF="msg00611.html">Thread Prev</A>][<A HREF="msg00567.html">Thread Next</A>][<A HREF="index.html#00569">Date Index</A>][<A HREF="threads.html#00569">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21525] ecpg メモリリーク</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 27 May 2001 12:15:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+# 件名を変えました。
+
+&gt; 竹元です
+&gt;
+&gt; PostgreSQLの埋め込みSQL(ECPG)におけるcusorについては
+&gt; メモリリークバグがあります。
+&gt; cursorオープンするとcloseを実行してもリークしてしまいます。
+&gt;
+&gt; 参考までにメモリリークする／しないのバージョンです。
+&gt; 
+&gt; PostgreSQL ver6.5.3　NG（リークする）
+&gt; PostgreSQL ver7.1.1  OK（リークしない）
+&gt; 
+&gt; 7.1.1では、正しくクローズすればリークはしませんでした。
+
+このメモリリークの件をもう少し詳しく説明していただけますか？
+
+# こちらでも、文字型配列を使ったときにメモリリークする件は、
+　把握できました。あたかもcursorが原因かのように見えますが、
+  実は文字型配列の処理に問題がありました。これは、7.1.2 で
+  も同様に起きます。(一応、パッチは作っています）
+
+
+&gt; pgbash
+pgbash&gt; create table test_array(code varchar(4), name text[3]);
+pgbash&gt; insert into test_array values('c01','{"n01","n02","n03"}');
+pgbash&gt; select * from test_array;
+code|name
+----+-------------------
+c01 |{"n01","n02","n03"}
+(1 row)
+
+--------------------( ECPG program)------------------------
+# include &lt;stdio.h&gt;
+exec sql include sqlca;
+
+main()
+{
+   exec sql begin declare section;
+   char   code[5];
+   char   name[256];
+   exec sql end   declare section;
+
+   exec sql connect to admin user admin;
+
+   exec sql declare cur cursor for select * from test_array;
+   exec sql open cur;
+   while(1)
+   {
+      exec sql fetch cur into :code, :name;
+      if( sqlca.sqlcode == 100 ) break;
+      printf("# code=(%s) name=(%s)\n", code, name );
+   }
+   exec sql close cur;
+}
+------------------------------------------------------------
+
+処理結果
+# code=("n02","n03"}) name=({"n01","n02","n03"})
+Segmentation fault (core dumped)
+
+これを修正するパッチは次です。
+*** postgresql-7.1.2/src/interfaces/ecpg/lib/data.c.orig	Sat May 26 20:47:53 2001
+--- postgresql-7.1.2/src/interfaces/ecpg/lib/data.c	Sat May 26 21:33:10 2001
+***************
+*** 337,342 ****
+--- 337,344 ----
+  				return (false);
+  				break;
+  		}
++ 		if (type == ECPGt_char || type == ECPGt_unsigned_char || type == ECPGt_varchar)
++ 			break;
+  		if (isarray)
+  		{
+  			bool		string = false;
+
+
+
+--
+SAKAIDA Masaaki
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00568.html">[pgsql-jp 21524] psqlj-7.1.2 (PostgreSQL 7.1.2 (Re: 7.1.1からのFix))</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00570.html">[pgsql-jp 21526] Re: PostgreSQL 7.1.2 (Re: 7.1.1からのFix)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00611.html">[pgsql-jp 21569] Re: vacuumdb の中断方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00567.html">[pgsql-jp 21523] バックアップ完了後のＷＡＬの処理について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00569"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00569"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

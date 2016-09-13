@@ -1,0 +1,122 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14874] [7.0] pg_dumpでviewが復元されません -->
+<!--X-From: 佐藤　充男 <satou@osk.3web.ne.jp> -->
+<!--X-Date: Mon, 29 May 2000 16:28:52 +0900 -->
+<!--X-Message-Id: 39321C342F8.25D0SATOU@mx1.osk.3web.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14874] [7.0] pg_dumpでviewが復元されません </TITLE>
+<LINK REV="made" HREF="mailto:satou@osk.3web.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00583.html">Date Prev</A>][<A HREF="msg00584.html">Date Next</A>][<A HREF="msg00584.html">Thread Prev</A>][<A HREF="msg00581.html">Thread Next</A>][<A HREF="index.html#00585">Date Index</A>][<A HREF="threads.html#00585">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14874] [7.0] pg_dumpでviewが復元されません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤　充男 &lt;<A HREF="mailto:satou@osk.3web.ne.jp">satou@osk.3web.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 29 May 2000 16:28:52 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ども、佐藤です。
+
+Vine Linux2.0CR + PostgreSQL 7.0.0で作成したデータベースを、同じ構成の
+別マシンに移すため pg_dump でバックアップし復元したところ、view が
+変形してしまい正しい結果が得られなくなりました。
+
+バックアップ
+　$ pg_dump xxxx &gt; xxxx.out
+復元
+　$ psql -e xxxx &lt; xxxx.out
+
+
+【バックアップ元のview】
+create view emp_dept as
+  select post.emp_no as empno, post.dept_no as deptno, 
+    m_emp.name as name, m_emp.yomi as yomi,m_emp.deleted as del 
+  from post, m_emp 
+  group by empno, deptno, name, yomi, m_emp.emp_no, m_emp.deleted 
+  having post.emp_no = m_emp.emp_no;
+
+＃select * from emp_dept; すると 124 rows となる。
+
+
+【復元したview】
+CREATE TABLE "emp_dept" (
+        "empno" int4,
+        "deptno" int4,
+        "name" text,
+        "yomi" text,
+        "del" bool,
+        "emp_no" int4
+);
+
+CREATE RULE "_RETemp_dept" AS ON SELECT TO emp_dept DO INSTEAD 
+  SELECT post.emp_no AS empno, post.dept_no AS deptno, m_emp.name,
+  m_emp.yomi, m_emp.deleted AS del, m_emp.emp_no FROM post, m_emp 
+  GROUP BY post.emp_no, post.dept_no, m_emp.name, m_emp.yomi, 
+  m_emp.emp_no, m_emp.deleted;
+
+＃select * from emp_dept; すると 14260 rows となる。
+
+
+結局、スキーマは手作業で再構築し、pg_dump -aで取り出したデータで
+復元に成功しました。
+
+
+この現象はうちだけだと良いのですが、とりあえず報告しておきます。
+
+佐藤　充男
+satou@osk.3web.ne.jp
+LDM03756@nifty.ne.jp
+<A HREF="http://www.threeweb.ad.jp/~satou/">http://www.threeweb.ad.jp/~satou/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00583.html">[pgsql-jp 14872] Re: update SQLについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00584.html">[pgsql-jp 14873] RE: [pgsql-jp 14869] Re: update SQLについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00584.html">[pgsql-jp 14873] RE: [pgsql-jp 14869] Re: update SQLについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00581.html">[pgsql-jp 14870] RE: [pgsql-jp 14868] update SQLについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00585"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00585"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

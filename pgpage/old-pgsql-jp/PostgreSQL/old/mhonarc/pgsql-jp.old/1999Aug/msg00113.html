@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9957] Re:RDOによるリモートアクセス -->
+<!--X-From: "J.Baba" <jbaba@amy.hi&#45;ho.ne.jp> -->
+<!--X-Date: Tue, 3 Aug 1999 19:06:51 +0900 -->
+<!--X-Message-Id: 001d01bedd97$fa2ce900$860110ac@baba.mori.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9957] Re:RDOによるリモートアクセス </TITLE>
+<LINK REV="made" HREF="mailto:jbaba@amy.hi-ho.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00112.html">Date Prev</A>][<A HREF="msg00114.html">Date Next</A>][<A HREF="msg00128.html">Thread Prev</A>][<A HREF="msg00114.html">Thread Next</A>][<A HREF="index.html#00113">Date Index</A>][<A HREF="threads.html#00113">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9957] Re:RDOによるリモートアクセス</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "J.Baba" &lt;<A HREF="mailto:jbaba@amy.hi-ho.ne.jp">jbaba@amy.hi-ho.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 3 Aug 1999 19:06:51 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+J.Baba です。
+
+&gt;
+&gt;井上です。
+&gt;
+&gt;ログを見るかぎりでは、update時のwhere句はselect時のwhere句と同じ
+&gt;ままです。  rdConcurValuesを実現できるようにはみえません。
+&gt;どこが違っているんでしょうね ？
+
+確かに、これではうまく動きませんね。
+私も、ODBC のトレースで確認しているのですが、こちらでは、
+うまく条件付けを行ってくれています。
+カーソルライブラリあたりの問題なのでしょうか？
+（付ける場合と付けない場合があるとかいった...）
+それにしても、不安定である、という事になってしまうのでは、
+ちょっと使えませんね。やはり、Edit メソッドはあきらめて、自分で
+update 文を書くのが無難なんでしょうね。
+
+# なりゆきで、Edit を使いましたが、私は SQL 文で行うほうです。
+
+恐縮ですが、いちおう私が動かしたコードを、再度送らせていただきます。
+
+Private Sub Command1_Click()
+    Dim en As rdoEnvironment
+    Dim cn As rdoConnection
+    Dim rs As rdoResultset
+    Dim ferr As Boolean
+
+On Error GoTo Err_1
+
+    Set en = rdoEngine.rdoCreateEnvironment("", "uid", "pwd")
+    en.CursorDriver = rdUseOdbc
+    Set cn = en.OpenConnection("datasource")
+    cn.BeginTrans
+    Set rs = cn.OpenResultset( _
+        "select * from test_t", _
+        rdOpenStatic, rdConcurValues)
+
+    While Not rs.EOF And Not ferr
+        rs.Edit
+        rs.rdoColumns(1) = rs.rdoColumns(1) &amp; "@"
+        MsgBox "key=" &amp; rs.rdoColumns(0)
+        rs.Update
+        rs.MoveNext
+    Wend
+    If ferr Then
+        cn.RollbackTrans
+        MsgBox "処理を取り止めました"
+    Else
+        cn.CommitTrans
+    End If
+    rs.Close
+    cn.Close
+    en.Close
+    Exit Sub
+
+Err_1:
+    ferr = True
+    Resume Next
+End Sub
+
+あと、Rollback させた時の「トレース」の一部です。
+（３つのカラム i1,a1,a2 のうち、a2 を別の値に変更）
+片岡さんからの、ご指摘の答えにもなっているかと思います。
+
+HSTMT               0x01e50fe8
+UCHAR *             0x02980500 [      64] "update test_t SET a1=?  WHERE
+"i1" = ? AND "a1" = ? AND "a2" = ?"
+SDWORD                    64
+
+ffe03457:ffe00283 ENTER SQLRowCount
+HSTMT               0x01e50fe8
+SDWORD *            0x029801c8
+
+ffe03457:ffe00283 EXIT  SQLRowCount  with return code 0 (SQL_SUCCESS)
+HSTMT               0x01e50fe8
+SDWORD *            0x029801c8 (0)
+
+ffe03457:ffe00283 EXIT  SQLExecDirect  with return code 1
+(SQL_SUCCESS_WITH_INFO)
+HSTMT               0x01e50fe8
+UCHAR *             0x02252934 [      -3] "update test_t SET a1=?  where
+current of SQL_CUR023639E4\ 0"
+SDWORD                    -3
+
+DIAG [01S03] [Microsoft][ODBC Cursor Library] 更新または削除された行はありま
+せん。 (0)
+
+      馬場  二郎
+      E-Mail : jbaba@amy.hi-ho.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00118" HREF="msg00118.html">[pgsql-jp 9962] Re:RDOによるリモートアクセス</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00114" HREF="msg00114.html">[pgsql-jp 9958] Re:RDOによるリモートアクセス</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00112.html">[pgsql-jp 9956] Re: accessでodbc接続エラーについての質問</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00114.html">[pgsql-jp 9958] Re:RDOによるリモートアクセス</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 9972] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00114.html">[pgsql-jp 9958] Re:RDOによるリモートアクセス</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00113"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00113"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

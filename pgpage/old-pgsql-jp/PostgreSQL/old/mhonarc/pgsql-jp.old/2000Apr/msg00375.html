@@ -1,0 +1,275 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について -->
+<!--X-From: 佐藤 純弘<y&#45;satou@azb.nttls.co.jp> -->
+<!--X-Date: Fri, 21 Apr 2000 11:54:32 +0900 -->
+<!--X-Message-Id: 200004210254.LAA10369@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NDBBJPLGMKIHALINKAFOMEJPCDAA.osamu@telsysnet.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について </TITLE>
+<LINK REV="made" HREF="mailto:y-satou@azb.nttls.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00374.html">Date Prev</A>][<A HREF="msg00377.html">Date Next</A>][<A HREF="msg00370.html">Thread Prev</A>][<A HREF="msg00388.html">Thread Next</A>][<A HREF="index.html#00375">Date Index</A>][<A HREF="threads.html#00375">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 佐藤 純弘&lt;<A HREF="mailto:y-satou@azb.nttls.co.jp">y-satou@azb.nttls.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 Apr 2000 11:54:32 +0900</LI>
+<LI><em>Organization</em>: NTT Learning Systems Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00370.html">NDBBJPLGMKIHALINKAFOMEJPCDAA.osamu@telsysnet.com</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/1.0.3 (Notorious) WEMI/1.13.4 (Nishi-Yaizu)FLIM/1.12.7 (Y&umacr;zaki) MULE XEmacs/21.1 (patch 9)(Canyonlands) (i386--freebsd)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤＠NTT-LS です
+
+ちょっと長文ですが、サマリとしてまとまっていた方が良いかと思いましたので…
+
+
+At Thu, 20 Apr 2000 21:00:23 -0400,
+Osamu Ohashi &lt;osamu@telsysnet.com&gt; wrote:
+&gt; 
+&gt; 現在FreeBSD３．４を使用しております。
+&gt; カーネルの最適化を考え再構築を行いたいと作業しています。
+&gt; 
+&gt; そしてもし、程々のアクセスに耐えているPostgreSQL用に
+&gt; 設定したものがありましたら、大変助かります。
+&gt; PostgreＳＱＬ専用でも、Apache同居でも大歓迎です。
+
+FreeBSD 用のカーネルのチューニングに関しては、
+  [pgsql-jp 7106] semget failed (No space left on device)が出る
+  [pgsql-jp 9506] "postgres is dead" の問題について
+のスレッドが参考になります。
+
+このスレッドをまとめたものを、自前のインストールメモに記述してあったので、
+該当部分を引っ張ってみました。
+
+-------------------------------------------------------------------------
+				   
+【ファイルテーブル】
+  (指針)
+      PostgreSQLは少なくとも1ユーザあたり20個は file descriptor を使い、
+      後はテーブルを使えば使う程さらに file descriptor を 消費します。
+      PostgreSQL を起動する前の file table の残量を調べてみて、余裕を見て
+         40 * 想定する同時ユーザ数
+      以上 file table の残量に余裕があれば OK ということになります。
+  (調べ方)
+      現在のファイルテーブル数
+        % sysctl kern.maxfiles
+        kern.maxfiles: 8232
+      使用中のファイルテーブル数
+        % pstat -T
+        59/8232 files
+        0M/511M swap space
+        ここで 59:使用中のファイルスロット、8232:全ファイルスロット数
+  (カーネルパラメタ)
+      maxusers で調整
+      maxusers と kern.maxfiles の関係：
+        (/usr/src/sys/conf/param.c)
+        40 + 32 * maxusers
+  (例)
+      想定する同時ユーザ数を可能性として 150 と考えると、概算で
+        40 * 150 = 6000
+      の空きが必要。ここで、PostgreSQL を起動する前に pstat -T で
+        # pstat -T
+        59/8232 files
+        0M/511M swap space
+      という結果が得られたとすると、使用スロット 59、全スロット 8232 で、
+      これなら余裕、となります。(この例では maxusers は 256)
+
+  (追加情報)
+      FreeBSD なら動的に変えることもできます
+        % su
+        # sysctl -w kern.maxfiles=4096
+        kern.maxfiles: 2088 -&gt; 4096
+      ただし、プロセステーブルが足りなくなるとアウトなので、kernel パラ
+      メタで設定したほうがよい
+
+
+【セマフォ】
+  (指針)
+      PostgreSQL は、バックエンド間で情報を共有したり排他制御するために
+      System V の shared memeory と semaphore を使います。
+      セマフォについては、PostgreSQL ML で以前議論された値としては、
+        semmns は同時接続ユーザ数分必要
+        semmni は同時接続ユーザ数÷4 以上、
+        semmap は semmni + 2
+     という指針になっているとのことです。
+  (調べ方)
+      現在のセマフォの状態
+        % ipcs -S
+        seminfo:
+                semmap:     41  (# of entries in semaphore map)
+                semmni:     39  (# of semaphore identifiers)
+                semmns:    150  (# of semaphores in system)
+                semmnu:     30  (# of undo structures in system)
+                semmsl:    150  (max # of semaphores per id)
+                semopm:    100  (max # of operations per semop call)
+                semume:     10  (max # of undo entries per process)
+                semusz:     92  (size in bytes of undo structure)
+                semvmx:  32767  (semaphore maximum value)
+                semaem:  16384  (adjust on exit max value)
+  (カーネルパラメタ)
+      オプションで指定
+        # semaphores configuration for PostgreSQL
+        options		SEMMAP=41
+        options		SEMMNI=39
+        options		SEMMNS=150
+  (例)
+      想定する同時ユーザ数を可能性として 150 と考えると、概算で
+        semmns が同時接続ユーザ数分(&gt;= 150)
+        semmni は 150/4 = 38 以上なので、39 としておく
+        semmap は semmni + 2 = 39 + 2 = 41
+
+
+【共有メモリ】 
+  (指針)
+      PostgreSQL は、バックエンド間で情報を共有したり排他制御するために
+      System V の shared memeory と semaphore を使います。
+      PostgreSQL では、shared memory をキャッシュなどに利用しているため、
+      shared memory を大きくすればキャッシュも大きくできるので、 性能も
+      向上します。
+  (調べ方)
+      現在の共有メモリの状態
+        % ipcs -M
+        shminfo:
+                shmmax: 5242881 (max shared memory segment size)
+                shmmin:       1 (min shared memory segment size)
+                shmmni:      32 (max number of shared memory identifiers)
+                shmseg:       8 (max shared memory segments per process)
+                shmall:    1280 (max amount of shared memory in pages)
+  (カーネルパラメタ)
+      オプションで指定
+      SHMMAXPGS=64 で 256k、4096 で 16M になります(PAGE_SIZE=4k=4096 です)。
+        # shared memory configuration for PostgreSQL
+        options		SHMALL=1280
+        options		"SHMMAX=(SHMMAXPGS*PAGE_SIZE+1)"
+        options		SHMMAXPGS=1280
+  (例)
+      大きくした shared memory を実際に PostgreSQL で使うには、
+      postmaster 起動時に -B オプションでキャッシュ数を指定します。 
+      キャッシュ数をどこまで増やせるかは、デバッグオプション (-d 3) を付
+      けて postmasterを起動してみると、
+        $ postmaster -B 128 -d 3 -i
+        binding ShmemCreate(key=52e2c1, size=1044656)
+      とか
+        $ postmaster -B 256 -d 3 -i
+        binding ShmemCreate(key=52e2c1, size=2661376)
+      のようにアロケートされた shared memory のサイズが表示されます。
+      たとえば、SHMMAXPGS=1280 とすると、共有メモリサイズは 5242881 
+      (ipcs -M で確認して下さい) となります。上の例では -B 256 でも
+      2661376 ですから、__他のプログラムが共有メモリを使わないなら__
+      ここまで増やしても大丈夫、となります。
+
+
+【カーネルの再構築】
+    cd /usr/src/sys/i386/conf
+    cp GENERIC NEWCONF
+    vi NEWCONF
+        カーネルパラメタの設定／追加
+    config NEWCONF
+    cd ../../compile/NEWCONF
+    make depend; make; make install
+    reboot
+
+-------------------------------------------------------------------------
+
+で、こちらの現在の設定では、
+  Celeron 466MHz, HDD 14GB, memory 512MB
+というハードウェアで、Apache(w/mod_perl) と PostgreSQL 同居で、以下の
+カーネルパラメタ設定で動かしています。
+
+    maxusers	256
+
+    # semaphores configuration for PostgreSQL
+    options		SEMMAP=41
+    options		SEMMNI=39
+    options		SEMMNS=150
+    # shared memory configuration for PostgreSQL
+    options		SHMALL=1280
+    options		"SHMMAX=(SHMMAXPGS*PAGE_SIZE+1)"
+    options		SHMMAXPGS=1280
+
+なお、postmaster 起動時のオプションは、
+
+   postmaster -B 128 -N 64 -i -o -F -S 1
+
+となっています。
+
+-------------------------------------------------------------------------
+
+あと、FreeBSD でしたら、
+   <A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.5.3/patches/">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.5.3/patches/</A>
+にあるパッチ、および
+   [pgsql-jp 11783] Re: FreeBSD 3.3 でpostmaster が消失
+で掲出したパッチを当てられることをお奨めします。
+
+＃最近マシンを replace したのですが、その際に後者を当てるのを忘れていて、
+＃時折 postmaster がお亡くなりになる現象に悩まされました。
+
+
+--
+NTT Learning Systems Corp. (NTT-LS) /  Internet Dept.
+佐藤 純弘 / Yoshihiro Satou
+y-satou@azb.nttls.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00388" HREF="msg00388.html">[pgsql-jp 14091] RE: [pgsql-jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について</A></STRONG>
+<UL><LI><EM>From:</EM> "Osamu Ohashi" &lt;osamu@telsysnet.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00370" HREF="msg00370.html">[pgsql-jp 14073] FreeBSD v3.4 におけるKernel再構築について</A></STRONG>
+<UL><LI><EM>From:</EM> "Osamu Ohashi" &lt;osamu@telsysnet.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00374.html">[pgsql-jp 14077] Re: ブラウザを使ってcreatedbを実行したい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00377.html">[pgsql-jp 14080] PostgreSQLのバージョンによってCGIが動かない？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00370.html">[pgsql-jp 14073] FreeBSD v3.4 におけるKernel再構築について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00388.html">[pgsql-jp 14091] RE: [pgsql-jp 14078] Re: FreeBSD v3.4 におけるKernel再構築について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00375"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00375"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

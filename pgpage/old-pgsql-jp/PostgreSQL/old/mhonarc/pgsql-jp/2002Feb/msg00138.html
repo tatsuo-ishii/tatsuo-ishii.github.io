@@ -1,0 +1,214 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24733] Re: PostgreSQL 7.2 make checkでエラー -->
+<!--X-From: Masashi Ohba <ohba@intelight.co.jp> -->
+<!--X-Date: Fri, 08 Feb 2002 12:04:35 +0900 -->
+<!--X-Message-Id: 200202080304.AA01803@titan.priv.digi&#45;netz.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200202080113.AA01802@titan.priv.digi&#45;netz.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24733] Re: PostgreSQL 7.2 make checkでエラー </TITLE>
+<LINK REV="made" HREF="mailto:ohba@intelight.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00137.html">Date Prev</A>][<A HREF="msg00139.html">Date Next</A>][<A HREF="msg00134.html">Thread Prev</A>][<A HREF="msg00141.html">Thread Next</A>][<A HREF="index.html#00138">Date Index</A>][<A HREF="threads.html#00138">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24733] Re: PostgreSQL 7.2 make checkでエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masashi Ohba &lt;<A HREF="mailto:ohba@intelight.co.jp">ohba@intelight.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 08 Feb 2002 12:04:35 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00134.html">200202080113.AA01802@titan.priv.digi-netz.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大場です。
+
+＃結果的にはmake checkできたのですが、
+＃なんか納得できない挙動の感じがしてなりません
+＃私の感覚が変なのでしょうか？
+
+インストール時の状況
+&gt; whoami
+pgsql　←PostgreSQL管理者
+
+&gt; setenv |grep pgsql
+POSTGRES_HOME=/usr/local/pgsql
+USER=pgsql
+HOME=/usr/local/pgsql
+PGLIB=/usr/local/pgsql/lib
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/sbin:/usr/local/bin:/usr/X11R6/bin:/root/bi
+n:/usr/local/pgsql/bin:/usr/local/jdk1.3.1/bin:/usr/local/ant/bin:/usr/local/mupad/share/bin
+PGDATA=/usr/local/pgsql/data
+MANPATH=/usr/share/man:/usr/X11R6/man:/usr/local/man:/usr/local/pgsql/man
+
+＃というわけで、現在はLD_LIBRARY_PATHは未設定となってます
+
+&gt; ps ax| grep post
+94802  p0  S+     0:00.00 grep post
+
+＃動いていた7.1.3も止めています
+
+
+この状況で7.1.3でも使っていた./configureを使うと
+
+./configure …　はOK
+gmakeもOK
+　→All of PostgreSQL successfully made. Ready to install.
+gmake checkすると
+
+pg_regress: initdb failed
+Examine ./log/initdb.log for the reason.
+
+＃LD_LIBRARY_PATHを外してもgmakeが通らねぇ…(--;
+
+他に、思い当たるのは、起動スクリプト内で、
+「ldconfig -m /usr/local/pgsql/lib」
+ということをやっているのです
+
+&gt; ldconfig -r | grep pgsql
+        search directories: /usr/lib:/usr/lib/compat:/usr/X11R6/lib:/usr/local/lib:/usr/local/pgsql/lib
+        304:-lpq.2 =&gt; /usr/local/pgsql/lib/libpq.so.2
+        305:-lecpg.3 =&gt; /usr/local/pgsql/lib/libecpg.so.3
+        306:-lpgeasy.2 =&gt; /usr/local/pgsql/lib/libpgeasy.so.2
+        307:-lpsqlodbc.0 =&gt; /usr/local/pgsql/lib/libpsqlodbc.so.0
+        308:-lpgtcl.2 =&gt; /usr/local/pgsql/lib/libpgtcl.so.2
+
+となるのがいかんのかな？…と思い
+
+＃当然、この状況だと旧バージョンのlib*.ssoも探すんだけど
+＃少なくとも、6.x→7.0と7.0.x→7.1でのバージョンアップ作業では
+＃そんな挙動しなかったはずで、これが問題になったことは無いと思うし
+＃起動スクリプトもその部分についてはバージョンアップ過程で
+＃変更を加えてないし…
+
+現在、
+lrwxr-xr-x   1 root   wheel      8 Feb  7 14:22 pgsql -&gt; pgsql713
+drwxr-xr-x  10 pgsql  pgsql    512 Feb  7 12:33 pgsql713
+となってるのを
+
+gw# unlink pgsql
+gw# mkdir pgsql
+gw# mkdir pgsql/lib
+gw# chown -R pgsql pgsql
+gw# chgrp -R pgsql pgsql
+gw# chown root pgsql/lib　←　OSの
+
+してディレクトリとパーミッションの準備をして
+gw# ldconfig -m /usr/local/pgsql/lib
+gw# ldconfig -r | grep pgsql
+        search directories: /usr/lib:/usr/lib/compat:
+        /usr/X11R6/lib:/usr/local/lib:/usr/local/pgsql/lib
+
+でライブラリ検索パスのマージとPostgreSQL関係の
+lib*.soが探せないのを確認してから
+
+make checkすると
+
+============== removing existing temp installation    ==============
+============== creating temporary installation        ==============
+============== initializing database system           ==============
+============== starting postmaster                    ==============
+running on port 65432 with pid 6231
+============== creating database "regression"         ==============
+CREATE DATABASE
+============== dropping regression test user accounts ==============
+============== installing PL/pgSQL                    ==============
+============== running regression test queries        ==============
+…(途中省略)
+======================
+ All 79 tests passed.
+======================
+
+無事に通りました。ビンゴ。
+状況がわかったのでとりあえず安心しました。
+
+ただし、以下、現時点で納得できないことです。
+甚だしい思い違いや勘違いがあるようでしたら
+ご指摘くださいm(_ _)m 
+
+しかし、となると、仮に/usr/local/libとか/usr/lib辺りに
+旧バージョンのlib*.soが入ってるようなOS/環境の場合、
+check前に、強制的にPosrgreSQLまわりのlib*.soを上書き
+しないことには、make chechが出来ないことになるのでは？
+という感じがします。
+
+チェック前に置き換えろという挙動は
+チェックの意味をなしてないような気がするので
+「これって本末転倒してない？」いう感じが
+どうしてもぬぐえません
+
+＃私用マシンなら「さっさとインストールしちまおう」でもいいけど
+＃業務マシンでチェック前の入れ替えを要求されるのでは
+＃「おちおちバージョンアップも出来んぞ　こら」
+＃「バージョンアップしたら動かん状況になったぞ　こら」
+＃とかいう状況にならないだろうか…
+
+＃＃それとも7.2ではライブラリ検索パスを
+＃＃マージしてやる作業が不要になったんでしょうか？
+＃＃でも、これってOS側の話ですよね？
+
+------------------------------------------------------------
+大場正志(Masashi Ohba)
+E-Mail  ohba@intelight.co.jp
+(株) インテライト
+<A HREF="http://www.intelight.co.jp">http://www.intelight.co.jp</A>
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp 24736] Re: PostgreSQL 7.2 make checkでエラー</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00134" HREF="msg00134.html">[pgsql-jp 24729] Re: PostgreSQL 7.2 make checkでエラー</A></STRONG>
+<UL><LI><EM>From:</EM> Masashi Ohba &lt;ohba@intelight.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00137.html">[pgsql-jp 24732] ecpg で、Ｃプログラム内にvacuumを埋め込むとエラーになる</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00139.html">[pgsql-jp 24734] Re: ecpg で、Ｃプログラム内にvacuumを埋め込むとエラーになる</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00134.html">[pgsql-jp 24729] Re: PostgreSQL 7.2 make checkでエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp 24736] Re: PostgreSQL 7.2 make checkでエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00138"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00138"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

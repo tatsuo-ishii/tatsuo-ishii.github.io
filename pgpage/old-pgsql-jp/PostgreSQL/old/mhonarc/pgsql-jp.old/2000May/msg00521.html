@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14810] Re: datetime とinterval について -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 26 May 2000 21:09:22 +0900 -->
+<!--X-Message-Id: 20000526210922U.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200005260323.MAA24475@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14810] Re: datetime とinterval について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00520.html">Date Prev</A>][<A HREF="msg00522.html">Date Next</A>][<A HREF="msg00519.html">Thread Prev</A>][<A HREF="msg00534.html">Thread Next</A>][<A HREF="index.html#00521">Date Index</A>][<A HREF="threads.html#00521">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14810] Re: datetime とinterval について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 May 2000 21:09:22 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00501.html">200005260323.MAA24475@sraigw.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; datetime と interval について知りたいことが２つあります。
+&gt; 
+&gt; 環境は
+&gt; CPU:K6-2 500
+&gt; OS:RedHat Linux 6.1日本語版
+&gt; PostgreSQL 6.5.3 on i586-pc-linux-gnu, compiled by gcc egcs-2.91.66
+&gt; です。
+&gt; 
+&gt; ○2038/1/20 付近で日付の足し算を行うと不思議なことが起こります。
+&gt; 
+&gt; test_db=&gt; select datetime '2038/1/18' + '1 day';
+&gt; ?column?                    
+&gt; ----------------------------
+&gt; Tue Jan 19 00:00:00 2038 JST
+&gt; (1 row)
+&gt; 
+&gt; test_db=&gt; select datetime '2038/1/18' + '2 day';
+&gt; ?column?                
+&gt; ------------------------
+&gt; Tue Jan 19 15:00:00 2038
+&gt; (1 row)
+&gt; 
+&gt; test_db=&gt; select datetime '2038/1/18' + '3 day';
+&gt; ?column?                
+&gt; ------------------------
+&gt; Wed Jan 20 15:00:00 2038
+&gt; (1 row)
+&gt; 
+&gt; なにか15時間足されて一日ずれます。うるう年みたいな調整時間が
+&gt; 存在するのでしょうか。2038年というのもちょっと気になりますが。
+&gt; JSTが消える当たりにも何かあるんでしょうか。
+
+PostgreSQLでは、2038年1月18日以降はタイムゾーンは無視され、全部GMT扱い
+になるのでこういう現象が起きます。ちなみに、1901年12月14日以前もタイム
+ゾーンは計算されません。どうしてそうせざるを得ないかと言うと、タイムゾー
+ンの計算を OS にやらしているからで、Unix では、「2038年問題」により、
+2038年以降はタイムゾーンを正しく扱うことができないからです。というよう
+なことは、PostgreSQL 7.0の "Data Types" の Date/Time Typesに書いてあり
+ます。参考までに、これに関する本家のMLでの議論を添付しておきます。
+
+&gt; ○interval で day の最大値は24855ですか？
+&gt; 
+&gt; test_db=&gt; select datetime '2038/1/20' + '24855 day';
+&gt; ?column?                
+&gt; ------------------------
+&gt; Mon Feb 08 00:00:00 2106
+&gt; (1 row)
+&gt; 
+&gt; test_db=&gt; select datetime '2038/1/20' + '24856 day';
+&gt; ?column?                    
+&gt; ----------------------------
+&gt; Sat Jan 03 02:31:44 1970 JST
+&gt; (1 row)
+
+6.5.3以前ではそうなりますね。多分もっと精度の高いtimespanを使えばOKで
+しょう。
+
+7.0では、interval -&gt; timespan に読み替えられるので、問題無しのはずです。
+
+--------------------- 本家MLからの引用開始 -----------------------------
+Message-ID: &lt;38AD5BCE.79FE9AF4@alumni.caltech.edu&gt;
+Date: Fri, 18 Feb 2000 14:48:46 +0000
+From: Thomas Lockhart &lt;lockhart@alumni.caltech.edu&gt;
+X-Mailer: Mozilla 4.6 [en] (X11; I; Linux 2.0.36 i686)
+X-Accept-Language: en
+MIME-Version: 1.0
+To: Karel Zak - Zakkr &lt;zakkr@zf.jcu.cz&gt;
+CC: Postgres Hackers List &lt;hackers@postgresql.org&gt;
+Subject: Re: [HACKERS] Date/time types: big change
+References: &lt;Pine.LNX.3.96.1000218120108.29793C-100000@ara.zf.jcu.cz&gt;
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+Sender: owner-pgsql-hackers@postgresql.org
+Status:   
+
+&gt; But conversion timestam to 'tm' struct is not Y2038 ready
+&gt; (POSIX 'tm' limitation?):
+&gt;     to_char
+&gt; ---------------
+&gt;  10:57:47 2038
+&gt; (1 row)
+&gt; Or am I something leave out?
+
+No, that is the expected behavior. In most of the world (certainly in
+the US), time zones and daylight savings time were both very nebulous
+things until around the turn of the century. I recall reading that in
+the US building the continental railroads in the 1860's provoked
+thinking about standardizing time zone.
+
+There are also minor changes in time zone and DST behavior in recent
+history; in the US we had a year or two in the 1970's which ran DST
+year round due to the oil shortage.
+
+So, since the actual time zone behavior for years past 2038 is
+uncertain, and since the Unix time support routines don't support
+anything past 2038 anyway, I omit time zone calculations after
+2038-01-18 and before 1901-12-14. Everything is carried as equivalent
+to GMT, but no time zone adjustment is carried out.
+
+btw, there *may* be some edge effects which are, um, unexpected; e.g.
+having a time zone adjustment as you enter a date w/o an explicit tz
+into the database, to which the same adjustment is *not* applied as
+the date is read back out. Feel free to test it out...
+
+                       - Thomas
+
+-- 
+Thomas Lockhart				lockhart@alumni.caltech.edu
+South Pasadena, California
+
+************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00501" HREF="msg00501.html">[pgsql-jp 14790] datetime とinterval について</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroya Torii &lt;torii@bl.mmtr.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00520.html">[pgsql-jp 14809] マイクロソフトアクセスとの連携について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00522.html">[pgsql-jp 14811] Re: マイクロソフトアクセスとの連携について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00519.html">[pgsql-jp 14808] Re: datetime とintervalについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00534.html">[pgsql-jp 14823] Re: datetime とinterval について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00521"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00521"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

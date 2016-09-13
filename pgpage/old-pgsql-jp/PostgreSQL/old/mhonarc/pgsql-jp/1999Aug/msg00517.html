@@ -1,0 +1,216 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10363] Re: large_object and Transaction -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 23 Aug 1999 03:53:28 +0900 -->
+<!--X-Message-Id: 37C04728BE.362FNKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37BF87F5186.1D40NKON@mail.shonan.ne.jp -->
+<!--X-Reference-Id: 37BFA8F4DC.E3AFSAKAIDA@smtp.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10363] Re: large_object and Transaction </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00516.html">Date Prev</A>][<A HREF="msg00518.html">Date Next</A>][<A HREF="msg00508.html">Thread Prev</A>][<A HREF="msg00522.html">Thread Next</A>][<A HREF="index.html#00517">Date Index</A>][<A HREF="threads.html#00517">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10363] Re: large_object and Transaction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Aug 1999 03:53:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00506.html">37BF87F5186.1D40NKON@mail.shonan.ne.jp</A>&gt; &lt;<A HREF="msg00508.html">37BFA8F4DC.E3AFSAKAIDA@smtp.psn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+On Sun, 22 Aug 1999 16:38:28 +0900
+SAKAIDA &lt;sakaida@psn.ne.jp&gt; wrote:
+
+&gt; 境田です。
+
+。。。略。。。
+
+&gt; &gt; 実際、制約条件違反とか、データー型不一致でエラーに
+&gt; &gt; なったら、結局、ROLLBACK して、データーの入力から
+&gt; &gt; やり直すしかないのでは？。
+&gt; 
+&gt; 　いえ、ここが問題です。rollbackしたい場合もあるし、それまで
+&gt; のデータを commitしたい場合もあります。
+&gt; 
+&gt; &gt;                                それなら、SQL 文発行する
+&gt; &gt; 前に、データー入力段階でエラーにしてあげた方がユーザー
+&gt; &gt; の使い勝手がいいでしょう。
+&gt; 
+&gt; 　確かにそうなんですが、しかし、それをしようとすると、DDL で
+&gt; 定義した '制約' をアプリ側でも記述しなければなりません。
+&gt; 
+&gt; 　つまり、トランザクション内では DDLの'制約'は利用できないこ
+&gt; とになります。DDLの'制約'は、backendがチェックしてくれるから
+&gt; こそ意味があるものですよね。
+
+制約条件は、共通する最低線の条件なので、個別のアプリ
+では、より厳しい制約がある場合も多いので、これは、プ
+ログラムするしかないですね。
+
+PostgreSQL のユーザー定義をうまくつかえば、業務処理
+の種別に対応した制約条件の変更なんてできるのかな。
+このあたりは、ＤＢ側に条件を集中するか、プログラム
+言語のライブラリーや個別ロジックとして制約条件を持
+たせるかですね。
+
+用途しだいなんでしょうが、プログラムロジックでチェ
+ックした方がわかりやすいエラー表示ができるし、キー
+打鍵または１項目入力で即エラー表示してやった方が使
+い勝手はいいですね。
+
+用途によっては、ノーチェックで SQL 発行してから、制
+約条件でひっかけてエラーにしてやってもいいと思います。
+でも結局エラーになったら、ROLLBACK することの方が多い
+ように思いますが。
+
+&gt; &gt; 制約条件違反とか、データー型不一致エラーなどで、
+&gt; &gt; ROLLBACK しないで処理を進めるメリットってどういう
+&gt; &gt; ものがあるのでしょうか？。是非、具体的にお教えいた
+&gt; &gt; だけませんか。
+&gt; 
+&gt; 　教えるなどというものではありませんが...単純化した例では...
+&gt; 
+&gt; 　１.対話型の伝票入力処理プログラムの例
+&gt; 
+&gt;   (0) Transactionを開始した。
+&gt; 　(1) 伝票の10行までの insert は成功した。 
+&gt; 　(2) 11行目の伝票入力でデータ型不一致になった。
+&gt; 　(3) データ型不一致をユーザに知らせ、再度、伝票入力させた。
+&gt; 　(4) 伝票11行目の insert は成功した。
+&gt;   (5) Commitした。
+
+私はこういう処理で、整合性制約違反だけ除いて COMMIT
+したい場合は、伝票行単位に COMMIT/ROLLBACK します。
+
+と、書いてて気がついたんだけど、Informix の場合は、
+DECLARE文に WITH HOLD 句を付けると、COMMIT してもカ
+ーソルがクローズされないので、伝票行単位に、 COMMIT/
+ROLLBACKできるんでこういう書方をしてきたんですが、
+PostgreSQL だと、確か、COMMIT で、カーソルがクローズ
+されてしまうから、難しかもしれないですね。
+
+ただ、今まで、明細行スクロールするような処理では、
+全明細行チェックＯＫになるまで、COMMITしないという
+設計しかしたことないのでいまひとつわからないですが。
+
+
+&gt;   ２.数値計算を使用したバッチ型プログラムの例
+&gt; 
+&gt; 　(0) Transactionを開始した。
+&gt;   (1) ある計算処理を行いながらその結果を insert した。
+&gt;   (2) 101件目の計算結果は、check句の'制約'でエラーとなった。
+&gt; 　(3) エラーとなった結果はinsertする必要がないので無効にした。
+&gt; 　(4) '制約'エラー時にそれまでの書き込みを有効にする必要があった。
+&gt;   (5) Commitした。
+
+なるほど。こういう処理では、SQL ERRORの分は無視して
+COMMIT する必要もありそうですね。統計処理なんかで、
+おおよそのデーターがつかめればいいような場合も、この
+書方の方が楽ですね。
+
+
+&gt; 　３．１トランザクション内で、複数の表に対して insert/update/
+&gt; delete/selectを繰り返し使用して、データの状態が変動している場合
+&gt; などは、アプリ側でエラーを予測してチェック機能を組み込むことが
+&gt; 大変煩わしいということもあります。
+
+先の数値計算のようなエラー分は無視していいような
+場合を除けば、SQL ERROR になったら、ROLLBACK して、
+やりなおしにするんじゃないでしょうか。
+
+&gt; 　SQL ERRORで常に rollback というのは、PostgreSQLの仕様でし
+&gt; た？　（私は、バグだと思っていたのですが。）
+&gt; 
+&gt; &gt;        SQL ERROR で、ROLLBACK しないプログラムを書く
+&gt; &gt; 人って多いんですかね？。
+&gt; 
+&gt; 　トランザクション処理の複雑さによって異なるでしょうが、比較
+&gt; 的簡単なアプリでは、SQL ERRORで無条件に ROLLBACKという方が多
+&gt; いかもしれません。
+
+簡単なアプリかどうかというより、SQL ERROR の更新処理
+を無視していい用途か否かということでしょうね。
+
+私は事務処理しか知らないのですが、所謂 Master/Detail
+型の明細行付伝票入力だと、チェックや制約条件違反があ
+ったら、エラー表示して、１伝票そっくり ROLLBACK して
+間違った個所を再入力というやり方です。
+
+実務では、原伝票そのものが間違っていて、入力担当者では
+訂正できない場合(顧客からの FAX の注文書の品番と品名や
+単価が合わないような場合等々)は、１伝票の入力をキャン
+セルして、伝票に付箋を付けてエラー伝票のトレーに放り込
+むというような作業になるので、明細行の一部分だけＤＢ
+更新するとかえって後処理がしにくくなってしまいます。
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00522" HREF="msg00522.html">[pgsql-jp 10369] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00506" HREF="msg00506.html">[pgsql-jp 10352] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00508" HREF="msg00508.html">[pgsql-jp 10354] Re: large_object and Transaction</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00516.html">[pgsql-jp 10362] Re: pgbench</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00518.html">[pgsql-jp 10365] Re: pgbench</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00508.html">[pgsql-jp 10354] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00522.html">[pgsql-jp 10369] Re: large_object and Transaction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00517"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00517"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15816] Re: PostgreSQLの最大容量 -->
+<!--X-From: Shoichi Kosuge <s&#45;kosuge@str.hitachi.co.jp> -->
+<!--X-Date: Tue, 4 Jul 2000 22:21:48 +0900 -->
+<!--X-Message-Id: v04220501b58780d38540@[158.214.136.220] -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003901bfe542$44d75c30$160010ac@aibusiness.co.jp -->
+<!--X-Reference-Id: 200007040623.AA00564@hotaka.media.teu.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15816] Re: PostgreSQLの最大容量 </TITLE>
+<LINK REV="made" HREF="mailto:s-kosuge@str.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00048.html">Date Prev</A>][<A HREF="msg00050.html">Date Next</A>][<A HREF="msg00045.html">Thread Prev</A>][<A HREF="msg00012.html">Thread Next</A>][<A HREF="index.html#00049">Date Index</A>][<A HREF="threads.html#00049">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15816] Re: PostgreSQLの最大容量</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Shoichi Kosuge &lt;<A HREF="mailto:s-kosuge@str.hitachi.co.jp">s-kosuge@str.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 4 Jul 2000 22:21:48 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00025.html">003901bfe542$44d75c30$160010ac@aibusiness.co.jp</A>&gt;&lt;<A HREF="msg00040.html">200007040623.AA00564@hotaka.media.teu.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+小菅です。
+
+At 15:23 +0900 2000.07.04, R. Hotaka wrote:
+&gt;穗鷹です．
+
+　あれま。これはどうもこんにちは。
+
+&gt;別件ですが，PostgreSQL のsystem table 関係のoidは４バイトのようですが，通常のインスタンス
+&gt;のoidも４バイトなのでしょうか．だとすれば，2**32個のインスタンスが最大ということになります
+&gt;が．
+
+　多分そうではないかと思いますが、よくわからないです。
+　いちおう、過去の話では、このようなものがありました。
+
+(1)
+[pgsql-jp 14089] レコード数の限界は？
+  + [pgsql-jp 14093]:
+          「ディスクを使い果たすまで」
+    + [pgsql-jp 14096]:
+               「OIDが使い尽くされる、、、前にディスクがパンクする。」
+
+(2)
+「[pgsql-jp 14444] Re: oidからのデータ取得方法について」より引用
+&gt; まあ、24H/365D 休み無しに毎秒1個oidを消費しても、32bit のoidを使い尽く
+&gt; すのに68年位かかる計算なので、大丈夫だとは思いますが...
+&gt; # OID を 64bit にしたらどうか、という意見が本家のMLに流れてました。
+
+(3)
+「[pgsql-jp 14446] Re: oidからのデータ取得方法について」より引用
+&gt; &gt; 「oidを管理するテーブル無し」
+&gt; それがあるんです。pg_variable というのがそうです。これは pg_database 
+&gt; と同じように全DBにまたがるテーブルで、しかも中身は非常に特殊なフォーマッ
+&gt; トになっていて、新しいOIDを生成するカウンタのような役割をしています。
+&gt; つまり単に連番を生成することによってOIDの重複を排除しているわけです。
+&gt; 中身のフォーマットは include/catalog/pg_variabl.h に、ロジックは 
+&gt; backend/access/transam/varsup.c あたりにあります。
+
+
+で、varsup.c などに現れるOid はどこで定義されているかというと、
+/home/postgres/postgresql-7.0.2/src/include/postgres_ext.h や
+/home/postgres/postgresql-6.5.1/src/include/postgres_ext.h
+の中に、
+
+typedef unsigned int Oid;
+
+というのがあります。
+また、SQL 文でoid 型の行を作ることができるのですが、こちらはこんな
+動作になります(Solaris7 + PostgreSQL 6.5.1)。
+
+tmp=&gt; create table tmp05 ( a oid );
+CREATE
+tmp=&gt; insert into tmp05 values (0);
+INSERT 1417641 1
+tmp=&gt; insert into tmp05 values (1);
+INSERT 1417642 1
+tmp=&gt; insert into tmp05 values (4294967296);
+ERROR:  pg_atoi: error reading "4294967296": Result too large
+tmp=&gt; insert into tmp05 values (4294967295);
+ERROR:  pg_atoi: error reading "4294967295": Result too large
+tmp=&gt; insert into tmp05 values (-1);
+INSERT 1417643 1
+tmp=&gt; insert into tmp05 values (2147483648);
+ERROR:  pg_atoi: error reading "2147483648": Result too large
+tmp=&gt; insert into tmp05 values (2147483647);
+INSERT 1417644 1
+tmp=&gt; insert into tmp05 values (-2147483647);
+INSERT 1417645 1
+tmp=&gt; insert into tmp05 values (-2147483648);
+ERROR:  Unable to convert left operator '-' from type 'unknown'
+tmp=&gt;
+
+要は、範囲が-2147483647 から2147483647ということです。こちらは
+unsigned ではないです。(Oid とoid は、別物?)
+
+というわけで、OID についてよくわからない点をまとめると、
+・32bit という話が出ている。
+・unsigned int って、32bit とは決まっていないのでは、、、?
+・oid 型は、負の値を取れる。しかし範囲は-2147483647 から2147483647
+　までで、これだと2**32-1個までしかoid の値を取れない。
+
+あと、OID は全DB で一意([pgsql-jp 14444]より) で、system table も
+他のDB も全部ひっくるめて一意ということで、したがって新規にDB を
+作成しても、それら他のDB の分のOID の数を引いた分までしかOID 数は
+使えない、ということになります。あと、新規DBでも、表を作ったり索引
+を作ったりすれば、その分OID は消費されることになります。「2**32個
+のインスタンスが最大」は正しくても「利用者が2**32個のインスタンス(行)
+を挿入」できるわけではないです。
+、、、と思うのですが、識者の方、フォローお願いします。
+
+--
+
+  小菅昭一（Shoichi Kosuge）   日立製作所ストレージシステム事業部  ソ技セ
+  Email: s-kosuge@str.hitachi.co.jp   TEL: 0465-48-1111 (内5217)
+　〒250-0872　神奈川県小田原市中里322-2　日立システムプラザ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00025" HREF="msg00025.html">[pgsql-jp 15790] PostgreSQLの最大容量</A></STRONG>
+<UL><LI><EM>From:</EM> "Hisa" &lt;hisabon@aibusiness.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00040" HREF="msg00040.html">[pgsql-jp 15807] Re: PostgreSQLの最大容量</A></STRONG>
+<UL><LI><EM>From:</EM> "R. Hotaka" &lt;hotaka@media.teu.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 15815] Re: PostgreSQLの最大容量</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00050.html">[pgsql-jp 15817] Re: sql 関数のchar 型引数について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 15812] Re: PostgreSQLの最大容量</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 15777] Re: about backup</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00049"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00049"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

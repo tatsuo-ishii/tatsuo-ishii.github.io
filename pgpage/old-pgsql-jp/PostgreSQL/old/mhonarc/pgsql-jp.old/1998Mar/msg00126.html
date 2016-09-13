@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3558] Re: Sony newsos6 porting -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 13 Mar 1998 10:23:37 +0900 -->
+<!--X-Message-Id: 199803130123.KAA15925@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199803130105.KAA02279@sraigw.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3558] Re: Sony newsos6 porting </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00125.html">Date Prev</A>][<A HREF="msg00127.html">Date Next</A>][<A HREF="msg00125.html">Thread Prev</A>][<A HREF="msg00136.html">Thread Next</A>][<A HREF="index.html#00126">Date Index</A>][<A HREF="threads.html#00126">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3558] Re: Sony newsos6 porting</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 13 Mar 1998 10:23:37 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;松原です。遅くなりました。
+
+&gt;&gt; ;;; o 「SysVの ucb 互換ライブラリは絶対使っちゃ駄目」という 
+&gt;&gt; ;;;    sugita@sra.co.jp さんのアドバイスで、Makefile.newsos6 から
+&gt;&gt; ;;; 	LDFLAGS+= -L/usr/ucblib -lucb -lmutex
+&gt;&gt; ;;;    を外しました。
+&gt;&gt; 
+&gt;&gt;   経験的に、NEWS-OS6 に限らず、Solaris2、NCR 等の SVR4 では、/usr/ucb の 
+&gt;&gt; cc 及び ucblib は使い物になりません。また、ucb cc が動かないように、
+&gt;&gt; /usr/ucb のコマンドは必ず PATH の後ろの方にしておくようにした方がいいで
+&gt;&gt; す。ただし、最近のは、もしかしたら少しはましになっているかもしれません。
+&gt;&gt; 
+&gt;&gt;   SVR4 に何かを移植するときには、ucb cc、ucblib は使わない、ない関数は 
+&gt;&gt; SVR4 の同様な関数で代用するか、ucb の関数を SVR4 で実装しなおす。という
+&gt;&gt; のが確実な方法です。
+&gt;&gt;
+&gt;
+&gt;ccに関しては NEWSOS-6.1.2では /usr/bin/ccで同じものです。だた起動shellで
+&gt;いろいろ定義してますが。
+&gt;bzeroやbcompなどの bsd系の関数もmem????に置き換えるほうがよいのでしょうか？
+
+6.3 では bzero や bcomp は使われていないと思います。
+
+&gt;今回のucblibの使用はこの中に getrusage があったもので。
+&gt;configureでは no となるのですが include/port/newsos6.h で強引に HAVE_GETRUSAGE
+&gt;を定義してやり postgreSQL 付属の getrusage を使用しないようにしていました。
+&gt;付属のものを使用すると core がでてたように記憶しております。
+
+こちらでは PostgreSQL 付属のものを使って特に問題出ていません。
+ただ、backend/port/getrusage.c (getrusage() の代替品が定義されている)
+が #if 0 の中にあったので、#if 0 を外した位はしましたが。
+
+&gt;それと HAS_TEST_AND_SET ですが Irix を真似ました。
+&gt;include/storage の s_lock.hにその関連があるようですが、ちょうど NECEWS っていう
+&gt;記述があったもので使用してみました。それで -lmutex をつけました。
+&gt;これは特に問題となりますか？
+
+深く追求していませんが、こちらでは同じ事をやると postgres の起動時が失
+敗するのでやめました。PostgreSQL では、HAS_TEST_AND_SET を undef する
+と、generic な(ただしその分遅い)実装が自動的に使われます。性能は別とし
+てとりあえず動かすことが先決と判断し、こちらでは HAS_TEST_AND_SET を定
+義しなかった次第です。
+
+&gt;&gt; ;;; それと、Unix domain のソケットに bind() できません。no such file or
+&gt;&gt; ;;; directory とか言って。sugita@sra.co.jp さんの話では、socket file のパ
+&gt;&gt; ;;; ス名の長さの関係だとか。たぶん NEWS OS 6.0 のネットワークコードが古す
+&gt;&gt; ;;; ぎなのでしょう。
+&gt;&gt; 
+&gt; これって他のホストからの接続が行なえないってことですよね？
+&gt; これは気づきませんでした。localhostでテストしていたもので。
+&gt; 6.1.2では うまくいくことを願って ....
+
+あ、逆です。6.3 では、local の postmaster に接続する場合、デフォルトで
+は Unix domain のソケットが使われますが、ここで失敗しているということ
+です。とりあえず
+setenv PGHOST localhost
+あるいは
+psql -h localhost
+でしのいでいます。
+
+&gt;&gt;   Unix domian &amp; DGRAM の場合に `パス名の長さの関係' の可能性がある、と訂
+&gt;&gt; 正します。従って、bind できないのは、これ以外の原因ですね。
+&gt;&gt; 
+&gt; えっ、原因不明？ 
+
+まあ、時間があったら追求してみます。
+# OS のバグだったらつまんないから優先度は下がりますが。
+
+&gt;石井さんの所でも 私のところと同じように 日本語のデータベース、テーブルが
+&gt;うまくいかないようですね。(テーブルの中身は問題ないようです)
+
+あと、アトリビュート名も日本語が使えてません。
+
+&gt;私も query stringを追跡しているのですが、backend/parser の中にきてしまって、
+&gt;あの *.l *.y で手間どっています。
+&gt;
+&gt;更に追跡してみます。
+
+やはり flex, bison を g オプションつけて recompile するのが先決か...
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00136" HREF="msg00136.html">[pgsql-jp 3568] Re: Sony newsos6 porting</A></STRONG>
+<UL><LI><EM>From:</EM> midbook@hiroshima-cdas.or.jp (Tsukasa Matsubara)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 3557] Re: Sony newsos6 porting</A></STRONG>
+<UL><LI><EM>From:</EM> midbook@hiroshima-cdas.or.jp (Tsukasa Matsubara)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 3557] Re: Sony newsos6 porting</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 3559] Re: mod_auth_pg95 について。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 3557] Re: Sony newsos6 porting</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00136.html">[pgsql-jp 3568] Re: Sony newsos6 porting</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00126"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00126"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

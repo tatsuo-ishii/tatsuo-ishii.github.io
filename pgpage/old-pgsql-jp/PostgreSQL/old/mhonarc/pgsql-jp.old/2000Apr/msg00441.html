@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14144] Re: レコード数の限界は？ -->
+<!--X-From: Kazumasa Gotoh <kgotoh@cic&#45;kk.co.jp> -->
+<!--X-Date: Mon, 24 Apr 2000 22:34:39 +0900 -->
+<!--X-Message-Id: 20000424223439P.kgotoh@cic&#45;kk.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 390414481FE.8E48KITAGAWA@mail.vois.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14144] Re: レコード数の限界は？ </TITLE>
+<LINK REV="made" HREF="mailto:kgotoh@cic-kk.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00440.html">Date Prev</A>][<A HREF="msg00442.html">Date Next</A>][<A HREF="msg00426.html">Thread Prev</A>][<A HREF="msg00445.html">Thread Next</A>][<A HREF="index.html#00441">Date Index</A>][<A HREF="threads.html#00441">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14144] Re: レコード数の限界は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kazumasa Gotoh &lt;<A HREF="mailto:kgotoh@cic-kk.co.jp">kgotoh@cic-kk.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 24 Apr 2000 22:34:39 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00426.html">390414481FE.8E48KITAGAWA@mail.vois.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+From: kitagawa &lt;kitagawa@vois.co.jp&gt;
+Date: Mon, 24 Apr 2000 18:30:48 +0900
+
+&gt; 過去ログを見てみたら、以下のような投稿があったのですが、
+&gt; 以下の方法でこの問題を解決することが出来るような気がするので
+&gt; すが、どうでしょう？
+&gt; それとも、そもそも関係のない話なのかな？
+&gt; -------------------------------------------------------------
+&gt; &gt;&gt; なまず本のP.79に「１レコードが複数のカラムからなる場合には
+&gt; &gt;&gt; その合計が8192バイト以内でなければなりません」とありますが、
+&gt; &gt;&gt; この制限は、最新のPostgreSQL6.5.2にも存在しますよね？
+&gt; &gt;&gt;
+&gt; &gt;&gt; 回避策は、large objectを使うか
+&gt; &gt;&gt; ファイルを作成してそこに保存、そのファイル名を
+&gt; &gt;&gt; 記録するとかですよね。
+
+私は PostgreSQL のラージオブジェクトを扱った事はなかったりするの
+ですが、(^^; シーラカンス本とかマニュアルを眺めた限りでは、
+ラージオブジェクトを扱うには、ユーザ定義関数( C で書く必要が
+あったなか？)を定義しないといけないし、外部テキストファイルとして
+保存する場合でも、そのハンドリングがプログラミング上面倒であると
+判断しています。
+いずれの場合も、普通の SQL で検索やデータ取得が行なえなくなる事が
+やっかいだと考えているという事です。
+
+その面倒を忍ぶくらいならば、ことテキストデータに関する限りは、
+本文を別テーブルにして、複数タプルに分ける方がマシだと今回は
+判断しました。
+検索時やデータ取得時に JOIN 動作が入ってしまうので、処理速度的には
+不利かもしれませんが、その程度の事は RDBMS なんだからいいじゃん。
+ってなとこです。;-)
+# これによる速度低下が致命的になるシステムではこの方法は使えませんが、
+# 今時のマシンリソースなら、それほど気にする事もないのではないでしょうか。
+
+長いデータを複数タプルに分割して格納する際には、漢字コードの泣き別れ
+が起きない様にとか、単語の途中でちぎれないようにする配慮が必要ですが、
+前者は特に難しくありませんし、後者は改行コードが出て来た時点で分割
+すればよいと割り切りました。
+後者については、例え PostgreSQL で TEXT 型が無制限の長さで使えたと
+しても、ユーザが単語の途中で改行コードを入れてしまっていては検索時に
+ヒットしないので、「やった方が悪い」と割り切っているという意味です。
+
+# まぁ、PostgreSQL にタプルサイズ、および TEXT 型のサイズ制限が
+# 存在しないのであれば、改行コードを削除した検索用のカラムと、元の
+# 入力データをそのままに保持した表示用のカラムを持てるのですが…
+
+どのような対処方針を採るかは、各自の考え方次第だと思います。
+
+&gt; &gt;&gt; フォームに入力した内容を保存しようと思っているですが、
+&gt; &gt;&gt; 8192バイトでは全然足りなくなりますね。困った困った。
+&gt; 
+&gt; &gt;tuplesizeを変更するのもありですね。
+&gt; &gt;src/include/config.hの#define BLCKSZ 8192　の8192を変えてリ
+&gt; &gt;コンパイルすると、この制限を緩和することが出来ます。
+&gt; &gt;　選べる値は 8192,16384,32768のいずれかです。
+
+32K で運用上問題ないと断言できる人はそれでもよいですが、そうで
+ないのであれば、結局は同じ事です。
+
+経験的には 64K くらいあればじゅうぶんですが、32K だとタマに危ない
+時があります。32K 以上はごく稀れであると判断できれば、そんなのは
+無視するという方針もあるでしょうけど。
+
+石井さんが書いてらしたように、7.0 からサポートされる LZTEXT 型を
+使用してタプルサイズを 32K にすれば、実用上はたぶん問題なくなる
+ような気もします…
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+(株) セントラル情報センター
+       ネットワークグループ  後藤和政    kgotoh@cic-kk.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00426" HREF="msg00426.html">[pgsql-jp 14129] Re: レコード数の限界は？</A></STRONG>
+<UL><LI><EM>From:</EM> kitagawa &lt;kitagawa@vois.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00440.html">[pgsql-jp 14143] Re: ORDER BYで「何番目か」を取得する方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00442.html">[pgsql-jp 14145] Re: create user</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00426.html">[pgsql-jp 14129] Re: レコード数の限界は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00445.html">[pgsql-jp 14148] good seminar space (Re: レコード数の限界は？)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00441"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00441"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

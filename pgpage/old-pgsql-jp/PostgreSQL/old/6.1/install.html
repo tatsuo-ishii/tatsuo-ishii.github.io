@@ -1,0 +1,286 @@
+<html>
+<head>
+<title>install procedure of PostgreSQL</title>
+</head>
+
+<body bgcolor="#ffffff">
+
+<!-- hhmts start -->
+Last modified: Tue Aug 26 14:45:44 1997
+<!-- hhmts end -->
+
+<h1>PostgreSQL 6.1.1 のインストール手順</h1>
+
+PostgreSQL 6.1.1 のインストール手順を簡単に説明します。(6.1.1 は 6.1 
+のバグ修正版です) 詳細についてはソース付属の "INSTALL" というファイルを
+見て下さい。<p>なお、環境は MKLinux DR2.1 (PowerPC 用の Linux)を前提に
+していますが、他のプラットフォームでも大きな違いはないでしょう。
+
+<h2><img src="../gif/cyan-ball.gif" align="middle">インストールの前に</h2>
+
+<ul>
+  <li> PostgreSQL をインストールするためには、少なくとも 2.7.2 以上の 
+gcc、3.75 以上の GNU make (gmake) が必要です。
+  <li> 必要なディスク容量は、約30MB〜50MB です。これに更に
+       データベース自体の容量を追加する必要があります。ただし、データ
+ベース領域は PostgreSQL をインストールするファイルシステムと別にするこ
+とも可能です。
+  <li> 可能ならば PostgreSQL 専用のアカウントを作ってコンパイル、イン
+ストールした方が良いでしょう。
+  
+  <li> root (uid 0) のままでは、コンパイル、インストール(make install) 
+まではできても、その後のデータベースのインストール (initdb) ができませ
+んので、ご注意下さい。
+       
+  <li> PostgreSQL 6.0 と若干インストール手順が異なっています。
+       <ul>
+	 <li> customize はなくなりました。代わりに、"configure" という
+	      シェルスクリプトを起動してカスタマイズします。
+       </ul>
+
+</ul>
+
+<h2><img src="../gif/cyan-ball.gif" align="middle">インストール手順</h2>
+
+
+ここでは、基本的なインストール手順を紹介します。詳しくはソースに附属す
+る "INSTALL" というファイルをお読み下さい。
+
+<ol>
+  <li> PostgreSQL を入手します。
+   ftp://ftp.jaist.ac.jp/pub/dbms/PostgreSQL/postgresql-v6.1.1.tar.gz
+   または
+   ftp://ftp.postgreSQL.org/pub/postgresql-v6.1.1.tar.gz
+   より入手します。
+       <p>
+  <li> 上記を展開します。ここでは仮に /usr/local/pgsql で作業することを
+       前提にしていますが、他の場所を使う場合は適宜読み換えて下さい。
+       展開すると postgresql-v6.1.1 というディレクトリができます。
+       その下に src や doc などのディレクトリができるはずです。
+       <p>
+  <li> <a href="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1.1/jp.patch.gz">
+       jp patch</a>をあてます。jp patch は、以下のような日本語化を実現します。
+       <ul>
+	 <li> テーブル名に日本語を使用可能(ただし、OS が日本語のファイル名を
+	      許していることが必要)
+	 <li> カラム名に日本語が使用可能
+	 <li> 検索時に日本語の正規表現が使用可能
+       </ul>
+       この機能が必要なければこのステップを無視して次のステップに進んで構いません。
+       <p>
+       <font color=red>注：jp patch を適用するためには、flex-2.5.2 or flex-2.5.4 以上が必要です。(lex および flex-2.5.3 は使えません)</font>
+       <p>
+       jp.patch.gz を ftp し、gunzip にて解凍して適当な場所に置きます。
+       いま jp.patch を置いてある場所を somewhere とすると、
+
+       <pre>
+	% cd /usr/local/pgsql/postgresql-v6.1.1/src
+        % patch -p1 < somewhere/jp.patch
+       </pre>
+
+       次に src/Makefile.custom を作成し、以下の行を追加します。
+       <pre>
+	JP=1
+       </pre>
+
+  <li> オリジナルのままではうまくコンパイルできない／あるいは動作しな
+いプラットフォームについては、パッチを当てるなどの対処が必要な場合があります。
+       <p>
+       <ul>
+	 <li> FreeBSD。System V の共有メモリ機能がカーネルに定義されている
+	      必要があります。以下を定義してカーネルを再構築して下さい。
+<pre>
+        options SYSVSHM
+        options SYSVSEM
+        options SYSVMSG
+</pre>
+	 <li> MkLinux。パッチが必要です。
+	      <ul>
+		<li> <a href="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1.1/mklinux.patch.gz">6.1.1 用のパッチ</a>
+	      </ul>
+	      をあてて下さい。このパッチは localtime() の問題点と
+	      gcc の浮動小点の扱いに関するバグを回避するものです。
+	      なお、MkLinux の場合 DR2.1 以上で、shared library サポートが
+	      必要です。configure での template の選択には "linux-elf" を
+	      選んで下さい。
+	      <br>
+	      MkLinux パッチは mono-linux にも使えます。ただし、shared library
+	      のサポートは必要です。
+	      <p>
+	 <li> SunOS(4.1.x)。パッチが必要です。
+	      <ul>
+		<li> <a href="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1.1/sunos4.patch.gz">6.1.1 用のパッチ</a>
+	      </ul>
+
+	      <p>
+	 <li> HP-UX/10.xx。
+	      HP-UX/10.xx ではクライアントは動作するものの、postgres サーバが
+	      コネクションを受け付けないとの報告が日本、本家で複数上がっています。
+	      たとえば、<a href="hpux10-trouble.txt">この記事</a>。
+	      この件ですが、解決方法が見付かったそうです
+	      <a href="http://www.sra.co.jp/people/t-ishii/PostgreSQL/newarch/archive/199707/19970726.html#3">[2236]</a> 参照。
+	      <p>
+       </ul>
+       <p>
+  <li> .cshrc のコマンドサーチパスを修正するなどして、/usr/local/pgsql/bin に
+       パスを通します。
+       <p>
+  <li> コンパイル、インストールを行ないます。
+
+       <pre>
+        % configure
+	% make all
+	% make install
+       </pre>
+       shared library がインストールされるプラットフォーム
+(/usr/local/pgsql/lib/libpq.so があるかどうかで確認できます)では、
+libpq.so が psql などの postgresql のクライアント用のツールから参照されるように設定して下さい。たとえば、以下のような方法があります。
+       <pre>
+       setenv LD_LIBRARY_PATH /usr/local/pgsql/lib
+       </pre>
+       データベースを初期化します。これは一度だけ実行すれば良いです。
+       <pre>
+	% initdb --pgdata=/usr/local/pgsql/data --pglib=/usr/local/pgsql/lib
+       </pre>
+       postgres デーモン(postmaster)を立ち上げます。(rc などのシステム起動用の
+       スクリプトに組み込んでおけば便利です。)
+       <pre>
+	% postmaster -D/usr/local/pgsql/data -S
+       </pre>
+
+  <li> デフォルトでは localhost からの接続はすべて許可されていますが、
+       逆に remote host からのアクセスは一切できないようになっています。
+       とりあえずどこからでもアクセスできるようにしたい場合は、
+       /usr/local/pgsql/data/pg_hba.conf の
+       <pre>
+       #host         all        0.0.0.0       0.0.0.0           trust
+       </pre>
+       のコメントを外して下さい。
+       <p>
+       # postgres95 とは、address mask (2つめの 0.0.0.0)の意味が逆
+になっています。
+       <p>
+       なお、6.1 からは plaintext passwd authentication と呼ばれる機能が
+       追加され、簡単なパスワード認証ができるようになっています。この機能を
+       使うためには、pg_hba.conf に設定が必要ですし、また
+       <a href="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.1/pg_passwd.patch.gz">
+       パッチ</a>も必要です。
+       <p>
+  <li> postgresql には C 言語インターフェイスの他、pgtcl と
+       呼ばれる Tcl/Tk 言語のインターフェイスも附属しています。
+       pgtcl のインストール手順は<a href="tcl.html">
+       ここ</a>を参照して下さい。
+
+</ol>
+
+<h2>
+<img src="../gif/cyan-ball.gif" align="middle">
+regression test</h2>
+
+これで一通りインストールが完了ですが、PostgreSQL には regression と呼
+ばれる動作を確認するための test suite が附属しています。以下、
+regression の手順を説明します（regression を実施するためには、
+PostgreSQL のインストールが終っていることが必要です）。
+
+<ol>
+  <li> postmaster を一旦終了させます。
+       <p>
+  <li> タイムゾーンを設定します。たいていのプラットフォームでは、環境変数 TZ を設定することにより可能です。
+       <pre>
+       % setenv TZ PST8PDT
+       </pre>
+  <li> postmaster を立ち上げます。
+       <pre>
+	% postmaster -D/usr/local/pgsql/data -S
+       </pre>
+  <li> regression 用のディレクトリに移ります。
+       <pre>
+       % cd src/test/regress
+       </pre>
+  <li> regression test を実施します。
+       <pre>
+       % make all runtest
+       </pre>
+  <li> テスト項目毎に ok/fail が出力されます。
+       <p>
+  <li> README にも書いてありますが、"fail" と出たからと言って、必ずしも
+       問題がある訳ではありません。たとえば、float8 では、フローティングの
+       表現とか、エラーメッセージの違いにより fail してしまうことがあります。
+       また、random では、乱数を使っているので当然結果が違うことがありえます。
+       参考までに各種プラットフォームの regression 結果を示します。
+       <ul>
+	 <li> <a href="mklinux_shared.out">
+	      MkLinux DR2.1 + updates + shared lib (PowerMac 7100/66AV)
+	      </a>
+	 <li> <a href="sunos4.out">SunOS 4.1.4</a>
+       </ul>
+       <p>
+  <li> linux/slackware では、システムのバグにより regression test が 100% OK
+       になりません。どうしても気になる方は
+       <a href="http://www.sra.co.jp/people/t-ishii/PostgreSQL/newarch/archive/199707/19970724.html#0">[2217]</a>を御覧下さい。
+</ol>
+
+<h2>
+<img src="../gif/cyan-ball.gif" align="middle">
+ベンチマークテスト
+</h2>
+
+データベースシステムでは、そのパフォーマンスが気になるところですが、
+PostgreSQL には標準のベンチマークテストである Wisconsin Benchmark
+の test suite が附属しています。以下、その実施方法を説明します。
+
+<ol>
+  <li> ベンチマークテストのディレクトリに移動します。
+       <pre>
+       % cd src/test/bench
+       </pre>
+  <li> test/bench/Makefile に問題があるので、以下のように修正します。
+       <pre>
+47,48c47,48
+< 	$(SHELL) ./create.sh && \
+< 	$(SHELL) ./runwisc.sh >bench.out 2>&1
+---
+> 	$(SHELL) ./create.sh $$PGDATA && \
+> 	$(SHELL) ./runwisc.sh $$PGDATA >bench.out 2>&1
+       </pre>
+
+  <li> postmaster が起動済みの場合は、それを停止します。
+       <p>
+  <li> 環境変数 PGDATA にデータベースディレクトリをセットします。
+       <pre>
+       % setenv PGDATA /usr/local/pgsql/data
+       </pre>
+  <li> ベンチマークを実施します。
+       <pre>
+       % make bench.out.perquery
+       </pre>
+       ベンチマークの結果は、bench.out.perquery に保存されています。
+       <p>
+  <li> linux 系では一部のベンチマーク結果が正しく得られない問題があります。
+       (詳細は<a href="http://www.sra.co.jp/people/t-ishii/PostgreSQL/archive/199703/19970317.html#14">ここ</a>を参照)
+       以下のように修正して下さい。
+       <ul>
+	 <li> 方法その１：runwisc.sh の最後にある
+	      <pre>
+        time postgres -texecutor -tplanner -Q bench < bench.sql
+	      を
+        postgres -texecutor -tplanner -Q bench < bench.sql
+	      </pre>
+にしてベンチマークを取り直す。
+	      <p>
+	 <li> 方法その２：bench.out が残っている場合は最後の方に
+ある 85.86user 114.47system 4:49.20elapsed 69%CPU (0avgtext+0avgdata
+0maxresident)k のような行を削除して
+	      <pre>
+        sh ./perquery &lt; bench.out &gt; & bench.out.perquery
+	      </pre>
+	      を実行する。
+       </ul>
+</ol>
+<hr>
+<img src="../gif/return06.gif" border=0>
+<a href="../index.html">
+[go back to PostgreSQL web page]</a>
+
+</body>
+</html>

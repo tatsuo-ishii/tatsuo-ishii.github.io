@@ -1,0 +1,135 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2137] Re: about install error -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Tue, 08 Jul 1997 12:41:08 +0900 -->
+<!--X-Message-Id: 199707080341.MAA17869@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199707071446.XAA01159@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2137] Re: about install error </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00059.html">Date Prev</A>][<A HREF="msg00062.html">Date Next</A>][<A HREF="msg00047.html">Thread Prev</A>][<A HREF="msg00062.html">Thread Next</A>][<A HREF="index.html#00060">Date Index</A>][<A HREF="threads.html#00060">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2137] Re: about install error</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Tue, 08 Jul 1997 12:41:08 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。BIG/LITTLE_ENDIAN の件に関しては多くの方から詳細な情報
+を頂きつつあります。サマリをまとめたのち、本家に報告しようと思います。
+どうもありがとうございました。
+
+ところで、この件ですが、
+
+&gt;これは多分 6.1p1 のβ扱いだと思います。（違ってたらごめんなさい）
+&gt;賞味してからご紹介しようと思ったのですが、たちの悪いがバグが
+&gt;潜んでいて、ちょっとはまりました。またもや日付のハンドリング周りに
+&gt;手が入っていて、どさくさにバグが入り込んだようです。
+&gt;ただいまデバッグ中で、明日中(7/8)には結論が出せると思います。
+&gt;なお、このバグは、MkLinux を除く Linux や Solaris2.5では発生しません。
+&gt;具体的には、HAVE_INT_TIMEZONE が define されない機種で発生します。
+&gt;確認した範囲では、MkLinux と SunOS が該当します。
+&gt;FreeBSD は...危ないかも。HP UX はよく分かりません。
+
+とりあえず abstime 型のバグはわかりました。添付のパッチを当てると良い
+様です。他にも問題があって、datetime 型で定義したカラムから '1
+year'::timespan のようにしてデータを取り出すと日付がずれます。
+
+create table dtest (d datetime);
+[insert 文]
+select d + '1 year'::timespan from dtest;
+
+これがまだわかりません。うーむ。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+------------------------- cut here ---------------------------
+[sraap75.sra.co.jp]t-ishii{534} diff -c nabstime.c~ nabstime.c
+*** nabstime.c~	Mon Jun 23 09:01:27 1997
+--- nabstime.c	Mon Jul  7 02:57:09 1997
+***************
+*** 149,157 ****
+      if (tzp != NULL) *tzp = (tm-&gt;tm_isdst? (timezone - 3600): timezone);
+      if (tzn != NULL) strcpy( tzn, tzname[tm-&gt;tm_isdst]);
+  #else /* !HAVE_INT_TIMEZONE */
+!     if (tzp != NULL) *tzp = - tm-&gt;tm_gmtoff;	/* tm_gmtoff is Sun/DEC-ism */
+      /* XXX FreeBSD man pages indicate that this should work - tgl 97/04/23 */
+!     if (tzn != NULL) strcpy( tzn, tm-&gt;tm_zone);
+  #endif
+  #else /* ! USE_POSIX_TIME */
+      if (tzp != NULL) *tzp = tb.timezone * 60;
+--- 149,157 ----
+      if (tzp != NULL) *tzp = (tm-&gt;tm_isdst? (timezone - 3600): timezone);
+      if (tzn != NULL) strcpy( tzn, tzname[tm-&gt;tm_isdst]);
+  #else /* !HAVE_INT_TIMEZONE */
+!     if (tzp != NULL) *tzp = - tx-&gt;tm_gmtoff;	/* tm_gmtoff is Sun/DEC-ism */
+      /* XXX FreeBSD man pages indicate that this should work - tgl 97/04/23 */
+!     if (tzn != NULL) strcpy( tzn, tx-&gt;tm_zone);
+  #endif
+  #else /* ! USE_POSIX_TIME */
+      if (tzp != NULL) *tzp = tb.timezone * 60;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00062" HREF="msg00062.html">[pgsql-jp 2139] Re: about install error</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 2124] Re: about install error</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00059.html">[pgsql-jp 2136] 自己紹介</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 2139] Re: about install error</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00047.html">[pgsql-jp 2124] Re: about install error</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00062.html">[pgsql-jp 2139] Re: about install error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00060"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00060"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

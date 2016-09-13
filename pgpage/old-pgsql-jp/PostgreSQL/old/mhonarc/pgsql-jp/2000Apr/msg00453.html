@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14156] JavaとDBの接続について -->
+<!--X-From: YoshimasaSasaki <y&#45;sasaki@nist.co.jp> -->
+<!--X-Date: Tue, 25 Apr 2000 16:02:33 +0900 -->
+<!--X-Message-Id: 200004250702.AA00038@nist.nist.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14156] JavaとDBの接続について </TITLE>
+<LINK REV="made" HREF="mailto:y-sasaki@nist.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00452.html">Date Prev</A>][<A HREF="msg00454.html">Date Next</A>][<A HREF="msg00470.html">Thread Prev</A>][<A HREF="msg00456.html">Thread Next</A>][<A HREF="index.html#00453">Date Index</A>][<A HREF="threads.html#00453">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14156] JavaとDBの接続について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: YoshimasaSasaki &lt;<A HREF="mailto:y-sasaki@nist.co.jp">y-sasaki@nist.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Apr 2000 16:02:33 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+どうも佐々木＠三茶です。
+
+先日皆さんにJDBCとpostgreSQLの接続を教えて頂き、
+コンパイルは問題無く通す事が出来ました。
+
+ですが、実行するとエラーが出てしまいます。
+
+メッセージを見る限りでは何らかの原因でDRIVERが落ちたと言うことだと思うのですが。
+たぶん下記の※１のソースがおかしいのでは？
+と思っています。
+
+そこでみなさんにお聞きしたいのですが※１の命令文の()内の書き方がよく分からないので
+教えて下さい。
+定義としては下記の通りだと思ったのですが
+
+Connection db = DriverManager.getConnection("jdbc:postgresql://hostname/database","user","password");  //dbへの接続
+
+ここで言うdatabaseというのは、createdbで作成した時の名前でよろしいのですか？
+それともテーブル名ですか？
+
+上記の部分以外が問題ではない時のためにソースとbashを記入しておきます。
+
+解る方がいらっしゃいましたら教えて下さい。
+
+エラーメッセージ
+ysasaki@Linux java]$ javac syain2.java
+[ysasaki@Linux java]$ java syain2
+ --- SQL Exception ---
+Message      :Something unusual has occured to cause the driver to fail. Please report this exception: {1}
+SQLState :null
+ErrorCode :0
+
+※１
+Connection db = DriverManager.getConnection("jdbc:postgresql://203.183.119.79/ysasaki","nobody","");  //dbへの接続
+
+bash
+
+######## For JDBC
+export CLASSPATH="$CLASSPATH":/usr/local/src/postgresql-6.5/src/interfaces/jdbc/postgresql.jar
+
+pass
+
+[root@Linux java]# find / -name postgresql.jar -print
+/usr/local/src/postgresql-6.5/src/interfaces/jdbc/postgresql.jar
+
+Java ソース
+
+import java.sql.*;
+import java.io.*;
+public class syain2 {
+        public static void main(String args[]){
+                int syainno;
+                String name, namekana;
+                try {
+                        Class.forName("postgresql.Driver");                               //jdbcドライバのロード
+                } catch(ClassNotFoundException e){
+                        System.err.println("Driver ClassNotFound");
+                }
+                try {
+                        Connection db = 
+DriverManager.getConnection("jdbc:postgresql://203.183.119.79/ysasaki","nobody","");  //dbへの接続
+
+
+                        Statement stmt = db.createStatement();                             //SQLコンテナの作成
+                        String sql = "select * from syain1 order by syainno";              //SQLの実行
+                        ResultSet rs = stmt.executeQuery(sql);
+
+                        while(rs.next()){
+                        syainno = rs.getInt("SYAINNO");
+                        name     = rs.getString("name");
+                        namekana = rs.getString("NAMEKANA");
+                        System.out.println(syainno + "," + name + "," + namekana );
+                        }
+                                rs.close();
+                                stmt.close();
+                                db.close();
+                } catch(SQLException ex) {
+                        System.err.println(" --- SQL Exception --- ");
+                        while (ex != null){
+                                try {
+                                        byte b[] = ex.getMessage().getBytes("8859_1");
+                                        System.err.print("Message      :");
+                                        System.err.println(new String(b,"SJIS"));
+                                } catch (Exception ue_ex) {
+
+}                                         //Add M.Takata
+                                        System.err.println("SQLState :" + ex.getSQLState());
+                                        System.err.println("ErrorCode :" + ex.getErrorCode());
+                                        System.err.println(" ");
+                                        ex = ex.getNextException();
+
+                        }
+                }
+        }
+}
+
+
+----
+YoshimasaSasaki  y-sasaki@nist.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00456" HREF="msg00456.html">[pgsql-jp 14159] Re: JavaとDBの接続について</A></STRONG>
+<UL><LI><EM>From:</EM> MOCHIDA Shuji &lt;mochid@netside.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00452.html">[pgsql-jp 14155] Re: create user</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00454.html">[pgsql-jp 14157] Re: Q) index の使い方</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00470.html">[pgsql-jp 14173] RE: ODBCのMSysConfに関するエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 14159] Re: JavaとDBの接続について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00453"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00453"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

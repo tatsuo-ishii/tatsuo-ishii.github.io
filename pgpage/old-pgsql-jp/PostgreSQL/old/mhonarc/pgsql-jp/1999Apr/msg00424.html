@@ -1,0 +1,138 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8233] Re: マルチユーザーについて -->
+<!--X-From: "MINOHATA Norio" <minohata@com&#45;net.co.jp> -->
+<!--X-Date: Thu, 29 Apr 1999 09:56:47 +0900 -->
+<!--X-Message-Id: 016301be91db$37008980$9754add2@comnet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3726D5E1.63592C01@mug.biglobe.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8233] Re: マルチユーザーについて </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00423.html">Date Prev</A>][<A HREF="msg00425.html">Date Next</A>][<A HREF="msg00459.html">Thread Prev</A>][<A HREF="msg00416.html">Thread Next</A>][<A HREF="index.html#00424">Date Index</A>][<A HREF="threads.html#00424">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8233] Re: マルチユーザーについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "MINOHATA Norio" &lt;<A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 29 Apr 1999 09:56:47 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00417.html">3726D5E1.63592C01@mug.biglobe.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+箕畑＠旭紙業です。
+
+&gt; 　PHP306からPostgreSQL642を使います（Apache134）。データベースから何段
+&gt; かのレコード抽出を行うようにしておりますが、その際、あらかじめ、整数フ
+&gt; ィールド1つ、文字列フィールド1つのようなテーブル（一時テーブルと呼ぶこ
+&gt; とにします）をいくつか用意しておき、レコード番号のインサートやデリート
+&gt; を繰り返して最終的なレコード番号を得るようにしました。
+
+「データベースから何段かのレコード抽出...最終的なレコード番号を得る」という
+一連の処理の間にユーザとサーバが何度か対話するのでしょうか?
+それとも、ユーザからの要求をサーバが受け取ると一気に処理を済ませて、
+その結果をユーザに返すだけなのでしょうか?
+
+もし、後者ならば次のように簡単に処理できます。
+
+(1)SQL文 BEGIN; を発行してトランザクションを開始。
+
+(2)以下の処理で絶対にデッドロックしないという自信がない限り、
+   更新する可能性のあるテーブル全てに対して、
+   SQL文 LOCK TABLE テーブル名; を発行。
+
+(3)一時テーブル tmpX を用いて、レコード番号のインサートや
+   デリートを繰り返して最終的なレコード番号を得る。
+   (tmpX の X の部分は実際は数字になります)
+
+(4)SQL文 DELETE FROM tmpX; を発行して使用済み一時テーブルをクリア。
+   (X=1,2,3 ならば、この3つ全てに対してDELETEです)
+
+(5)SQL文 END; を発行してトランザクションを終了。
+
+(6)ユーザに結果を返す(HTMLを生成する)
+
+もし一時テーブル以外のテーブルを更新しないのであれば、
+(4)(5)の代わりに、
+  SQL文 ABORT; で全部吹き飛ばす
+というのも有りかと思います。(^^;
+# でも一時テーブル以外を更新しないということならば、
+# 単に検索するだけということなので、
+# そうするとよっぽど複雑な検索でない限り
+# 一時テーブルを使用しなくても書けちゃいそうな気がします。
+
+
+そうではなくて、前者ならば話はややこしくなります。
+1アクセス毎に切断するHTTP上で擬似的にセッションを
+持続するわけですから、
+
+・HTTP_COOKIE等を使用して各ユーザ毎にIDを割り振る。
+・誰がどの一時テーブル(資源)を使用中かを記録するための
+  資源予約テーブルを用意する。
+・処理の途中で逃げてしまうユーザがいることを想定して、
+  一定時間以上アクセスしてこないユーザから資源を奪い取る。
+  (cronか何かで定期的に処理)
+
+といった事項に留意してシステムを設計し直す必要ありです。
+
+
+--
+有限会社アイピーシー/旭紙業株式会社
+箕畑典男
+minohata@com-net.co.jp
+<A HREF="http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html">http://bw.com-net.co.jp/~mldb/pgsql_jp/frame.html</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00417" HREF="msg00417.html">[pgsql-jp 8226] マルチユーザーについて</A></STRONG>
+<UL><LI><EM>From:</EM> "K. Takai" &lt;ktakai@mug.biglobe.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00423.html">[pgsql-jp 8232] Re: マルチユーザーについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00425.html">[pgsql-jp 8234] 新旧郵便番号検索ができません</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00459.html">[pgsql-jp 8268] Re^4:マルチユーザーについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00416.html">[pgsql-jp 8225] Access97 + ODBC でリンクができない</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00424"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00424"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1555] Kerberos? -->
+<!--X-From: Jun Kuwamura <juk@rccm.co.jp> -->
+<!--X-Date: Thu, 13 Mar 1997 09:16:32 +0900 (JST) -->
+<!--X-Message-Id: Pine.LNX.3.91LJ1.0.4.970313091436.17054A&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1555] Kerberos? </TITLE>
+<LINK REV="made" HREF="mailto:juk@rccm.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00057.html">Date Prev</A>][<A HREF="msg00059.html">Date Next</A>][<A HREF="msg00062.html">Thread Prev</A>][<A HREF="msg00084.html">Thread Next</A>][<A HREF="index.html#00058">Date Index</A>][<A HREF="threads.html#00058">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1555] Kerberos?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kuwamura &lt;<A HREF="mailto:juk@rccm.co.jp">juk@rccm.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 13 Mar 1997 09:16:32 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+桑村です。
+
+  ちょっと御無沙汰してます。以前、マニュアル訳の時にちょっと話題になっ
+たと思うのですが、PostgreSQL をケルベロスの認証で使われている方はいま
+すか？
+
+  PostgreSQL をケルベロスの認証で使ってみようと思って Linux で eBones 
+（Kerberos 4 から DES を覗いた Bones を基に合州国／カナダ以外の国で作
+成された国際版）をコンパイルして PostgreSQL にリンクして実行モジュール
+は出来たのですが、認証に失敗します。たぶん、eBones の移植が不完全なた
+めだと思います。eBones の FreeBSD 版のパッケージは存在して展開するだけ
+で使えるようなので、どなたか試された方はいないかなと思いまして。
+
+  それまでは、FreeBSD のハンドブック（このMLにも関係者の方がいらっしゃ
+いますね）もあったのですが、
+ &lt;<A HREF="http://www.jp.FreeBSD.org/www.freebsd.org/ja_JP.EUC/handbook/handbook59.html">http://www.jp.FreeBSD.org/www.freebsd.org/ja_JP.EUC/handbook/handbook59.html</A>&gt;
+
+  最近、ケルベロスについて分かり易く書かれた章のある本が出たので紹介します。
+『インターネットセキュリティ  システム管理者のためのリスクマネージメント』
+Larry J. Hughes, Jr. 著、長原 宏治監訳（インプレス プレンティスホール）
+(ISBN4-8443-4916-3)
+
+  以下、自分なりにやってみた PostgreSQL の修正点です。どなたか試してみ
+て頂けませんか？あるいは、Linux 版の eBones があったら紹介して下さい。
+
+
+まず、 Makefile.global のケルベロスのフラグを生かします。
+
+KRBVERS= 4
+
+ifdef KRBVERS
+KRBINCS= -I/mit/usr/athena/include
+KRBLIBS= -L/mit/usr/athena/lib
+KRBFLAGS+= $(KRBINCS) -DPG_KRB_SRVNAM='"postgres_dbms"'
+   ifeq ($(KRBVERS), 4)
+KRBFLAGS+= -DKRB4
+KRBFLAGS+= -DPG_KRB_SRVTAB='"/etc/kerberosIV/srvtab"'
+KRBLIBS+= -lkrb -ldes
+   else
+   ifeq ($(KRBVERS), 5)
+KRBFLAGS+= -DKRB5
+KRBFLAGS+= -DPG_KRB_SRVTAB='"FILE:/krb5/srvtab.postgres"'
+KRBLIBS+= -lkrb5 -lcrypto -lcom_err -lisode
+   endif
+   endif
+endif
+
+
+以下の修正をしました。
+
+0.1 LDADD 変数を src/backend/libpq/Makefile の $(LD) の行に加えます。
+
+SUBSYS.o: $(OBJS)
+	$(LD) -r -o SUBSYS.o $(OBJS) $(LDADD)
+	                            ^^^^^^^^^
+
+0.2 次の LD_ADD 変数の定義を src/bin/psql/Makefile と src/bin/pg_dump/Makefile
+  に加えます。
+
+# kerberos flags
+ifdef KRBVERS
+CFLAGS+= $(KRBFLAGS)
+LD_ADD+= $(KRBLIBS)
+endif
+
+
+0.3 ソース  backend/libpq/auth.c を修正してケルベロス４の認証をさせます。
+   （あまり自信がないのですが、これがなきゃ始まらないので）
+
+earth:src&gt; diff backend/libpq/auth.c~  backend/libpq/auth.c
+419,422c419,424
+&lt;     if (msgtype_arg == STARTUP_MSG &amp;&amp; useHostBasedAuth)
+&lt;         msgtype = STARTUP_HBA_MSG;
+&lt;     else 
+&lt;         msgtype = STARTUP_UNAUTH_MSG;
+---
+&gt;     if (msgtype_arg != STARTUP_KRB4_MSG) {
+&gt;         if (msgtype_arg == STARTUP_MSG &amp;&amp; useHostBasedAuth)
+&gt;             msgtype = STARTUP_HBA_MSG;
+&gt;         else 
+&gt;             msgtype = STARTUP_UNAUTH_MSG;
+&gt;     }
+
+--
+ Jun Kuwamura
+rC Cm	Research Center of Computational Mechanics, Inc.
+  ^		E-Mail: JuK@rccm.co.jp
+  ~
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00084" HREF="msg00084.html">[postgres95 1581] Re: Kerberos?</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00057.html">[postgres95 1554] Self Introduction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00059.html">[postgres95 1556] bench</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00062.html">[postgres95 1559] Re: bench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00084.html">[postgres95 1581] Re: Kerberos?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00058"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00058"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

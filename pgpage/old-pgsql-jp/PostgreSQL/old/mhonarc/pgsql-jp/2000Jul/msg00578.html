@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16345] libpqでmallocした時の問題 -->
+<!--X-From: Akihiro Tsukamoto <atsuka@be.mbn.or.jp> -->
+<!--X-Date: Fri, 28 Jul 2000 18:45:11 +0900 -->
+<!--X-Message-Id: 20000728181825.8C85.ATSUKA@be.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16345] libpqでmallocした時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:atsuka@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00577.html">Date Prev</A>][<A HREF="msg00579.html">Date Next</A>][<A HREF="msg00582.html">Thread Prev</A>][<A HREF="msg00579.html">Thread Next</A>][<A HREF="index.html#00578">Date Index</A>][<A HREF="threads.html#00578">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16345] libpqでmallocした時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akihiro Tsukamoto &lt;<A HREF="mailto:atsuka@be.mbn.or.jp">atsuka@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jul 2000 18:45:11 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。塚本と申します。
+
+libpqを使ってCGIを作成しようとしております。
+そこで発生した問題なのですが、自力では解決できず、以前のMLも検索したので
+すが、答えが見つかりませんでした。
+
+現象として、カーソルでselect *を実行し、fetchした後、malloc、memsetを実
+行したところ、select結果を取得することができませんでした。
+
+gdbで追跡したところ、PQexecの戻り値（res)とmallocで取得した領域のアドレ
+スが同じで、memsetしたことにより、resの中身が消えてしまったようです。
+
+以下、そのソースです。
+
+/*---------------------------*/
+/* include                   */
+/*---------------------------*/
+#include &lt;stdio.h&gt;
+#include "postgres.h"
+#include "libpq-fe.h"
+#include "utils/timestamp.h"
+#include "utils/elog.h"
+#include "utils/builtins.h"
+#include "utils/palloc.h"
+#include "utils/mcxt.h"
+#include "storage/fd.h"
+#include "storage/large_object.h"
+#include "libpq/libpq-fs.h"
+#include "pqexpbuffer.h"
+
+void main(void)
+{
+    PGconn   *conn1;
+    PGresult *res;
+    char   *work_p;
+    FILE *fp;
+    char read_buf[2048];
+    char w_sql[1024];
+
+    conn1 = PQsetdb(NULL, NULL, NULL, NULL, "work");
+
+    strcpy(w_sql, "BEGIN");
+    res = PQexec(conn1, w_sql);
+
+    PQclear(res);
+
+    strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+    strcat(w_sql, "SELECT * FROM work_tbl ");
+
+    res = PQexec(conn1, w_sql);
+    PQclear(res);
+
+    strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+    res = PQexec(conn1, w_sql);
+
+    PQclear(res);
+
+    work_p = malloc(2048);
+    memset(work_p, 0x0, 2048);
+
+    fp = fopen("./test.txt", "r");
+    fgets(read_buf, sizeof(read_buf)-1, fp);
+
+    以下続く....
+
+
+db名  work
+テーブルスキーマ
+  CREATE TABLE work_tbl
+  (
+      work1          INT,
+      work2          char(200)
+  );
+textの中身
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  bbbbbbbbbbbbbbbbbbbb
+  ddddddddddddddddd
+
+−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−−
+データは3件ほど入れた状態でテストしました。
+また、テスト環境は以下の通りです。
+
+OS         FreeBSD 2.2.8
+PostgreSQL Version  7.0.2
+gcc version 2.7.2.1でコンパイル
+
+
+fopen、fgetsがあるのは、mallocをしなくても、fgetsを実行した直後に同様な
+現象が起こるのを確認するためです。
+余計と思われるincludeがいっぱいあるのは、シーラカンス本を参照して、見つ
+けたincludeをすべて入れたためです...。
+シーラカンス本第1版のアイコン管理プログラムでは、mallocを使用しているの
+で、できないわけではないとおもうのですが・・・。原因を解明できず、困ってお
+ります。どなたか分かる方、おられましたらお力をお貸しください。お願いしま
+す。
+
+
+-------------------------------------------------------------
+塚本 明博
+atsuka@be.mbn.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00579" HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Kohzi Terao &lt;terao@cyheit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00577.html">[pgsql-jp 16344] Re: [pgsql-jp 16337] 初心者向け ＤＢ設計・ＳＱＬ 入門書</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00582.html">[pgsql-jp 16349] RE: 初心者向け ＤＢ設計・ＳＱＬ 入門書</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00578"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00578"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

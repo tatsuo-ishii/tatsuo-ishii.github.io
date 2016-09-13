@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 15916] Re: Not検索について質問です。 -->
+<!--X-From: j&#45;kitamura@nomura&#45;nms.co.jp -->
+<!--X-Date: Fri, 7 Jul 2000 11:07:24 +0900 -->
+<!--X-Message-Id: OF1547D104.A1ACC178&#45;ON49256915.000968BB@nomura&#45;nms.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 15916] Re: Not検索について質問です。 </TITLE>
+<LINK REV="made" HREF="mailto:j-kitamura@nomura-nms.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00148.html">Date Prev</A>][<A HREF="msg00152.html">Date Next</A>][<A HREF="msg00163.html">Thread Prev</A>][<A HREF="msg00210.html">Thread Next</A>][<A HREF="index.html#00149">Date Index</A>][<A HREF="threads.html#00149">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 15916] Re: Not検索について質問です。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:j-kitamura@nomura-nms.co.jp">j-kitamura@nomura-nms.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 7 Jul 2000 11:07:24 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+こんにちは。
+
+
+&gt;HISAです。
+&gt;
+&gt;Not検索について質問です。
+&gt;これは、PostgreSQLというよりも、SQL言語に関わる問題だ
+&gt;と思います。
+&gt;複数のフィールドに対し、同じ条件のキーワードで検索をし
+&gt;たいのです。
+&gt;
+&gt;例を示しますと、”京大”というキーワードを検索する。
+&gt;京都大学という意味で”京大”と検索するが、”東京大学”
+&gt;までHITしてしまう。
+&gt;だから、”東京大学”を外したい。
+&gt;
+&gt;検索キーワードを、”京大”　AND　Not　”東京大学”とする。
+&gt;
+(略)
+&gt;今、効率的な方法として、考えているのは、
+&gt;　Ｓｔｅｐ１：
+&gt;　　select id From tablename
+&gt;　　Where
+&gt;　　　　　(A Like "*京大*")
+&gt;　　　or　(B Like "*京大*")
+&gt;　　　or　(C Like "*京大*")
+&gt;
+&gt;　　Ｓｔｅｐ2：
+&gt;　　　”Ｓｔｅｐ1”の結果に対し、
+&gt;　　　select id From tablename_
+&gt;　　　Where
+&gt;　　　　(A Like "*東京大学*")
+&gt;　　　or　(B Like "*東京大学*")
+&gt;　　　or　(C Like "*東京大学*")
+&gt;　　  ・・・とし、この結果をＳｔｅｐ1から取り除く。
+&gt;
+&gt;　　　この場合、仮想テーブル（？作業領域？）を構築し、それ
+&gt;　　　に対し、Step1、Step2の結果を保持させて、比較等を行う
+&gt;　　　のでしょうが、PostgreSQLしいそれができるのか、わかり
+&gt;　　　ません。
+&gt;
+&gt;まとめです。
+&gt;　１．SQL文1つで、複数フィールドに対し、同じ条件式をあて、
+&gt;　　　Not検索を実現できないものでしょうか。
+&gt;
+&gt;　２．”1”が不可能な場合、Stepを踏んで検索をおこなうとして、
+&gt;　　　何分Webで公開する予定のDBなので、不特定多数の人が
+&gt;　　　Accessします。
+&gt;　　　仮想的に領域を捉え、検索が実現できないものでしょうか。
+&gt;　　　（といいますか、これはPHPでの仕事かな？）
+&gt;
+&gt;どなたか、経験のあるかた、どうかご教授くださいますよう御
+&gt;願いします。
+
+上記の例が条件であれば、
+select id from tablename
+ where ((A like '%京大%') or (B like '%京大%') or (C like '%京大%'))
+ and id not in
+ (
+  select id from tablename
+   where ((A like '%東京大学%') or (B like '%東京大学%') or (C like '%東京
+大学%'))
+ );
+で出来ますが、同じレコードのAに "京大"、Bに"東京大学"が入っている場合、
+そのレコードは弾かれてしまいます。(当然ですが、A,C、B,C、A,B,Cの組合せで
+"京大"、"東京大学"同時に入っているレコードは弾かれます)。
+
+それを排除するとなると、かなりやっかいなので、Functional Index で、ABCの
+結合文字列のインデックスを作れば早く検索できるのではないかな？と思います。
+Functional Indexについては、シーラカンス本やマニュアルを参照してください。
+(手元にシーラカンス本が無いので、詳しくわかりません。ごめんなさい）
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00220" HREF="msg00220.html">[pgsql-jp 15987] Re: Not検索について質問です。</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00210" HREF="msg00210.html">[pgsql-jp 15977] Re: Not検索について質問です。</A></STRONG>
+<UL><LI><EM>From:</EM> "Hisa" &lt;hisabon@aibusiness.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 15915] Re: [pgsql-jp 15914] Not検索について質問です。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 15919] ふりがなから○行だけ取り出す方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 15930] Re: ふりがなから○行だけ取り出す方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 15977] Re: Not検索について質問です。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00149"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00149"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,694 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4728] ECPG&#45;JP patch0 -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Mon, 13 Jul 1998 18:20:25 +0900 -->
+<!--X-Message-Id: 19980713182025E.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4728] ECPG-JP patch0 </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00113.html">Date Prev</A>][<A HREF="msg00116.html">Date Next</A>][<A HREF="msg00118.html">Thread Prev</A>][<A HREF="msg00113.html">Thread Next</A>][<A HREF="index.html#00114">Date Index</A>][<A HREF="threads.html#00114">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4728] ECPG-JP patch0</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 13 Jul 1998 18:20:25 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+PostgreSQL 6.3.2 の埋め込み SQL 前処理系 (ECPG) の日本語対応版を
+作成しました．どのくらい需要があるのかは不明なのですが，とりあえず
+動作はしています．(と思うのですが，あまり自信はないです．)
+
+
+1. 拡張について
+
+delimited identifier に対応しています．また，識別子や文字列などの
+処理では，PGCLIENTENCODING 環境変数を参照するようになっています．
+
+2. SJIS 対応について
+
+一応，SJIS にも対応していますが，うまく統合できなかったので，
+flex のソースを別にし，コマンドも ecpgsj として別に作成されるように
+しました．(内部コードで EUC などを使えと怒られるかも知れないですが，
+時間も無いので安直な道を選びました．) 
+
+なお，SJIS 特有の \ に関する問題の回避はしておりません．これは，
+開発ターゲットにしている HP-UX の cc が，-Y オプションでこれに
+対応しているためです．gcc で SJIS を利用する場合には少し工夫が
+必要かもしれません．
+
+3. ECPG 関係の bug について
+
+本家 ML でも ECPG 関係の bug レポートがあったように思いますが，
+これは追いかけてはいません．従って，漢字関係以外の不具合が
+残っている可能性もありますが，ご容赦願います．
+
+
+4. ECPG のサポートレベルについての感想 ...
+
+まだ (^^; ですね．使い込んでいないのでなんとも言えないですが ...
+(NOT FOUND 例外で SQLCODE が 1 になるのはなんとかして欲しかったという
+気もします．)
+
+5. 釈迦に説法ですがパッチのあてかたです
+
+  % cd src/interfaces/ecpg
+  % patch -b -s -p0 &lt; パッチファイル
+  % make
+  ...
+  % make install
+  ...
+
+エラーなどあればご連絡下さい．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+
+----%&lt; cut here ----------------------------------------
+*** ./lib/ecpglib.c.orig	Mon Mar 23 17:01:17 1998
+--- ./lib/ecpglib.c	Sun Jul 12 16:19:01 1998
+***************
+*** 584,588 ****
+  	}
+  	PQclear(res);
+! 	committed = 1;
+  	return (TRUE);
+  }
+--- 584,591 ----
+  	}
+  	PQclear(res);
+! 	if (strcmp(transaction, "begin") == 0) 
+! 		committed = 0;
+! 	else
+! 		committed = 1;
+  	return (TRUE);
+  }
+*** ./preproc/preproc.y.orig	Sun May 24 18:52:52 1998
+--- ./preproc/preproc.y	Sun May 24 23:36:32 1998
+***************
+*** 7,10 ****
+--- 7,13 ----
+  #include "type.h"
+  #include "extern.h"
++ #ifdef MB
++ #include "regex/pg_wchar.h"
++ #endif
+  
+  static void yyerror(char *);
+***************
+*** 185,189 ****
+--- 188,229 ----
+  }
+  
++ /* Handle special characters for dumping out.
++  */
++ static char*
++ handle_special(char *cs, int sz, int *n)
++ {
++ 	static char	buf[4096]; /* enough? */
++ 	char *		s;
++ 	int		i, j, limit;
++ 	char *		str;
++ 	static int	encoding = -1;
+  
++ 	if (encoding == -1) {
++ 		str = getenv("PGCLIENTENCODING");
++ 		if (str)
++ 			encoding = pg_char_to_encoding(str);
++ 		if (encoding &lt; 0) {
++ 			encoding = MB;
++ 		}
++ 		pg_set_client_encoding(encoding);
++ 	}
++ 
++ 	if (sz == -1) limit = sz; else limit = 4096;
++ 	s = pg_client_to_server(cs, sz);
++ 
++ 	for (i = j = 0; j &lt; limit &amp;&amp; s[i] != '\0'; i ++) {
++ 	   switch(s[i]) {
++ 	    case '"': buf[j++] = '\\'; buf[j++] = '"'; break;
++ 	    case '\\': buf[j++] = '\\'; buf[j++] = '\\'; break;
++ 	    default: buf[j++] = s[i];
++ 	   }
++ 	}
++ 	buf[j] = '\0';
++ 	cs = pg_server_to_client(buf, j);
++ 	if (n != NULL) *n = strlen(cs);
++ 
++ 	return cs;
++ }
++ 
+  /* Dump out a list of all the variable on this list.
+     This is a recursive function that works from the end of the list and
+***************
+*** 630,634 ****
+  		  }
+  		  | SQL_INTO into_list SQL_FROM {
+! 		      fwrite(yytext, yyleng, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  }
+--- 670,676 ----
+  		  }
+  		  | SQL_INTO into_list SQL_FROM {
+! 		      int yyleng2;
+! 		      char *yytext2 = handle_special(yytext, yyleng, &amp;yyleng2);
+! 		      fwrite(yytext2, yyleng2, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  }
+***************
+*** 635,639 ****
+  		  | sqlanything 
+                    { 
+! 		      fwrite(yytext, yyleng, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  }
+--- 677,683 ----
+  		  | sqlanything 
+                    { 
+! 		      int yyleng2;
+! 		      char *yytext2 = handle_special(yytext, yyleng, &amp;yyleng2);
+! 		      fwrite(yytext2, yyleng2, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  }
+***************
+*** 640,645 ****
+  		  | SQL_INTO sqlanything 
+  		  {
+  		      fprintf(yyout, " into ");
+! 		      fwrite(yytext, yyleng, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  };
+--- 684,691 ----
+  		  | SQL_INTO sqlanything 
+  		  {
++ 		      int yyleng2;
++ 		      char *yytext2 = handle_special(yytext, yyleng, &amp;yyleng2);
+  		      fprintf(yyout, " into ");
+! 		      fwrite(yytext2, yyleng2, 1, yyout);
+  		      fwrite(" ", 1, 1, yyout);
+  		  };
+*** ./preproc/Makefile.orig	Fri Apr 17 16:00:46 1998
+--- ./preproc/Makefile	Sun May 24 23:09:05 1998
+***************
+*** 10,15 ****
+  	-DINCLUDE_PATH=\"$(HEADERDIR)\"
+  
+! all:: ecpg
+  
+  clean:
+  	rm -f *.o core a.out ecpg y.tab.h y.tab.c pgc.c *~
+--- 10,20 ----
+  	-DINCLUDE_PATH=\"$(HEADERDIR)\"
+  
+! ifdef MB
+! CFLAGS += -DMB=$(MB)
+! LDFLAGS += ../../libpq/libpq.a
+! endif
+  
++ all:: ecpg ecpgsj
++ 
+  clean:
+  	rm -f *.o core a.out ecpg y.tab.h y.tab.c pgc.c *~
+***************
+*** 17,20 ****
+--- 22,26 ----
+  install: all
+  	$(INSTALL) $(INSTL_EXE_OPTS) ecpg $(BINDIR)
++ 	$(INSTALL) $(INSTL_EXE_OPTS) ecpgsj $(BINDIR)
+  
+  uninstall:
+***************
+*** 27,30 ****
+--- 33,39 ----
+  ecpg: y.tab.o pgc.o type.o ecpg.o ../lib/typename.o
+  	$(CC) -o ecpg y.tab.o pgc.o type.o ecpg.o ../lib/typename.o $(LEXLIB) $(LDFLAGS)
++ 
++ ecpgsj: y.tab.o pgc_sj.o type.o ecpg.o ../lib/typename.o
++ 	$(CC) -o ecpgsj y.tab.o pgc_sj.o type.o ecpg.o ../lib/typename.o $(LEXLIB) $(LDFLAGS)
+  
+  y.tab.h y.tab.c: preproc.y
+*** ./preproc/pgc.l.orig	Mon Apr  6 16:01:55 1998
+--- ./preproc/pgc.l	Sun May 24 19:46:19 1998
+***************
+*** 27,34 ****
+  ccomment	\/\*([^*]|\*[^/]|\*\*[^/])*\*\/
+  ws	([ \t\n][ \t\n]*|{ccomment})*
+! letter	[A-Za-z_]
+  digit	[0-9]
+  length	{digit}+
+! symbol	{letter}({letter}|{digit})*
+  label	({letter}|{digit})*
+  string	'[^']*'
+--- 27,34 ----
+  ccomment	\/\*([^*]|\*[^/]|\*\*[^/])*\*\/
+  ws	([ \t\n][ \t\n]*|{ccomment})*
+! letter	[\200-\377A-Za-z_]
+  digit	[0-9]
+  length	{digit}+
+! symbol	({letter}({letter}|{digit})*|\"[^\"]+\")
+  label	({letter}|{digit})*
+  string	'[^']*'
+***************
+*** 177,180 ****
+--- 177,181 ----
+  {string}		{ dbg(SQL_STRING); return SQL_STRING; }
+  &lt;SQL&gt;{ws}		; 
++ &lt;SQL&gt;{symbol}\*		{ dbg(S_SYMBOL); return S_SYMBOL; }
+  {symbol}		{ dbg(S_SYMBOL); return S_SYMBOL; }
+  {label}			{ dbg(S_LABEL); return S_LABEL; }
+*** ./preproc/pgc_sj.l.orig	Mon Jul 13 17:11:54 1998
+--- ./preproc/pgc_sj.l	Sun May 24 18:37:58 1998
+***************
+*** 0 ****
+--- 1,272 ----
++ /* Copyright comment! */
++ %{
++ #include "config.h"
++ #include &lt;sys/types.h&gt;
++ #include &lt;limits.h&gt;
++ #if defined(HAVE_STRING_H)
++ #include &lt;string.h&gt;
++ #else
++ #include &lt;strings.h&gt;
++ #endif
++ 
++ #include "type.h"
++ #include "y.tab.h"
++ 
++ #include "extern.h"
++ 
++ struct _yy_buffer { YY_BUFFER_STATE 	buffer;
++ 		    long		lineno;
++ 		    char	      * filename;
++ 		    struct _yy_buffer * next;
++ 		  } *yy_buffer = NULL;
++ 
++ #define dbg(arg)       if (debugging) fprintf(stderr, "DEBUG, %d: %s\n", yylineno, #arg);
++ %}
++ %option yylineno
++ %s C SQL incl
++ 
++ /* SJIS special characters */
++ sjis_letter1            [\201-\237\340-\357]
++ sjis_letter2            [\100-\176\200-\374]
++ sjis_hankaku            [\241-\337]
++ sjis_twobyte            {sjis_letter1}{sjis_letter2}
++ 
++ /* ordinary characters */
++ 
++ ccomment	\/\*([^*]|\*[^/]|\*\*[^/])*\*\/
++ ws	([ \t\n][ \t\n]*|{ccomment})*
++ letter	([A-Za-z_]|{sjis_twobyte}|{sjis_hankaku})
++ digit	[0-9]
++ length	{digit}+
++ symbol	{letter}({letter}|{digit})*
++ label	({letter}|{digit})*
++ string	'[^']*'
++ 
++ abort	[aA][bB][oO][rR][tT]
++ begin	[bB][eE][gG][iI][nN]
++ commit  [cC][oO][mM][mM][iI][tT]
++ connect [cC][oO][nN][nN][eE][cC][tT]
++ continue [cC][oO][nN][tT][iI][nN][uU][eE]
++ declare [dD][eE][cC][lL][aA][rR][eE]
++ do      [dD][oO]
++ end	[eE][nN][dD]
++ exec	[eE][xX][eE][cC]
++ execute	[eE][xX][eE][cC][uU][tT][eE]
++ fetch   [fF][eE][tT][cC][hH]
++ found	[fF][oO][uU][nN][dD]
++ from    [fF][rR][oO][mM]
++ go	[gG][oO]
++ goto    [gG][oO][tT][oO]
++ immediate [iI][mM][mM][eE][dD][iI][aA][tT][eE]
++ include [iI][nN][cC][lL][uU][dD][eE]
++ in	[iI][nN]
++ into	[iI][nN][tT][oO]
++ not	[nN][oO][tT]
++ open	[oO][pP][eE][nN]
++ release [rR][eE][lL][eE][aA][sS][eE]
++ rollback [rR][oO][lL][lL][bB][aA][cC][kK]
++ section	[sS][eE][cC][tT][iI][oO][nN]
++ sql	[sS][qQ][lL]
++ sqlerror [sS][qQ][lL][eE][rR][rR][oO][rR]
++ sqlprint [sS][qQ][lL][pP][rR][iI][nN][tT]
++ stop	[sS][tT][oO][pP]
++ transaction [tT][rR][aA][nN][sS][aA][cC][tT][iI][oO][nN]
++ to    	[tT][oO]
++ varchar	[vV][aA][rR][cC][hH][aA][rR]
++ varchar2	[vV][aA][rR][cC][hH][aA][rR]2
++ whenever [wW][hH][eE][nN][eE][vV][eE][rR]
++ work    [wW][oO][rR][kK]
++ vacuum	[vV][aA][cC][uU][uU][mM]
++ %%
++ &lt;C&gt;{exec}{ws}{sql}	{ BEGIN SQL; dbg(SQL_START); return SQL_START; }
++ &lt;SQL&gt;";"		{ BEGIN C; dbg(SQL_SEMI); return SQL_SEMI; }
++ &lt;SQL&gt;{abort}		{ dbg(SQL_ABORT); return SQL_ABORT; }
++ &lt;SQL&gt;{begin}		{ dbg(SQL_BEGIN); return SQL_BEGIN; }
++ &lt;SQL&gt;{end}		{ dbg(SQL_END); return SQL_END; }
++ &lt;SQL&gt;{declare}		{ dbg(SQL_DECLARE); return SQL_DECLARE; }
++ &lt;SQL&gt;{execute}		{ dbg(SQL_EXECUTE); return SQL_EXECUTE; }
++ &lt;SQL&gt;{immediate}	{ dbg(SQL_IMMEDIATE); return SQL_IMMEDIATE; }
++ &lt;SQL&gt;{section}		{ dbg(SQL_SECTION); return SQL_SECTION; }
++ &lt;SQL&gt;{connect}		{ dbg(SQL_CONNECT); return SQL_CONNECT; }
++ &lt;SQL&gt;{open}		{ dbg(SQL_OPEN); return SQL_OPEN; }
++ &lt;SQL&gt;{commit}		{ dbg(SQL_COMMIT); return SQL_COMMIT; }
++ &lt;SQL&gt;{release}		{ dbg(SQL_RELEASE); return SQL_RELEASE; }
++ &lt;SQL&gt;{work}		{ dbg(SQL_WORK); return SQL_WORK; }
++ &lt;SQL&gt;{fetch}		{ dbg(SQL_FETCH); return SQL_FETCH; }
++ &lt;SQL&gt;{rollback}		{ dbg(SQL_ROLLBACK); return SQL_ROLLBACK; }
++ &lt;SQL&gt;{whenever}		{ dbg(SQL_WHENEVER); return SQL_WHENEVER; }
++ &lt;SQL&gt;{sqlerror}		{ dbg(SQL_SQLERROR); return SQL_SQLERROR; }
++ &lt;SQL&gt;{sqlprint}		{ dbg(SQL_SQLPRINT); return SQL_SQLPRINT; }
++ &lt;SQL&gt;{not}{ws}{found}	{ dbg(SQL_NOT_FOUND); return SQL_NOT_FOUND; }
++ &lt;SQL&gt;{continue}		{ dbg(SQL_CONTINUE); return SQL_CONTINUE; }
++ &lt;SQL&gt;{into}		{ dbg(SQL_INTO); return SQL_INTO; }
++ &lt;SQL&gt;{in}		{ dbg(SQL_IN); return SQL_IN; }
++ &lt;SQL&gt;{goto}		{ dbg(SQL_GOTO); return SQL_GOTO; }
++ &lt;SQL&gt;{go}{ws}{to}	{ dbg(SQL_GOTO); return SQL_GOTO; }
++ &lt;SQL&gt;{stop}		{ dbg(SQL_STOP); return SQL_STOP; }
++ &lt;SQL&gt;{do}		{ dbg(SQL_DO); return SQL_DO; }
++ &lt;SQL&gt;{from}		{ dbg(SQL_FROM); return SQL_FROM; }
++ &lt;SQL&gt;{transaction}	{ dbg(SQL_TRANSACTION); return SQL_TRANSACTION; }
++ &lt;SQL&gt;{vacuum}		{ dbg(SQL_VACUUM); return SQL_VACUUM; }
++ 
++ 
++ &lt;C&gt;{exec}{ws}{sql}{ws}{include}	{ BEGIN(incl); }
++ &lt;incl&gt;{ws}		/* eat the whitespace */
++ &lt;incl&gt;[^ \t\n]+ 	{ /* got the include file name */
++ 			  struct _yy_buffer *yb;
++ 			  struct _include_path *ip;
++ 			  char inc_file[PATH_MAX];
++ 
++ 			  yb = mm_alloc(sizeof(struct _yy_buffer));
++ 
++ 			  yb-&gt;buffer =  YY_CURRENT_BUFFER;
++ 			  yb-&gt;lineno = yylineno;
++ 			  yb-&gt;filename = input_filename;
++ 			  yb-&gt;next = yy_buffer;
++ 
++ 			  yy_buffer = yb;
++ 
++ 			  if (yytext[strlen(yytext) - 1] == ';')
++ 				yytext[strlen(yytext) - 1] = '\0';
++ 
++ 			  yyin = NULL;
++ 			  for (ip = include_paths; yyin == NULL &amp;&amp; ip != NULL; ip = ip-&gt;next)
++ 			  {
++ 				if (strlen(ip-&gt;path) + strlen(yytext) + 3 &gt; PATH_MAX)
++ 				{
++ 					fprintf(stderr, "Path %s/%s is too long, skipping.\n", ip-&gt;path, yytext);
++ 					continue;
++ 				}
++ 			  	sprintf (inc_file, "%s/%s", ip-&gt;path, yytext);
++ 		          	yyin = fopen( inc_file, "r" );
++ 			  	if (!yyin)
++ 				{
++ 					if (strcmp(inc_file + strlen(inc_file) - 2, ".h"))
++ 					{
++ 						strcat(inc_file, ".h");
++ 						yyin = fopen( inc_file, "r" );
++ 					}
++ 
++ 				}
++ 			  }
++ 			  if (!yyin)
++ 			  {
++ 				fprintf(stderr, "Cannot open include file %s\n", yytext);
++ 				exit(1); 
++ 			  }
++ 
++ 			  input_filename = strdup(inc_file);
++ 			  yy_switch_to_buffer(yy_create_buffer(yyin,YY_BUF_SIZE ));
++ 			  yylineno = 0;
++ 
++ 			  BEGIN C;
++ 			}
++ &lt;incl&gt;";"		{ BEGIN C; }
++ {length}		{ dbg(S_LENGTH); return S_LENGTH; }
++ 			  
++ {varchar}		{ dbg(S_VARCHAR); return S_VARCHAR; }
++ {varchar2}		{ dbg(S_VARCHAR2); return S_VARCHAR2; }
++ long			{ dbg(S_LONG); return S_LONG; }
++ short			{ dbg(S_SHORT); return S_SHORT; }
++ int			{ dbg(S_INT); return S_INT; }
++ char			{ dbg(S_CHAR); return S_CHAR; }
++ float			{ dbg(S_FLOAT); return S_FLOAT; }
++ double			{ dbg(S_DOUBLE); return S_DOUBLE; }
++ bool                    { dbg(S_BOOL); return S_BOOL; }
++ 
++ static			{ dbg(S_STATIC); return S_STATIC; }
++ signed			{ dbg(S_SIGNED); return S_SIGNED; }
++ extern			{ dbg(S_EXTERN); return S_EXTERN; }
++ auto			{ dbg(S_AUTO); return S_AUTO; }
++ const			{ dbg(S_CONST); return S_CONST; }
++ register		{ dbg(S_REGISTER); return S_REGISTER; }
++ 
++ struct			{ dbg(S_STRUCT); return S_STRUCT; }
++ 
++ {string}		{ dbg(SQL_STRING); return SQL_STRING; }
++ &lt;SQL&gt;{ws}		; 
++ {symbol}		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ {label}			{ dbg(S_LABEL); return S_LABEL; }
++ 
++ &lt;SQL&gt;"!&lt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"!&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"!^"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"!|"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"!~"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"!~*"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#&lt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#&lt;="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#&lt;&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"#&gt;="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&amp;&amp;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&amp;&lt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&amp;&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&lt;&lt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&lt;="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&lt;===&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&lt;&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&lt;?&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"===&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"===`"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"=|="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&gt;="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"&gt;&gt;"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"@@"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"|/"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"||/"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"~*"		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ &lt;SQL&gt;"~="		{ dbg(S_SYMBOL); return S_SYMBOL; }
++ 
++ "["			{ dbg([); return '['; }
++ "]"			{ dbg(]); return ']'; }
++ ";"			{ dbg(;); return ';'; }
++ "="			{ dbg(=); return '='; }
++ ","			{ dbg(komma); return ','; }
++ \(			{ dbg(braceopen); return '('; }
++ \)			{ dbg(braceclose); return ')'; }
++ \{			{ dbg(blockstart); return '{'; }
++ \}			{ dbg(blockend); return '}'; }
++ \*			{ dbg(*); return('*'); }
++ 
++ &lt;SQL&gt;":"		{ dbg(:); return ':'; }
++ &lt;SQL&gt;"::"		{ dbg(SQL_CONV); return SQL_CONV; }
++ 
++ {ws}			{ ECHO; }
++ .			{ dbg(.); return S_ANYTHING; }
++ &lt;&lt;EOF&gt;&gt;			{ if (yy_buffer == NULL)
++ 				yyterminate();
++ 			  else
++ 			  {
++ 				struct _yy_buffer *yb = yy_buffer;
++ 
++ 				if (yyin != NULL)
++ 					fclose(yyin);
++ 
++ 				yy_delete_buffer( YY_CURRENT_BUFFER );
++ 				yy_switch_to_buffer(yy_buffer-&gt;buffer);
++ 
++ 				yylineno = yy_buffer-&gt;lineno;
++ 
++ 				free(input_filename);
++ 				input_filename = yy_buffer-&gt;filename;
++ 
++ 				yy_buffer = yy_buffer-&gt;next;
++ 				free(yb);
++ 			  }
++ 			}
++ 
++ %%
++ void
++ lex_init(void)
++ {
++     braces_open = 0;
++     BEGIN C;
++ }
++ 
++ int yywrap(void) 
++ { 
++     return 1;
++ }
++ 
+*** ./test/test2.pgc.orig	Mon Mar 23 17:01:21 1998
+--- ./test/test2.pgc	Sun May 24 17:48:14 1998
+***************
+*** 16,25 ****
+  {
+  exec sql begin declare section;
+! 	struct personal_struct	{	varchar name[8];
+! 					struct birth_struct {	long born;
+! 								short age;
+! 							    } birth;
+! 				} personal;
+  exec sql end declare section;
+  	char msg[128];
+  	FILE *dbgs;
+--- 16,28 ----
+  {
+  exec sql begin declare section;
+! 	struct personal_struct	{
+! 		varchar name[8];
+! 		struct birth_struct {
+! 			long born;
+! 			short age;
+! 		}	 birth;
+! 	} personal;
+  exec sql end declare section;
++ 
+  	char msg[128];
+  	FILE *dbgs;
+***************
+*** 28,64 ****
+  		ECPGdebug(1, dbgs);
+  
+! 	strcpy(msg, "connect");
+! 	exec sql connect 'mm';
+! 
+! 	strcpy(msg, "create");
+  	exec sql create table meskes(name char8, born int4, age int2);
+  
+! 	strcpy(msg, "insert");
+! 	exec sql insert into meskes(name, born, age) values ('Petra', 19661202, 31);
+! 	exec sql insert into meskes(name, born, age) values ('Michael', 19660117, 32);
+! 	exec sql insert into meskes(name, born, age) values ('Carsten', 19910103, 7);
+! 	exec sql insert into meskes(name, born, age) values ('Marc', 19930907, 4);
+! 	exec sql insert into meskes(name, born, age) values ('Chris', 19970923, 0);
+  
+- 	strcpy(msg, "declare");
+  	exec sql declare cur cursor for 
+  		select name, born, age from meskes;
+- 
+  	exec sql open cur;
+  
+  	while (not_found == 0) {
+- 		strcpy(msg, "fetch");
+  		exec sql fetch cur into :personal;
+  		if (not_found == 0)
+! 			printf ("%8.8s was born %d (age = %d)\n", personal.name.arr, personal.birth.born, personal.birth.age);
+  	}
+- 
+- 	strcpy(msg, "close");
+  	exec sql close cur;
+- 
+- 	strcpy(msg, "drop");
+  	exec sql drop table meskes;
+- 
+- 	strcpy(msg, "commit");
+  	exec sql commit;
+  
+--- 31,61 ----
+  		ECPGdebug(1, dbgs);
+  
+! 	exec sql connect 'junk';
+  	exec sql create table meskes(name char8, born int4, age int2);
+  
+! 	exec sql insert into meskes(name, born, age)
+! 		    	values ('Petra', 19661202, 31);
+! 	exec sql insert into meskes(name, born, age)
+! 			values ('Michael', 19660117, 32);
+! 	exec sql insert into meskes(name, born, age)
+! 			values ('Carsten', 19910103, 7);
+! 	exec sql insert into meskes(name, born, age)
+! 			values ('Marc', 19930907, 4);
+! 	exec sql insert into meskes(name, born, age)
+! 			values ('Chris', 19970923, 0);
+  
+  	exec sql declare cur cursor for 
+  		select name, born, age from meskes;
+  	exec sql open cur;
+  
+  	while (not_found == 0) {
+  		exec sql fetch cur into :personal;
+  		if (not_found == 0)
+! 			printf ("%8.8s was born %d (age = %d)\n",
+! 				personal.name.arr,
+! 				personal.birth.born, personal.birth.age);
+  	}
+  	exec sql close cur;
+  	exec sql drop table meskes;
+  	exec sql commit;
+  
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00113.html">[pgsql-jp 4727] 初めまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00116.html">[pgsql-jp 4730] Re: 初めまして　　[Q] pgsql-6.3.2のpostmaster起動について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00118.html">[pgsql-jp 4732] Re: 初めまして　　[Q] pgsql-6.3.2の postmaster 起動について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00113.html">[pgsql-jp 4727] 初めまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00114"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00114"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

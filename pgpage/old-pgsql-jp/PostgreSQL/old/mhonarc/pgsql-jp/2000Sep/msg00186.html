@@ -1,0 +1,163 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17517] Re: PostgreSQL での排他制御 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 09 Sep 2000 12:05:06 +0900 -->
+<!--X-Message-Id: 20000909120506M.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Reference-Id: 39B8B4CD280.045DF_KOMOTO@SP3 -->
+<!--X-Reference-Id: 200009081010.TAA08454@coke.bsd1.kbnes.nec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17517] Re: PostgreSQL での排他制御 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00185.html">Date Prev</A>][<A HREF="msg00187.html">Date Next</A>][<A HREF="msg00175.html">Thread Prev</A>][<A HREF="msg00193.html">Thread Next</A>][<A HREF="index.html#00186">Date Index</A>][<A HREF="threads.html#00186">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17517] Re: PostgreSQL での排他制御</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 09 Sep 2000 12:05:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00173.html">200009080909.SAA07907@coke.bsd1.kbnes.nec.co.jp</A>&gt;&lt;<A HREF="msg00174.html">39B8B4CD280.045DF_KOMOTO@SP3</A>&gt;&lt;<A HREF="msg00175.html">200009081010.TAA08454@coke.bsd1.kbnes.nec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．誤解があるかも知れないので言っておくと，PostgreSQLでは，単独
+で実行される(beginからendまでの間にない)SQL文でも，それぞれ独立した1個
+のトランザクションとして扱われます．だから，
+
+UPDATE T1 SET ...
+
+と
+
+BEGIN;
+UPDATE T1 SET ...
+END (ないしはCOMMIT);
+
+は少なくともユーザから見れば全く同じ結果となります．
+
+&gt; &gt; 問１．
+&gt; &gt;   一日当り数十万カウントも更新されるアクセスカウントが絶対に正しく
+&gt; &gt;   なくとも業務に支障が出ると考えにくいので 不要
+&gt; 
+&gt; あれ? ってことは逆にいうと、正しくなくなっちゃうこともあるんですね。
+
+正しくなくなることがありえるんですか?あるんだったら私も知りたい:-)
+
+まあ，強いて言えばこういうことはあり得ます．
+
+1) このテーブルには初期状態ではすべてのURLが登録されていない．あるURL
+   がアクセスされ，そのURLがテーブルにない時には対応するレコードが登録
+   されて初期状態としてカウント=1がセットされるものとする．
+
+2) あるURL Aがはじめてアクセスされた．そこでまずテーブルをSELECTし，レ
+   コードがないことを確認した．
+
+3) そこで対応レコードを作成した
+
+4) ところが，2)と3)の間に別のユーザが同じURL Aにアクセスし，同様に
+   SELECTを行った．当然レコードが見つからないのでやはり対応レコードを
+   登録した．
+
+5) 結局，URL Aに対するレコードが2個できてしまった．
+
+このような状況を防ぐためには，2)や4)でSELECTを行う前に，テーブル全体を
+ロックする必要があります．
+
+&gt; &gt; 問２．
+&gt; &gt;   一律10%に意味があり、途中まで更新されたデータと更新されないデータ
+&gt; &gt;   がシステム上に混在すれば、業務は成り立たないので、すべての更新対象
+&gt; &gt;   データが正しく更新されるまでを１トランザクションとし管理する。
+&gt; 
+&gt; おぉ、これも期待していた答えと違う... ^^;
+&gt; 例えば A B C という商品と、B C D という商品をそれぞれ一回のクエリーで
+&gt; 同時に更新した場合、まず先にバックエンドが受け取った A B C を
+&gt; 更新しようとするが、その間、A B C はロックされるので、他方の
+&gt; クエリーは待ち状態になる、とかそういう仕組みではないのですね?
+
+待ち状態にはなりますが，A B Cを更新するUPDATEが終わった瞬間にB C Dを更
+新するUPDATEが実行されるので，B Cについては10%値上げが2回行われます．
+でも，これは別に問題ではないですよね?
+
+&gt; &gt; リアルタイムに対象テーブルの１件だけ更新するような処理はトランザクション
+&gt; &gt; 管理は不要で、たとえば受注伝票の登録処理ではヘッダーデータと明細データに
+&gt; &gt; 分けてテーブルを持つようになると思うのですが、受注伝票としてはそれらが対
+&gt; &gt; になっていて始めて意味を持つことになります。
+&gt; &gt; この場合のトランザクションはヘッダーの更新開始から明細の更新終了までを
+&gt; &gt; １トランザクションにしなければならないはずです。
+&gt; 
+&gt; こちらはテーブルが複数にまたがりますので、納得できます。
+&gt; 行(レコード)単位の場合も同じ話、ということでしょうか?
+
+同じです．
+
+&gt;何かそのあたり、シーラカンス本に書いてあったような気がするので、
+&gt;もう一度よく読んで出て直してきます _o_
+
+というか，自分で実際にやってみればすぐわかるんですが:-)
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00193" HREF="msg00193.html">[pgsql-jp 17524] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 17362] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00174" HREF="msg00174.html">[pgsql-jp 17363] Re: PostgreSQL  での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> f_komoto &lt;f_komoto@mx1.tiki.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp 17364] Re: PostgreSQL での排他制御</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 17516] Re: 別にする事で。。。。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 17518] Re: PostgreSQL での排他制御</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 17364] Re: PostgreSQL での排他制御</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 17524] Re: PostgreSQL での排他制御</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00186"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00186"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

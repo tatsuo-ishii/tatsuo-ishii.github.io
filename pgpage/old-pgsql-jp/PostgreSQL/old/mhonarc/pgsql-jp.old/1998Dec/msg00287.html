@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6262] Re: Welcome to pgsql&#45;jp -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 19 Dec 1998 00:01:09 +0900 -->
+<!--X-Message-Id: 199812181501.AAA00753@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199812181345.WAA21599@mail.jaist.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6262] Re: Welcome to pgsql-jp </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00286.html">Date Prev</A>][<A HREF="msg00288.html">Date Next</A>][<A HREF="msg00285.html">Thread Prev</A>][<A HREF="msg00284.html">Thread Next</A>][<A HREF="index.html#00287">Date Index</A>][<A HREF="threads.html#00287">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6262] Re: Welcome to pgsql-jp</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 19 Dec 1998 00:01:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; はじめまして、小林＠北陸先端大と申します。
+
+いらっしゃいませ:-)
+
+&gt; 現在、PostgreSQL の応答時間特性を調べています。簡単に説明しますと、
+&gt; createdb pftest を行ない、
+&gt; 
+&gt; 例えば、
+&gt; 
+&gt; 	create table pftest
+&gt; 	 (
+&gt; 		number int
+&gt; 	 );
+&gt; 
+&gt; と言ったテーブルを作成し、そこにデータをコピー（copy pftest from
+&gt; 'filename'）します。入力するデータを徐々に大きくしていき、Query
+&gt; (select * from pftest where number = ???) 応答時間の推移を計測するとい
+&gt; うものです。
+&gt; 
+&gt; ここで、２つほど疑問点が出てきました。それは、delete from pftest と 
+&gt; destroydb pftest の違いです。どうやら、delete の方は、実際には delete 
+&gt; していないということが分かって来ました（データベースサイズを調べると、
+&gt; delete した後でも、全く変わっていない）。
+&gt; 
+&gt; 後、もう一点、データの入ったファイル（1〜1000000までの数字が入っている
+&gt; だけ）のサイズは約６ＭＢなのですが、データベースにコピーすると（この表
+&gt; 現は正しいのかどうか分かりませんが）、６０ＭＢ近くにふくれ上がります。
+&gt; 
+&gt; そこで、上記２点、つまり
+&gt; 
+&gt; 	○delete と destroy の違い
+
+PostgreSQL では、たとえば pftest という名前のデータベースは、通常 
+$PGDATA/base/pftest/ というディレクトリの下に作られます。destroydb
+pftest は pftest というディレクトリごと削除します。
+
+一方、delete は pftest というテーブルの中のタプルを削除します。
+PostgreSQL では、delete されたタプルはすぐには削除されず、「削除したよ」
+というマークだけを付けておきます。後で、vacuum pftest とすると、今度こ
+そ本当にタプルを削除するのでテーブルもサイズ0になります。
+
+#ところで、データベース名とテーブル名に同じ "pftest" と付けておられます
+#が、もしかしてこれらが同じものだと言う誤解はないですよね？
+
+&gt; 	○データベースへのコピーの際に、付け加えられる付加情報
+
+PostgeSQL では、「ページ」(8192バイト固定)の中に、いくつかタプルが格納
+されます。ページやタプルはそれぞれ管理用の情報を持っていますから、その
+分のオーバヘッドが加わります。
+
+ページについては、PostgreSQL Programmer's Guide の 27. Page Files を見
+ると参考になるでしょう。
+
+タプルの方ですが、src/include/access/htup.h の HeapTupleData 構造体が
+管理情報です。手元の LinuxPPC だと 40バイトの大きさですね。
+
+というわけで、ご質問のケースでは、
+
+実データ:		4 * 1000000 = 4MB
+タプルの管理データ:	40 * 1000000 = 40MB
+ページの管理データ:	16 * 1000000 = 16MB
+合計:					60MB
+
+という計算になっているのだと思います。
+
+&gt; について、何かご存知のことがありましたら、御教授願えませんでしょうか？
+&gt; 
+&gt; PostgreSQL 歴６カ月の素人ですが、よろしくお願い致します。
+&gt; 
+&gt; ＰＳ
+&gt; 	上記実験に関してはのデータやグラフは、
+&gt; 
+&gt; 	    <A HREF="http://133.20.163.4:8000/~fumiakik/stack/postgres/result2.html">http://133.20.163.4:8000/~fumiakik/stack/postgres/result2.html</A>
+&gt; 
+&gt; 	においてあります。
+
+ところで、
+
+「select * from pftest where number = ???) 応答時間の推移を計測する」
+
+というテストですが、これは現実的にはあまり意味の無いテストだと思います。
+というのは、実世界では、このような場合に索引無しで運用するということは
+まず考えられないからです。
+
+copy...
+create index...
+vacuum...
+
+としてから、
+
+select... 
+
+の応答時間を調べるべきでしょう。
+
+索引無しでの応答時間を調べるのは、ほとんど Unix ファイルシステムの性能
+を調べるのと変わりません。早い話が、grep の時間をはかっているようなも
+のですから:-)
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00285" HREF="msg00285.html">[pgsql-jp 6260] Re: Welcome to pgsql-jp</A></STRONG>
+<UL><LI><EM>From:</EM> Fumiaki Kobayashi &lt;fumiakik@jaist.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00286.html">[pgsql-jp 6261] Re: データ型について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 6263] Re: データ型について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 6260] Re: Welcome to pgsql-jp</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 6259] はじめまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00287"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00287"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

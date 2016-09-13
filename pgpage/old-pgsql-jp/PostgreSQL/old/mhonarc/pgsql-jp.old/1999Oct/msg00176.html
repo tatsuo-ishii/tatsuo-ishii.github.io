@@ -1,0 +1,377 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11137] ecpgで変換したCファイルのコンパイルエラー -->
+<!--X-From: 96p31089@shonan.bunkyo.ac.jp (yumiko sato) -->
+<!--X-Date: Tue, 12 Oct 1999 11:21:08 +0900 (JST) -->
+<!--X-Message-Id: 199910120221.LAA21454@mailsvr.shonan.bunkyo.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199910120106.KAA27372@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11137] ecpgで変換したCファイルのコンパイルエラー </TITLE>
+<LINK REV="made" HREF="mailto:96p31089@shonan.bunkyo.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00175.html">Date Prev</A>][<A HREF="msg00177.html">Date Next</A>][<A HREF="msg00211.html">Thread Prev</A>][<A HREF="msg00177.html">Thread Next</A>][<A HREF="index.html#00176">Date Index</A>][<A HREF="threads.html#00176">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11137] ecpgで変換したCファイルのコンパイルエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:96p31089@shonan.bunkyo.ac.jp">96p31089@shonan.bunkyo.ac.jp</A> (yumiko sato)</LI>
+<LI><em>Date</em>: Tue, 12 Oct 1999 11:21:08 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;199910120106.KAA27372@srapc451.sra.co.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+初めてメールさせていただきます。佐藤由美子と申します。
+ただいま大学でPostgreSQLとC言語でHTMLファイルを作成しようと初秋から勉強中です。
+よろしくお願いします。
+
+その際、雑誌『Linux Japan8・9月号』（10月はまだ購入していません・・・。）
+の笠原規男氏の記事を参考にしています。その記事でecpgを知り、.cファイルへ
+の変換はできるものの、次のコンパイルの段階で毎度エラーが出て困っています。
+includeファイル、もしくはlibファイルが足りないのでしょうか？
+
+PostgreSQLのバージョンは6.5、OSはWindowsNTServer4.0です。
+
+初心者の知識不足で、もしかしたらCサイドの問題なのかもしれませんが、
+その判断もつかず投稿させていただきました。
+SQLと関係が無かったり、プログラミングの問題でしたら申し訳ありません。
+
+エラーメッセージは、
+
+In file included from /usr/local/pgsql/include/postgres.h:42,
+                 from /usr/local/pgsql/include/ecpglib.h:1,
+                 from test.c:4:
+/usr/local/pgsql/include/c.h:801: regex/utils.h: No such file or directory
+
+コンパイルのコマンドは、
+
+gcc -I/usr/local/pgsql/include test.c -L/usr/local/pgsql/lib -lecpg -lpq -o test
+
+プログラム（test.PGC）は、
+
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;postgres.h&gt; 
+#include &lt;libpq-fe.h&gt;
+
+exec sql include sqlca;
+
+void error_exit(void);
+
+
+void main()
+{
+  exec sql begin declare section;
+
+  char    k_kubun_code[50];
+  char    k_code[50];
+  char    k_name[254];
+  char    k_name_sub[50];
+  char    tani[50];
+  char    kaikou_ki[254];
+  char    f_code[254];
+  char    f_name[254];
+
+  exec sql end declare section;
+  exec sql declare syllcursor cursor
+         for select k_kubun_code,k_code,k_name,k_name_sub,tani,kaikou_ki,f_code,			f_name from kamoku_tbl order by kaikou_ki;
+
+  
+  exec sql whenever sqlerror do error_exit();
+  exec sql connect to syllt user '96p31071';
+
+ 
+  exec sql whenever not found do break;
+
+ 
+  exec sql open syllcursor;
+  for ( ; ; ) {
+    exec sql fetch in syllcursor
+               into :k_kubun_code, :k_code, :k_name,:k_name_sub, :tani,
+			:kaikou_ki, :f_code, :f_name;
+
+	printf("%s %s %s %s %s %s %s %s \n",k_kubun_code,k_code,k_name,k_name_sub,tani,kaikou_ki,f_code,f_name);
+
+
+
+    
+  }
+  
+   
+  
+  exec sql close syllcursor;
+ 
+  
+  exec sql disconnect;
+
+ 
+}
+
+
+void error_exit(void)
+{
+  printf(stderr,
+	  "postgresql error : %d[%.*s]\n",
+	  sqlca.sqlcode, sqlca.sqlerrm.sqlerrml,
+	  sqlca.sqlerrm.sqlerrmc);
+
+  exec sql whenever sqlerror continue;
+  exec sql disconnect;
+
+  exit(1);
+}
+
+
+生成されたtest.c
+
+/* Processed by ecpg (2.6.0) */
+/* These two include files are added by the preprocessor */
+#include &lt;ecpgtype.h&gt;
+#include &lt;ecpglib.h&gt;
+
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;postgres.h&gt; 
+#include &lt;libpq-fe.h&gt;
+
+
+#line 1 "/usr/local/pgsql/include/sqlca.h"
+#ifndef POSTGRES_SQLCA_H
+#define POSTGRES_SQLCA_H
+
+#ifdef __cplusplus
+extern		"C"
+{
+#endif
+
+	struct sqlca
+	{
+		char		sqlcaid[8];
+		long		sqlabc;
+		long		sqlcode;
+		struct
+		{
+			int			sqlerrml;
+			char		sqlerrmc[70];
+		}			sqlerrm;
+		char		sqlerrp[8];
+		long		sqlerrd[6];
+		/* Element 0: empty						*/
+		/* 1: empty						*/
+		/* 2: number of rows processed	*/
+		/* after an INSERT, UPDATE or */
+		/* DELETE statement			 */
+		/* 3: empty						*/
+		/* 4: empty						*/
+		/* 5: empty						*/
+		char		sqlwarn[8];
+		/* Element 0: set to 'W' if at least one other is 'W' */
+		/* 1: if 'W' at least one character string	  */
+		/* value was truncated when it was		   */
+		/* stored into a host variable.			   */
+		/* 2: empty									  */
+		/* 3: empty									  */
+		/* 4: empty									  */
+		/* 5: empty									  */
+		/* 6: empty									  */
+		/* 7: empty									  */
+
+		char		sqlext[8];
+	};
+
+	extern struct sqlca sqlca;
+
+#endif
+
+#ifdef __cplusplus
+}
+
+#endif
+
+#line 7 "test.PGC"
+
+
+void error_exit(void);
+
+
+void main()
+{
+  /* exec sql begin declare section */
+#line 14 "test.PGC"
+
+
+      
+      
+      
+      
+      
+      
+      
+      
+
+   char k_kubun_code[ 50 ]  ;
+  char k_code[ 50 ]  ;
+  char k_name[ 254 ]  ;
+  char k_name_sub[ 50 ]  ;
+  char tani[ 50 ]  ;
+  char kaikou_ki[ 254 ]  ;
+  char f_code[ 254 ]  ;
+  char f_name[ 254 ]  ;
+ /* exec sql end declare section */
+#line 25 "test.PGC"
+
+  /* declare syllcursor  cursor for select  k_kubun_code , k_code , k_name , k_name_sub , tani , kaikou_ki , f_code , f_name  from kamoku_tbl    order by kaikou_ki    */
+#line 27 "test.PGC"
+
+
+  
+  /* exec sql whenever sqlerror  do error_exit() ; */
+
+#line 30 "test.PGC"
+
+  { ECPGconnect(__LINE__, "syllt","96p31071",NULL,NULL, 0);
+#line 31 "test.PGC"
+
+if (sqlca.sqlcode &lt; 0) error_exit();}
+#line 31 "test.PGC"
+
+
+ 
+  /* exec sql whenever not found  break ; */
+
+#line 34 "test.PGC"
+
+
+ 
+  { ECPGdo(__LINE__, NULL, "declare syllcursor  cursor for select  k_kubun_code , k_code , k_name , k_name_sub , tani , kaikou_ki , f_code , f_name  from kamoku_tbl    order by kaikou_ki   ",ECPGt_EOIT, ECPGt_EORT);
+#line 37 "test.PGC"
+
+if (sqlca.sqlcode &lt; 0) error_exit();}
+#line 37 "test.PGC"
+
+  for ( ; ; ) {
+    { ECPGdo(__LINE__, NULL, "fetch   in syllcursor", ECPGt_EOIT, 
+	ECPGt_char,&amp;(k_kubun_code),50L,1L,50*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(k_code),50L,1L,50*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(k_name),254L,1L,254*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(k_name_sub),50L,1L,50*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(tani),50L,1L,50*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(kaikou_ki),254L,1L,254*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(f_code),254L,1L,254*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&amp;(f_name),254L,1L,254*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+#line 41 "test.PGC"
+
+if (sqlca.sqlcode == ECPG_NOT_FOUND) break;
+#line 41 "test.PGC"
+
+if (sqlca.sqlcode &lt; 0) error_exit();}
+#line 41 "test.PGC"
+
+
+	printf("%s %s %s %s %s %s %s %s \n",k_kubun_code,k_code,k_name,k_name_sub,tani,kaikou_ki,f_code,f_name);
+
+
+
+    
+  }
+  
+   
+  
+  { ECPGdo(__LINE__, NULL, "close syllcursor", ECPGt_EOIT, ECPGt_EORT);
+#line 52 "test.PGC"
+
+if (sqlca.sqlcode &lt; 0) error_exit();}
+#line 52 "test.PGC"
+
+ 
+  
+  { ECPGdisconnect(__LINE__, "CURRENT");
+#line 55 "test.PGC"
+
+if (sqlca.sqlcode &lt; 0) error_exit();}
+#line 55 "test.PGC"
+
+
+ 
+}
+
+
+void error_exit(void)
+{
+  printf(stderr,
+	  "postgresql error : %d[%.*s]\n",
+	  sqlca.sqlcode, sqlca.sqlerrm.sqlerrml,
+	  sqlca.sqlerrm.sqlerrmc);
+
+  /* exec sql whenever sqlerror  continue ; */
+
+#line 68 "test.PGC"
+
+  { ECPGdisconnect(__LINE__, "CURRENT");}
+#line 69 "test.PGC"
+
+
+  exit(1);
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00177" HREF="msg00177.html">[pgsql-jp 11138] Re: ecpgで変換したCファイルのコンパイルエラー</A></STRONG>
+<UL><LI><EM>From:</EM> yutaka tanida &lt;yutaka@marin.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00175.html">[pgsql-jp 11136] Re: PHP徹底後略</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 11138] Re: ecpgで変換したCファイルのコンパイルエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 11172] Re: PHP3をi-modeからアクセス可能ですか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00177.html">[pgsql-jp 11138] Re: ecpgで変換したCファイルのコンパイルエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00176"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00176"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

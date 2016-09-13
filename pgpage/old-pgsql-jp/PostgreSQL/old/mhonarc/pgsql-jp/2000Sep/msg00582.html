@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17914] RE: 誤作成したVIEWの削除が出来ません -->
+<!--X-From: "Kenji Asakawa" <asakawa@fjct.ts.fujitsu.co.jp> -->
+<!--X-Date: Wed, 27 Sep 2000 10:35:40 +0900 -->
+<!--X-Message-Id: 011e01c02823$3f13c300$97c11f0a@asakawa.oy.fjct.ts.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17914] RE: 誤作成したVIEWの削除が出来ません </TITLE>
+<LINK REV="made" HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00581.html">Date Prev</A>][<A HREF="msg00583.html">Date Next</A>][<A HREF="msg00587.html">Thread Prev</A>][<A HREF="msg00581.html">Thread Next</A>][<A HREF="index.html#00582">Date Index</A>][<A HREF="threads.html#00582">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17914] RE: 誤作成したVIEWの削除が出来ません</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kenji Asakawa" &lt;<A HREF="mailto:asakawa@fjct.ts.fujitsu.co.jp">asakawa@fjct.ts.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 27 Sep 2000 10:35:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+浅川@中央工業です。
+**環境
+PostgreSQL6.4.2
+Server   :Solaris2.5.1
+
+片岡さん、フォローありがとうございます。
+フォロー頂いた事を試した結果、仰る通りpg_dumpが正常に出来ました。
+リストア後も問題無く構築されており期待通りの結果が得られました。（結果添付）
+この方法で対処したいと思います。
+
+ところで．．．
+不正なsyntaxでもVIEWが作成されてしまうのは、6.4.2の仕様なのでしょうか？
+バグなのでしょうか？ ＞識者の方
+# 6.5.0では作成出来ないそうですが　＜やすだ様より
+メンテナンス記録の理由書に記載して、バージョンアップへの足掛かりとしたいの
+で。 :-)
+
+&gt;  リストアする予定なのであれば、安心して試せますね…（おいおい）
+
+試しました・・・^^;
+
+&gt;  pg_rewriteシステムテーブルから、該当のルールを削除してしまってはどうでしょ
+&gt;う。正常にダンプ出来るようになるかもしれません。
+&gt;
+&gt; select rulename from pg_rewrite;
+&gt;
+&gt;  で該当のルール名（ビュー名の頭に_RETが付いた物）を見つけて、それを名指しで
+&gt;削除。
+&gt;
+&gt; delete from pg_rewrite where rulename = '_RETv_data';
+&gt; ※ '_RETv_data' がルール名
+
+&gt;
+&gt;  この時点では厳密にはまだテーブルには成りきっていないのですが、ビューをDROP
+&gt;TABLEできるかもしれません。
+&gt;
+&gt; drop table v_data;
+&gt;
+&gt;  うまく削除できたら、pg_dumpしてみると。
+&gt;  これで他のビューもうまくダンプすることができると良いのですが…
+
+
+**実行結果（cut&amp;past）
+view_test=&gt; select rulename from pg_rewrite;
+rulename
+--------------
+_RETpg_user
+_RETpg_rules
+_RETpg_views
+_RETpg_tables
+_RETpg_indexes
+_RETv_data
+_RETv_data2
+(7 rows)
+
+view_test=&gt; delete from pg_rewrite where rulename = '_RETv_data';
+DELETE 1
+view_test=&gt; select rulename from pg_rewrite;
+rulename
+--------------
+_RETpg_user
+_RETpg_rules
+_RETpg_views
+_RETpg_tables
+_RETpg_indexes
+_RETv_data2
+(6 rows)
+
+view_test=&gt; \dt
+
+Database    = view_test
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | asakawa          | mst_user                         | table    |
+ | asakawa          | trs_jisseki                      | table    |
+ | asakawa          | v_data                           | view?    |
+ | asakawa          | v_data2                          | view?    |
+ +------------------+----------------------------------+----------+
+view_test=&gt; drop view v_data;
+ERROR:  RewriteGetRuleEventRel: rule "_RETv_data" not found
+view_test=&gt; drop table v_data;
+DROP
+view_test=&gt; \dt
+
+Database    = view_test
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | asakawa          | mst_user                         | table    |
+ | asakawa          | trs_jisseki                      | table    |
+ | asakawa          | v_data2                          | view?    |
+ +------------------+----------------------------------+----------+
+
+※v_data2は正常なVIEW
+
+以上
+
+#[pgsql-jp 17904]投稿時に名無しで送信してしまいました。（失礼しました）
+
+__________________________________________________________Fin___
+from.
+ Asakawa: asakawa@fjct.ts.fujitsu.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00581.html">[pgsql-jp 17913] psql の\copyのエラー時の処理継続</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00583.html">[pgsql-jp 17915] Re: psql の\copyのエラー時の処理継続</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00587.html">[pgsql-jp 17919] Re: PostgreSQL JDBC  エラー 確認</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00581.html">[pgsql-jp 17913] psql の\copyのエラー時の処理継続</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00582"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00582"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

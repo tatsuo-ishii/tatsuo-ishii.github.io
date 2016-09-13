@@ -1,0 +1,270 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8983] FastCGI vs Perl -->
+<!--X-From: Youichi Iwakiri <iwakiri@jkk.hitachi.co.jp> -->
+<!--X-Date: Tue, 22 Jun 1999 17:03:49 +0900 -->
+<!--X-Message-Id: 199906220802.RAA26079@mailgw.jkk.hitachi.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8983] FastCGI vs Perl </TITLE>
+<LINK REV="made" HREF="mailto:iwakiri@jkk.hitachi.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00416.html">Date Prev</A>][<A HREF="msg00418.html">Date Next</A>][<A HREF="msg00465.html">Thread Prev</A>][<A HREF="msg00431.html">Thread Next</A>][<A HREF="index.html#00417">Date Index</A>][<A HREF="threads.html#00417">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8983] FastCGI vs Perl</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:iwakiri@jkk.hitachi.co.jp">iwakiri@jkk.hitachi.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Jun 1999 17:03:49 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+
+以前(1998/04)に蓑旗さんが、実施されたmod_perl vs perlに合わせて
+FastCGI ( <A HREF="http://www.fastcgi.com/">http://www.fastcgi.com/</A> )と単なるPerlスクリプトによる
+DBへのアクセスを比較してみました。
+#実はmod_perlは未だに上手く動いてくれないのでFastCGIに逃げただけです (^^;
+
+測定したものは、下記の3つです
+
+1. 単なるPerlスクリプト
+   CGIスクリプトとして呼び出されるごとに、perlのオーバヘッドと
+   Pg::connectdb()のオーバヘッドがかかるもの
+
+2. FastCGI(その1)
+   cgiプログラムは1プロセスとして常駐。
+   perlのオーバヘッドのみ解消、毎回Pg::connectdb()は実施。
+   
+3. FastCGI(その2)
+   cgiプログラムは1プロセスとして常駐。
+   Pg::connect()も初回のみで破棄は行わず。
+
+試して見たのは、先日作成した ML検索ページのスレッド表示を
+行うプログラムです。
+
+結論としては、Pg::connect()はperlのオーバヘッドより
+Pg::connectdb()のオーバヘッドが非常に大きいということが
+判りました。
+
+#一度コネクションを張ってから様々な操作を行うアプリケーションなら
+#気にならないと思いますが、Webベースの検索システムとかだと効果が
+#あるようです。
+他の方々は実際のところどうされているのでしょう?
+興味のあるところです。
+
+以下、ApacheBenchでの結果です。
+
+--------
+1. 単なるCGIスクリプト
+iwa# ./ab -n 500 -c 2 <A HREF="http://localhost/cgi-bin/get_thread.cgi">http://localhost/cgi-bin/get_thread.cgi</A>
+
+Document Path:          /cgi-bin/get_thread.cgi
+Document Length:        650 bytes
+Concurrency Level:      2
+Time taken for tests:   130.138 seconds
+Complete requests:      500
+Failed requests:        0
+Total transferred:      419500 bytes
+HTML transferred:       325000 bytes
+Requests per second:    3.84
+Transfer rate:          3.22 kb/s received
+
+--------
+2. FastCGI(その1)
+iwa# ./ab -n 500 -c 2 <A HREF="http://localhost/fcgi-bin/get_thread2.fcgi">http://localhost/fcgi-bin/get_thread2.fcgi</A>
+
+Document Path:          /fcgi-bin/get_thread2.fcgi
+Document Length:        650 bytes
+Concurrency Level:      2
+Time taken for tests:   106.019 seconds
+Complete requests:      500
+Failed requests:        0
+Total transferred:      419500 bytes
+HTML transferred:       325000 bytes
+Requests per second:    4.72
+Transfer rate:          3.96 kb/s received
+
+--------
+3. FastCGI(その2)
+iwa# ./ab -n 500 -c 2 <A HREF="http://localhost/fcgi-bin/get_thread.fcgi">http://localhost/fcgi-bin/get_thread.fcgi</A>
+
+Document Path:          /fcgi-bin/get_thread.fcgi
+Document Length:        650 bytes
+Concurrency Level:      2
+Time taken for tests:   30.610 seconds
+Complete requests:      500
+Failed requests:        0
+Total transferred:      419500 bytes
+HTML transferred:       325000 bytes
+Requests per second:    16.33
+Transfer rate:          13.70 kb/s received
+   
+  
+汚いスクリプトものせときます。
+やってることは、表示しようとしている記事のユニークな番号からスレッドを
+構成する親記事のmessage-id(root_id)を取り出し、そのmessage-idと
+同じ情報を持つ記事をselectしているだけです。
+tableは次のものを使いました
++----------------------------------+----------------------------------+-------+
+|              Field               |              Type                | Length|
++----------------------------------+----------------------------------+-------+
+| seq                              | int4                             |     4 |mhでメールを取り込んだときのファイル名
+| tlevel                           | int4                             |     4 |スレッドの深さ
+| hfrom                            | varchar()                        |   256 |From: field
+| subject                          | varchar()                        |   256 |Subject:
+| pdate                            | abstime                          |     4 |Date:
+| msg_id                           | varchar()                        |   128 |message-Id:
+| root_id                          | varchar()                        |   128 |親記事のMessage-Id:
+| rep_id                           | varchar()                        |   128 |In-Reply-To:またはReferences:から抽出
++----------------------------------+----------------------------------+-------+
+Indices:  pgsql_jp_oid
+          pgsql_jp_root
+テーブル内のデータはスレッド表示を意図して並び変えられています。
+
+------------------
+1.単なるCGIスクリプト
+#!/usr/local/bin/perl5
+use Pg;
+
+$conn = Pg::connectdb("dbname=ml_admin");
+die $conn-&gt;errorMessage unless PGRES_CONNECTION_OK eq $conn-&gt;status;
+
+$buffer = $ENV{'QUERY_STRING'};
+@pairs = split('&amp;', $buffer);
+
+foreach $pair (@pairs) {
+    ($name, $value) = split('=' , $pair);
+    $value =~ tr/+/ /;
+
+    $value =~ s/%([0-9a-fA-F][0-9a-fA-F])/pack("C" , hex($1))/egi;
+    $value =~ s/\s+//g;
+    $name =~ s/\s+//g;
+    $FORM{$name} = $value;
+}
+
+print "Content-type: text/html; charset=x-euc-jp\n\n";
+print "&lt;HTML&gt;&lt;HEAD&gt;&lt;TITLE&gt;関連記事一覧&lt;/TITLE&gt;&lt;/HEAD&gt;\n";
+print "&lt;BODY&gt;&lt;PRE&gt;";
+
+$table_name = 'pgsql_jp_tdb';
+#$seq_no = $FORM{'document'};
+$seq_no = 1234;
+$result = $conn-&gt;exec("SELECT * FROM $table_name WHERE seq=$seq_no");
+$msg_id = $result-&gt;getvalue(0, 6);
+$result = $conn-&gt;exec("SELECT * FROM $table_name WHERE root_id='$msg_id' ORDER BY oid");
+$conn-&gt;reset;
+for $i ( 0..$result-&gt;ntuples - 1 ) {
+    $seq = $result-&gt;getvalue($i, 0);
+    $level = $result-&gt;getvalue($i, 1);
+    $hfrom = $result-&gt;getvalue($i, 2);
+    $subject = $result-&gt;getvalue($i, 3);
+    $date = $result-&gt;getvalue($i, 4);
+    $msg_id = $result-&gt;getvalue($i, 5);
+    if ( $level != 0 ) {
+        for $j ( 0..$level-1) {
+            print "  ";
+        }
+    }
+    $hfrom =~ s/&lt;/&amp;lt;/;
+    $hfrom =~ s/&gt;/&amp;gt;/;
+    print "&lt;A HREF=get_document.cgi?document=$seq TARGET=\"art2_frame\"&gt;$subject&lt;/A&gt;, $hfrom";
+    print "&lt;BR&gt;";
+}
+print "&lt;/PRE&gt;&lt;/BODY&gt;&lt;/HTML&gt;";
+
+------------------
+2. FastCGI(その1)
+FastCGIではFCGI::accept()を使用してhttpリクエストを待ちます。
+
+#!/usr/local/bin/perl
+use Pg;
+use FCGI;
+
+while(FCGI::accept() &gt;= 0) {
+    $conn = Pg::connectdb("dbname=ml_admin");
+    die $conn-&gt;errorMessage unless PGRES_CONNECTION_OK eq $conn-&gt;status;
+
+    $buffer = $ENV{'QUERY_STRING'};
+    @pairs = split('&amp;', $buffer);
+       :
+       :  (単純に1.のCGIプログラムを埋め込んだだけです)
+       :
+    print "&lt;/PRE&gt;&lt;/BODY&gt;&lt;/HTML&gt;";
+}
+
+------------------
+3. FastCGI(その2)
+
+#!/usr/local/bin/perl
+use Pg;
+use FCGI;
+
+$conn = Pg::connectdb("dbname=ml_admin");
+die $conn-&gt;errorMessage unless PGRES_CONNECTION_OK eq $conn-&gt;status;
+
+while(FCGI::accept() &gt;= 0) {
+    $buffer = $ENV{'QUERY_STRING'};
+    @pairs = split('&amp;', $buffer);
+       :
+       :  (単純に1.のCGIプログラムを埋め込んだだけです)
+    #$conn-&gt;reset;  コネクションの開放を行わない
+
+       :
+    print "&lt;/PRE&gt;&lt;/BODY&gt;&lt;/HTML&gt;";
+}
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00431" HREF="msg00431.html">[pgsql-jp 8997] Re: FastCGI vs Perl</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00416.html">[pgsql-jp 8982] Self Introduction</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00418.html">[pgsql-jp 8984] Re: フィールドのType変更等はできますか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00465.html">[pgsql-jp 9031] RE: 初めまして＆早速質問です</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00431.html">[pgsql-jp 8997] Re: FastCGI vs Perl</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00417"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00417"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20179] perl からラージオブジェクト再び -->
+<!--X-From: website004 <website004@yo&#45;mail.co.jp> -->
+<!--X-Date: Sat, 3 Mar 2001 11:48:00 +0900 (JST) -->
+<!--X-Message-Id: 372628080.983587680035.JavaMail.javamailuser@localhost -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20179] perl からラージオブジェクト再び </TITLE>
+<LINK REV="made" HREF="mailto:website004@yo-mail.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00043.html">Date Prev</A>][<A HREF="msg00046.html">Date Next</A>][<A HREF="msg00046.html">Thread Prev</A>][<A HREF="msg00047.html">Thread Next</A>][<A HREF="index.html#00045">Date Index</A>][<A HREF="threads.html#00045">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20179] perl からラージオブジェクト再び</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: website004 &lt;<A HREF="mailto:website004@yo-mail.co.jp">website004@yo-mail.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 3 Mar 2001 11:48:00 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+たびたび申し訳ありませんビーンズネットワークの吉田孝雄です。
+川合孝典　様
+岡崎＠シンノバシステム　様
+みかまま　様
+ありがとうございます。早速ためさていただきました。
+しかしもうすこし細かく私の状況を説明させてください
+
+telnet上でこのようなラージオブジェクト用のTableがあります
+
+honda-&gt; \d image
+Table    = image
++------------------------------
+|   Field  |   Type   | Length|
++-----------------------------
+| name     | text     |   var |
+| raster   | oid      |     4 |
++------------------------------
+
+
+test=&gt; select * from image;
+name           |raster
+---------------+------
+shiro          |572131
+ao             |572153
+aka            |572175
+(4 rows)   
+
+以下は”みかまま様のソースを私なりの環境でかきかえたものです
+
+#!/usr/bin/perl
+
+use Pg;
+
+$db = Pg::connectdb("dbname=test");
+$result = $db-&gt;exec("SELECT * FROM image");
+$loid= $result-&gt;getvalue(0, 1);
+
+$db-&gt;exec('begin');
+$fd = $db-&gt;lo_open($loid, PGRES_INV_READ);
+
+print "Content-type: Application/octet-stream\n\n";
+    
+    $len = 256;
+    $db-&gt;lo_read($fd, $buf, $len);
+        print $buf;
+
+$db-&gt;lo_close($fd);
+$db-&gt;exec('end');
+
+ブラウザー上ではimageがきちんと出力されておらず"ばってん"印がでてしまいます
+IE5.5で確認しています。HTMLのソースをみようとしてもみれないので
+Application/octet-streamというMIMEタイプで出力はされているとは思いますが
+
+もうひとつ気になるのがはじめのTABLEを作成する段階でおかしいかもしれないということで、まずaka,ao,shiroという名前のjpgファイルをFTPでアップロードし
+　INSERT INTO image(name, raster)
+        VALUES ('shiro', lo_import('パス名/shiro.jpg'));
+というようにひとつひとつインサートしていきました。上記で記述しているimageテーブルの参照でrasterフィールドの項目は（番号みたいなもの）そのJPGファイルの実体なのでしょうかそれとも単なるIDみたいなもので画像ファイルまでのパス情報みたいなもの
+も格納していてそのパスをもとにfileをさがしているのでしょうか？（つまり画像fileが存在しなければ呼び出し不可？？そんなことないか）
+
+
+ご教授お願いいたします。
+
+
+&gt;私も良くはわかっていませんが、lo_read に渡すのは、$oid ではなくて
+&gt;$lobj_fd (ファイルディスクリプタ)なのは間違いないでしょう。
+
+確かにそうでした...
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00047" HREF="msg00047.html">[pgsql-jp 20181] Re: perl からラージオブジェクト再び</A></STRONG>
+<UL><LI><EM>From:</EM> "Kawai,Takanori" &lt;GCD00051@nifty.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 20177] Re: PostgreSQL/PHP seminar</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 20180] perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00046.html">[pgsql-jp 20180] perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00047.html">[pgsql-jp 20181] Re: perl からラージオブジェクト再び</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00045"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00045"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

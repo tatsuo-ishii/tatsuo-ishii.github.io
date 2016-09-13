@@ -1,0 +1,177 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23955] Re: exited with status 139 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 05 Dec 2001 22:51:59 +0900 -->
+<!--X-Message-Id: 20011205225159R.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Reference-Id: 200111120616.fAC6GWa19677@mailhost.e&#45;vision.co.jp -->
+<!--X-Reference-Id: 3BF0A17B.4080703@sons.co.jp -->
+<!--X-Reference-Id: 3C0B2058.4070309@sons.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23955] Re: exited with status 139 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00064.html">Date Prev</A>][<A HREF="msg00066.html">Date Next</A>][<A HREF="msg00025.html">Thread Prev</A>][<A HREF="msg00115.html">Thread Next</A>][<A HREF="index.html#00065">Date Index</A>][<A HREF="threads.html#00065">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23955] Re: exited with status 139</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 05 Dec 2001 22:51:59 +0900</LI>
+<LI><em>References</em>: &lt;200111120616.fAC6GWa19677@mailhost.e-vision.co.jp&gt;&lt;3BF0A17B.4080703@sons.co.jp&gt;&lt;<A HREF="msg00024.html">3C0B2058.4070309@sons.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; ・pg_exec_query_string に渡ってきている SQL 文に共通の特徴は、常に「update
+&gt; 〜 set 〜 from 〜 where 〜」文 (from がある) で、set 内で field 自身の値に
+&gt; field を代入していることです (x=x+1 のような形)。
+&gt; 
+&gt; ・デバッガで追った結果、
+&gt; postgresql-7.1.3/src/backend/executor/execQual.c:311
+&gt; 
+&gt;    310          case OUTER:             /* get the tuple from the outer node
+&gt; */
+&gt;    311              slot = econtext-&gt;ecxt_outertuple;
+&gt;    312              break;
+&gt; 
+&gt; ここの econtext-&gt;ecxt_outertuple が NULL で、
+&gt; 
+&gt;    323      heapTuple = slot-&gt;val;
+&gt;    324      tuple_type = slot-&gt;ttc_tupleDescriptor;
+&gt; 
+&gt; 323行目で落ちているらしい。
+&gt; 
+&gt; ・いつも落ちてしまう SQL 文も、常に落ちるわけではなくて、何らかのタイミン
+&gt; グにはまった時に落ちるように見えます。
+&gt; 
+&gt; source をもっとしっかり追って原因を探る時間がなく、こちらでは結局、update
+&gt; 文に from があると悪いのでは、と当たりをつけて、全ての update 〜 from 文を
+&gt; 置き換えることで対処中です。
+
+井上さんのフォローにあるように，7.2の開発中に発見されたバグが原因のよ
+うです．井上さんに私信で教えてもらった 7.2 用のパッチ(本家のコアメンバ
+が作成) が(そのコアメンバ自身が言うように多少 offset が出ますが)，7.1
+にも適用可能でした．よろしかったら，お試し下さい(で，症状が改善された
+かどうか教えて頂けると嬉しいです)．
+
+ちなみに，コアメンバが作ったバグの再現データは，以下に示すように外部キー
+とRULEが使われている結構複雑なものです．加澤さんの場合は単純な update
+〜 from でも落ちてしまうんですね．
+--
+Tatsuo Ishii
+
+Subject: Re: [BUGS] Bug #514: Backend crashes periodically 
+From: Tom Lane &lt;tgl@sss.pgh.pa.us&gt;
+To: Warren Volz &lt;wrv@po.cwru.edu&gt;
+cc: pgsql-bugs@postgresql.org
+Date: Mon, 12 Nov 2001 00:58:51 -0500
+Comments: In-reply-to Warren Volz &lt;wrv@po.cwru.edu&gt;	message dated "Sun, 11 Nov 2001 23:20:20 -0500"
+
+Okay, I've extracted a reproducible test case from Warren's info:
+
+Setup:
+
+CREATE TABLE sis_user (
+sis_user_id             INTEGER PRIMARY KEY,
+last_visit              DATETIME NOT NULL DEFAULT TEXT 'now');
+
+CREATE TABLE session (
+session_key             CHAR(40) PRIMARY KEY,
+sis_user_id             INTEGER NOT NULL REFERENCES sis_user(sis_user_id),
+last_access_time        DATETIME NOT NULL DEFAULT TEXT 'now');
+
+CREATE RULE session_del AS ON DELETE TO session DO
+UPDATE sis_user SET last_visit = OLD.last_access_time
+WHERE OLD.sis_user_id = sis_user.sis_user_id;
+
+insert into sis_user values(1);
+
+In session 1, do:
+
+insert into session values('zzz', 1);
+begin;
+delete from session where  session_key  = 'zzz';
+
+In session 2, do:
+
+delete from session where  session_key  = 'zzz';
+
+Back to session 1:
+
+end;
+
+Session 2 crashes.  Crash happens in current sources as well as 7.1.
+
+The crash does NOT happen if the foreign key reference is removed from
+session.sis_user_id.  I'm not sure at this point whether the rule is
+a crucial element or not.  The problem appears to be generation of
+an invalid plan tree: the Var being decoded has varno = OUTER, which
+offhand I believe it should not have in an indexscan's qual tree.
+
+I'm tired and am going to bed soon, but perhaps someone else would
+like to poke at this before I get back to it...
+
+			regards, tom lane
+</PRE>
+<P><A HREF="bin00000.bin"> update.patch.gz</A></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00115" HREF="msg00115.html">[pgsql-jp 24005] Re: exited with status 139</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00024" HREF="msg00024.html">[pgsql-jp 23914] Re: exited with status 139</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00064.html">[pgsql-jp 23954] Re: Re2: FILE OUTPUT 	について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00066.html">[pgsql-jp 23956] Re: 更新はシリアルに，参照は並列実行可能なロック種別は</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 23915] Re: exited with status 139</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 24005] Re: exited with status 139</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00065"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00065"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

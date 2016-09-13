@@ -1,0 +1,401 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 1999] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround. -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Wed, 18 Jun 1997 18:41:55 +0900 -->
+<!--X-Message-Id: 9706180941.AA24657@white.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199706180426.NAA08381@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 1999] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and work </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00120.html">Date Prev</A>][<A HREF="msg00122.html">Date Next</A>][<A HREF="msg00115.html">Thread Prev</A>][<A HREF="msg00126.html">Thread Next</A>][<A HREF="index.html#00121">Date Index</A>][<A HREF="threads.html#00121">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 1999] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 18 Jun 1997 18:41:55 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00111.html">199706180426.NAA08381@srashd.sra.co.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．i386_solaris-gcc 用にパッチにしてみました．
+
+In message &lt;<A HREF="msg00111.html">199706180426.NAA08381@srashd.sra.co.jp</A>&gt;, Tatsuo Ishii writes:
+&gt; ところで、
+&gt; 
+&gt; &gt;    (i) postgres.h にマクロを追加
+&gt; &gt;
+&gt; &gt;#ifndef FLEX_SCANNER
+&gt; &gt;#  define register /**/
+&gt; &gt;#endif
+&gt; 
+&gt; ですが、postgres.h だと他のプラットフォームに影響がでてしまいますから、
+&gt; ここは src/port/include/i386_solaris.h に
+&gt; 
+&gt; #if defined(__GNUC__) &amp;&amp; !defined(FLEX_SCANNER)
+&gt; #  define register /**/
+&gt; #endif
+&gt; 
+&gt; などと追加するのが良いかと思います。また、(ii) の修正はすべてのプラッ
+&gt; トフォームに無害なはずですから、これと合わせてパッチされては如何でしょ
+&gt; う。
+
+ということで patch にしてみました．jp_patch の後で diff をつくって
+います．基本的には，initdb --debug で，printf が core を吐かない
+ようにしたのと，それから，i386_solaris-gcc の時に，register を
+disable するのが目的です．
+
+# patch を出す本人がいうのも何ですけど，やっぱり不思議な bug ですねぇ．
+
+あ，それから patch を流すのには不慣れなものですので，何かおかしな
+点などあればご指摘下さい．
+
+----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+
+------- i386_sparc-gcc.2.5.1.patch ----------------------------------------
+diff -r -C 2 ../6.1.orig/src/backend/bootstrap/bootstrap.c src/backend/bootstrap/bootstrap.c
+*** ../6.1.orig/src/backend/bootstrap/bootstrap.c	Sat Mar 15 14:00:44 1997
+--- src/backend/bootstrap/bootstrap.c	Tue Jun 17 18:55:25 1997
+***************
+*** 185,189 ****
+  static  char            Blanks[MAXATTR];
+       
+! static char *relname;                   /* current relation name */
+  
+  AttributeTupleForm attrtypes[MAXATTR];  /* points to attribute info */
+--- 185,190 ----
+  static  char            Blanks[MAXATTR];
+       
+! static char relnamebuf[32] = "&lt;undefined&gt;"; /* never exceeds this */
+! static char *relname = relnamebuf;     /* current relation name */
+  
+  AttributeTupleForm attrtypes[MAXATTR];  /* points to attribute info */
+***************
+*** 446,450 ****
+   */
+  void
+! boot_openrel(char *relname)
+  {
+      int         i;
+--- 447,451 ----
+   */
+  void
+! boot_openrel(char *relname_arg)
+  {
+      int         i;
+***************
+*** 454,464 ****
+      HeapTuple   tup;
+      
+!     if (strlen(relname) &gt; 15) 
+!         relname[15] ='\000';
+      
+      if (Typ == (struct typmap **)NULL) {
+          StartPortalAllocMode(DefaultAllocMode, 0);
+          rdesc = heap_openr(TypeRelationName);
+          sdesc = heap_beginscan(rdesc, 0, NowTimeQual, 0, (ScanKey)NULL);
+          for (i=0; PointerIsValid(tup=heap_getnext(sdesc,0,(Buffer *)NULL)); ++i);
+          heap_endscan(sdesc);
+--- 455,470 ----
+      HeapTuple   tup;
+      
+!     if (strlen(relname_arg) &gt; 15) 
+!         relname_arg[15] ='\000';
+! 
+!     strcpy(relname, relname_arg);
+      
+      if (Typ == (struct typmap **)NULL) {
+          StartPortalAllocMode(DefaultAllocMode, 0);
+          rdesc = heap_openr(TypeRelationName);
++         Assert(rdesc);
+          sdesc = heap_beginscan(rdesc, 0, NowTimeQual, 0, (ScanKey)NULL);
++         Assert(sdesc);
++         Assert(sdesc-&gt;rs_rd == rdesc);
+          for (i=0; PointerIsValid(tup=heap_getnext(sdesc,0,(Buffer *)NULL)); ++i);
+          heap_endscan(sdesc);
+***************
+*** 518,521 ****
+--- 524,528 ----
+          }
+      }
++     strcpy(relnamebuf, (char *)RelationGetRelationName(reldesc));
+  }
+  
+diff -r -C 2 ../6.1.orig/src/backend/catalog/pg_aggregate.c src/backend/catalog/pg_aggregate.c
+*** ../6.1.orig/src/backend/catalog/pg_aggregate.c	Fri Nov  8 14:00:25 1996
+--- src/backend/catalog/pg_aggregate.c	Tue Jun 17 19:40:05 1997
+***************
+*** 65,69 ****
+  		char *agginitval2)
+  {
+!     register		i;
+      Relation		aggdesc;
+      HeapTuple		tup;
+--- 65,69 ----
+  		char *agginitval2)
+  {
+!     register int	i;
+      Relation		aggdesc;
+      HeapTuple		tup;
+diff -r -C 2 ../6.1.orig/src/backend/catalog/pg_operator.c src/backend/catalog/pg_operator.c
+*** ../6.1.orig/src/backend/catalog/pg_operator.c	Fri Dec 27 08:00:31 1996
+--- src/backend/catalog/pg_operator.c	Tue Jun 17 19:41:37 1997
+***************
+*** 443,447 ****
+  	    char *rightSortName)
+  {
+!     register	i, j;
+      Relation 	pg_operator_desc;
+      
+--- 443,447 ----
+  	    char *rightSortName)
+  {
+!     register int	i, j;
+      Relation 	pg_operator_desc;
+      
+***************
+*** 732,736 ****
+  OperatorUpd(Oid baseId, Oid commId, Oid negId)
+  {
+!     register		i;
+      Relation 		pg_operator_desc;
+      HeapScanDesc 	pg_operator_scan;
+--- 732,736 ----
+  OperatorUpd(Oid baseId, Oid commId, Oid negId)
+  {
+!     register int	i;
+      Relation 		pg_operator_desc;
+      HeapScanDesc 	pg_operator_scan;
+diff -r -C 2 ../6.1.orig/src/backend/catalog/pg_proc.c src/backend/catalog/pg_proc.c
+*** ../6.1.orig/src/backend/catalog/pg_proc.c	Fri Nov  8 14:00:26 1996
+--- src/backend/catalog/pg_proc.c	Tue Jun 17 19:42:57 1997
+***************
+*** 56,60 ****
+  		CommandDest dest)
+  {
+!     register	i;
+      Relation 	rdesc;
+      HeapTuple 	tup;
+--- 56,60 ----
+  		CommandDest dest)
+  {
+!     register int	i;
+      Relation 	rdesc;
+      HeapTuple 	tup;
+diff -r -C 2 ../6.1.orig/src/backend/catalog/pg_type.c src/backend/catalog/pg_type.c
+*** ../6.1.orig/src/backend/catalog/pg_type.c	Sun Dec  1 08:00:28 1996
+--- src/backend/catalog/pg_type.c	Tue Jun 17 19:42:14 1997
+***************
+*** 290,294 ****
+  	   char alignment)
+  {
+!     register		i, j;
+      Relation 		pg_type_desc;
+      HeapScanDesc 	pg_type_scan;
+--- 290,294 ----
+  	   char alignment)
+  {
+!     register int	i, j;
+      Relation 		pg_type_desc;
+      HeapScanDesc 	pg_type_scan;
+diff -r -C 2 ../6.1.orig/src/backend/commands/purge.c src/backend/commands/purge.c
+*** ../6.1.orig/src/backend/commands/purge.c	Sat Jan 11 08:00:26 1997
+--- src/backend/commands/purge.c	Tue Jun 17 19:45:00 1997
+***************
+*** 39,43 ****
+  	      char *relativeTimeString)
+  {
+!     register		i;
+      AbsoluteTime		absoluteTime = INVALID_ABSTIME;
+      RelativeTime		relativeTime = INVALID_RELTIME;
+--- 39,43 ----
+  	      char *relativeTimeString)
+  {
+!     register int	i;
+      AbsoluteTime		absoluteTime = INVALID_ABSTIME;
+      RelativeTime		relativeTime = INVALID_RELTIME;
+diff -r -C 2 ../6.1.orig/src/backend/commands/remove.c src/backend/commands/remove.c
+*** ../6.1.orig/src/backend/commands/remove.c	Tue Jun  3 19:00:28 1997
+--- src/backend/commands/remove.c	Tue Jun 17 19:45:27 1997
+***************
+*** 144,148 ****
+      Buffer 		buffer;
+      static 		attnums[3] = { 7, 8, 9 }; /* left, right, return */
+!     register	i;
+      
+      ScanKeyEntryInitialize(&amp;key[0],
+--- 144,148 ----
+      Buffer 		buffer;
+      static 		attnums[3] = { 7, 8, 9 }; /* left, right, return */
+!     register int	i;
+      
+      ScanKeyEntryInitialize(&amp;key[0],
+diff -r -C 2 ../6.1.orig/src/backend/optimizer/util/plancat.c src/backend/optimizer/util/plancat.c
+*** ../6.1.orig/src/backend/optimizer/util/plancat.c	Fri Apr 25 07:00:38 1997
+--- src/backend/optimizer/util/plancat.c	Tue Jun 17 19:50:23 1997
+***************
+*** 100,104 ****
+  index_info(Query *root, bool first, int relid, IdxInfoRetval *info)
+  {
+!     register		i;
+      HeapTuple		indexTuple, amopTuple;
+      IndexTupleForm	index;
+--- 100,104 ----
+  index_info(Query *root, bool first, int relid, IdxInfoRetval *info)
+  {
+!     register int	i;
+      HeapTuple		indexTuple, amopTuple;
+      IndexTupleForm	index;
+***************
+*** 492,496 ****
+  		 float *idxSelec)
+  {
+!     register	i, n;
+      HeapTuple	indexTuple, amopTuple, indRel;
+      IndexTupleForm	index;
+--- 492,496 ----
+  		 float *idxSelec)
+  {
+!     register int	i, n;
+      HeapTuple	indexTuple, amopTuple, indRel;
+      IndexTupleForm	index;
+diff -r -C 2 ../6.1.orig/src/backend/storage/page/bufpage.c src/backend/storage/page/bufpage.c
+*** ../6.1.orig/src/backend/storage/page/bufpage.c	Thu Mar 13 08:01:07 1997
+--- src/backend/storage/page/bufpage.c	Tue Jun 17 19:53:03 1997
+***************
+*** 157,161 ****
+  	    ItemIdFlags flags)
+  {
+!     register 		i;
+      Size		alignedSize;
+      Offset		lower;
+--- 157,161 ----
+  	    ItemIdFlags flags)
+  {
+!     register int	i;
+      Size		alignedSize;
+      Offset		lower;
+diff -r -C 2 ../6.1.orig/src/backend/utils/fmgr/fmgr.c src/backend/utils/fmgr/fmgr.c
+*** ../6.1.orig/src/backend/utils/fmgr/fmgr.c	Fri Nov  8 20:01:20 1996
+--- src/backend/utils/fmgr/fmgr.c	Tue Jun 17 19:55:41 1997
+***************
+*** 176,180 ****
+  {
+      va_list		pvar;
+!     register	i;
+      int 		pronargs;
+      FmgrValues	values;
+--- 176,180 ----
+  {
+      va_list		pvar;
+!     register int	i;
+      int 		pronargs;
+      FmgrValues	values;
+***************
+*** 212,216 ****
+  {
+      va_list		pvar;
+!     register	i;
+      int		n_arguments;
+      FmgrValues	values;
+--- 212,216 ----
+  {
+      va_list		pvar;
+!     register int	i;
+      int		n_arguments;
+      FmgrValues	values;
+diff -r -C 2 ../6.1.orig/src/include/port/i386_solaris.h src/include/port/i386_solaris.h
+*** ../6.1.orig/src/include/port/i386_solaris.h	Sat Apr 12 19:21:45 1997
+--- src/include/port/i386_solaris.h	Wed Jun 18 14:00:47 1997
+***************
+*** 37,38 ****
+--- 37,41 ----
+  #endif
+  
++ #if defined(__GNUC__) &amp;&amp; !defined(FLEX_SCANNER)
++ #  define register /**/
++ #endif
+diff -r -C 2 ../6.1.orig/src/test/regress/regress.c src/test/regress/regress.c
+*** ../6.1.orig/src/test/regress/regress.c	Wed Apr 23 07:02:52 1997
+--- src/test/regress/regress.c	Tue Jun 17 19:58:11 1997
+***************
+*** 259,263 ****
+      char *string;
+  {
+!     register i;
+      int len;
+      char *new_string;
+--- 259,263 ----
+      char *string;
+  {
+!     register int i;
+      int len;
+      char *new_string;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00126" HREF="msg00126.html">[pgsql-jp 2004] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00111" HREF="msg00111.html">[pgsql-jp 1989] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00120.html">[pgsql-jp 1998] Re: benchmark on Linux</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00122.html">[pgsql-jp 2000] Re: benchmark on Linux</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00115.html">[pgsql-jp 1993] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 2004] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00121"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00121"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

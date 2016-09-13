@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4990] RE: PostODBC+VB5+DAO -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Thu, 6 Aug 1998 10:32:58 +0900 -->
+<!--X-Message-Id: 000001bdc0da$24af1760$2801007e@cadzone.tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 35C8A85B.AA4A879F@vc&#45;net.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4990] RE: PostODBC+VB5+DAO </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00058.html">Date Prev</A>][<A HREF="msg00060.html">Date Next</A>][<A HREF="msg00051.html">Thread Prev</A>][<A HREF="msg00072.html">Thread Next</A>][<A HREF="index.html#00059">Date Index</A>][<A HREF="threads.html#00059">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4990] RE: PostODBC+VB5+DAO</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 6 Aug 1998 10:32:58 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上＠セーレンです。
+
+&gt;
+&gt;
+&gt; 三浦＠ＶＣです
+&gt;
+［略］
+&gt;
+&gt;
+&gt; &gt; やっとVBからDBを触れるようになりました。
+&gt; &gt; ビジュアルデータマネージャを真似して、DAOを使ってやったらできました。
+&gt; &gt;
+&gt; &gt; ところが新たな問題が出てきてしまいました。
+&gt; &gt;
+&gt; &gt; 1    Set tmpdb = OpenDatabase("", 0, 0,
+&gt; &gt; "ODBC;DSN=test;UID=nobody;PWD=;DATABASE=tokyouniv")
+&gt; &gt; 2    Set tmpqd = tmpdb.CreateQueryDef("")
+&gt; &gt; 3    tmpqd.SQL = "select * from documentlist"
+&gt; &gt; 4    Set tmprs = tmpqd.OpenRecordset(dbOpenDynaset)
+&gt; &gt;
+&gt; ODBC接続でDBを開き、そのDBオブジェクトにたいしてクエリーを
+&gt; かけるプログラムを
+&gt; &gt;
+&gt; 書いてやりました。（もちろん、tokyounivというDBにdocumentlistというテーブ
+ル
+&gt; &gt; が存在しています）
+&gt; &gt; すると２行目のところで ”エラー；メモリ不足です”
+&gt; というメッセージが出てしま
+&gt; &gt; います。
+&gt; &gt; ビジュアルデータマネージャでも同じエラーが出ていました。
+&gt; &gt; どなたかこれの解決方法をご存知の方いらっしゃらないでしょうか。
+&gt; &gt; なぜここでメモリ不足なのでしょうか。
+&gt; &gt; やはりpostgreとVBとPostODBCの相性なのでしょうか。
+
+QueryDefオブジェクトは使ったことがありませんでした。試してみると
+なるほど、PostODBC,PostgreSQL Driver 何れでもエラーになるようです。
+ただこのケースに限っていえば、QueryDefオブジェクトを使用せず直接
+tmpdb.OpenRecordset("select * from ...",dbOpen...) でも同じ結果は
+得られると思いますが。
+QueryDefの機能をフルに使いたい（パススルークエリーとか）ようであれば
+片岡さんの新バージョン（[pgsql-jp 4983] 参照） をお使いください。
+
+&gt;
+&gt; 私の所では（ＶＢ５ですが）
+&gt;
+&gt;     Set sqlODBC = CreateWorkspace("", "kuni", "", dbUseODBC)
+&gt;     sqlODBC.DefaultCursorDriver = dbUseODBCCursor
+&gt;     Set conSQL = sqlODBC.OpenConnection("ちょめちょめ", , , _
+&gt;     "ODBC;DATABASE=なんだかんだ;UID=私;PWD=;DSN=postgreSQL")
+&gt;
+&gt;     sqltext = "SELECT あれや, これや FROM てーぶる"
+&gt;     Set rstSQL = conSQL.OpenRecordset(sqltext)
+&gt;
+&gt;
+&gt;
+&gt; てな感じで動かしています。
+&gt;
+
+この方式は DAOといいながら実はDAOをバイパスしてODBCを直接使用する
+ODBCDirectという方式ですね。
+この方式で動作すればパフォーマンスがあがるのでよりベターだと思いますが
+何か問題は発生していないでしょうか？
+実は、当方でも(ODBCDirectではなく） RDOで同じような設定でテストを行い
+なんとか動作するのは確認しましたが、次のような理由で二の足をふんでいます。
+１）VC++のCRecordsetでは forwardOnly以外では動作しない。動作させようと
+    ソースを少し調べてみたが、forwardOnly以外は正式にはサポートしていない
+    ような感じがする。
+２）Recordsetのオープン中 共有ロックがかかってしまい(Use declare/fetchオプ
+ション
+    使用時）、他からの更新ができない。
+
+セーレン（株） マルチＣＡＤ開発部
+           井上 博史
+       E-mail:Inoue@tpf.co.jp
+                 Inoue@seiren.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00072" HREF="msg00072.html">[pgsql-jp 5003] Re: PostODBC+VB5+DAO</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00051" HREF="msg00051.html">[pgsql-jp 4982] Re: PostODBC+VB5+DAO</A></STRONG>
+<UL><LI><EM>From:</EM> kuniaki &lt;kuniaki@vc-net.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00058.html">[pgsql-jp 4989] Re: off-line meeting</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00060.html">[pgsql-jp 4991] RE: [pgsql-jp 4959] Re: RE: [pgsql-jp 4956] Re: JDBCのイ ンストールでエラー発生</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 4982] Re: PostODBC+VB5+DAO</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00072.html">[pgsql-jp 5003] Re: PostODBC+VB5+DAO</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00059"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00059"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

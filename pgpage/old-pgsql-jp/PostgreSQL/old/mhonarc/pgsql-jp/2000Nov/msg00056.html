@@ -1,0 +1,183 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18536] Perl+PostgreSQL=>Internal Server Error? -->
+<!--X-From: iriha <iriha@fc.freeserve.ne.jp> -->
+<!--X-Date: Sat, 04 Nov 2000 16:41:37 +0900 -->
+<!--X-Message-Id: 20001104164127.B393.IRIHA@fc.freeserve.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18536] Perl+PostgreSQL=&gt;Internal Server Error? </TITLE>
+<LINK REV="made" HREF="mailto:iriha@fc.freeserve.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00055.html">Date Prev</A>][<A HREF="msg00057.html">Date Next</A>][<A HREF="msg00067.html">Thread Prev</A>][<A HREF="msg00057.html">Thread Next</A>][<A HREF="index.html#00056">Date Index</A>][<A HREF="threads.html#00056">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18536] Perl+PostgreSQL=&gt;Internal Server Error?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: iriha &lt;<A HREF="mailto:iriha@fc.freeserve.ne.jp">iriha@fc.freeserve.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 04 Nov 2000 16:41:37 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+お世話になっています、いりはです。
+
+PerlでPostgresに接続して、Webブラウザで表示させるプログラム
+を作成中です。またまた動かなく原因がつかめないので、教えて
+ください。
+
+Perlのプログラムか設定上の問題か、以下のエラーメッセージを
+見ると、問題点の占める割合としては後者の方が多い感じがして
+ますが、対応策がわからなくて困っています。
+
+var/log/httpd/error_log
+&gt; BEGIN failed--compilation aborted at viewdb.cgi line 3.
+&gt; [Sat Nov  4 16:16:25 2000] [error] [client 192.168.0.3] Premature end of script
+&gt; headers: /home/iriha/public_html/cgi-bin/viewdb.cgi
+&gt; Can't load '/usr/lib/perl5/site_perl/5.005/i386-linux/auto/Pg/Pg.so' for module
+&gt; Pg: libpq.so.2.1: cannot open shared object file: No such file or directory at /
+&gt; usr/lib/perl5/5.00503/i386-linux/DynaLoader.pm line 169.
+&gt; 
+&gt;  at viewdb.cgi line 3
+
+ちなみにPerlからの単独接続（別のプログラム）だと問題なく
+稼働しています。問題はブラウザに表示できないことです。
+
+環境は Vine2.0+PostgreSQL7.0 です。
+
+過去ログを見て対応したのは、
+srm.conf
+&gt; SetEnv LD_LIBRARY_PATH /usr/local/pgsql/lib
+
+にこの１行を付け加えたことと、
+
+&gt; grant select on maillist to nobody;
+
+を行ったことです。
+
+これ以上、よく似たケースが見るからなかったのでよろしくお願い
+します。
+
+&gt; #!/usr/bin/perl
+&gt; use CGI;
+&gt; use Pg;
+&gt; use CGI::Carp qw(fatalsToBrowser);
+&gt; #!/usr/bin/perl
+&gt; use CGI;
+&gt; use Pg;
+&gt; use CGI::Carp qw(fatalsToBrowser);
+&gt; 
+&gt; my $DBNAMED = "cgi";
+&gt; my $TNAMED = "maillist";
+&gt; 
+&gt; $query = new CGI;
+&gt; print $query-&gt;header;
+&gt; 
+&gt; $conn=Pg::connectdb("dbname=$DBNAMED");
+&gt; if(PGRES_CONNECTION_OK ne $conn-&gt;status){
+&gt;         printf("Can't connect to DB : %s, $conn-&gt;errorMessage\n");
+&gt;         exit;
+&gt; #!/usr/bin/perl
+&gt; use CGI;
+&gt; use Pg;
+&gt; use CGI::Carp qw(fatalsToBrowser);
+&gt; 
+&gt; my $DBNAMED = "cgi";
+&gt; my $TNAMED = "maillist";
+&gt; 
+&gt; $query = new CGI;
+&gt; print $query-&gt;header;
+&gt; 
+&gt; $conn=Pg::connectdb("dbname=$DBNAMED");
+&gt; #!/usr/bin/perl
+&gt; use CGI;
+&gt; use Pg;
+&gt; use CGI::Carp qw(fatalsToBrowser);
+&gt; 
+&gt; my $DBNAMED = "cgi";
+&gt; my $TNAMED = "maillist";
+&gt; 
+&gt; $query = new CGI;
+&gt; print $query-&gt;header;
+&gt; 
+&gt; $conn=Pg::connectdb("dbname=$DBNAMED");
+&gt; if(PGRES_CONNECTION_OK ne $conn-&gt;status){
+&gt;         printf("Can't connect to DB : %s, $conn-&gt;errorMessage\n");
+&gt;         exit;
+&gt; }
+&gt; 
+&gt; print "全レコードの抽出\n----\n";
+&gt; $result = $conn-&gt;exec('select * from $TNAMED;');
+&gt; 
+&gt; $reccnt=$result-&gt;ntuples;
+&gt; 
+&gt; if($reccnt==0){
+&gt;         printf("登録されたレコードがありません。\n");
+&gt;         exit;
+&gt; }
+&gt; 
+&gt; for($i=0; $i&lt;$reccnt; $i++){
+&gt;         print $result-&gt;getvalue($i,0),", ";
+&gt;         print $result-&gt;getvalue($i,1),", ";
+&gt;         print $result-&gt;getvalue($i,2),", ";
+&gt;         print $result-&gt;getvalue($i,3),"\n";
+&gt; }
+&gt; 
+&gt; print $query-&gt;end_html;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00079" HREF="msg00079.html">[pgsql-jp 18559] Re: Perl+PostgreSQL=&gt;Internal Server Error?</A></STRONG>
+<UL><LI><EM>From:</EM> masayuki@sag.hitachi-sk.co.jp (Masayuki Kikuchi)</LI></UL></LI>
+<LI><STRONG><A NAME="00064" HREF="msg00064.html">[pgsql-jp 18544] Re: Perl+PostgreSQL=&gt;Internal Server Error?</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00057" HREF="msg00057.html">[pgsql-jp 18537] Re: Perl+PostgreSQL=&gt;Internal Server Error?</A></STRONG>
+<UL><LI><EM>From:</EM> Masashi Ohba &lt;ohba@netforce.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00055.html">[pgsql-jp 18535] アクセス制限</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 18537] Re: Perl+PostgreSQL=&gt;Internal Server Error?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00067.html">[pgsql-jp 18547] Re: 11/4 横浜PostgreSQL+PHP無料セミナー終了報告</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 18537] Re: Perl+PostgreSQL=&gt;Internal Server Error?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00056"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00056"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

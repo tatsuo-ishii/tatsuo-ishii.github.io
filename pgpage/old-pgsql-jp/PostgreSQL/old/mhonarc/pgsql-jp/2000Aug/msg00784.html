@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17187] Re: postgreSQL のcluster機能 -->
+<!--X-From: NAKAMURA Hidenori <nhide@cij.co.jp> -->
+<!--X-Date: Thu, 31 Aug 2000 19:25:07 +0900 -->
+<!--X-Message-Id: 39AE3283.576E12F3@cij.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200008301016.TAA23206@is16e0u07.jaist.ac.jp -->
+<!--X-Reference-Id: 39ACE19D35C.9A8CYUUMEN@mail.oumiya.ne.jp -->
+<!--X-Reference-Id: 39AD146D172.60C1JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-Reference-Id: 39ADBEB5.2A982591@cij.co.jp -->
+<!--X-Reference-Id: 39ADC5C5.141D7B13@shonan.ne.jp -->
+<!--X-Reference-Id: 39AE19AD.50077748@cij.co.jp -->
+<!--X-Reference-Id: 39AE24C0.C546BBD6@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17187] Re: postgreSQL のcluster機能 </TITLE>
+<LINK REV="made" HREF="mailto:nhide@cij.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00783.html">Date Prev</A>][Date Next][<A HREF="msg00783.html">Thread Prev</A>][<A HREF="msg00773.html">Thread Next</A>][<A HREF="index.html#00784">Date Index</A>][<A HREF="threads.html#00784">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17187] Re: postgreSQL のcluster機能</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: NAKAMURA Hidenori &lt;<A HREF="mailto:nhide@cij.co.jp">nhide@cij.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 Aug 2000 19:25:07 +0900</LI>
+<LI><em>Organization</em>: Computer Institute of Japan, Ltd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00749.html">200008301016.TAA23206@is16e0u07.jaist.ac.jp</A>&gt; &lt;<A HREF="msg00750.html">39ACE19D35C.9A8CYUUMEN@mail.oumiya.ne.jp</A>&gt; &lt;<A HREF="msg00758.html">39AD146D172.60C1JUN-N@mail.ga2.so-net.ne.jp</A>&gt; &lt;<A HREF="msg00768.html">39ADBEB5.2A982591@cij.co.jp</A>&gt; &lt;<A HREF="msg00771.html">39ADC5C5.141D7B13@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00780.html">39AE19AD.50077748@cij.co.jp</A>&gt; &lt;<A HREF="msg00782.html">39AE24C0.C546BBD6@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+CIJの中村です。
+
+&gt; ソフト工房の近藤です。
+
+&gt; &gt; ＝＝ここから＝＝
+&gt; &gt; インデックスを作成するとき、FILL FACTOR を指定することによって、空き領域を
+&gt; &gt; 余分に残し、インデックスの各リーフ レベルのページ上に何パーセントかの空き領
+&gt; &gt; 域を予約することができます。こうすると、テーブルのデータの記憶領域が将来拡
+&gt; &gt; 張した場合に対応でき、ページ分割が起こる可能性が減少します。FILL FACTOR 値
+&gt; &gt; はインデックスを作成した後にデータ ページを充てんする割合で、0 % 〜 100 %
+&gt; &gt; の範囲で指定します。
+&gt; &gt; ＝＝ここまで＝＝
+&gt; 
+&gt; ちょっと話がみえないのですが、上の文章だと、
+&gt; データー領域でなく、インデックス領域だけの
+&gt; 再構成のように読めるのですが、違いますか。
+
+確かに、先の文章を読み返してみると、そのようにも読めますね。
+
+以下、補足します。
+
+SQL Server 7.0では、
+エクステント[１ページ(8KB) * 8ページ = 64KB]を単位にして、
+File system上の物理ファイルをデータ領域に割り当てます。
+データ領域はページ(8KB)単位で管理します。
+
+データ領域が足りなくなった場合には、データ領域を自動拡張することが
+できますが、その場合にも64KB(エクステント)の倍数で拡張します。
+
+クラスタ化Indexを(再)作成するときには、データ領域のデータを
+各ページに再格納します。
+この時に、FILL FACTOR オプションが有効になります。
+
+&gt; もし、Informix などの CLUSTER INDEX のように
+&gt; データー領域の再構成を行うとすると、膨大な
+&gt; 時間がかかるので、(B) の選択は、事実上不可能
+&gt; だと思います。 １列 INSERT する都度、数十万
+&gt; 数百万件のデーターの移動や複写などやっていら
+&gt; れるわけがありません。
+
+Index の再構築時には、上記のような大掛かりなデータの移動が
+起きていると思います。
+
+以下、推測ですが…。
+もしも insert 時に、そのレコード領域に割り当てられたページから
+データがあふれてしまった場合には、あふれたテーブルに対して新たな
+ページを割り当て、あふれてしまったページから一部のデータを
+コピーしていると思われます。
+つまり、insert 時には、最悪でも１ページ分のデータを移動するだけで
+済ませているのだと思います。
+
+当然、
+  「一部のページで物理順序が狂ってしまう」
+→「一部のデータで物理順序が狂ってしまう」
+ということになります。
+そこまで厳密な順序性を求める場合には、FILL FACTOR を指定することに
+なるのでしょう。
+
+====
+♪なかむら ひでのり( nhide@cij.co.jp )
+♪What do you want to be next century?
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00749" HREF="msg00749.html">[pgsql-jp 17151] Re: アップデート時のおかしな現象。</A></STRONG>
+<UL><LI><EM>From:</EM> Masahiro Akagi &lt;makagi@jaist.ac.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00750" HREF="msg00750.html">[pgsql-jp 17152] Re: ・「・テ・ラ・ヌ。シ・ネサ 、ホ、ェ、ォ、キ、ハクスセン。」</A></STRONG>
+<UL><LI><EM>From:</EM> Haruhito Yuumen &lt;yuumen@oumiya.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00758" HREF="msg00758.html">[pgsql-jp 17160] Re: アップデート時のおかしな現象。</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00768" HREF="msg00768.html">[pgsql-jp 17170] Re: アップデート時のおかしな現象。</A></STRONG>
+<UL><LI><EM>From:</EM> NAKAMURA Hidenori &lt;nhide@cij.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00771" HREF="msg00771.html">[pgsql-jp 17173] Re: アップデート時のおかしな現象。</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00780" HREF="msg00780.html">[pgsql-jp 17182] Re: postgreSQL のcluster機能</A></STRONG>
+<UL><LI><EM>From:</EM> NAKAMURA Hidenori &lt;nhide@cij.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00782" HREF="msg00782.html">[pgsql-jp 17185] Re: postgreSQL 	のcluster機能</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00783.html">[pgsql-jp 17186] Re: postgreSQL のcluster機能</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00783.html">[pgsql-jp 17186] Re: postgreSQL のcluster機能</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00773.html">[pgsql-jp 17175] postgreSQL のcluster機能（Re:アップデート時のおかしな現象。）</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00784"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00784"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

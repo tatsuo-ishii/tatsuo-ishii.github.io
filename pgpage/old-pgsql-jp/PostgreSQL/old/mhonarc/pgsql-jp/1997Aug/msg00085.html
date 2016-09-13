@@ -1,0 +1,179 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2359] 6.2b3 is out(Re: 6.2b2 is out ) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Thu, 21 Aug 1997 12:42:16 +0900 -->
+<!--X-Message-Id: 199708210342.MAA03133@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708190745.QAA19852@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2359] 6.2b3 is out(Re: 6.2b2 is out ) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00084.html">Date Prev</A>][<A HREF="msg00086.html">Date Next</A>][<A HREF="msg00068.html">Thread Prev</A>][<A HREF="msg00061.html">Thread Next</A>][<A HREF="index.html#00085">Date Index</A>][<A HREF="threads.html#00085">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2359] 6.2b3 is out(Re: 6.2b2 is out )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Thu, 21 Aug 1997 12:42:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠SRAです。6.2b3 が出ました。
+
+&gt;PostgreSQL 6.2beta2 が 8/16 に出ています。MkLinux と SunOS がサポート
+&gt;されたので、試して見ましたが...
+&gt;
+&gt;o libpq etc. で make エラー。トップレベルで mv interfaces/* . とやって
+&gt;とりあえず回避
+&gt;
+&gt;o SunOS では difftime() が undef. SunOS パッチには含まれていたのですが...
+
+これらは直ってました。
+
+&gt;o 6.1.1 までは OK だった point, lseg , circle の regression テストが 
+&gt;fail. 試しに Linux/x86(Slackware) でも試したが、やはり同じ。
+
+同じ。
+
+&gt;o 6.1/6.1.1 と 6.2 はデータベースに互換性がないので注意する
+
+backend/storage/ipc/spin.c でコンパイルエラー。単純な編集ミスのようで
+す。(パッチを付けておきます。)
+
+ところで、6.2 では様々な contraint が追加される模様です。とりあえず 
+6.2b3 では NOT NULL がサポートされました。
+
+test=&gt;  create table a (a int, b int NOT NULL);
+CREATE
+test=&gt; insert into a values(100);
+WARN:ExecAppend:  Fail to add null value in not null attribute b
+
+誰かが primary key にも取り組んでいるようです。久々に大きな機能追加な
+ので楽しみ。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+---------------------------- cut here -----------------------------
+*** spin.c~	Wed Aug 20 07:09:39 1997
+--- spin.c	Thu Aug 21 11:50:15 1997
+***************
+*** 48,53 ****
+--- 48,60 ----
+      return(TRUE); 
+  }
+  
++ static bool
++ AttachSpinLocks(IPCKey key)
++ {
++     /* the spin lock shared memory must have been attached by now */
++     return(TRUE);
++ }
++ 
+  bool
+  InitSpinLocks(int init, IPCKey key)
+  {
+***************
+*** 93,117 ****
+      ExclusiveUnlock(lock);
+  }
+  
+  #else /* HAS_TEST_AND_SET */
+  /* Spinlocks are implemented using SysV semaphores */
+  
+  static bool AttachSpinLocks(IPCKey key);
+  static bool SpinIsLocked(SPINLOCK lock);
+  
+- 
+- static bool
+- AttachSpinLocks(IPCKey key)
+- {
+-     /* the spin lock shared memory must have been attached by now */
+-     return(TRUE);
+- }
+- 
+- static bool
+- SpinIsLocked(SPINLOCK lock)
+- {
+-     return(!LockIsFree(lock));
+- }
+  
+  /*
+   * SpinAcquire -- try to grab a spinlock
+--- 100,118 ----
+      ExclusiveUnlock(lock);
+  }
+  
++ static bool
++ SpinIsLocked(SPINLOCK lock)
++ {
++     return(!LockIsFree(lock));
++ }
++ 
++ 
+  #else /* HAS_TEST_AND_SET */
+  /* Spinlocks are implemented using SysV semaphores */
+  
+  static bool AttachSpinLocks(IPCKey key);
+  static bool SpinIsLocked(SPINLOCK lock);
+  
+  
+  /*
+   * SpinAcquire -- try to grab a spinlock
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00068" HREF="msg00068.html">[pgsql-jp 2342] 6.2b2 is out</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00084.html">[pgsql-jp 2358] Re: hello, bench on TP701</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 2360] Create Function</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 2342] 6.2b2 is out</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00061.html">[pgsql-jp 2335] disable count</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00085"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00085"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

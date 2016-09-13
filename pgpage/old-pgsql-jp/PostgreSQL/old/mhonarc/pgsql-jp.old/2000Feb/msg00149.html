@@ -1,0 +1,130 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13109] 処理時間短縮方法 -->
+<!--X-From: "atsushi morimura" <mailer@i&#45;buddy.net> -->
+<!--X-Date: Fri, 11 Feb 2000 01:06:11 +0900 -->
+<!--X-Message-Id: NCBBIEHHNKFDDHGIDBHEMECNDAAA.mailer@i&#45;buddy.net -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13109] 処理時間短縮方法 </TITLE>
+<LINK REV="made" HREF="mailto:mailer@i-buddy.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00148.html">Date Prev</A>][<A HREF="msg00150.html">Date Next</A>][<A HREF="msg00152.html">Thread Prev</A>][<A HREF="msg00146.html">Thread Next</A>][<A HREF="index.html#00149">Date Index</A>][<A HREF="threads.html#00149">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13109] 処理時間短縮方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "atsushi morimura" &lt;<A HREF="mailto:mailer@i-buddy.net">mailer@i-buddy.net</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 11 Feb 2000 01:06:11 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+いつもお世話になっております。
+横浜メディアサービスの守村と申します。
+
+現在、postgres6.5.1 + solaris2.6でシステム開発
+をしております。プログラムはlibpqを使用してCで
+開発を行っております。
+
+我々の行っている処理として、
+●リレーションAには会員情報のようなものが入っており、MAX2万人を
+　想定して現在最終的なテストを行っております。
+●リレーションAの中に「最新グループ」というフィールドがあり、これを
+　キーにしてリレーションBにユーザー同士の「マッチング情報」を追加
+　しています。
+●ただし、既にマッチングされている場合は、リレーションBの「マッチング回数」
+　をインクリメントする、という処理を行っております。
+
+２万人のユーザーは約１５０のグループに分けられ、各グループに
+均等にユーザーが配属されます。つまり、一つのグループにつき、
+約１３０人分のマッチングを行います。こちらの環境だと、これを完了
+させるのに平気で数日掛かってしまいます。最高でも数時間で
+終わらせたいところです。
+
+マッチングテーブルには、ユーザーA対ユーザーBのマッチングが
+挿入されるのですが、これに加えて、ユーザーB対ユーザーAの
+マッチングも挿入されます。これは非常に冗長であり、ユーザー数の
+増加と共にトランザクションの数が鼠算式に増えていって
+しまいます。これは明らかな設計ミスなのですが、このスキーマを
+今から変更するのは時間的には不可能なので、何とか現在の仕様
+で処理を高速化したいのですが、ここで皆様のアドバイスを仰ぎたく
+メールを出した次第です。
+
+シーラカンス本と首っ引きでクエリを最適化し、explainで見てみると
+必ずインデックスを用いたクエリになっているのですが、それでも
+この現状です。
+
+現状のプログラムの問題となっている部分を添付してみましたが、
+何かアドバイスがあればどんなことでもいいので教えていただければ
+幸いです。
+
+不躾なメールで誠に恥ずかしい次第ですが、何卒よろしくお願い致します。
+---
+Atsushi Morimura / 守村篤
+<A HREF="mailto:morimura@i-buddy.net">mailto:morimura@i-buddy.net</A>
+横浜メディアサービス株式会社
+</PRE>
+  /* グループ毎にループする */
+  for(i = 0; i < PQntuples(res); i++){
+    tmp = ConnectDB();
+    (void)QueryDB("BEGIN", tmp);
+    
+    sprintf(query, "UPDATE tblMatching SET iUpd_Date = CAST(DATE_PART('year', 'now' :: datetime) AS TEXT) || LPAD(CAST(DATE_PART('month', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('day', 'now' :: datetime) AS TEXT), 2, '0'), iUpd_Time = LPAD(CAST(DATE_PART('hour', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('minutes', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('SECONDS', 'now' :: datetime) AS TEXT), 2, '0'), cUpd_usr = getpgusername(),	iMatching = iMatching + 1, iMatchingDate = CASE	WHEN iMatching = 2 THEN CAST(CAST(DATE_PART('year', 'now' :: datetime) AS TEXT) || LPAD(CAST(DATE_PART('month', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('day', 'now' :: datetime) AS TEXT), 2, '0') AS int4) ELSE iMatchingDate END FROM tblMember MEM1, tblMember MEM2 WHERE tblMatching.cMem_ID = MEM1.cMem_Id AND tblMatching.cOth_Id = MEM2.cMem_Id AND MEM1.cGrp_Recent = '%s' AND MEM2.cGrp_Recent = '%s' AND MEM1.cMem_Id != MEM2.cMem_Id AND MEM1.iMem_Valid = %d AND MEM2.iMem_Valid = %d AND EXISTS ( SELECT * FROM tblMatching WHERE cMem_Id = MEM1.cMem_Id AND cOth_Id = MEM2.cMem_Id )", PQgetvalue(res, i, 0), PQgetvalue(res, i, 0), VALID, VALID);
+    (void)QueryDB(query, tmp);
+
+    sprintf(query, "INSERT INTO tblMatching ( iUpd_Date, iUpd_Time, cUpd_usr, cMem_Id, cOth_Id, iMatching, bIsFavorite, iMatchingDate ) SELECT DISTINCT CAST(DATE_PART('year', 'now' :: datetime) AS TEXT) || LPAD(CAST(DATE_PART('month', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('day', 'now' :: datetime) AS TEXT), 2, '0') AS iUpd_Date, LPAD(CAST(DATE_PART('hour', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('minutes', 'now' :: datetime) AS TEXT), 2, '0') || LPAD(CAST(DATE_PART('SECONDS', 'now' :: datetime) AS TEXT), 2, '0') AS iUpd_Time, getpgusername() AS cUpd_usr, MEM1.cMem_Id AS cMem_Id, MEM2.cMem_Id AS cOth_Id, 1 AS iMatching, FALSE AS bIsFavorite, NULL AS iMatchingDate	FROM tblMember MEM1, tblMember MEM2 WHERE MEM1.cGrp_Recent = '%s' AND MEM2.cGrp_Recent = '%s' AND MEM1.cMem_Id != MEM2.cMem_Id AND MEM1.iMem_Valid = %d AND MEM2.iMem_Valid = %d AND NOT EXISTS ( SELECT * FROM tblMatching WHERE cMem_Id = MEM1.cMem_Id AND cOth_Id = MEM2.cMem_Id ) ORDER BY MEM1.cMem_Id", PQgetvalue(res, i, 0), PQgetvalue(res, i, 0), VALID, VALID);
+    (void)QueryDB(query, tmp);
+
+    (void)QueryDB("COMMIT", tmp);
+    PQfinish(tmp);
+  }
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00148.html">[pgsql-jp 13108] Re: initdbのエラー(再送)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 13110] PHP(GD) とフォントについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00152.html">[pgsql-jp 13112] Re: PHP(GD)とフォントについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 13106] ODBCエラー。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00149"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00149"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13494] Re: backend terminated abnormally -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 14 Mar 2000 14:56:53 +0900 -->
+<!--X-Message-Id: 20000314145653G.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38CDCF60.AC77FF13@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13494] Re: backend terminated abnormally </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00187.html">Date Prev</A>][<A HREF="msg00189.html">Date Next</A>][<A HREF="msg00186.html">Thread Prev</A>][<A HREF="msg00194.html">Thread Next</A>][<A HREF="index.html#00188">Date Index</A>][<A HREF="threads.html#00188">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13494] Re: backend terminated abnormally</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 14 Mar 2000 14:56:53 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00186.html">38CDCF60.AC77FF13@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; エラ−コ−ドを返すのに必要なメモリ−以外を free してから、
+&gt; 他のライブラリ−を使用するというわけにはいかないのでしょうね。
+&gt; # ソ−スコ−ドも見ずにかってなことを言ってもしょうがないとは
+&gt; # 思うのですが。
+
+どうなんでしょう。そこまで考えたことありません。
+
+&gt; ただ、アプリで、backend の異常終了を検知できないというのは困り
+&gt; ます。
+
+これはいまでもできているのでは？
+# だからpsqlはbackendの異常終了を検知しているのですよね？
+
+&gt; &gt; 一番恐いのは、mallocに失敗したときにデータの不整合が起こる可能性です。
+&gt; &gt; つまり、commitでもabortでもないトランザクションができてしまうケースで、
+&gt; &gt; 現状のPostgreSQLはこのようなことが絶対起きないようにするためにかなり安
+&gt; &gt; 全サイドに振った実装していると言えると思うし、これはこれで一つの見識で
+&gt; &gt; はないでしょうか。
+&gt; 
+&gt; 勉強不足で理解できないのですが、トランザクション中の処理は、
+&gt; ROLL BACK か COMMIT の2者択一だと思っていたのですが、この場合
+&gt; は、更新済 commit 前のレコ−ドはどう処理されるのでしょうか？。
+
+自動 roll backです。
+
+&gt; 元ネタは、PostgreSQL 独自機能ですが、たかが 10 個程度の OR 条件
+&gt; で異常終了しています。私の時の例は、うろ覚えですが、SQL92 仕様の
+&gt; 200 個位の or と and の組合せで異常終了したように覚えています。
+&gt; 
+&gt; 内部で展開した時のリソ−ス量は、条件文の個数に直接関係しない
+&gt; というのはわかりますが、内部リソ−ス不足を、アプリから検知で
+&gt; きない以上、手がかりは、条件文の演算子と個数しかありません。
+&gt;
+&gt; 現状だと、ＳＱＬ文を実行する前に、あぶなそうな場合だけ、適当に
+&gt; 条件個数を数えて実行しないようにするというような、極めて、あいまいな
+&gt; 勘だけに頼った、おかしな処理を、アプリに作り込みしなければならず、
+&gt; PostgreSQL で、アプリを開発しようと意欲に燃えている人にとって、
+&gt; 不幸な状態だと思います。
+
+7.0のβでやってみて下さい。
+
+&gt; &gt; 近藤さんの要件は、SORT用のワーク領域をユーザ毎、あるいは目的毎に用意す
+&gt; &gt; るところまでしないと駄目ですね。他にも、あるトランザクションがCPUを食
+&gt; &gt; い尽くさないようにするとか、管理すべき資源項目は沢山あるでしょうが、今
+&gt; &gt; 後の課題と言うところですね。
+&gt; 
+&gt; 旧版ですが、Informix ONLINE 4.2 の場合でも、SORT WORK などの
+&gt; 一時ＤＢ領域は、全処理共通です。SORT/JOIN 他での HDD 消費量に
+&gt; もよりますが、一時処理用のHDD領域の溢れで、他の処理に影響がお
+&gt; よばなければ、十分だろうと思いますが、如何でしょう。
+
+え、複数のバックエンドのソート領域が競合するケースはOKなのですか？なん
+か矛盾しているような。
+
+&gt; 誤ったSQL文や巨大な SELECT で、フロントエンド(psql 等)が、SWAP
+&gt; を食い潰すという問題もありましたね。
+
+これはアプリケーションの問題で、どんなアプリケーションでもこういうこと
+が発生する可能性があります。心配ならば limit をかけておけば良いでしょ
+う。
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00194" HREF="msg00194.html">[pgsql-jp 13500] Re: backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00186" HREF="msg00186.html">[pgsql-jp 13492] Re: backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 13493] Re: webアクセスでドキュメントにデータが含まれていません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 13495] RE: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00186.html">[pgsql-jp 13492] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 13500] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00188"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00188"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,625 @@
+# 問い合わせ処理の流れ
+
+前回は、psqlなどのフロントエンドは、postmasterから起動されるタベースエ
+ンジンであるpostrgesプロセスとと通信を行い、認証などのセキュリティ関係
+のチェックを受けたのちに、postgresと直接通信を行ってデータベース処理を
+行うということを説明しました。
+
+以後の流れをバックエンド(postgres)の立場で非常に大雑把に見ると、以下の
+ようになります(図1)。
+
+図1: 問い合わせ処理の流れ(1.png)
+
+1) フロントエンドから送られてきた問い合わせ(SQL文)を受信
+
+2) SQL文は単なる文字列なので、そのままではコンピュータ処理には向いてい
+   ません。そこで内部的に扱いやすい「パースツリー」(parse tree)の形に
+   変換します。この段階では、文字通り問い合わせ文字列から得られる情報
+   のみを使用します。したがって、文法的に間違いのない限り、存在しない
+   テーブルをSELECTしようとしても、エラーになりません。こうしたことか
+   ら、この段階のパースツリーは「ローパースツーリー」(raw parse tree)
+   とも呼ばれます。
+
+   ここでの処理は「パース処理」と呼ばれ、パース処理を行うモジュールを
+   「パーサー」(parser)と呼びます。関連ソースはsrc/backend/parserにあります。
+
+3) パースツリーを解析し、「クエリツリー」(query tree)に変換します。こ
+   のとき、データベースをアクセスして指定されたテーブルが実際に存在す
+   るかどうかチェックし、存在すればテーブル名からOIDに変換するなどの処
+   理が行われます。
+
+   ここでの処理は「アナライズ処理」と呼ばれ、アナライズ処理を行うモジュー
+   ルを「アナライザ」(analyzer)と呼びます。関連ソースはsrc/backend/parserにあります。
+
+4) PostgreSQLでは、VIEWやRULEをクエリを書き換えることによって実装して
+   います。もし必要ならばこの段階でクエリを書き換えます。
+
+   ここでの処理は「リライト処理」と呼ばれ、リライト処理を行うモジュー
+   ルを「リライタ」(rewriter)と呼びます。関連ソースはsrc/backend/rewriteにあります。
+
+5) クエリツリーを解析し、実際に問い合わせを実行するための「プランツリー」
+   (plan tree)を作成します。
+
+   ここでの処理は「プラン処理」と呼ばれますが、もっとも実行時間が短く
+   て済みそうなプランツリーを作成することが非常に大切です。そのため、
+   この処理は「クエリオプティマイズ」(query optimize:最適化)ないし単に
+   「オプティマイズ」と呼ばれることもあり、こうした処理を行うモジュー
+   ルをクエリオプティマイザ(query optimizer)ないし、単にオプティマイザ
+   と呼びます(あるいはプランナと呼ぶこともあります)。関連ソースはsrc/backend/planにあります。
+
+6) プランツリーに従い、問い合わせを実行します。
+
+   ここでの処理は「エグゼキュート処理」と呼ばれ、エグゼキュート処理を行うモジュー
+   ルを「エグゼキュータ」(executor)と呼びます。関連ソースはsrc/backend/executorにあります。
+
+7) 実行結果をフロントエンドに送信します。
+
+8) 再び1)に戻ります。
+
+それでは早速パース処理から順に処理内容を詳しく見ていきましょう。
+
+# パース処理のソースコード
+
+パース処理のソースコードは、前述のようにsrc/backend/parserにありますが、
+このディレクトリにはアナライズ処理のソースも含まれています。パース処理
+に関わるソースファイルは以下です。
+
+gram.c		構文解析処理
+keywords.c	予約語表。予約後の実体はsrc/include/parser/kwlist.hにある
+kwlookup.c	予約後の探索処理。バックエンドだけでなく、ecpgやpg_dump、psqlでも使われている
+parser.c	パース処理メイン
+scan.c		字句解析処理
+scansup.c	字句解析処理の補助関数
+
+パース処理のメイン関数は pg_parse_query で、parser.c で定義されていま
+すがパース処理のキモは、実はgram.cとscan.cです。
+
+パース処理では、文字列としてのSQLを解析する必要があります。もちろん一
+から文字列処理プログラムを書いていくこともできますが、SQL文法ほどの複
+雑さのレベルになるとそれはかなり困難なので、専用のツールでSQL文法を表
+現し、パースするプログラムを自動生成する方法をPostgreSQLでは採用してい
+ます。
+
+# 字句解析処理
+
+字句解析処理とは、文字列から「単語」を切り出す処理のことをさします。た
+とえば、
+
+SELECT * FROM accounts WHERE aid = 100;
+
+なら、" ", "SELECT", "*", "FROM" などがすべて単語ということになります。
+この際に、更に単語をある程度分類しておきます。たとえば、0...9の数字を
+組み合わせたものなら整数であるというような感じです。
+
+字句解析処理のソースファイルscan.cは、flexというツール用に書かれた
+scan.lから自動生成されたものです。scan.lには、flexの文法にしたがって、
+字句解析のルールを書きます。たとえば整数であれば、以下のような記述にな
+ります。
+
+digit			[0-9]
+integer			{digit}+
+
+ご覧のように、基本的にある単語を識別するためのルールを、正規表現で書く
+のがflexの文法である、ということになります。
+
+これ以外にも以下のような字句解析を行います。
+
+ビット文字列
+C形式のコメント
+二重引用符を使った識別子(delimited identifiers)
+8進数
+16進数(E'\x7F')
+ユニコード値(E'\u0041')
+文字列
+C形式エスケープ文字列
+ユニコードエスケープ文字列(U&'\0441\043B\043E\043D')
+ユニコードエスケープ識別子(U&"\0441\043B\043E\043D")
+ユニコードサロゲートペア文字列
+
+注意しなければならないのは、これらを解釈して数値や文字列に置き換えるの
+はパーサが行っていることです。ですからたとえば、
+
+INSERT INTO u VALUES(E'\u0041');
+
+を実行すると正しく大文字の「A」がテーブルに格納されますが、「E'\u0041'」
+をu.txtというファイルに書いておいて、
+
+COPY u FROM /tmp/u.txt;
+
+を実行しても、テーブルには「E'\u0041'」という文字列そのものが格納される
+だけです。これは、COPYコマンドでデータを読み込む処理では、パーサを経由
+しないからです。
+
+# 構文解析処理
+
+字句解析処理によって単語の切出しができたら、構文解析処理を行います。
+bisonというツール用に書かれたgram.yから自動生成されたものが構文解析処
+理のソースファイルgram.cになります。gram.yは構文解析処理の中心になるも
+ので、13,000行ほどの大きさがあるかなり複雑なものです。すべてを解説するの
+は紙面の関係でできませんが、ここでは感じだけでもつかんでいただきましょう。
+
+構文解析処理は、基本的にはパターンマッチング処理です。たとえば
+先ほどのSELECT文は、以下のパターンにマッチするはずです。
+
+simple_select:
+			SELECT opt_distinct target_list
+			into_clause from_clause where_clause
+			group_clause having_clause window_clause
+				{
+					SelectStmt *n = makeNode(SelectStmt);
+					n->distinctClause = $2;
+					n->targetList = $3;
+					n->into = $4;
+					n->intoColNames = NIL;
+					n->intoHasOids = DEFAULT_OIDS;
+					n->fromClause = $5;
+					n->whereClause = $6;
+					n->groupClause = $7;
+					n->havingClause = $8;
+					n->windowClause = $9;
+					$$ = (Node *)n;
+				}
+
+ここで、「simple_select」はパターンの名前です。右側にはパターンを書き
+ます。このパターンは、
+
+  "SELECT"ではじまり、オプションでDISTINCT句(opt_distinct)、ターゲット
+  リスト(target_list)、INTO句(into_clause)、FROM句(from_clause)、WERE
+  句(where_clause)、GROUP BY句(group_clause)、HAVING句(having_clause)
+  WINDOW句(windows_clause)
+  と続く
+
+と定義されています[注]。
+
+[注: ここで「SELECT」は予約語であり、include/parser/kwlist.hに定義されています。]
+
+{}の中は、パターンマッチが起きたときに実行される「アクション」です。ア
+クションにはC言語の他、bison特有の予約記号を書くことができます。
+PostgreSQLのパーサの目的は、パースツリーを作ることです。そこで、まず
+
+SelectStmt *n = makeNode(SelectStmt);
+
+によって、SELECT文に対応する構造体SelectStmtを持つノードをmakeNodeとい
+う関数で作っています(パースツリーの構造については、後で詳しく述べます)。
+以下、構造体のメンバに値をセットしています。たとえば、
+
+		n->targetList = $3;
+
+の$3は、
+
+SELECT opt_distinct target_list
+into_clause from_clause where_clause
+group_clause having_clause
+
+の3番目の部分(target_list)をtargetListをセットしているわけです。
+
+# target_listは別の場所で解析
+
+しかし、このままでは元のSQL文との対応は良くわかりません。というのは、
+「target_list」もまたパターンであり、別のところで定義されているからで
+す。その部分は以下のようになります。
+
+target_list:
+			target_el								{ $$ = list_make1($1); }
+
+target_listは、target_elであり、そのときにlist_makeが呼び出されるとい
+うアクションが起こることがわかりました。
+
+では、target_elの定義がどうなっているのでしょう？
+
+target_el:	a_expr AS ColLabel
+				{
+					$$ = makeNode(ResTarget);
+					$$->name = $3;
+					$$->indirection = NIL;
+					$$->val = (Node *)$1;
+					$$->location = @1;
+				}
+			/*
+			 * We support omitting AS only for column labels that aren't
+			 * any known keyword.  There is an ambiguity against postfix
+			 * operators: is "a ! b" an infix expression, or a postfix
+			 * expression and a column label?  We prefer to resolve this
+			 * as an infix expression, which we accomplish by assigning
+			 * IDENT a precedence higher than POSTFIXOP.
+			 */
+			| a_expr IDENT
+				{
+					$$ = makeNode(ResTarget);
+					$$->name = $2;
+					$$->indirection = NIL;
+					$$->val = (Node *)$1;
+					$$->location = @1;
+				}
+			| a_expr
+				{
+					$$ = makeNode(ResTarget);
+					$$->name = NULL;
+					$$->indirection = NIL;
+					$$->val = (Node *)$1;
+					$$->location = @1;
+				}
+			| '*'
+				{
+					ColumnRef *n = makeNode(ColumnRef);
+					n->fields = list_make1(makeString("*"));
+					n->location = @1;
+
+					$$ = makeNode(ResTarget);
+					$$->name = NULL;
+					$$->indirection = NIL;
+					$$->val = (Node *)n;
+					$$->location = @1;
+				}
+		;
+
+いくつかのパターンが「|」で列挙されており、これはどれかのパターンにマッ
+チすれば良いことを意味します。「$$->location = @1;」のように、使われて
+いる@記号は、入力文字列中の行番号と、行の中で何文字目にあるかを示す予約
+記号です。これによって、psqlで行われているように、SQLの文法エラーがあっ
+たときにエラーの位置をカーソルで示すことができるようになります。
+
+「a_expr AS ColLabel」は、「i AS this_month」のように、列の別名が付い
+ているパターンです。a_exprやColLabelは更に別のところで定義されています。
+
+前述のSELECT文のターゲットリストは、「'*'」のパターンにマッチします。
+このときのアクションはColumnRefという構造体がパースツリーのノードとし
+て作られます。 ColumnRef は以下のように定義されています。
+
+typedef struct ColumnRef
+{
+	NodeTag		type;
+	List	   *fields;			/* field names (Value strings) or A_Star */
+	int			location;		/* token location, or -1 if unknown */
+} ColumnRef;
+
+NodeTagはノードの識別値で、enumであり、この場合はT_ColumnRefという値に
+なります[注]。
+
+makeNodeはマクロであり、引数に"T_"を付けたものをNodeTagにセットするとと
+もに、引数の名前で構造体のメモリを割り当てます。したがって、構造体の名
+前に"T_"を付けたものがノード識別値のenumの値になるという「隠れた規則」
+があるわけですね。こうした内部的な規則はどこにもドキュメント化されてい
+ないので、コードを実際に触りながら推測しなければなりません。
+
+「fields」には列名をリストにしたものをセットします。list_make1は、要素
+が1個しかないリストを作るマクロです(コラム参照)。
+
+
+コラム: PostgreSQLのリストパッケージ
+------------------------------------------------------------------------
+パースツリーなど、複雑なリスト要素を作成するために、PostgreSQLではリス
+トを扱う機能が充実しています。ソースコードはsrc/backend/nodes/list.cに
+あり、そのためのインターフェイスはsrc/include/nodes/pg_list.hに定義さ
+れています。
+
+PostgreSQLのリストは一方向の単純なリンク付きリストで、3つのタイプがあ
+ります。
+
+T_List		ポインタのリスト
+T_IntList	整数のリスト
+T_OidList	OIDのリスト
+
+パースツリーなどで使われるのは主にT_Listです。PostgreSQLでは、リストで
+連結されるデータを「セル」(cell)と呼びます。
+
+リストを管理する構造体は以下のようになっており、リストの長さ、最初のセ
+ルへのポインタ、最後のセルへのポインタが管理されています。
+
+typedef struct List
+{
+	NodeTag		type;			/* T_List, T_IntList, or T_OidList */
+	int			length;
+	ListCell   *head;
+	ListCell   *tail;
+} List;
+
+各セルの構造は以下のようになっています。基本的にはデータと次のセルへの
+ポインタが管理されています。なお、空のリストは、List構造体へのポインタ
+が「NIL」(実際には0)であることで表現されます。したがって、List構造体が
+存在するということは、少くとも length が1以上であるということになりま
+す。
+
+struct ListCell
+{
+	union
+	{
+		void	   *ptr_value;
+		int			int_value;
+		Oid			oid_value;
+	}			data;
+	ListCell   *next;
+};
+
+
+整数値1, 2, 3の3つのセルを持つリストの例を図2に示します。
+
+図2: リストの例(2.png)
+
+すべてのインターフェイスを解説するのは紙面の関係で無理なので、代表的な
+ものをあげておきます。これらを知っているだけでもソースを読むのが楽にな
+ると思います。
+
+lnext		次のセルへのポインタ
+lfirst		現在のセルのデータ(data)
+lsecond		次のセルのデータ
+lthird		その次のデータ
+linitial	リスト中の最初のセルのデータ
+llast		リスト中の最後のセルのデータ
+
+図2: リスト構造とアクセスインターフェイス(2.png)。整数1, 2, 3をリスト
+にした例。現在のセルが(1)のセルを指しているものとする。
+
+list_make1(x1)		x1をセルに持つリストを作る
+list_make2(x1,x2)	x1, x2をセルに持つリストを作る
+list_make3(x1,x2,x3)	x1, x2, x3をセルに持つリストを作る
+
+foreach(cell, l)	リストlのすべてのセルを順にアクセスする。cell
+			は現在のcellへのポインタ
+
+lappend(List *list, void *datum)	リストlistにデータdatumを持つ
+					セルを追加する
+
+list_concat(List *list1, List *list2)	リストlist1の末尾にリストlist2
+					を追加する
+
+list_copy(List *list)			リストlistをコピーする
+
+list_free(List *list)			リストlistのメモリをlist自身も
+					含めて解放する。ただし、セルの
+					指すポインタの先のメモリは解放
+					しない
+
+list_free_deep(List *list)		リストlistのメモリをlist自身も
+					含めて解放する。セルの指すポイ
+					ンタの先のメモリも解放する
+------------------------------------------------------------------------
+
+$$ = makeNode(ResTarget);
+
+は、result target(SELECT文などで検索する列名など)を表現するノードを作
+り、「上位」のパターンに返却しています。ここで上位のパターンとは、先ほ
+ど出てきた"simple_select"を指します。そのアクションの中に、
+
+	n->targetList = $3;
+
+というのがありましたが、$$でここの部分がアクセスされます。結果として、
+
+	n->targetList = makeNode(ResTarget);
+
+が実行されることになります。
+
+ResTargetは以下のような構造体です。
+
+typedef struct ResTarget
+{
+	NodeTag		type;
+	char	   *name;			/* column name or NULL */
+	List	   *indirection;	/* subscripts and field names, or NIL */
+	Node	   *val;			/* the value expression to compute or
+								 * assign */
+} ResTarget;
+
+ここでは列名は単に"*"なので、nameには値無しを表すNULL、indirectionは未
+使用なのでNIL、valには先ほど作ったColumnRef構造体へのポインタをセット
+しています。
+
+# パターンとアクションの組合わせでパースツリーを構築
+
+あちこちに話が飛んでしまったのでちょっとわかりにくかったかも知れません
+が、bisonによる構文解析では、いきなり詳細な解析を行うのではなく、徐々
+に詳細な解析を行う「トップダウン」方式な記述が可能です。また、文法の記
+述もパターンとアクションの組合わせなので、手続き的にプログラムを書くよ
+りははるかに見通しがよいことをおわかりいただけたと思います。
+
+こうした構文解析の結果、メモリ上にパースツリーが作成されます。
+
+SELECT * FROM accounts WHERE aid = 100;
+
+のパースツリーを図3に示します[注]。メインになるのはSelectStmt(リスト1)
+という構造体です。その他の情報はこの構造体にぶら下がる形になっています。
+
+図3: SELECT * FROM accounts WHERE aid = 100 のパースツリー
+
+[注: postgresql.confのdebug_print_parseをtrueにすることにより、パース
+ツリーを出力することができることになっていますが、実際に出力されるのは
+パースツリーではなく、本稿で言うところのクエリツリーです。本稿を執筆す
+るにあたり、若干ソースコードに手を加えてアナライズ前のパースツリーを表
+示させて検証を行いました。]
+
+リスト1: SelectStmt構造体
+
+-------------------------------------------------------------------------------
+typedef struct SelectStmt
+{
+	NodeTag		type;
+
+	/*
+	 * These fields are used only in "leaf" SelectStmts.
+	 */
+	List	   *distinctClause; /* NULL, list of DISTINCT ON exprs, or
+								 * lcons(NIL,NIL) for all (SELECT DISTINCT) */
+	IntoClause *intoClause;		/* target for SELECT INTO / CREATE TABLE AS */
+	List	   *targetList;		/* the target list (of ResTarget) */
+	List	   *fromClause;		/* the FROM clause */
+	Node	   *whereClause;	/* WHERE qualification */
+	List	   *groupClause;	/* GROUP BY clauses */
+	Node	   *havingClause;	/* HAVING conditional-expression */
+	List	   *windowClause;	/* WINDOW window_name AS (...), ... */
+	WithClause *withClause;		/* WITH clause */
+
+	/*
+	 * In a "leaf" node representing a VALUES list, the above fields are all
+	 * null, and instead this field is set.  Note that the elements of the
+	 * sublists are just expressions, without ResTarget decoration. Also note
+	 * that a list element can be DEFAULT (represented as a SetToDefault
+	 * node), regardless of the context of the VALUES list. It's up to parse
+	 * analysis to reject that where not valid.
+	 */
+	List	   *valuesLists;	/* untransformed list of expression lists */
+
+	/*
+	 * These fields are used in both "leaf" SelectStmts and upper-level
+	 * SelectStmts.
+	 */
+	List	   *sortClause;		/* sort clause (a list of SortBy's) */
+	Node	   *limitOffset;	/* # of result tuples to skip */
+	Node	   *limitCount;		/* # of result tuples to return */
+	List	   *lockingClause;	/* FOR UPDATE (list of LockingClause's) */
+
+	/*
+	 * These fields are used only in upper-level SelectStmts.
+	 */
+	SetOperation op;			/* type of set op */
+	bool		all;			/* ALL specified? */
+	struct SelectStmt *larg;	/* left child */
+	struct SelectStmt *rarg;	/* right child */
+	/* Eventually add fields for CORRESPONDING spec here */
+} SelectStmt;
+-------------------------------------------------------------------------------
+
+# アナライズ処理 
+
+アナライズ処理では、実際にシステムカタログなどを検索しながら必要な情報
+を補ってクエリツリーを作成します。この段階で生成される情報としては、以
+下のようなものがあります。
+
+1) テーブルOID
+
+文字列で指定されたテーブルを、システムカタログの「pg_class」を検索する
+ことによって確定し、OID(オブジェクトID)を求めます。
+
+スキーマ名で明示的に修飾されたテーブルは対応するテーブルの実体が確定す
+るので容易にOIDが求められます。
+
+スキーマ名で修飾されていない場合は、スキーマサーチパスを検索してスキー
+マを確定し、OIDを求めます。
+
+テーブルを継承しているテーブルがある場合は、それらのテーブルのOIDリス
+トも作られます。
+
+2) 列名リスト
+
+SELECT * FROM ...のように、列名が省略されている場合は、1)でテーブルOID
+を求めた後、システムカタログを検索することによって明示的な列名のリスト
+に変換します。
+
+また、INSERT INTO t1 VALUES...のように、挿入すべき列名が省略されている
+形式のINSERT文では、列名を補う処理が行われます。
+
+3) 型OID
+
+WHERE句などで指定されている列や定数の型名を確定し、型OIDを求めます。型
+が明示的に指定されていないものに関しては、型の推測が行われます。
+
+4) オペレータOID
+
+オペレータ(演算子)はPostgreSQLでは関数呼び出しとして実装されています。
+同じ"="といったオペレータでも、その両側に来るデータ型によって、内部的
+に呼び出される関数が異なってきます。そこでアナライザはそれらの型情報を
+使ってシステムカタログ「pg_operator」を検索し、オペレータのOIDを確定し
+て適切な関数を呼び出すことができるようにします。
+
+----
+
+アナライズ処理で作成されるメインの構造体はQueryです(リスト2)。パース処
+理では、文の種類(SELECT, INSERT, UPDATE...など)の違いによって作成され
+る構造体も分かれていましたが、アナライズ処理の結果は単一のQuery構造体
+です。
+
+アナライズ処理の結果生成されたクエリツリーを図4に示します。
+
+図4: クエリツリー(4.png, 5.png)
+
+リスト2: Query構造体
+-------------------------------------------------------------------------------
+typedef struct Query
+{
+	NodeTag		type;
+
+	CmdType		commandType;	/* select|insert|update|delete|utility */
+
+	QuerySource querySource;	/* where did I come from? */
+
+	bool		canSetTag;		/* do I set the command result tag? */
+
+	Node	   *utilityStmt;	/* non-null if this is DECLARE CURSOR or a
+								 * non-optimizable statement */
+
+	int			resultRelation; /* rtable index of target relation for
+								 * INSERT/UPDATE/DELETE; 0 for SELECT */
+
+	IntoClause *intoClause;		/* target for SELECT INTO / CREATE TABLE AS */
+
+	bool		hasAggs;		/* has aggregates in tlist or havingQual */
+	bool		hasWindowFuncs; /* has window functions in tlist */
+	bool		hasSubLinks;	/* has subquery SubLink */
+	bool		hasDistinctOn;	/* distinctClause is from DISTINCT ON */
+	bool		hasRecursive;	/* WITH RECURSIVE was specified */
+	bool		hasModifyingCTE;	/* has INSERT/UPDATE/DELETE in WITH */
+	bool		hasForUpdate;	/* FOR UPDATE or FOR SHARE was specified */
+
+	List	   *cteList;		/* WITH list (of CommonTableExpr's) */
+
+	List	   *rtable;			/* list of range table entries */
+	FromExpr   *jointree;		/* table join tree (FROM and WHERE clauses) */
+
+	List	   *targetList;		/* target list (of TargetEntry) */
+
+	List	   *returningList;	/* return-values list (of TargetEntry) */
+
+	List	   *groupClause;	/* a list of SortGroupClause's */
+
+	Node	   *havingQual;		/* qualifications applied to groups */
+
+	List	   *windowClause;	/* a list of WindowClause's */
+
+	List	   *distinctClause; /* a list of SortGroupClause's */
+
+	List	   *sortClause;		/* a list of SortGroupClause's */
+
+	Node	   *limitOffset;	/* # of result tuples to skip (int8 expr) */
+	Node	   *limitCount;		/* # of result tuples to return (int8 expr) */
+
+	List	   *rowMarks;		/* a list of RowMarkClause's */
+
+	Node	   *setOperations;	/* set-operation tree if this is top level of
+								 * a UNION/INTERSECT/EXCEPT query */
+
+	List	   *constraintDeps; /* a list of pg_constraint OIDs that the query
+								 * depends on to be semantically valid */
+} Query;
+-------------------------------------------------------------------------------
+
+コラム: クエリツリーなどで使われる用語
+
+-------------------------------------------------------------------------------
+
+ソースを読むときの助けになるように、よく出てくる用語を解説しておきましょう。
+
+o レンジテーブル(range table)
+
+レンジテーブルはソースコード中ではよく「RTE」と省略されています。レン
+ジテーブルは検索対象のテーブルまたそれに相当するものを指します。つまり、
+FROM句中の通常のテーブル、関数、または副問い合わせ、JOIN文の結果などで
+す。
+
+o レンジバリアブル(range variable)
+
+レンジバリアブルは、FROM句の中に出てくる変数のことを指します。
+
+o リザルトドメイン(result domain)
+
+検索結果となる列名などの情報です。ソースコード中では「resdom」と省略さ
+れて用いられます。
+
+o resjunk
+
+"junk"は英語で「ガラクタ」の意味ですが、PostgreSQLではresjunk属性を持つ
+列は、処理の都合上、人工的に追加された列を指します。たとえば、"ctid"の
+ような、システム内部でしか使わないものがresjunkとして取り扱われます。
+resjunk属性を持つ列は、問い合わせの結果には含まれず、ユーザに返ることは
+ありません。それにしても、"junk"ではなくて、もうちょっと適切なネーミン
+グがあったのでは？という気もします:-)
+
+-------------------------------------------------------------------------------

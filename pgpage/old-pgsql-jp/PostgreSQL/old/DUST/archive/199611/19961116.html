@@ -1,0 +1,127 @@
+<A NAME="1">
+<PRE><B>
+From: &quot;Takashi Mega&quot; &lt;mega@rodan.misc.hit-u.ac.jp&gt;
+Date: Sat, 16 Nov 1996 21:57:39 +0900
+Subject: [postgres95 1041] Why can't I initdb ?
+Message-Id: &lt;199611161257.VAA16557@rodan.misc.hit-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+一橋大の妻鹿です。
+
+何とか自力で解決できたようなのですが、不都合らしきものを見付けましたの
+で報告します。
+
+# 原因不明なのです ^^;。
+
+つい先日、Sun OS 4.1.4に載せていたPostgres 95 1.01から1.08へのバージョ
+ンアップを図りました。
+
+# 1.09があるようですが、たまたまjaistのミラーサイトに行ったら1.08しか
+# なかったものですから…。
+
+gmake,gmake installまでは特に問題なく行えたのですが、inistdbを実行する
+と、
+
+) WARN:pg_atoi: error in &quot;t&quot;: can't parse &quot;t&quot;
+) initdb: 29643 Memory fault - core dumped
+) initdb: could create shared relations
+) initdb: cleaning up.
+
+という見たこともないエラーを見ました。initdbがshのスクリプトだったよう
+なので、次にsh -x initdb を試みましたところ、
+
+(前略)
+) + echo open pg_database 
+) + echo insert (template1 101 template1) 
+) + echo close pg_database 
+) + test 0 -eq 1 
+) 
+) #
+) # failed here(自分で付けたコメント)
+) #
+) 
+) + postgres -boot -C -F -Q template1 
+) WARN:pg_atoi: error in &quot;t&quot;: can't parse &quot;t&quot;
+) initdb: 28751 Memory fault - core dumped
+) + test 139 -ne 0 
+) + echo initdb: could create shared relations 
+) initdb: could create shared relations
+) + test 0 -eq 0 
+) + echo initdb: cleaning up. 
+) initdb: cleaning up.
+(後略)
+
+となりました。ちなみにinitdbの内部で２回postgres $BACKENDARGSを実行し
+ているようですが、前者の postgres $BACKENDARGS template1 &lt; $TEMPLATEは
+うまく行き、後者のpostgres $BACKENDARGS template1 &lt; $GLOBALのところで
+失敗していました。
+
+しょうがないので&lt; $GLOBALの部分を１段階ずつ手動でpostgresに食わせてみ
+たところ、
+
+) create bootstrap pg_user
+)  (
+)  usename = name ,
+)  usesysid = int4 ,
+)  usecreatedb = bool ,
+)  usetrace = bool ,
+)  usesuper = bool ,
+)  usecatupd = bool
+)  )
+) insert OID = 0 ( 101 t t t t )
+) # 73 &quot;&quot; 
+) close pg_user
+
+このinsert行でつまづいていました。そこで、別のマシンに既に入れていた
+Postgres 95 1.08のglobal1.bkiと比べてみたところ、) insert OID = 0
+( postgres 101 t t t t )
+  ^^^^^^^^
+がぬけていることに気づきました。
+
+結局これを修正してからinitdbしたところうまく行ったのですが、何故
+global1.bkiの内容がおかしくなっていたのかは分かりません。もちろん、僕
+も含めて誰もそんなファイルをいじったりはしていません。
+
+以上、大したことではないかもしれませんが、念のため報告しておきます。
+
+
+
+
+
+******************************************************************************
+Hitotsubashi University(in Japan)                                Takashi Mega
+Keywords                                Japanese Sake, International Exchange 
+E-mail Address                                    mega@rodan.misc.hit-u.ac.jp
+******************************************************************************
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: Yusaku Nakata &lt;93i24@is.kochi-u.ac.jp&gt;
+Date: Sat, 16 Nov 1996 19:38:34 +0900 (JST)
+Subject: [postgres95 1040] rule
+Message-Id: &lt;199611161038.TAA22214@aries.is.kochi-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+中田＠高知大学です。
+
+postgres95-1.09 を ftp でダウンロードするのに、非常に長い時間がかかり
+ましたが、なんとかダウンロードも終了し、無事 Linux にインストール成功
+しました。
+
+しかし、ルールが（やっぱり）うまく働いてくれません。まだルールは完全
+なものではないのでしょうか？
+
+--------------------------------------------------------------------------
+中田 優作  Yusaku Nakata        	            
+高知大学理学部情報科学科　　　　　　　　　　  
+小西研究室所属　４回生　　　　               
+&lt;E-mail&gt; 93i24@is.kochi-u.ac.jp                 
+&lt; URL &gt;  http://www.is.kochi-u.ac.jp/~93i24/                                                       
+-------------------------------------------------------------------------- 
+<HR>
+</PRE>

@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1613] Re: date -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Tue, 25 Mar 1997 00:33:46 +0900 -->
+<!--X-Message-Id: 199703241533.AAA07690@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19970324193516M.small@first.tsukuba.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1613] Re: date </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00115.html">Date Prev</A>][<A HREF="msg00117.html">Date Next</A>][<A HREF="msg00115.html">Thread Prev</A>][<A HREF="msg00117.html">Thread Next</A>][<A HREF="index.html#00116">Date Index</A>][<A HREF="threads.html#00116">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1613] Re: date</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 25 Mar 1997 00:33:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00115.html">19970324193516M.small@first.tsukuba.ac.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@Tramp です
+
+On Mon, 24 Mar 1997 19:35:16 +0900
+"神田大輔 [Daisuke Kanda]" &lt;small@first.tsukuba.ac.jp&gt; wrote:
+&gt; ...snip...
+&gt; 
+&gt;   Apache1.2b7 &amp; PHP/FI 1.0b10 +jp3 から、postgreSQL6.0 +date引き算パッチ
+&gt; 
+
+date引き算の部分は単純な(でもないかな;p)コードのバグでしたが、
+
+&gt;   を使っていますが、以下のような症状がでます。
+&gt;     ・PHP から、insert into table (date) values('03-26-1997') などとやると
+&gt;       ・年が 0000 になってしまいます。
+
+これがよく分からないんですよね... :-&lt;
+
+石井さん(MkLinux)、いしかわ＠ぎふだいさん(SPARC/Linux)からの投稿で
+変な症状が出ているとのことでしたし、
+本家 ML でも同様な報告が流れてました。
+
+もしかして内部処理が変なのかななどと勝手に疑ったりして、
+少々ハックしてみますと、
+
+PostgreSQL での date型のデータの受渡しはint4型(32bit)の値渡しで、
+それを DateADT構造体にキャストしてます。(なんでかな?)
+
+DateADT は 
+        typedef struct DateADT {
+            char        day;
+            char        month;
+            short       year;
+        } DateADT;
+の形です。
+合計4バイトですので、int4型と同じ大きさということなのでしょう。
+
+このメンバの day,month,year にそれぞれ PostgreSQL がパースした文字列を
+sscanf で int型にとってきて突っ込んでるのですが、
+この代入(明示的な int から char または short へのキャストはしてません)
+がおかしいのか、値渡しの機構そのものがおかしいのか...
+くらいしか datetimes.c からは読み取れません
+
+ではパーサーかと、gram.y,scan.l などをみてみても
+さほど大したことをしてる気配もありません。
+# lex,yacc の構文はほとんど知りませんので、あやしいものですが ;-)
+
+&gt;     ・さらにその後で psql から insert すると、 
+&gt;       ・何回か変な年 (03-23-27648 や 03-23--11172 など) が入力され、
+&gt;       ・やがて一回前に insert した年を入力されるようになります
+
+ますます ??? ですね。
+
+ちなみに、プラットホームは何でしょうか?
+# Linux/x86 では問題なく代入・保存・表示できていますので...
+
+
+で、提案なのですが、
+datetimes.c で気になった代入時のキャストと値渡しの構造について、
+
+	1. 代入時にキャストするようにソースをいじってみる
+
+	2. ポインタを渡す date型を登録してみる
+	   あるいは同じ構造体で定義できる新しい型を作ってみる
+	   # Cソースと登録用のSQLくらいは用意できると思います
+
+という実験をしてみる元気はありませんか?
+
+== おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00117" HREF="msg00117.html">[postgres95 1614] Re: date</A></STRONG>
+<UL><LI><EM>From:</EM> "神田大輔 [Daisuke Kanda]"&lt;small@first.tsukuba.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00115" HREF="msg00115.html">[postgres95 1612] date</A></STRONG>
+<UL><LI><EM>From:</EM> "神田大輔 [Daisuke Kanda]"&lt;small@first.tsukuba.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00115.html">[postgres95 1612] date</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00117.html">[postgres95 1614] Re: date</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00115.html">[postgres95 1612] date</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00117.html">[postgres95 1614] Re: date</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00116"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00116"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

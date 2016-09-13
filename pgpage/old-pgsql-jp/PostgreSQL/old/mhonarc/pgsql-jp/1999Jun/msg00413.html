@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8979] Re: 条件定義について -->
+<!--X-From: "MINOHATA Norio" <minohata@com&#45;net.co.jp> -->
+<!--X-Date: Tue, 22 Jun 1999 15:59:29 +0900 -->
+<!--X-Message-Id: 005201bebc7c$c9fb2a80$9754add2@ipc.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 376F20A3.E7292E6D@music.co.jp -->
+<!--X-Reference-Id: 19990622151733V.kgotoh@cic&#45;kk.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8979] Re: 条件定義について </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00412.html">Date Prev</A>][<A HREF="msg00414.html">Date Next</A>][<A HREF="msg00412.html">Thread Prev</A>][<A HREF="msg00415.html">Thread Next</A>][<A HREF="index.html#00413">Date Index</A>][<A HREF="threads.html#00413">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8979] Re: 条件定義について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "MINOHATA Norio" &lt;<A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Jun 1999 15:59:29 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00411.html">376F20A3.E7292E6D@music.co.jp</A>&gt; &lt;<A HREF="msg00412.html">19990622151733V.kgotoh@cic-kk.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+箕畑＠ナニワの零細企業です。
+
+&gt; 普通のアプリケーションならこれでいいんだけど、Web アプリケーションだと
+&gt; 一画面あたりで SQL の処理が完結していないといけないので、次画面表示の
+&gt; 時に空読みして読み飛ばす処理を入れる必要があるのがちょっと… (^^;
+&gt;
+&gt; 6.5 の limit 〜 offset だって内部的には同じような事をしているので
+&gt; しょうが、アプリケーション側で空 FETCH を出すよりは速いのでは
+&gt; ないだろうかと期待したいところです。
+
+ウチではトランザクションとカーソルを使用して、
+  BEGIN;
+  DECLARE p CURSOR FOR SELECT * FROM hogehoge ORDER BY foo;
+  MOVE  1000 IN p; #1000レコード分移動する
+  FETCH 100 IN p;  #100レコード分をフロントエンドに引っ張ってくる
+
+  #ここで、アプリケーションが100レコード分を読み込む。
+
+  END;
+というふうな処理をよく使ってます。
+アプリケーション側で空FETCHをしても構わないのですが、
+その場合、(空読みするだけの)不必要なレコードまでもが
+バックエンドからフロントエンドに転送されてしまうので、
+メモリとかネットワークの帯域の無駄使いになってしまいます。
+
+
+ついでに、
+
+送信日時 : 1999年6月22日 13:46
+件名 : [pgsql-jp 8976] Re: 条件定義について
+&gt; ところでこの機能は、
+&gt;
+&gt;    select * from hogehoge limit 20;
+&gt;                           &lt;- この間に誰かが INSERT か DELETE を実行
+&gt;    select * from hogehoge limit 20 offset 20
+&gt;
+&gt; とかやった時に、2回目の問い合わせで間が飛んだりしないで「続き」から
+&gt; 表示されるのでしょうか？
+&gt; 無理っぽいですかね。(^^;
+
+2つのSELECTを BEGIN と END で囲って
+1トランザクションにしてしまえば大丈夫でしょう。
+ただし、この場合「続き」から表示されるという保証はどこにもありません。
+# 続きからとみなしても実際上は問題ないでしょうけど。
+# あ、でも試したわけではないので間違ってるかも。
+
+そのあたりを確実にしたければ、
+  BEGIN;
+  DECLARE p CURSOR FOR SELECT * FROM hogehoge;
+  FETCH 20 IN p; #最初の20レコードを引っ張ってくる
+  # アプリケーションで20レコードを読み込んで処理
+
+  FETCH 20 IN p; #次の20レコードを引っ張ってくる
+  # アプリケーションで20レコードを読み込んで処理
+
+  END;
+というふうにやるのがよろしいかと思います。
+
+
+--
+有限会社アイピーシー/旭紙業株式会社
+箕畑典男
+minohata@com-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00429" HREF="msg00429.html">[pgsql-jp 8996] Re: Re: 条件定義について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00415" HREF="msg00415.html">[pgsql-jp 8981] Re: 条件定義について</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00411" HREF="msg00411.html">[pgsql-jp 8977] Re: 条件定義について</A></STRONG>
+<UL><LI><EM>From:</EM> keimatsu &lt;keimatsu@music.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00412" HREF="msg00412.html">[pgsql-jp 8978] Re: 条件定義について</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00412.html">[pgsql-jp 8978] Re: 条件定義について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00414.html">[pgsql-jp 8980] フィールドのType変更等はできますか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00412.html">[pgsql-jp 8978] Re: 条件定義について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 8981] Re: 条件定義について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00413"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00413"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

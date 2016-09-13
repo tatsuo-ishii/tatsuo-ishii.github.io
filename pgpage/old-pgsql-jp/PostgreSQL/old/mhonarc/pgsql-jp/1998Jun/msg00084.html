@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4354] Forward: Re: What meaning is this message. -->
+<!--X-From: Katsuya Sawamura <sawamura@ssemoka.co.jp> -->
+<!--X-Date: Thu, 04 Jun 1998 18:46:01 +0900 -->
+<!--X-Message-Id: 199806040946.SAA28397@Superman.ssemoka.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4354] Forward: Re: What meaning is this message. </TITLE>
+<LINK REV="made" HREF="mailto:sawamura@ssemoka.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00083.html">Date Prev</A>][<A HREF="msg00085.html">Date Next</A>][<A HREF="msg00088.html">Thread Prev</A>][<A HREF="msg00086.html">Thread Next</A>][<A HREF="index.html#00084">Date Index</A>][<A HREF="threads.html#00084">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4354] Forward: Re: What meaning is this message.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Katsuya Sawamura &lt;<A HREF="mailto:sawamura@ssemoka.co.jp">sawamura@ssemoka.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 04 Jun 1998 18:46:01 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+沢村＠三洋シリコンと申します。
+
+何かの手違いで個人宛に届いてしまいましたので
+フォワードさせていただきました。
+</PRE>
+<P><EM>-- BEGIN included message</EM></P>
+<BLOCKQUOTE>
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 04 Jun 1998 18:10:48 +0900</LI>
+</UL>
+<PRE>
+&gt;沢村＠三洋シリコンと申します。
+&gt;
+&gt;t-ishii@sra.co.jp さんが
+&gt;表題【[pgsql-jp 4351] Re: What meaning is this message. 】について
+&gt;Thu, 04 Jun 1998 16:50:04 +0900 に書きました。
+&gt;
+&gt;t-ishii&gt; こちらでもやってみました。その後の沢村さんのメールにあったように、
+&gt;t-ishii&gt; primary key とか複合キーとか、unique index とかは関係なく、とにかく 
+&gt;t-ishii&gt; index が張ってあれば現象が起きます。6.3.2+mb_b3 でも 6.4alpha(May30
+&gt;t-ishii&gt; snapshot) でも起きました。再現方法ですが、以下のような SQL 文を流すだ
+&gt;t-ishii&gt; けです。
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; drop table test2;
+&gt;t-ishii&gt; create table test2 (
+&gt;t-ishii&gt;     id char(3),
+&gt;t-ishii&gt;     name char(5),
+&gt;t-ishii&gt;     data int4,
+&gt;t-ishii&gt;     flag char);
+&gt;t-ishii&gt; create index t2index on test2 using btree (id);
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; insert into test2 values('001', 'aaaaa', 1000, 'n');
+&gt;t-ishii&gt; insert into test2 values('001', 'bbbbb', 2000, 'n');
+&gt;t-ishii&gt; insert into test2 values('001', 'ccccc', 1000, 'n');
+&gt;t-ishii&gt; insert into test2 values('001', 'ddddd', 1500, 'n');
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; select * from test2;
+&gt;t-ishii&gt; 
+&gt;t-ishii&gt; update test2 set flag='y' where id='001';
+&gt;t-ishii&gt; update test2 set flag='y' where id='001';
+&gt;t-ishii&gt; 	:
+&gt;t-ishii&gt; 	:
+&gt;t-ishii&gt; (ひたすら同じ update 文が続く。私の場合、全部で336回)
+&gt;
+&gt;私の所だけじゃなくて良かったです。
+&gt;
+&gt;t-ishii&gt; 本家に報告します。
+&gt;
+&gt;宜しくお願い致します。
+
+早速お返事が来ました。
+
+&gt;This is not bug and nothing wrong in indices: in updates index 
+&gt;tuple for new updated heap tuple will be inserted sometimes
+&gt;before, sometimes _after_ current index scan position -&gt;
+&gt;this new index tuple will be used by the same index scan again
+&gt;and so just updated heap tuple will be return by scan
+&gt;for updation but will be rejected due to visibility
+&gt;of data changes rules and this NOTICE message will be
+&gt;posted to FE.
+&gt;
+&gt;It seems that this message should be removed...
+&gt;
+&gt;Vadim
+
+というわけで、私には良く分からないのですが:-) バグではないそうです。試
+しに、データを以下のように変え、
+
+insert into test2 values('001', 'aaaaa', 1000, 'n');
+insert into test2 values('001', 'bbbbb', 2000, 'n');
+insert into test2 values('001', 'ccccc', 3000, 'n');
+insert into test2 values('001', 'ddddd', 4000, 'n');
+
+update 文を
+
+update test2 set data = data +1 where id='001';
+
+として 160 回繰り返しました。すると notice が出たものの、結果は
+
+select * from test2;
+ id|name |data|flag
+---+-----+----+----
+001|ccccc|3160|n   
+001|ddddd|4160|n   
+001|bbbbb|2160|n   
+001|aaaaa|1160|n   
+(4 rows)
+
+となって、ちゃんと辻褄は合っています。これで問題ないように見えます。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+</BLOCKQUOTE>
+<P><EM>-- END included message</EM></P>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 4356] Re: Forward: Re: What meaning is this message.</A></STRONG>
+<UL><LI><EM>From:</EM> Katsuya Sawamura &lt;sawamura@ssemoka.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00083.html">[pgsql-jp 4353] Re: Vacuum never stop ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00085.html">[pgsql-jp 4355] 自己紹介及び質問</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00088.html">[pgsql-jp 4358] Re: 自己紹介及び質問</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 4356] Re: Forward: Re: What meaning is this message.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00084"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00084"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

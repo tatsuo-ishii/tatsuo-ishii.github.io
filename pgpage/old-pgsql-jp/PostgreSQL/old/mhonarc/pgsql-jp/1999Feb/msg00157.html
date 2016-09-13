@@ -1,0 +1,269 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7032] Re: Benchmark on NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Tue,  9 Feb 1999 19:10:58 +0900 -->
+<!--X-Message-Id: 199902091010.TAA07764@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902090932.SAA05125@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7032] Re: Benchmark on NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00158.html">Date Prev</A>][<A HREF="msg00159.html">Date Next</A>][<A HREF="msg00158.html">Thread Prev</A>][<A HREF="msg00160.html">Thread Next</A>][<A HREF="index.html#00157">Date Index</A>][<A HREF="threads.html#00157">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7032] Re: Benchmark on NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue,  9 Feb 1999 19:10:58 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00154.html">199902090932.SAA05125@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木@kinotropeです。
+
+&gt;&gt;&gt;&gt;&gt;&gt; Tue, 09 Feb 1999 18:32:02 +0900,
+	"TI" == Tatsuo Ishii wrote:
+TI&gt; 石井です。
+TI&gt; &gt;NetBSD/macppc 1.3I のテストを兼ねてベンチをとってみました。
+TI&gt; &gt;
+TI&gt; &gt;PostgreSQL 6.4.2
+TI&gt; &gt;PowerMac 7600/120
+TI&gt; &gt;CPU: PowerPC 604 120MHz
+TI&gt; &gt;OS: NetBSD/macppc 1.3I (1999/02/03)
+TI&gt; &gt;Memory: 128MB
+TI&gt; &gt;MB: EUC_JP
+
+NetBSD/macppcはまだExperimental portsに分類されています。(release版が 
+でていない)
+
+動作するマシン等は、
+椿井さんのページ <A HREF="http://nandra.iri.co.jp/NetBSD/macppc-jp.html">http://nandra.iri.co.jp/NetBSD/macppc-jp.html</A> に記述 
+されています。
+
+
+TI&gt; 特に PostgreSQL は何もいじるところはなかったですか？
+
+configureで怒られたので、config.guessにNetBSD/macppcを追加しました。
+
+*** config.guess        Sun Jul 19 13:16:48 1998
+--- /tmp/config.guess   Tue Feb  9 18:56:00 1999
+***************
+*** 129,134 ****
+--- 129,137 ----
+      mac68k:OpenBSD:*:*)
+        echo m68k-apple-openbsd${UNAME_RELEASE}
+        exit 0 ;;
++     macppc:NetBSD:*:*)
++       echo powerpc-apple-netbsd${UNAME_RELEASE}
++       exit 0;;
+      powerpc:machten:*:*)
+        echo powerpc-apple-machten${UNAME_RELEASE}
+        exit 0 ;;
+
+include/port/bsd.h にPowerPCのエントリがなかったので、追加しました。
+LinuxPPCを参考に slock_tを定義しました。
+
+*** include/port/bsd.h.orig     Sun Jul 19 10:19:53 1998
+--- include/port/bsd.h  Tue Feb  9 17:44:05 1999
+***************
+*** 24,30 ****
+--- 24,39 ----
+  #define HAS_TEST_AND_SET
+  #endif
+
++ #if defined(__powerpc__)
++ #define PPC
++ #define HAS_TEST_AND_SET
++ typedef unsigned int slock_t;
++ #endif
++
+  #if defined(__mips__)
+  /* #  undef HAS_TEST_AND_SET */
+  #endif
++
++ #if !defined(__powerpc__)
+  typedef unsigned char slock_t;
++ #endif
+
+
+yaccでは
+/usr/bin/yacc: f - maximum table size exceeded
+とダメだったので、bisonを使うようにしました。
+
+
+TI&gt; (アセンブラのコードは？)
+
+AIX(RS6000)版があるので、アセンブラはOKかな、と思いましたが、AIXではシ 
+ステムコールを使っているようで参考になりませんでした。
+が、LinuxPPCのコードがあったので、これをそのまま使うようにしました。
+
+上記diffでは bsd.hで#define PPC していますが、下記のようにs_lock.cに入 
+れた方がいいのかな。
+
+*** s_lock.c.orig       Sat Sep 19 02:18:39 1998
+--- s_lock.c    Tue Feb  9 17:49:00 1999
+***************
+*** 93,99 ****
+
+
+
+! #if defined(PPC)
+  /* Note: need a nice gcc constrained asm version so it can be  
+inlined */
+  static void
+  tas_dummy()
+--- 93,99 ----
+
+
+
+! #if defined(PPC) || defined(__powerpc__)
+  /* Note: need a nice gcc constrained asm version so it can be  
+inlined */
+  static void
+  tas_dummy()
+
+
+TI&gt; regression も問題なしですか？
+
+下記のようになりました。
+boolean .. ok
+char .. ok
+name .. ok
+varchar .. ok
+text .. ok
+strings .. ok
+int2 .. ok
+int4 .. ok
+int8 .. ok
+oid .. ok
+float4 .. ok
+float8 .. failed
+numerology .. ok
+point .. ok
+lseg .. ok
+box .. ok
+path .. ok
+polygon .. ok
+circle .. ok
+geometry .. failed
+timespan .. ok
+datetime .. ok
+reltime .. ok
+abstime .. ok
+tinterval .. ok
+horology .. ok
+inet .. failed
+comments .. ok
+opr_sanity .. failed
+create_function_1 .. ok
+create_type .. ok
+create_table .. ok
+create_function_2 .. failed
+constraints .. ok
+triggers .. failed
+copy .. ok
+create_misc .. ok
+create_aggregate .. ok
+create_operator .. ok
+create_view .. ok
+create_index .. ok
+sanity_check .. ok
+errors .. ok
+select .. ok
+select_into .. ok
+select_distinct .. ok
+select_distinct_on .. ok
+select_implicit .. ok
+select_having .. ok
+subselect .. ok
+union .. ok
+aggregates .. ok
+transactions .. ok
+random .. failed
+portals .. ok
+misc .. failed
+arrays .. ok
+btree_index .. ok
+hash_index .. ok
+select_views .. ok
+alter_table .. ok
+portals_p2 .. ok
+rules .. ok
+install_plpgsql .. ok
+plpgsql .. failed
+euc_jp .. ok
+
+
+TI&gt; また、NetBSD/macppc の安定度はどんなものでしょう？
+
+安定しているかどうかは使いだしてから日が経っていないので、なんとも言え 
+ません。
+
+今回は、initdb、bench 等では sh の代わりに ksh を使いました。現在のsh 
+ではcore dumpしてしまうので。runwisc.shでは固まってしまいました。
+
+
+TI&gt; こいつは 603e でも動くのでしょうか？G3 は？
+
+上記URLによると G3でも動作するようです。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp 7035] Re: Benchmark on NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00154" HREF="msg00154.html">[pgsql-jp 7029] Re: Benchmark on NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00158.html">[pgsql-jp 7033] Re: Benchmark on NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00159.html">[pgsql-jp 7034] PostgreSQL 6.4.2+Apache 1.3.4+PHP3.0.6(kanji patch)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00158.html">[pgsql-jp 7033] Re: Benchmark on NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 7035] Re: Benchmark on NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00157"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00157"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

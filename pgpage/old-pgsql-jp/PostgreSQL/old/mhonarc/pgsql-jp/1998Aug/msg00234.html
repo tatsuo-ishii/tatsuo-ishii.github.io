@@ -1,0 +1,186 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5167] Re: About SP -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 27 Aug 1998 14:10:50 +0900 -->
+<!--X-Message-Id: 199808270510.OAA05170@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000001bdd14e$5aa59fe0$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5167] Re: About SP </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00233.html">Date Prev</A>][<A HREF="msg00235.html">Date Next</A>][<A HREF="msg00232.html">Thread Prev</A>][<A HREF="msg00237.html">Thread Next</A>][<A HREF="index.html#00234">Date Index</A>][<A HREF="threads.html#00234">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5167] Re: About SP</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 27 Aug 1998 14:10:50 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;井上＠セーレンです。
+&gt;
+&gt;&gt;
+&gt;&gt; はじめまして、日南田と申します。
+&gt;&gt;
+&gt;&gt; PostgreSQLをインストールしました。
+&gt;&gt; いろいろ試してみているのですが、PostgreSQLにはストアドプロシージャ
+&gt;&gt; の機能はないのでしょうか？
+&gt;&gt;
+&gt;&gt; 日本語に訳されたドキュメントを探してみたのですが、そのような
+&gt;&gt; 記述は見当たりません。もしストアドプロシージャがないようなら、
+&gt;&gt; どういうもので代用できるのか教えてください。
+&gt;&gt; お願いいたします。
+&gt;&gt;
+&gt;
+&gt;多分、functionの概念がそれに近いのではないでしょうか？
+&gt;次のようなことができます。
+&gt;  PostgreSQL Programer's Guide
+&gt;  Chapter 4:Extending SQL:functons より
+&gt;
+&gt;CREATE FUNCTION clean_EMP () RETURNS int4
+&gt;     AS 'DELETE FROM EMP WHERE EMP.salary &lt;= 0;
+&gt;    SELECT 1 AS ignore_this'
+&gt;     LANGUAGE 'sql';
+&gt;
+&gt;    SELECT clean_EMP();
+&gt;
+&gt;ただし、プロシジャ形式の記述が出来ないのが難点で と書こうと思って
+
+6.3.2 でも、PL/Tcl を使えば制御構造が記述できます。Tcl 使いの人には
+お勧めです。こんなのが書けます。
+
+create function tcl_test1(int4) returns text as '
+	if {[expr $1 % 2]} {
+	    return [format "%d %s" $1 "は奇数です"]
+	} else {
+	    return [format "%d %s" $1 "は偶数です"]
+	}
+' language 'pltcl';
+
+PL/Tclは標準ではインストールされません。インストールの仕方については
+
+<A HREF="http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.3/pltcl.html">http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.3/pltcl.html</A>
+
+を御覧下さい。
+
+&gt;TODOリストを見てみたら Enhancementの項に
+&gt;
+&gt;  New SQL statement CREATE PROCEDURAL LANGUAGE(Jan)
+&gt;  New PostgreSQL Procedural Language (PL) backend interface(Jan)
+&gt;
+&gt;とあがっています。これに関する記述は見たことがありません。
+&gt;どなたかご存知ないでしょうか。
+&gt;プロシジャ形式の記述ができれば、使い道はグンとアップしますね。
+
+PL/pgSQL(A procedural language for the PostgreSQL RDBMS)ですね。
+6.4 から使えます。まだ使ったことはありませんが、こんな感じで記述するよ
+うです。
+
+create function pslot_slotlink_view(bpchar)
+returns text as '
+declare
+    psrec	record;
+    sltype	char(2);
+    retval	text;
+begin
+    select into psrec * from PSlot where slotname = $1;
+    if not found then
+        return '''';
+    end if;
+    if psrec.slotlink = '''' then
+        return ''-'';
+    end if;
+    sltype := substr(psrec.slotlink, 1, 2);
+    if sltype = ''PS'' then
+	retval := trim(psrec.slotlink) || '' -&gt; '';
+	return retval || pslot_backlink_view(psrec.slotlink);
+    end if;
+    if sltype = ''HS'' then
+        retval := comment from Hub H, HSlot HS
+			where HS.slotname = psrec.slotlink
+			  and H.name = HS.hubname;
+        retval := retval || '' slot '';
+	retval := retval || slotno::text from HSlot
+			where slotname = psrec.slotlink;
+	return retval;
+    end if;
+    return psrec.slotlink;
+end;
+' language 'plpgsql';
+
+
+&gt;これが、駄目なら CでSPIを使用するしかない？？？みたいです？？？。
+
+それもありです(まだ試してませんが)。
+
+この調子で、perl とか Java とか使えるようになれば嬉しい人もいるかもし
+れませんね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00254" HREF="msg00254.html">[pgsql-jp 5187] Re: About SP</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00237" HREF="msg00237.html">[pgsql-jp 5170] Re: About SP</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00232" HREF="msg00232.html">[pgsql-jp 5165] RE: About SP</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00233.html">[pgsql-jp 5166] PGSQLODBC Driver Install problem</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00235.html">[pgsql-jp 5168] Re: Can't destroydb</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00232.html">[pgsql-jp 5165] RE: About SP</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00237.html">[pgsql-jp 5170] Re: About SP</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00234"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00234"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

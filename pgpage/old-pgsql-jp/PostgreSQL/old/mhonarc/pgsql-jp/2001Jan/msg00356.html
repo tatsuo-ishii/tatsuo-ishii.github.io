@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19663] is it bad to make DSO ? -->
+<!--X-From: Tatsuo Ito <tito@miraclelinux.com> -->
+<!--X-Date: Wed, 24 Jan 2001 17:01:31 +0900 -->
+<!--X-Message-Id: 20010124170131B.tito@miraclelinux.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19663] is it bad to make DSO ? </TITLE>
+<LINK REV="made" HREF="mailto:tito@miraclelinux.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00355.html">Date Prev</A>][<A HREF="msg00357.html">Date Next</A>][<A HREF="msg00373.html">Thread Prev</A>][<A HREF="msg00386.html">Thread Next</A>][<A HREF="index.html#00356">Date Index</A>][<A HREF="threads.html#00356">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19663] is it bad to make DSO ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ito &lt;<A HREF="mailto:tito@miraclelinux.com">tito@miraclelinux.com</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 24 Jan 2001 17:01:31 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、伊東です。
+
+postgresql 7.0.3 を適用したマシンで php の rpm を作成していたところ、
+どうもうまくいかず、その原因を調査すると、
+postgresql 7.0.3 で作成される linux 用の DSO が linux の library の作法として
+正しく作成されていないことを発見しました。
+
+それを修正する patch を作成したので、添付します。
+もしよければお使い下さい。
+
+Best Regards,
+
+tito@miraclelinux.com
+
+=== investigation begin ===
+
+[不具合の現象]
+ postgresql 7.x を適用したマシン環境で php の rpm を作成すると、
+ postgresql 連係で使用される pgsql.so (php で提供する DSO)が 
+ libpq.so (postgresql で提供している DSO) を dynamic link するので、
+ libpq.so が php rpm パッケージの require としてあげられる。
+ しかし libpq.so が正しく作成されていないため、
+ 作成した php の rpm を適用すると、libpq.so が存在しているのに、
+ libpq.so が必要であるというエラーになる。
+
+[原因]
+ 通常 linux の DSO は以下のように作成する。
+
+     (例)
+     libhoge.so                          ... (A)
+     libhoge.so.1                        ... (B)
+     libhoge.so.1.2 (or libhoge-1.2.so)  ... (C)
+
+ (C) のみ実体として存在する。(B) は (C) へ symbolic link する。
+ また (A) は (B) へ symbolic link する。
+ (C) を ld で作成するときには、-soname オプションの引数として (B) の名前
+ を渡し(この例の場合、libhoge.so.1)、作成する。
+
+ 現状の postgresql 7.0.3 は次ののようになっている。
+ (C) のみ実体として存在し、(B) は (C) へ symbolic link するが、
+ (A) は (C) へ 直接 symbolic link する。
+ また (C) を ld で作成するときには、-soname オプションを使用していない。
+ この場合、libhoge.so を link する rpm package を作成した場合、
+ libhoge.so そのものが require として挙げられ、実際にその rpm を適用するときに、
+ 依存関係が解決されない。
+
+ postgresql 6.x の場合は次のようになっている。
+ (C) のみ実体として存在し、(B) は (C) へ symbolic link するが、
+ (A) は (C) へ 直接 symbolic link する。
+ しかし (C) を ld で作成するときには、-soname オプションを使用しているが、
+ その引数として、(C) の名前を渡している。
+ この場合、libhoge.so を link する rpm package を作成した場合、
+ libhoge.so.1.2 が require として挙げられるため、実際にその rpm を適用する
+ ときには、依存関係は解決される。
+ しかしながら、libhoge.so の symbolic link 先や、実体の libhoge.so.1.2 の 
+ DT_SONAME フィールドの値が、通常の linux の library と異なる作り方になる。
+ 異なることによる影響に関しては未調査。
+
+==== investigation end ===
+
+==== patch begin ===
+--- postgresql-7.0.3.org/src/Makefile.shlib	Tue Jan 23 21:31:14 2001
++++ postgresql-7.0.3/src/Makefile.shlib	Wed Jan 24 12:09:18 2001
+@@ -145,8 +145,9 @@
+ # Changed -soname behavior for RPMset. lamar@postgresql.org
+ ifeq ($(PORTNAME), linux)
+   install-shlib-dep	:= install-shlib
+-  shlib				:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
+-  LDFLAGS_SL		:= -Bdynamic -shared 
++  shlib			:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION).$(SO_MINOR_VERSION)
++  soname		:= lib$(NAME)$(DLSUFFIX).$(SO_MAJOR_VERSION)
++  LDFLAGS_SL		:= -Bdynamic -shared -soname $(soname)
+   LDFLAGS_ODBC		:= -Bsymbolic -lc -lm
+   SHLIB_LINK		+= -lc
+   CFLAGS			+= $(CFLAGS_SL)
+@@ -229,6 +230,7 @@
+ ifneq ($(shlib),)
+ ifneq ($(PORTNAME), win)
+ ifneq ($(PORTNAME), aix)
++ifneq ($(PORTNAME), linux)
+ 
+ # Normal case
+ $(shlib): $(OBJS)
+@@ -241,6 +243,22 @@
+ 		rm -f lib$(NAME)$(DLSUFFIX); \
+ 		$(LN_S) $(shlib) lib$(NAME)$(DLSUFFIX); \
+ 	fi
++
++else
++
++# Linux case
++$(shlib): $(OBJS)
++	$(LD) $(LDFLAGS_SL) -o $@ $(OBJS) $(SHLIB_LINK)
++	if [ "$(shlib)" != "$(soname)" ]; then \
++		rm -f $(soname); \
++		$(LN_S) $(shlib) $(soname); \
++	fi
++	if [ "$(soname)" != "lib$(NAME)$(DLSUFFIX)" ]; then \
++		rm -f lib$(NAME)$(DLSUFFIX); \
++		$(LN_S) $(soname) lib$(NAME)$(DLSUFFIX); \
++	fi
++
++endif
+ 
+ else
+
+=== patch end ===
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00386" HREF="msg00386.html">[pgsql-jp 19694] Re: is it bad to make DSO ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00355.html">[pgsql-jp 19662] trigger について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00357.html">[pgsql-jp 19664] initdb が動作しません。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00373.html">[pgsql-jp 19680] Re: initdb が動作しません。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 19694] Re: is it bad to make DSO ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00356"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00356"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

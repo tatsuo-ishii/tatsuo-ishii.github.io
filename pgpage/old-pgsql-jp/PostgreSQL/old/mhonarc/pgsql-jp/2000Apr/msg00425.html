@@ -1,0 +1,378 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14128] Understanding explain command -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 24 Apr 2000 18:03:23 +0900 -->
+<!--X-Message-Id: 20000424180323W.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14128] Understanding explain command </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00424.html">Date Prev</A>][<A HREF="msg00426.html">Date Next</A>][<A HREF="msg00440.html">Thread Prev</A>][<A HREF="msg00421.html">Thread Next</A>][<A HREF="index.html#00425">Date Index</A>][<A HREF="threads.html#00425">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14128] Understanding explain command</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 24 Apr 2000 18:03:23 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。色々質問も多いので、7.0のドキュメントに収録予定のexplainコマ
+ンドの解説ドキュメントを翻訳してみました。
+日本語訳が意味不明な場合に備え:-)、原文も残してあるので読みにくいかも。
+--
+Tatsuo Ishii
+-------------------------------- cut here ------------------------------
+Chapter 17. Understanding Performance
+
+17章 性能について理解する
+
+Query performance can be affected by many things. Some of these can be
+manipulated by the user, while others are fundamental to the
+underlying design of the system.
+
+問い合わせ処理の性能には多くの事柄が関係しています。その中には利用者が
+調整できるものもありますし、システムの設計上本質的にどうしようもないも
+のもあります。
+
+Some performance issues, such as index creation and bulk data loading,
+are covered elsewhere. This chapter will discuss the EXPLAIN command,
+and will show how the details of a query can affect the query plan,
+and hence overall performance.
+
+ある種の性能に関する事項、たとえばインデックスの作成や、データの大量ロー
+ドについては他の章をご覧下さい。本章では、EXPLAINコマンドについて説明
+します。また、問い合わせ処理の細部がどのように問い合わせプランにどのよ
+うに影響するのか、ひいては全体的な性能にどのように影響するかについても
+解説します。
+
+Using EXPLAIN
+
+      Author: Written by Tom Lane, from e-mail dated 2000-03-27. 
+
+EXPLAINの使い方
+
+	著者：Tom Lane(2000年3月27日付のメールより)
+
+Plan-reading is an art that deserves a tutorial, and I haven't had time to write one. Here is some quick &amp; dirty explanation.
+
+問い合わせプランを読みこなすことは、そのための解説を書くに値する程のワ
+ザです。今のところ私はそれを書いている時間がありません。ここでは簡単か
+ついい加減な説明をしようと思います。
+
+The numbers that are currently quoted by EXPLAIN are: 
+
+      Estimated startup cost (time expended before output scan can
+	start, eg, time to do the sorting in a SORT node).
+
+      Estimated total cost (if all tuples are retrieved, which they
+	may not be --- LIMIT will stop short of paying the total
+      cost, for example). 
+
+      Estimated number of rows output by this plan node. 
+
+      Estimated average width (in bytes) of rows output by this plan node. 
+
+EXPLAINが出力する数値には以下のものがあります。
+
+o 予想される初期処理のコスト(検索結果が出力されるまでに消費される時間、
+たとえば SORT ノードで実行されるソート処理の時間)
+
+o 予想される全体のコスト(結果のタプル全体が抽出される場合のみ。必ずし
+もそうでない場合もある。たとえば、LIMIT を使うとこのコスト全部がかから
+ない)
+
+o このプランノードが出力する行数の予想
+
+o このプランノードが出力する行の平均幅(バイト単位)の予想
+
+The costs are measured in units of disk page fetches. (CPU effort
+estimates are converted into disk-page units using some fairly
+arbitrary fudge-factors. See the SET reference page if you want to
+experiment with these.) It's important to note that the cost of an
+upper-level node includes the cost of all its child nodes. It's also
+important to realize that the cost only reflects things that the
+planner/optimizer cares about. In particular, the cost does not
+consider the time spent transmitting result tuples to the frontend ---
+which could be a pretty dominant factor in the true elapsed time, but
+the planner ignores it because it cannot change it by altering the
+plan. (Every correct plan will output the same tuple set, we trust.)
+
+これらのコストは、ディスクから読み出すページ単位で計測します(CPU 消費
+見積りは、適当に恣意的に決めた基準にしたがってディスクページ単位に換算
+されます。もしこれらの基準値の効果を知りたい場合は、SETコマンドのマニュ
+アを見て下さい)。特記すべき点は、上位のノードのコストは、すべての下位
+のノードのコストを含んでいるということです。また、このコストはプランナ
+やオプティマイザが関与するコストしか反映していない点も重要です。とりわ
+け、結果のタプルをフロントエンドに転送するコストは、実際には処理時間の
+大半を占める可能性があるにも関わらず、プランナは無視します。これは、プ
+ランを如何に変更しようともどうすることもできないからです(正しいプラン
+はどんなものであれ、すべて同じ結果のタプルを出力すると考えられます)。
+
+Rows output is a little tricky because it is not the number of rows
+processed/scanned by the query --- it is usually less, reflecting the
+estimated selectivity of any WHERE-clause constraints that are being
+applied at this node.
+
+出力行数についてはちょっと特殊です。処理や検索の対象となる行数ではなく、
+該当ノードに適用されるWEHRE節の制限から来る検索率の見積りを反映した、
+通常より少ない行数になります。
+
+Average width is pretty bogus because the thing really doesn't have
+any idea of the average length of variable-length columns. I'm
+thinking about improving that in the future, but it may not be worth
+the trouble, because the width isn't used for very much.
+
+実際には可変長列の平均幅について関知していないため、行の平均幅は役
+に立ちません。私は将来これを改良しようと思っていますが、行幅というもの
+はさほど使われているわけではないため、やるだけの価値があるかどうかわか
+りません。
+
+Here are some examples (using the regress test database after a vacuum
+analyze, and almost-7.0 sources):
+
+いくつか例を示します(vacuum analyzeをかけたあとのregress testデータベー
+スを使っています。使用したシステムは 7.0リリース直前のものです)。
+
+regression=# explain select * from tenk1;
+NOTICE:  QUERY PLAN:
+
+Seq Scan on tenk1  (cost=0.00..333.00 rows=10000 width=148)
+    
+
+This is about as straightforward as it gets. If you do 
+
+これはほとんど見たままです。もし、
+
+select * from pg_class where relname = 'tenk1';
+    
+を実行すると、
+
+you'll find out that tenk1 has 233 disk pages and 10000 tuples. So the
+cost is estimated at 233 block reads, defined as 1.0 apiece, plus
+10000 * cpu_tuple_cost which is currently 0.01 (try show
+cpu_tuple_cost).
+
+tenk1には233のディスクページと10000タプルがあることがわかります。です
+から、単位あたり1.0とコストが決まっている233 ブロックの読み出し、それ
+に加えて これは現在 0.01 に設定されている cpu_tuple_cost(「show
+cpu_tuple_cost」を試してみて下さい)を 1000 倍したものを加えたものがコ
+ストの見積りになるわけです。
+
+Now let's modify the query to add a qualification clause: 
+
+では、条件節を加えて問い合わせを変更してみます。
+
+regression=# explain select * from tenk1 where unique1 &lt; 1000;
+NOTICE:  QUERY PLAN:
+
+Seq Scan on tenk1  (cost=0.00..358.00 rows=1000 width=148)
+    
+
+The estimate of output rows has gone down because of the WHERE clause. 
+(The uncannily accurate estimate is just because tenk1 is a
+particularly simple case --- the unique1 column has 10000 distinct
+values ranging from 0 to 9999, so the estimator's linear interpolation
+between min and max column values is dead-on.) However, the scan will
+still have to visit all 10000 rows, so the cost hasn't decreased; in
+fact it has gone up a bit to reflect the extra CPU time spent checking
+the WHERE condition.
+
+WHERE節があるため、出力行数の見積りが小さくなっています(不自然に見積り
+が正確なのは、単に tenk1 が非常に単純なケースであるからです。unique1 
+列には 0 から 9999 までの 10000 の異なる値が割り当てられているため、コ
+スト見積り部が最小値から最大値の間で線形補間を行なった結果の値にぴった
+り一致します)。しかし、依然として 100000 行すべてを走査する必要がある
+ため、コストは小さくなっていません。実際には、WHERE条件を検査するため
+に余分なCPUタイムがかかることを反映してほんの少しですがコストが上昇し
+ています。
+
+Modify the query to restrict the qualification even more: 
+
+ではさらに問い合わせを変更し、条件節の制限を強くしてみます。
+
+regression=# explain select * from tenk1 where unique1 &lt; 100;
+NOTICE:  QUERY PLAN:
+
+Index Scan using tenk1_unique1 on tenk1  (cost=0.00..89.35 rows=100 width=148)
+    
+
+and you will see that if we make the WHERE condition selective enough,
+the planner will eventually decide that an indexscan is cheaper than a
+sequential scan. This plan will only have to visit 100 tuples because
+of the index, so it wins despite the fact that each individual fetch
+is expensive.
+
+WHERE節の条件を十分検索率の高いものにすると、プランナはシーケンススキャ
+ンよりもインデックススキャンが安価でであると決定するようになることが分
+かります。
+
+Add another condition to the qualification: 
+
+別の検索条件を追加します。
+
+regression=# explain select * from tenk1 where unique1 &lt; 100 and
+regression-# stringu1 = 'xxx';
+NOTICE:  QUERY PLAN:
+
+Index Scan using tenk1_unique1 on tenk1  (cost=0.00..89.60 rows=1 width=148)
+    
+
+The added clause "stringu1 = 'xxx'" reduces the output-rows estimate,
+but not the cost because we still have to visit the same set of
+tuples.
+
+追加した節 "stringu1 = 'xxx'" により出力行数の見積りは減少するものの、
+検査するタプルの集合は変わらないためにコストは減っていません。
+
+Let's try joining two tables, using the fields we have been discussing: 
+
+今まで説明に使ってきたフィールドを使って2つのテーブルを結合してみましょ
+う。
+
+regression=# explain select * from tenk1 t1, tenk2 t2 where t1.unique1 &lt; 100
+regression-# and t1.unique2 = t2.unique2;
+NOTICE:  QUERY PLAN:
+
+Nested Loop  (cost=0.00..144.07 rows=100 width=296)
+  -&gt;  Index Scan using tenk1_unique1 on tenk1 t1
+             (cost=0.00..89.35 rows=100 width=148)
+  -&gt;  Index Scan using tenk2_unique2 on tenk2 t2
+             (cost=0.00..0.53 rows=1 width=148)
+    
+
+In this nested-loop join, the outer scan is the same indexscan we had
+in the example before last, and so its cost and row count are the same
+because we are applying the "unique1 &lt; 100" WHERE clause at that node. 
+The "t1.unique2 = t2.unique2" clause isn't relevant yet, so it doesn't
+affect the outer scan's row count. For the inner scan, the current
+outer-scan tuple's unique2 value is plugged into the inner indexscan
+to produce an indexqual like "t2.unique2 = constant". So we get the
+same inner-scan plan and costs that we'd get from, say, "explain
+select * from tenk2 where unique2 = 42". The loop node's costs are
+then set on the basis of the outer scan's cost, plus one repetition of
+the inner scan for each outer tuple (100 * 0.53, here), plus a little
+CPU time for join processing.
+
+この nested-loop 結合では、外側の走査に、最後の例で示したのと同じイン
+デックス走査が使われています。そして、"unique1 &lt; 100" WHERE 節を該当ノー
+ドに適用しているため、コストと出力行数は変わっていません。この段階では 
+"t1.unique2 = t2.unique2" 節は関係しておらず、外側の走査における出力行
+数に影響していません。内側の走査では、外側の走査における現在のタプルの 
+unique2 の値が内側のインデックス走査に投げ込まれ、インデックスの比較条
+件 "t2.unique2 = constant" を生成します。したがって、内側の走査のプラ
+ンとコストは、たとえば"explain select * from tenk2 where unique2 = 42"
+のような問い合わせと同じです。ループノードのコストは、外側の走査のコス
+トと、各々の外側のタプルに対して内側の走査が繰り返されることによるコス
+ト(ここでは 100 * 0.53)を加え、更に結合処理を行うための少々のCPU時間を
+加えたものになります。
+
+In this example the loop's output row count is the same as the product
+of the two scans' row counts, but that's not true in general, because
+in general you can have WHERE clauses that mention both relations and
+so can only be applied at the join point, not to either input
+scan. For example, if we added "WHERE ... AND t1.hundred &lt;
+t2.hundred", that'd decrease the output row count of the join node,
+but not change either input scan.
+
+この例では、ループ全体の出力行数は2つの走査の出力行数の積に等しくなっ
+ていますが、いつもそうなるわけではありません。たいていのばあい、2つの
+リレーションに関係するWHERE節があって、そのWHERE節は入力走査時ではなく、
+結合を行う際に適用されるからです。たとえば、"WHERE ... AND t1.hundred
+&lt; t2.hundred"という節を追加したとすると、結合ノードの出力行数を減らし
+はしますが、入力走査には影響しません。
+
+We can look at variant plans by forcing the planner to disregard
+whatever strategy it thought was the winner (a pretty crude tool, but
+it's what we've got at the moment):
+
+プランナが最も良いと考えている戦略を強制的に否決することにより、別のプ
+ランを観察することができます(非常に原始的なツールですが、今現在使える
+のはこれだけです)。
+
+regression=# set enable_nestloop = off;
+SET VARIABLE
+regression=# explain select * from tenk1 t1, tenk2 t2 where t1.unique1 &lt; 100
+regression-# and t1.unique2 = t2.unique2;
+NOTICE:  QUERY PLAN:
+
+Hash Join  (cost=89.60..574.10 rows=100 width=296)
+  -&gt;  Seq Scan on tenk2 t2
+               (cost=0.00..333.00 rows=10000 width=148)
+  -&gt;  Hash  (cost=89.35..89.35 rows=100 width=148)
+        -&gt;  Index Scan using tenk1_unique1 on tenk1 t1
+               (cost=0.00..89.35 rows=100 width=148)
+    
+
+This plan proposes to extract the 100 interesting rows of tenk1 using
+ye same olde indexscan, stash them into an in-memory hash table, and
+then do a sequential scan of tenk2, probing into the hash table for
+possible matches of "t1.unique2 = t2.unique2" at each tenk2 tuple. The
+cost to read tenk1 and set up the hash table is entirely startup cost
+for the hash join, since we won't get any tuples out until we can
+start reading tenk2. The total time estimate for the join also
+includes a pretty hefty charge for CPU time to probe the hash table
+10000 times. Note, however, that we are NOT charging 10000 times
+89.35; the hash table setup is only done once in this plan type.
+
+このプランでは、インデックス操作を使ってtenk1から必要な100行を取り出し
+てメモリ上のハッシュテーブルに格納し、tenk2に対して"t1.unique2 =
+t2.unique2"を満たすものがあるかどうかそのハッシュテーブルをチェックし
+ながら順次スキャンをtenk2に対して行います。tenk2の読み出しを開始するま
+では出力結果は得られないため、tenk1を読みだしてハッシュテーブルをセッ
+トするコストは、そのハッシュジョインに対しては初期処理のコストとなりま
+す。この結合に関するコスト見積りには、ハッシュテーブルを10000回検査す
+る非常に大きなCPUコストが含まれています。しかしながら、ハッシュテーブ
+ルのセットはこのプランでは一度しか行われないため、89.35 の 10000 倍の
+コストが課せられるわけではないことに注意して下さい。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00424.html">[pgsql-jp 14127] Re: libpq.dll と ODBC ドライバの漢字コード</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00426.html">[pgsql-jp 14129] Re: レコード数の限界は？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00440.html">[pgsql-jp 14143] Re: ORDER BYで「何番目か」を取得する方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00421.html">[pgsql-jp 14124] libpq.dll と ODBC ドライバの漢字コード</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00425"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00425"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

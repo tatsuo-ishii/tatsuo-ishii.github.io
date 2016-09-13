@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24429] Re: Known issue for HASH INDEX ? -->
+<!--X-From: Yasuo Ohgaki <yohgaki@yahoo.co.jp> -->
+<!--X-Date: Mon, 14 Jan 2002 06:07:13 +0900 -->
+<!--X-Message-Id: 3C41F701.7010904@yahoo.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3C3F89AA.4070408@yahoo.co.jp -->
+<!--X-Reference-Id: 20020112135701I.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 3C40F5B6.2000208@yahoo.co.jp -->
+<!--X-Reference-Id: 20020113121325I.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24429] Re: Known issue for HASH INDEX ? </TITLE>
+<LINK REV="made" HREF="mailto:yohgaki@yahoo.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00086.html">Thread Prev</A>][<A HREF="msg00080.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24429] Re: Known issue for HASH INDEX ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasuo Ohgaki &lt;<A HREF="mailto:yohgaki@yahoo.co.jp">yohgaki@yahoo.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 14 Jan 2002 06:07:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00078.html">3C3F89AA.4070408@yahoo.co.jp</A>&gt;	&lt;<A HREF="msg00079.html">20020112135701I.t-ishii@sra.co.jp</A>&gt;	&lt;<A HREF="msg00085.html">3C40F5B6.2000208@yahoo.co.jp</A>&gt; &lt;<A HREF="msg00086.html">20020113121325I.t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:0.9.7+) Gecko/20020111</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Tatsuo Ishii wrote:
+&gt; 石井です．
+&gt; 
+&gt; 
+&gt;&gt;PHP用のPostgreSQL session save handler modulをインストールして
+&gt;&gt;READMEではBTREEを使っていますが、HASHにします。
+&gt;&gt;(今はダウンロード用のURLが無いので、phpのCVSから/pearをチェックアウト
+&gt;&gt;するしか取得方法がありません。。。必要であれば個人のweb pageに置きます)
+&gt;&gt;
+&gt;&gt;ab -c 50 -n 5000 &lt;URL&gt;
+&gt;&gt;
+&gt;&gt;等とするとPHPエラーログに"Deadlock detected..."と表示されます。
+&gt;&gt;(httpdもsegfaultしますが、これは多分PHP内部の問題です)
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;&gt;PostgreSQLのバージョンは先週くらいの current です．
+&gt;&gt;&gt;
+&gt;&gt;
+&gt;&gt;sasamoto@e-vision.co.jpさんのメールでDeadlockの理由は解りました。
+&gt;&gt;HASH indexの利用には気を付ける事にします。7.2ではBTREE並の同時実行
+&gt;&gt;性が確保されていたら嬉しいのですが、、
+&gt;&gt;
+&gt; 
+&gt; 誤解されているようなので，補足します．
+
+確かに、さっと読んだだけでは誤解されそうですね :)
+
+&gt; 
+&gt; sasamoto@e-vision.co.jpさんが引用しているドキュメントの該当部分にはこ
+&gt; のように書かれています．
+&gt; 
+&gt; ----------------------------------------------------------------------
+&gt; ハッシュインデックス
+&gt; 
+&gt;       読み込み／書き込みアクセスに共有／排他モードのページレベルロックを 使います。ロックはページ処理後に開放されます。 
+&gt; 
+&gt;       ページレベルロックは、インデックスレベルのロックよりも同時実行性に 優れていますが、デッドロックも起きやすくなります。 
+&gt; ----------------------------------------------------------------------
+&gt; 
+&gt; ですから，これはハッシュでは必ずデッドロックが起きるのではなく，起きる
+&gt; 確率が高いと言っているだけです．Btreeのように，行レベルでロックがかか
+&gt; る場合でも，アプリケーションのロジックによってはデッドロックが起こり得
+&gt; ます．
+&gt; 
+&gt; 大垣さんの PostgreSQL session save handler module が中でどのような SQL 
+&gt; をどのような順番で発行しているのかわかりませんが，Btreeでデッドロック
+&gt; が今のところ起きていないからと言って，潜在的にデッドロックを引き起こす
+&gt; ようなロジックが含まれていないとは限らないと思います．で，もしかしたら
+&gt; hash インデックスでそれが顕在化しただけとも考えられます．
+&gt; 
+&gt; 実際に発行されているSQLが分からないので，私には確実なところは判断でき
+&gt; ませんが...
+
+abコマンドでは常に新しいセッションが作られるので
+
+begin;
+select session_data from session_table where session_id = 'some id';
+insert into session_table (session_id, session_data);
+end;
+
+と言う感じのSQLが大量に発行されます。(といっても、60-100
+transaction/secくらいですが) SELECTは使われますが、新しい
+セッションなのでレコードは戻って来ません。
+
+indexはsession_idのみ作っています。HASHを使うとdeadlockを
+起こします。begin; end; を無くしてもdeadlockします。
+私の環境ではコンカレンシーが25程度まではdeadlockを全く起こさ
+ないようですが、"ab -c 50 -n 5000"では必ずdeaclockします。
+
+マニュアルの記述が正しければ、 BTREEを使っている限りはdeadlock
+の心配は無いようです ：)
+
+ーーーーーーーーーーーーーーーーーーーーーーーーーーー
+Hash indices
+
+    Share/exclusive page-level locks are used for read/write access.
+Locks are released after page is processed.
+
+    Page-level locks provide better concurrency than index-level ones
+but are subject to deadlocks.
+
+Btree indices
+
+    Short-term share/exclusive page-level locks are used for read/write
+access. Locks are released immediately after each index tuple is
+fetched/inserted.
+
+    Btree indices provide the highest concurrency without deadlock
+conditions.
+ーーーーーーーーーーーーーーーーーーーーーーーーーーー
+
+# indexでdeadlockが起きたかどうかが
+# エラーメッセージで判れば便利なのですが、、、
+# deadlockの理由が解らなかったので、indexが
+# 原因と解るまで時間がかかりました。
+
+-- 
+Yasuo Ohgaki
+yohgaki@dd.iij4u.or.jp
+
+__________________________________________________
+Do You Yahoo!?
+Yahoo! BB is Broadband by Yahoo!  <A HREF="http://bb.yahoo.co.jp/">http://bb.yahoo.co.jp/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00078" HREF="msg00078.html">[pgsql-jp 24415] Known issue for HASH INDEX ?</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuo Ohgaki &lt;yohgaki@yahoo.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00079" HREF="msg00079.html">[pgsql-jp 24416] Re: Known issue for HASH INDEX ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00085" HREF="msg00085.html">[pgsql-jp 24422] Re: Known issue for HASH INDEX ?</A></STRONG>
+<UL><LI><EM>From:</EM> Yasuo Ohgaki &lt;yohgaki@yahoo.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 24423] Re: Known issue for HASH INDEX ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 24428] Re: PostgreSQL がたまに不調に陥るときがあるようなのですが・・・。?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 24430] Re: PostgreSQL がたまに不調に陥るときがあるようなのですが・・・。?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 24423] Re: Known issue for HASH INDEX ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00080.html">[pgsql-jp 24417] Re: Known issue for HASH INDEX ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

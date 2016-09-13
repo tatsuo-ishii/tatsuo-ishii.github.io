@@ -1,0 +1,126 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16889] Re: [pgsql&#45;jp 16884] Re: [pgsql&#45;jp 16882] Re: pg_dump &#45;o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Wed, 23 Aug 2000 15:58:35 +0900 (JST) -->
+<!--X-Message-Id: 20000823155834.27B96550@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000823122642.259E5338@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 20000823134200R.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 20000823151730.27202614@zaqcad091da.zaq.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16889] Re: [pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump - </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00503.html">Date Prev</A>][<A HREF="msg00504.html">Date Next</A>][<A HREF="msg00501.html">Thread Prev</A>][<A HREF="msg00514.html">Thread Next</A>][<A HREF="index.html#00502">Date Index</A>][<A HREF="threads.html#00502">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16889] Re: [pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Aug 2000 15:58:35 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00494.html">20000823122642.259E5338@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00496.html">20000823134200R.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00498.html">20000823151730.27202614@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+自己レスですが・・・
+
+pg_dump -o で作成されたファイルを psql -e で復元する場合の OID に関する PostgreSQL の振るまいをまとめてみました。決してソースを見渡しての結論ではなく、オペレーターとしての観察によるものですので、間違いはどうぞご指摘願います
+
+□ psql -o では先頭５行に追加情報が在る
+
+□ psql -o で作成されたファイルを psql -e で復元する場合の特徴：
+
+　■ 通常の INSERT 処理時の OID自動生成ルーチンは起動しない。
+　　すなわち、復元直後の INSERT 実行時の OID発生値は変わらない
+
+　■ 現状の OID自動生成START原点の数値よりも大きな数値の OID が読み込まれ
+　　ると、OID自動生成START原点の数値が読み込まれた　OID 値となる。
+
+　■ そこで、pg_dump -o の先頭３行目の第１フィールドの数値は、復元処理直前
+　　に、以下を満たす必要がある
+
+　　Ａ 復元データーの全ての OID よりも大きいことが望ましい。つまり復元中に
+　　　他者が INSERT を実行した際の重複トラブルを回避する
+
+　　Ｂ 仮に「０」を指定してしまうと、復元データーの最大 OID 値がOID自動生
+　　　成START原点の数値よりも大きな数値である場合のみ、OID自動生成START原
+　　　点の数値がその OID 値に置き換わる。だから復元処理後の INSERT 処理に
+　　　よるOIDの重複問題は起こらない。
+
+　　Ｃ 復元処理直前の PostgreSQL が生成する OID を実際に INSERT（とDELETE)
+　　　の実行で調査し、ＡかＣの大きい方の数値を採用する。この調査段階から
+　　　復元終了まで、REVOKE 処理などで他者から INSERT の割り込みが起こらな
+　　　いことにも注意する。
+
+　■ 絶対に２度以上の繰り返し作業は行わないこと。OIDまで全く同じ重複した
+　　行が繰り返した分だけ作成されてしまう。これは２度と重複データーの分離や
+　　削除ができなくなることを意味する。処理スピードも当然落ちる。資源の無駄
+　　になる。
+
+ところで、ここで疑問がわきます。
+psql 内での COPY WITH OIDS TO と COPY WITH OIDS FROM です。pg_dump -o のような先頭５行が無いと言うことです。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00514" HREF="msg00514.html">[pgsql-jp 16901] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00494" HREF="msg00494.html">[pgsql-jp 16880] pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00496" HREF="msg00496.html">[pgsql-jp 16882] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00498" HREF="msg00498.html">[pgsql-jp 16884] Re: [pgsql-jp 16882] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00503.html">[pgsql-jp 16890] RE: [pgsql-jp 16887] 数値 (ｖａｒｃｈａｒ型 )を範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00504.html">[pgsql-jp 16891] Re: pgaccess patch for 7.0.2</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00501.html">[pgsql-jp 16888] Re: pg_dump -oで生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00514.html">[pgsql-jp 16901] Re: pg_dump -o で生成されるOIDに関するプリセット番号の検査と修正の仕方を教えてください</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00502"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00502"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

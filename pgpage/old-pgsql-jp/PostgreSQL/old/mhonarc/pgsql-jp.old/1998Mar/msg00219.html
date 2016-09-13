@@ -1,0 +1,228 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3651] Re: LANG (Re: Benchmark result on HP&#45;UX B.10.20) -->
+<!--X-From: Toshiharu Takaba <tosh&#45;t@ascii.co.jp> -->
+<!--X-Date: Fri, 20 Mar 98 23:37:10 JST -->
+<!--X-Message-Id: 9803201437.AA22824@pbsun11.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3651] Re: LANG (Re: Benchmark result on HP-UX B.10.20) </TITLE>
+<LINK REV="made" HREF="mailto:tosh-t@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00223.html">Date Prev</A>][<A HREF="msg00224.html">Date Next</A>][<A HREF="msg00225.html">Thread Prev</A>][<A HREF="msg00238.html">Thread Next</A>][<A HREF="index.html#00219">Date Index</A>][<A HREF="threads.html#00219">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3651] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshiharu Takaba &lt;<A HREF="mailto:tosh-t@ascii.co.jp">tosh-t@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 20 Mar 98 23:37:10 JST</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+たかばです。
+
+#[[たかばのコメント]]
+&gt;&gt;       o libpq で DB encoding と FE encoding 変換を行う。
+&gt;
+#[[石井さんのコメント]]
+&gt; セッションを張ったまま、クライアント側のコード系を変更したい場合はどう
+&gt; するのでしょう？サーバ側でコード変換を行なうのであれば、
+&gt;
+&gt;         SET CLIENT_ENCODING EUC_JP
+&gt;
+&gt;のようなコマンドを発行することにより可能になると思いますが。
+
+ちょっと面倒ですが、こんな感じですかねぇ。
+
+	PQsetDefaultClientEncoding("EUC_JP");	/* New function */
+	..
+	cBar  = PQsetdb("foo",  "5432", NULL, NULL, "bar");
+	..
+	PQsetClientEncoding(cBar, "SJIS");	/* New function */
+
+コード系変更時に、アプリケーション &lt;-&gt; サーバ間の通信が
+発生しないのがメリットと言えばメリットですか。
+
+あと、すごく特殊な例をおもいついてしまいました。
+いくつものデータベース (コードがそれぞれ違ったりする) に接続しながら、
+PGLANG によって動作するアプリケーションを作る場合、
+
+	PQsetDefaultClientEncoding("fromPGLANG");	/* New function */
+	cBar  = PQsetdb("foo",  "5432", NULL, NULL, "bar");
+	cDump = PQsetdb("greo", "5432", NULL, NULL, "dump");
+	cIyan = PQsetdb("gege", "5432", NULL, NULL, "iyan");
+
+みたいにかけると、楽ではないかなと思います。
+
+#[[石井さんのコメント]]
+&gt; &gt;また、mb patch のあたっていないサーバにもアクセス可能となります。
+&gt;
+&gt; ここはちょっと意味が分かりませんでした。
+
+良く考えたらなんか変なことを書いたようです。
+mb patch のあたっていサーバにはマルチバイトデータは
+入っていないと勝手に考えていました。
+
+#[[石井さんのコメント]]
+&gt; ちょっと一貫していないし、直交していないのですが、UTF-8 なデータベース
+&gt; を Java 以外のクライアントが使うとは思えないので、
+&gt;
+&gt; o UTF-8 はクライアント側でコード変換
+&gt; o それ以外はサーバ側で変換する
+&gt;
+&gt; というのはどうでしょう。
+
+変換の場所は、どちらか一方に決めておいたほうが良いように思います。
+PostgreSQL サーバが、分散 DB をサポートするようになったりしたとき、
+ちょっと困るのではと思います。
+
+分散データベースがサポートされる DBMS では
+ちょっと美しくない例ですが、
+SQL 文だけでこんなかんじのことができます。
+
+	DATABASE bar@foo;
+
+	SELECT c.name, b.address, a.name, a.address
+	  FROM location a,
+	       dump.location@greo b,
+	       iyan.person@gege c
+	  WHERE c.id = b.id
+	    AND b.contents = a.contents;
+
+	CLOSE DATABASE;
+
+foo というホストの bar というデータベースの表 location、
+greo というホストの dump というデータベースの表 location、
+gege というホストの iyan というデータベースの表 person を
+対象にしています。
+
+#    「DataBlade 構築技法」伊藤、太田、木下、仲山 共著
+#    発売元 (株)BNN、ISBN4-89369-464-2 C3055 P2800E
+#
+# と言う Illustra のユーザ定義のデータ型構築法についての本に、
+# 「Sybase Gateway DataBlade」という Sybase 社のデータベースサーバに
+# 対して、間接的なアクセスを提供するモジュールが紹介されていました。
+# PostgreSQL のサーバから、別の PostgreSQL のサーバへの
+# アクセスモジュールができたら、分散データベースみたいな使い方も
+# 出来るのではないかと思いました。
+# また、PostgreSQL のサーバから Oracle サーバ、Informix サーバ、
+# Sybase SQL Server、M$ SQL Server などにアクセスを出来るようになったら、
+# すごくかっこいいとおもう。(だからどうしたといわれると、ちょっと... :-)
+
+
+#[[市川＠お茶大さんのコメント]]
+&gt;&gt;&gt; 環境変数 PGLANG などですべて設定ができると有りがたいですね．
+&gt;&gt;&gt; overhead も随分なものになりそうですが，昔 sybase 使って
+&gt;&gt;&gt; いたときには，言語指定でエラーメッセージもすべて日本語対応に
+&gt;&gt;&gt; なっていたような気がします．あの方式ですと，授業には使い
+&gt;&gt;&gt; やすくていいですね．
+&gt;
+#[[石井さんのコメント]]
+&gt;パーサの出すエラーメッセージを日本語にする位なら overhead も問題になら
+&gt;ないでしょうから、やってみても良いかも知れないですね。
+
+psql のソースディレクトリに行って、'psqlHelp.h' てのをみつけて、
+
+	何だ ! これ翻訳すればすむのか ? イカス !
+
+とか思ったら、決めうちのメッセージが 'psql.c' にたくさんはいってました。
+(私は結構 イカス ! とおもうのだが...) メッセージだけは 1 個のファイルに
+集めてしまって、これを翻訳すると、ローカル言語のメッセージが出る仕組みを
+作ってみるのもおもしろいかも。
+
+	printf(getMsg("Syntax Error"));
+
+とか。
+
+Java 1.1.? からは、このような仕組みが用意されていて、
+
+    file: MyMsg_ja.java
+	..
+	static final Object[][] contents = {
+		{"msg001", "めっせーじ 1 番です。"},
+	..
+    file: MyMsg_en.java
+	..
+	static final Object[][] contents = {
+		{"msg001", "This is No.1 message."},
+	..
+
+みたいなファイルを用意して、
+
+	ResourceBundle msg = ResourceBundle.getBundle("MyMsg");
+	String outmsg = msg.getString("msg001");
+
+のようにやると、プログラム実行時に実行環境の言語指定を見て
+'outmsg' にはその言語の文字列がはいります。
+これ、X11 の app-defaults みたいで、結構気に入ってます。
+
+#[[石井さんのコメント]]
+&gt;&gt; # Unix magazine の今月号の記事で、Java の encoding ことが書いてありまし
+&gt;&gt; # た。まともにやろうとすると、Unicode と他のコード系の変換は思ったよりも
+&gt;&gt; # 難しいし、問題を含んでいるのですね。
+#[[影山さんのコメント]]
+&gt; これ僕も昨夜読んでて愕然としました。
+&gt; Unicode は中国、韓国、日本の似た漢字をまとめているので区別できないという
+&gt; のは知っていましたが、￥記号にそんな落し穴があるとは知らなかったです。
+&gt; データベースのデータには￥記号が入っている可能性が高いと思うけど、
+&gt; 逆スラッシュは少ないかな。全部￥と思ってもいいかも知れませんが。
+
+私も日本語だけに限った場合、「ja_JP.UTF8 ってエンコーディングが
+ふえるだけじゃん」って軽く考えてましたが、
+「ja_JP.UTF8-Java ja_JP.UTF8-Win ja_JP.UTF8-Mac」とかになっていようとは....
+---
+	たかばとしはる
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00238" HREF="msg00238.html">[pgsql-jp 3670] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00223.html">[pgsql-jp 3655] [Err:] psql -h localhost</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00224.html">[pgsql-jp 3656] Re: [Err:] psql -h localhost</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00225.html">[pgsql-jp 3657] Re: tableについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00238.html">[pgsql-jp 3670] Re: LANG (Re: Benchmark result on HP-UX B.10.20)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00219"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00219"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

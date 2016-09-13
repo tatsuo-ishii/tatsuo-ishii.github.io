@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4268] Re: CGI vs mod_perl -->
+<!--X-From: minohata@com&#45;net.co.jp (minohata) -->
+<!--X-Date: Fri, 29 May 1998 20:55:15 +0900 -->
+<!--X-Message-Id: 001001bd8af8$c80d9de0$85819fd2@minohata -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4268] Re: CGI vs mod_perl </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00329.html">Date Prev</A>][<A HREF="msg00331.html">Date Next</A>][<A HREF="msg00331.html">Thread Prev</A>][<A HREF="msg00328.html">Thread Next</A>][<A HREF="index.html#00330">Date Index</A>][<A HREF="threads.html#00330">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4268] Re: CGI vs mod_perl</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A> (minohata)</LI>
+<LI><em>Date</em>: Fri, 29 May 1998 20:55:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+箕畑です。
+
+
+塩崎様曰く、
+&gt;サーバのバージョンは「Server version Apache/1.2.5 mod_perl/1.11.」です。
+
+私の所は、
+　apache/1.2.4 + mod_perl/1.1 + perl/5.004_04
+という組み合わせで、Pgの代わりに PostgresPerl/1.3 を使用しています。
+httpd.confで、
+　PerlModule Postgres
+と宣言して各スクリプト中ではuseしてません。
+
+
+
+&gt;# 結局、CGI.pmを使ってないのがよくないのかもしれない。
+
+私もCGI.pmは使ったことないです。
+
+# 3月の終わり頃に、応急処置的にメーリングリストアーカイブを
+# mod_perl対応にして以来、全く手をつけていません。
+# 記憶があやふやなので、ウソ書いている可能性もあります。
+
+当初、CGIスクリプトをそのままmod_perlで動かそうとしたのですが、
+「use Postgres」の部分でエラーが出ていました。試行錯誤の末、
+スクリプト中のuse文を削除して、代わりにhttpd.confでPerlModule
+することで動くようになりました。
+(スクリプト中にuseを残しておくとエラーになったようなならなかったような...)
+
+ついでに、PostgresPerlの代わりにPgを使ってテストしたのですが、
+時々サーバエラーが発生し、その原因がよくわからなかったので、
+結局断念したような記憶があります。
+
+# きちんと原因究明しておけばよかったのですが、
+# 結果オーライな性格ですので(笑)
+
+
+
+&gt; http.confで「PerlModule Pg」としただけだと、「Pg::〜」の関数など
+&gt; は使えますが、「PGRES_TUPLES_OK」のようなものはこういう文字列と
+&gt; して扱われてしまいます。
+
+CGI等で普通にperlスクリプトを実行した場合、
+package宣言をしていない部分はmainパッケージに所属するのですが、
+mod_perlでは、確かApache::Registry::home::user::public_html::ScriptNameと
+いうようなパッケージに所属することになるというのが原因だと思います。
+ですので、「Pg::PGRES_TUPLES_OK」とすれば OK だと思います。
+# これ、正確には定数ではなくて、定数を返す関数ですよね。
+
+
+
+&gt;ここの具体的な方法を教えていただけますか?
+(中略)
+&gt;という感じですか?
+
+はい、そんな感じです。
+
+
+
+&gt;できれば、CGI版も含めてそれぞれをソースを見られるようにしていただけませ
+&gt;んか? 「常駐タイプのPerlスクリプト」というのもよく分からないんで。
+
+あんな汚いソースを公開してしまうと、仕事でもあんないい加減な調子で
+やってんじゃねーか、とか疑われて信用なくしてしまいます(笑)
+
+# 作成した当時はちょうどperl5の勉強中で、
+# perl4ライクな部分とperl5ライクな部分が混在していて美しくない上に、
+# mod_perl対応の応急処置を施したものですから...。
+# もし次バージョンを作ることがあれば、その時は公開するつもりですけど。
+
+「常駐タイプの...」というのは私の周囲で勝手にそう呼んでるだけで、
+　・なるべく明示的に初期化する
+　・広域変数をやたらと使用しない
+　・安易にexitしない
+　・刹那的でない
+といったごくごく当たり前のことです。
+
+
+
+&gt;そもそも、mod_perlがCGIより速いのは、
+&gt; fork()
+&gt; exec()
+&gt; Perlのスクリプトのコンパイル
+&gt;の差だけだと思っているんですが、違うんでしょうか?
+&gt;実際、箕畑さんの計測結果を見ても、「CGI版」と「mod_perl単」との違いは、
+&gt;内容の重さにかかわらず40秒ほどですよね。でも、この3つの原因だけで40秒も
+&gt;変わるのかなあ。
+
+複数のモジュールをuseしたりrequireするperlスクリプトだと、
+コンパイルに結構時間がかかりますので、それほど不思議な
+数字ではないと思います。
+
+
+
+&gt;で、「mod_perl単」と「mod_perl保」との時間差はDBとの接続にかかる時間?
+
+単と保の差は、
+　connectに要する時間 + $connオブジェクトの破棄に要する時間
+です。破棄の方はそんなに時間がかからないはずですので、
+接続にかかる時間と考えて構わないと思います。(確証なし)
+
+
+
+--
+箕畑典男
+minohata@com-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00329.html">[pgsql-jp 4267] Re: 自己紹介と質問です</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 4269] KPGsql リリース</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 4269] KPGsql リリース</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 4266] RE: 自己紹介と質問です</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00330"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00330"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

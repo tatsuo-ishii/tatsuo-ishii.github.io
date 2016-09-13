@@ -1,0 +1,139 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25416] FETCH せずにselect 文の各列の属性を取得したい -->
+<!--X-From: Tetsuya Kakura <kakura@saki.netwk.ntt&#45;at.co.jp> -->
+<!--X-Date: Wed, 27 Mar 2002 09:55:48 +0900 -->
+<!--X-Message-Id: 200203270055.AA01476@KAKURAIBM.saki.netwk.ntt&#45;at.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25416] FETCH せずにselect 文の各列の属性を取得したい </TITLE>
+<LINK REV="made" HREF="mailto:kakura@saki.netwk.ntt-at.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00390.html">Date Prev</A>][<A HREF="msg00392.html">Date Next</A>][<A HREF="msg00411.html">Thread Prev</A>][<A HREF="msg00393.html">Thread Next</A>][<A HREF="index.html#00391">Date Index</A>][<A HREF="threads.html#00391">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25416] FETCH せずにselect 文の各列の属性を取得したい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tetsuya Kakura &lt;<A HREF="mailto:kakura@saki.netwk.ntt-at.co.jp">kakura@saki.netwk.ntt-at.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 27 Mar 2002 09:55:48 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+はじめまして。
+加倉と申します。
+
+TurboLinux 6.5J 上の PostgreSQL 7.1.3 で libpq を使って Fig.1 の
+様なプログラムしています。(実際のプログラムのロジックのみを引き継
+いで整理してあります。)
+
+任意の select 文の各列の定義(名前・型・サイズ・精度など)を取得する
+のが Fig.1 のプログラムの目的です。
+
+■質問
+Q1. Fig.1 のプログラムで select 文中に式があっても評価されないように
+　　する方法はありませんでしょうか。
+- FETCH 1 をしていますので、必ず一行分の FETCH を行ってしまい、select
+　文中の nextval('seq_name') が評価され seq_name がカウントアップされ
+　てしまいます。列の定義を取得したいだけなので式の評価がなされないよ
+　うにしたいのです。
+- ちなみに PostgreSQL 7.1.3 で FETCH 0 は FETCH ALL の意味になってしま
+　うので列の評価は発生して今いました。
+
+Q2. Q1 が無理な場合、Fig.1 の方法以外で任意の select 文の列の定義を取
+　　得する方法はありませんでしょうか。
+- 純粋に table 定義ならシステムカタログを見るという方法もあると思いま
+　すが、as を使った列の別名や、式を使った仮想的な列をもつ select 文の
+　場合に対応できない(ですよね？)と思いますので Fig.1 のようなプログラ
+　ムにしています。
+
+【Fig.1】--- ここから -----------------------------------------------------
+ 1: //  select 文でカーソル cursorname を宣言する
+ 2: PGresult* result = PQexec(cnn, "DECLARE cursorname CURSOR FOR select nextval('seq_name') as seq from seq_name");
+ 3: PQclear(result);
+ 4:
+ 5: // 列の定義を取得するために FETCH する。
+ 6: result = PQexec(cnn, "FETCH 1 in cursorname");
+ 7:
+ 8: // 列数を取得
+ 9: int numclms = PQnfields(result);
+10:
+11: // 各列の型・サイズ・精度などを取得する
+12: for (int clm = 0; clm  &lt; numclms; clm++) {
+13:    Oid ftype = PQftype(result, clm);
+14:    int fmod = PQfmod(result, clm);
+15:     char* column_name = PQfname(result, clm);
+16:
+17:    // ここに列の定義を保管するコードがあります。
+18: }
+19: PQclear(result);
+20:
+21: // カーソルを閉じる
+22: result = PQexec(cnn, "CLOSE cursorname");
+23:  PQclear(result);
+【Fig.1】--- ここまで -----------------------------------------------------
+
+ご存知の方がいらっしゃいましたら宜しくお願いします。
+
+--
+Tetsuya Kakura / kakura@saki.netwk.ntt-at.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00393" HREF="msg00393.html">[pgsql-jp: 25418] Re: FETCH せずにselect  文の各列の属性を取得したい</A></STRONG>
+<UL><LI><EM>From:</EM> Yutaka tanida &lt;yutaka@hi-net.zaq.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00390.html">[pgsql-jp: 25415] dbExpertが登録無しでダウンロードできるようになりました</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00392.html">[pgsql-jp: 25417] Re: Access2000-&gt;ODBC-&gt;Postgres7.13   接続での不具合</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00411.html">[pgsql-jp: 25436] Re: OSがログイン不能になってしまいまして。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00393.html">[pgsql-jp: 25418] Re: FETCH せずにselect  文の各列の属性を取得したい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00391"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00391"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

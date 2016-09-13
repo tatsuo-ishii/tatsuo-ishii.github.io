@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4544] Re: crypt password authentication working? -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Tue, 23 Jun 1998 14:10:20 +0900 -->
+<!--X-Message-Id: 199806230510.OAA00394@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: Pine.LNX.3.96LJ1.1b7.980623121409.1304C&#45;100000@earth.astea.rccm.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4544] Re: crypt password authentication working? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00273.html">Date Prev</A>][<A HREF="msg00275.html">Date Next</A>][<A HREF="msg00270.html">Thread Prev</A>][<A HREF="msg00284.html">Thread Next</A>][<A HREF="index.html#00274">Date Index</A>][<A HREF="threads.html#00274">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4544] Re: crypt password authentication working?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 23 Jun 1998 14:10:20 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+谷口＠インフォームシステムさん、佐藤さんから DES を入れたら、というア
+ドバイスがありました。それはそうなんですが、なるべくなら PostgreSQL の
+ためにシステム自体をいじるのは避けたいなと。それで思い出しましたが、
+[pgsql-jp 2995]で 6.2.1 の flat file passwd authentication 用のパッチ
+を作りました。その時に調べたのですが、export 用の FreeBSD では、
+crypt()が MD5 を使っているので、暗号化文字列の仕様が若干異なっています。
+今回もそれが原因ですね。ちなみに、6.3.2 にはこのパッチが取り込まれてい
+るので、FreeBSD でも flat file passwd authentication は動きます。
+
+たかばさん：
+&gt;わたしは、6.3 のメイク時に OS 付属の libcrypt.* ではなく、
+&gt;SSLeay-0.8.1 の libcrypt.a をスタティックにリンクしています。
+&gt;( SSLeay-0.8.1 は、FreeBSD 2.2.6 の CD-ROM に入っていたもの。)
+&gt;src/configure の '-lcrypt' という部分を、
+&gt;'/usr/local/ssl/lib/libcrypt.a' に修正して make しています。
+&gt;
+&gt;	% ldd /usr/local/pgsql/bin/postgres
+&gt;	/usr/local/pgsql/bin/postgres:
+&gt;	        -lm.2 =&gt; /usr/lib/libm.so.2.0 (0x810b000)
+&gt;	        -lreadline.3 =&gt; /usr/lib/libreadline.so.3.0 (0x8124000)
+&gt;	        -ltermcap.2 =&gt; /usr/lib/libtermcap.so.2.1 (0x8143000)
+&gt;	        -lcurses.2 =&gt; /usr/lib/libcurses.so.2.0 (0x8147000)
+&gt;	        -lc.3 =&gt; /usr/lib/libc.so.3.0 (0x8153000)
+&gt;	% 
+&gt;
+&gt;USERAUTH=crypt での接続は、JDBC --&gt; FreeBSD でのみ確認しました。
+
+この方法はなかなか良さそうですね。
+
+&gt;# JDBC は、自前で crypt() を行っているようです。
+
+Java では標準で crypt 用のクラスがあるのでしょうか？
+
+&gt;桑村です。
+&gt;
+&gt;&gt; 石井です。
+&gt;&gt; 
+&gt;&gt; 6.3 から追加されたパスワードを暗号化して送って認証を行なう方式ですが、
+&gt;&gt; FreeBSD に問題ありのようです。サーバを RedHat 4.0 Linux で動かし、
+&gt;&gt; クライアントを FreeBSD と Solaris 2.6 にしてテストしてみました。
+&gt;&gt; 
+&gt;&gt; Solaris ---&gt; RedHat	OK
+&gt;&gt; FreeBSD ---&gt; RedHat	NG
+&gt;&gt; 
+&gt;&gt; 当然ですが、
+&gt;&gt; 
+&gt;&gt; FreeBSD ---&gt; FreeBSD	OK
+&gt;&gt; 
+&gt;&gt; です。皆様のところではいかがですか？(まだ flat file password
+&gt;&gt; authentication の方は試してません)
+&gt;&gt; 
+&gt;&gt; 以前話題になった FreeBSD の crypt() の仕様の問題かな？
+&gt;
+&gt;  そういえば以前 FreeBSD に組み込まれている Kerberos4 を他の KTH 版オリジ
+&gt;ナルの eBones や KTH 版と一緒に (SunOS, OSF や Linux を使って)試した時(こ
+&gt;のときはDESだったのですが ) 他と違っていたようで認証できませんでした。
+&gt;FreeBSDって特殊なのかな？結局わからないまま KTH 版を FreeBSD にも入れると
+&gt;うまく行きました。もしかするとcryptを入れ直すとうまくゆくかもしれませんね。
+&gt;
+&gt;  PostgreSQL の平文パスワードだと、パスワードの文字列が pg_shadow の中にそ
+&gt;のまま書かれてるそうですね。（実際そうでした。）
+
+平文パスワードって、pg_hba.conf に書くオプションで言うと "password" の
+ことですよね？正しくは、こうでは？平文パスワードの場合、
+
+(1) pg_hba.conf に$PGDATA の下のパスワードファイルのあり場所を書いてお
+くと /etc/passwd のような暗号化したフォーマットで書かれた認証ファイル
+を参照する。
+
+(2) パスワードファイルの場所を省略すると pg_shadow を見に行く。
+
+というわけで、いつも pg_shadow のパスワードを見に行くわけではありませ
+ん。
+
+なお、確かに pg_shadow には平文のパスワードが書いてありますが、Unix 的
+には file permission でコントールされてるし、もちろん postgres 的にも
+一般ユーザが select などでその内容を見ることができないようになっていま
+す。
+
+ところで、なんで平文でパスワードが書いてあるのかですが、これは crypt
+authentication のプロトコルでは最初にサーバからランダムなsaltをクライ
+アントに送信し(実際にsaltを作っているのは postmaster)、クライアントは
+パスワードをその salt を使って暗号化して送り返すようになっているんです。
+この方法だと、平文でパスワードを保存しておくしかないんですね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00284" HREF="msg00284.html">[pgsql-jp 4554] Re: crypt password authentication working?</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00270" HREF="msg00270.html">[pgsql-jp 4540] Re: crypt password authentication working?</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kuwamura &lt;juk@rccm.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00273.html">[pgsql-jp 4543] Re: I can't use date,time and more functions</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00275.html">[pgsql-jp 4545] Re: I can't use date,time and more functions</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 4540] Re: crypt password authentication working?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 4554] Re: crypt password authentication working?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00274"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00274"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

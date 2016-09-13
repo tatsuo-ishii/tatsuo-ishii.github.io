@@ -1,0 +1,190 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11643] Re: Q: initdbで初期化ができません。 -->
+<!--X-From: lpk_kanto_yoshikawa@mba.nifty.ne.jp -->
+<!--X-Date: Mon, 08 Nov 1999 09:13:35 +0900 -->
+<!--X-Message-Id: 382615AF.BA48F7C8@mba.nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11643] Re: Q: initdbで初期化ができません。 </TITLE>
+<LINK REV="made" HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00215.html">Date Prev</A>][<A HREF="msg00217.html">Date Next</A>][<A HREF="msg00217.html">Thread Prev</A>][<A HREF="msg00218.html">Thread Next</A>][<A HREF="index.html#00216">Date Index</A>][<A HREF="threads.html#00216">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11643] Re: Q: initdbで初期化ができません。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">lpk_kanto_yoshikawa@mba.nifty.ne.jp</A></LI>
+<LI><em>Date</em>: Mon, 08 Nov 1999 09:13:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+小菅昭一 さま
+
+
+&gt; 　そんなわけで、本当に「.loginと.cshrcにわけたら上手くいった」の
+か
+&gt; どうか、もう一度検証してみてほしいと思います。
+
+　結論から。
+　少なくとも、私の環境(FreeBSD 3.2(98) 最小構成)では、 PATHと
+MANPATHの環境設定は、.loginに記述しない限り、反映されませんでし
+た。
+
+　昨日発言したように、FreeBSD自体からの再インストールになりました
+ので、併せて環境変数について色々と試験してみました。
+
+1)<A HREF="http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/install-basic.html">http://www.sra.co.jp/people/t-ishii/PostgreSQL/6.4/install-basic.html</A>
+
+をそのまま引用してみる。
+
+　タイプミスを防ぐため、Windowsのtelnetからアクセスして、カット＆
+ペーストでコピーしました。
+
+○.cshrcの記述内容
+setenv PATH "$PATH":/usr/local/pgsql/bin
+setenv POSTGRES_HOME /usr/local/pgsql
+setenv PGLIB $POSTGRES_HOME/lib
+setenv PGDATA $POSTGRES_HOME/data
+setenv MANPATH "$MANPATH":$POSTGRES_HOME/man
+setenv LD_LIBRARY_PATH "$LD_LIBRARY_PATH":"$PGLIB"
+
+
+○login時のエラーメッセージ
+MANPATH: Undefined variable.
+
+○envの結果
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/games:/usr/local/bin:/usr/X11R6/bin:/hom
+
+e/postgres/bin
+
+POSTGRES_HOME=/usr/local/pgsql
+PGLIB=/usr/local/pgsql/lib
+PGDATA=/usr/local/pgsql/data
+
+　PATHに/pgsqlが通っていない。変数に MANPATHが現れない。
+　
+
+2) POSTGRES_HOME /usr/local/pgsqlが利いていないようなので、変更す
+   る
+
+○.cshrcの記述内容
+.cshrc
+setenv  PATH "$PATH":/usr/local/pgsql/bin
+setenv  PGLIB /usr/local/pgsql/lib
+setenv  PGDATA /usr/local/pgsql/data
+setenv  MANPATH "$MANPATH":/usr/local/pgsql/man
+setenv  LD_LIBRARY_PATH "$LD_LIBRARY_PATH":"$PGLIB"
+
+　ログインした結果、1)と全く同じでした。
+
+
+○.loginと.cshrcに分割
+.login
+setenv  MANPATH "$MANPATH":/usr/local/pgsql/man
+
+.cshrc
+setenv  PATH "$PATH":/usr/local/pgsql/bin
+setenv  PGLIB /usr/local/pgsql/lib
+setenv  PGDATA /usr/local/pgsql/data
+setenv  LD_LIBRARY_PATH "$LD_LIBRARY_PATH":"$PGLIB"
+
+新たなエラー
+LD_LIBRARY_PATH: Undefined variable.
+
+　MANPATH: Undefined variable.の方は出なくなりましたが、それ以外は
+
+かわりません。PATHも通っていません。
+
+　
+4)PATHの設定も.loginに移行する。
+
+.login
+setenv  PATH "$PATH":/usr/local/pgsql/bin
+setenv  MANPATH "$MANPATH":/usr/local/pgsql/man
+
+.cshrc
+setenv  PGLIB /usr/local/pgsql/lib
+setenv  PGDATA /usr/local/pgsql/data
+setenv  LD_LIBRARY_PATH /usr/local/pgsql/lib
+
+　この形にすると、PATHも通り、LD_LIBRARY_PATHやMANPATHもenvの結果
+に出てきました。その状態でinitdbをかけると、初期化できました。
+
+
+　今回は少しずつ.loginに移動して試験しましたが、この結果から想像す
+
+ると、環境変数は.loginへ記述して、.cshrcには記述しないほうがよいの
+
+かもしれません。
+　.cshrcに記述した変数がすべて無視されているのではないですから、
+.cshrcも読み込んでいることは間違いないようなのですが、何か制約がか
+
+かっているように思えます。
+
+　ただ、FreeBSD環境で使われているかたは他にもいらっしゃるでしょう
+し、そうした事例は無いようですから、かえって謎を深めてしまったよう
+
+ですね。
+
+
+--
+株式会社　エルピーカンシサービス
+SE: 吉川　一浩
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00221" HREF="msg00221.html">[pgsql-jp 11649] Re: Q: initdbで初期化ができませ ん。</A></STRONG>
+<UL><LI><EM>From:</EM> 佐藤 純弘&lt;y-satou@azb.nttls.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00218" HREF="msg00218.html">[pgsql-jp 11645] Re: Q: initdbで初期化ができません。</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshitake Hatada &lt;hatada@tootoo.to&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00215.html">[pgsql-jp 11642] Re: Re: countが0と表示したい場合には？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 11644] 6.5.2 JDBC drv. charactor encoding patch</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 11644] 6.5.2 JDBC drv. charactor encoding patch</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00218.html">[pgsql-jp 11645] Re: Q: initdbで初期化ができません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00216"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00216"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

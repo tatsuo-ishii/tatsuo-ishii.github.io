@@ -1,0 +1,188 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7323] Re: patch for NetBSD/macppc -->
+<!--X-From: Toshimi Aoki <toshi@kinotrope.co.jp> -->
+<!--X-Date: Fri,  5 Mar 1999 15:47:56 +0900 -->
+<!--X-Message-Id: 199903050647.PAA09142@jack.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903050617.PAA03432@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7323] Re: patch for NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:toshi@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00075.html">Date Prev</A>][<A HREF="msg00077.html">Date Next</A>][<A HREF="msg00075.html">Thread Prev</A>][<A HREF="msg00057.html">Thread Next</A>][<A HREF="index.html#00076">Date Index</A>][<A HREF="threads.html#00076">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7323] Re: patch for NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Toshimi Aoki &lt;<A HREF="mailto:toshi@kinotrope.co.jp">toshi@kinotrope.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri,  5 Mar 1999 15:47:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00075.html">199903050617.PAA03432@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+青木@kinotropeです。
+
+&gt;&gt;&gt;&gt;&gt;&gt; Fri, 05 Mar 1999 15:17:15 +0900,
+	"TI" == Tatsuo Ishii wrote:
+TI&gt; 石井です。
+
+TI&gt; いずれにしても、引数に対して 16bit のマスクをかけてい
+TI&gt; るように思えます (私もアセンブラ良く分かってないので確証は無いので
+TI&gt; すが )。
+TI&gt; やっぱりこのマスクがかからないのはコンパイラがおかしいような気がす
+TI&gt; るのですが。
+
+やっぱり egcs-1.1.1 の問題のようですね。
+
+
+TI&gt; &gt;そもそも -2 ではなく 65534 を渡す方が悪いと思って、コードを追っか
+TI&gt; &gt;けてみると、 get_atttype() の UInt16GetDatum() で変更されていまし
+TI&gt; &gt;た。
+TI&gt;
+TI&gt; ちょっと int2eq とのつながりが良く分からなかったのですが、 fmgr 経
+TI&gt; 由ですか？
+
+fmgr経由ではありません。
+
+
+まずinitdbの
+CREATE RULE "_RETpg_rules" AS ON SELECT TO pg_rules ...
+でおかしくなっているのが分かりました。
+
+NetBSD/macppcではgdbが動作しないので、
+FreeBSD 3.1R上でこのSQLをgdbから実行してみました。
+
+backtraceして見ると、 #7のget_atttype()ではattnum=-2なのに、その次では 
+65534になっていることから見つけました。
+
+#2  0x8062867 in ScanKeyEntryInitialize (entry=0xefbf9710, flags=0,
+    attributeNumber=2, procedure=63, argument=65534) at scankey.c:69
+#3  0x807b1f9 in AttributeNumIndexScan (heapRelation=0x818bc90,  
+relid=1259,
+    attnum=65534) at indexing.c:309
+#4  0x80f3d9f in SearchSysCache (cache=0x8289010, v1=1259, v2=65534,  
+v3=0,
+    v4=0) at catcache.c:966
+#5  0x80f6748 in SearchSysCacheTuple (cacheId=3, key1=1259,  
+key2=65534,
+    key3=0, key4=0) at syscache.c:509
+#6  0x80f6779 in SearchSysCacheStruct (cacheId=3,  
+returnStruct=0x82f0f90 "",
+    key1=1259, key2=65534, key3=0, key4=0) at syscache.c:549
+#7  0x80f6b83 in get_atttype (relid=1259, attnum=-2) at  
+lsyscache.c:116
+#8  0x80bb3cb in make_var (pstate=0x818a9d0, relid=1259,
+    refname=0x8188b30 "c", attrname=0x8188b50 "oid") at  
+parse_node.c:218
+#9  0x80b9a51 in ParseFuncOrColumn (pstate=0x818a9d0,
+    funcname=0x8188b50 "oid", fargs=0x82e77d0, curr_resno=0x818a9d0,
+    precedence=1) at parse_func.c:198
+#10 0x80b9937 in ParseNestedFuncOrColumn (pstate=0x818a9d0,  
+attr=0x818a890,
+    curr_resno=0x818a9d0, precedence=1) at parse_func.c:115
+#11 0x80b8d87 in transformExpr (pstate=0x818a9d0, expr=0x818a890,  
+precedence=1)
+    at parse_expr.c:59
+#12 0x80b8fc0 in transformExpr (pstate=0x818a9d0, expr=0x818a910,  
+precedence=1)
+    at parse_expr.c:168
+#13 0x80b9077 in transformExpr (pstate=0x818a9d0, expr=0x818a950,  
+precedence=1)
+    at parse_expr.c:198
+#14 0x80b84cd in transformWhereClause (pstate=0x818a9d0,  
+a_expr=0x818a950)
+    at parse_clause.c:85
+#15 0x80b1295 in transformSelectStmt (pstate=0x818a9d0,  
+stmt=0x82bd590)
+    at analyze.c:916
+#16 0x80b057d in transformStmt (pstate=0x818a9d0, parseTree=0x82bd590)
+    at analyze.c:202
+#17 0x80b1213 in transformRuleStmt (pstate=0x818a9d0, stmt=0x818a990)
+    at analyze.c:881
+#18 0x80b04db in transformStmt (pstate=0x818a9d0, parseTree=0x818a990)
+    at analyze.c:141
+#19 0x80b02c2 in parse_analyze (pl=0x8188c50, parentParseState=0x0)
+    at analyze.c:71
+#20 0x80b7f06 in parser (
+    str=0xefbfbb64 "CREATE RULE \"_RETpg_rules\" AS ON SELECT TO  
+pg_rules DO INSTEAD SELECT C.relname AS tablename, R.rulename AS  
+rulename, pg_get_ruledef(R.rulename) AS definition FROM pg_rewrite R,  
+pg_class C WHERE R.rul"..., typev=0x0,
+    nargs=0) at parser.c:64
+#21 0x80d426b in pg_parse_and_plan (
+    query_string=0xefbfbb64 "CREATE RULE \"_RETpg_rules\" AS ON SELECT  
+TO pg_rules DO INSTEAD SELECT C.relname AS tablename, R.rulename AS  
+rulename, pg_get_rule
+def(R.rulename) AS definition FROM pg_rewrite R, pg_class C WHERE  
+R.rul"...,
+    typev=0x0, nargs=0, queryListP=0xefbfbb14, dest=Debug,
+    aclOverride=0 '\000') at postgres.c:420
+#22 0x80d47d1 in pg_exec_query_dest (
+    query_string=0xefbfbb64 "CREATE RULE \"_RETpg_rules\" AS ON SELECT  
+TO pg_rules DO INSTEAD SELECT C.relname AS tablename, R.rulename AS  
+rulename, pg_get_ruledef(R.rulename) AS definition FROM pg_rewrite R,  
+pg_class C WHERE R.rul"...,
+    dest=Debug, aclOverride=0) at postgres.c:722
+#23 0x80d4793 in pg_exec_query (
+    query_string=0xefbfbb64 "CREATE RULE \"_RETpg_rules\" AS ON SELECT  
+TO pg_rules DO INSTEAD SELECT C.relname AS tablename, R.rulename AS  
+rulename, pg_get_ruledef(R.rulename) AS definition FROM pg_rewrite R,  
+pg_class C WHERE R.rul"...)
+    at postgres.c:699
+#24 0x80d570c in PostgresMain (argc=7, argv=0xefbfdbb8, real_argc=7,
+    real_argv=0xefbfdbb8) at postgres.c:1645
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00075" HREF="msg00075.html">[pgsql-jp 7322] Re: patch for NetBSD/macppc</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 7322] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00077.html">[pgsql-jp 7324] Re: joinによる検索が異常に遅い</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00075.html">[pgsql-jp 7322] Re: patch for NetBSD/macppc</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00057.html">[pgsql-jp 7304] Benchmark result</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00076"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00076"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

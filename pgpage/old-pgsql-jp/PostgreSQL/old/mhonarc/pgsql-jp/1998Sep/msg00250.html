@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5459] Re: バックエンドの動き -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 22 Sep 1998 16:14:56 +0900 -->
+<!--X-Message-Id: 199809220714.QAA22714@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36073B6F393.BA57SIM@smtp.remus.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5459] Re: バックエンドの動き </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00249.html">Date Prev</A>][<A HREF="msg00251.html">Date Next</A>][<A HREF="msg00247.html">Thread Prev</A>][<A HREF="msg00252.html">Thread Next</A>][<A HREF="index.html#00250">Date Index</A>][<A HREF="threads.html#00250">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5459] Re: バックエンドの動き</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Sep 1998 16:14:56 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;堀田＠諫早市です。初心者モード(^^;。
+&gt;
+&gt;Web サーバが動いているマシンが妙に重いので調べてみたら、postgres
+&gt;プロセスが 30 個近く動いていて、そのほとんどが英和辞書を引いてい
+&gt;るようでした。ありゃ、バグったかなと思っていると、昼休みを過ぎて
+&gt;しばらくしたら 1 〜 2 個に戻ったので、バグでもないようです。って、
+&gt;よくわからないですね(^^;。
+
+30個も動いて持ち堪えているとは立派！
+
+&gt;Apache+PostgreSQL+PHP3 で質問です。以下の認識は正しいでしょうか。
+&gt;過負荷による予期しないトラブルが恐いので、いろいろ書きました。
+&gt;
+&gt;1.pg_connect() を発行するたびに、新しい postgres プロセスが生成
+&gt;  される。
+
+Yes.
+
+&gt;2.ファイルディスクリプタなどの資源を食い尽くさない限りは、複数の
+&gt;  postgres プロセスを起動でき、それらは並行動作する。
+
+Yes.
+
+&gt;3.pg_close() を発行すると、即座に postgres プロセスは終了する。
+
+はい、ほぼ即座ですね。
+
+&gt;4.httpd プロセスが（正常／異常）終了した時、そのプロセスがオープ
+&gt;  ンしたままの postgreSQL セッションがあれば、それらはリセットさ
+&gt;  れ、peer の postgres プロセスは終了する。
+
+Yes.
+
+&gt;4.KeepAlive 設定により PHP3 の動作(1 つの http セッション)が終了
+&gt;  しても httpd はまだ生きている場合、オープン中の postgreSQL セッ
+&gt;  ションはリセットされず、peer の postgres プロセスは終了できな
+&gt;  くなる？タイマーか何かがあるんでしょうか？
+
+? KeepAlive って、httpd と web client の間の TCP コネクションを、使い
+終ってもしばらく張っておく機能ですよね(デフォルトで15秒のタイマーだっ
+たかな)。でも、Apache の場合、それとは無関係に httpd は終了すること無
+く生き残っているのだと思っていたのですが、違うんでしたっけ？
+
+まあ、それはそれとして、確かPHPの場合、あるページのスクリプトが終了す
+ると、自動的にいろんな後始末をしてくれて、PostgreSQLの場合も 
+pg_close()を呼んでもらえると思ってましたが。
+
+&gt;5.1 つの PHP3 セッションにおいて、同時に複数の postgres セッショ
+&gt;  ンを張るのは無意味であり、バグといえる？
+
+必要な場合もあるのでは。たとえば、複数のDBを扱わなければいけないような
+ケースとか。
+
+&gt;6.pg_exec() から抜けてきた時点では、返された結果はすべてクライア
+&gt;  ント側の（ライブラリ内部の？）バッファに格納されている。
+&gt;  すでに postgresプロセスはアイドル状態となっており、次のクエリー
+&gt;  を待っている。この時点で、これ以上別のクエリーを発行することが
+&gt;  なければ、先に pg_close() を発行した方が良い。
+
+Yes. まあ、時間にして何秒違うか分かりませんが、早めに pg_close()するに
+越したことは無いと思います。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00252" HREF="msg00252.html">[pgsql-jp 5461] Re: バックエンドの動き</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00247" HREF="msg00247.html">[pgsql-jp 5456] バックエンドの動き</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;sim@remus.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00249.html">[pgsql-jp 5458] Re: win32 client binary for 6.4beta</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00251.html">[pgsql-jp 5460] RE: [pgsql-jp 5434] gnuplotからgifファイルの出力</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00247.html">[pgsql-jp 5456] バックエンドの動き</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00252.html">[pgsql-jp 5461] Re: バックエンドの動き</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00250"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00250"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

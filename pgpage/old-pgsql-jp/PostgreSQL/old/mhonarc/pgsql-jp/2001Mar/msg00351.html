@@ -1,0 +1,160 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Mon, 26 Mar 2001 15:01:01 +0900 -->
+<!--X-Message-Id: 20010326150101B.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3ABC81B7.A0DF1657@shonan.ne.jp -->
+<!--X-Reference-Id: 20010324232656K.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 200103260522.OAA11306@mailhost.e&#45;vision.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00350.html">Date Prev</A>][<A HREF="msg00352.html">Date Next</A>][<A HREF="msg00350.html">Thread Prev</A>][<A HREF="msg00352.html">Thread Next</A>][<A HREF="index.html#00351">Date Index</A>][<A HREF="threads.html#00351">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20485] Re: Re^2: How about to use a silicon disk on$PGDATA</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 26 Mar 2001 15:01:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00341.html">3ABC81B7.A0DF1657@shonan.ne.jp</A>&gt;&lt;<A HREF="msg00342.html">20010324232656K.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00350.html">200103260522.OAA11306@mailhost.e-vision.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; 石井さん:
+&gt; &gt;このデータからすると，fsyncありのデータですね．同じfsyncありでも，7.1
+&gt; &gt;ならかなり早くなるはずです．
+&gt; &gt;
+&gt; &gt;まだ正式アナウンスされてませんが，7.1のRC1(Relelease Candidate)
+&gt; &gt;
+&gt; &gt;<A HREF="ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz">ftp://ftp.postgresql.org/pub/dev/postgresql-7.1RC1.tar.gz</A>
+&gt; &gt;
+&gt; &gt;をお試し下さい．もしかしたらtmpfsいらないくらいのスピードになるかも．
+&gt; 
+&gt; いよいよRCまで来たんですね．ということで，早速使ってみました．
+&gt; ----------------------------------------------------------------------
+&gt;     [ufs, fsync, 7.1RC1]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 31.229408(including connections establishing)
+&gt; tps = 31.602606(excluding connections establishing)
+&gt;     [ufs, nofsync, 7.1RC1]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 37.079789(including connections establishing)
+&gt; tps = 37.614772(excluding connections establishing)
+&gt;   :: かなりばらつきが出る
+&gt; tps = 101.064206(including connections establishing)
+&gt; tps = 104.625603(excluding connections establishing)
+&gt;     [tmpfs, fsync, 7.1RC1]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 139.139533(including connections establishing)
+&gt; tps = 146.767878(excluding connections establishing)
+&gt;     [tmpfs, nofsync, 7.1RC1]
+&gt; transaction type: TPC-B (sort of)
+&gt; scaling factor: 1
+&gt; number of clients: 1
+&gt; number of transactions per client: 100
+&gt; number of transactions actually processed: 100/100
+&gt; tps = 145.490098(including connections establishing)
+&gt; tps = 153.822725(excluding connections establishing)
+&gt; ----------------------------------------------------------------------
+&gt; 確かに，fsyncありの場合のパフォーマンスはかなりよくなっているようですね．
+&gt; データファイルの構造もだいぶ変わっているようですし．
+&gt; ただ，fsyncなしの場合には，逆にパフォーマンスが低下しているような
+&gt; 気もするんですけど......
+
+それと，常に number of clients: 1 でテストされているようですが，実稼働
+環境でも常にユーザ数1なんですか?そうでないのなら，これを増やしてテスト
+した方が現実に近い結果が得られると思います．
+
+それと，7.1の場合，共有メモリ上のバッファを増やしてやると効果があるよ
+うです．1024位にしてみてはどうでしょう．
+
+最後に，$PGDATA/postgresql.confの以下のパラメータをいろいろいじると効
+果があるかも．
+
+#
+#	Write-ahead log (WAL)
+#
+#wal_buffers = 8 # min 4
+#wal_files = 0 # range 0-64
+#wal_sync_method = fsync # fsync or fdatasync or open_sync or open_datasync
+# Note: default wal_sync_method varies across platforms
+#wal_debug = 0 # range 0-16
+#commit_delay = 0 # range 0-100000
+#commit_siblings = 5 # range 1-1000
+#checkpoint_segments = 3 # in logfile segments (16MB each), min 1
+#checkpoint_timeout = 300 # in seconds, range 30-3600
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 20475] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00342" HREF="msg00342.html">[pgsql-jp 20476] Re: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00350" HREF="msg00350.html">[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+<UL><LI><EM>From:</EM> Tsuyoshi SASAMOTO &lt;sasamoto@e-vision.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00350.html">[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00352.html">[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00350.html">[pgsql-jp 20484] Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00352.html">[pgsql-jp 20486] Re: Re^2: How about to use a silicon disk on $PGDATA</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00351"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00351"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

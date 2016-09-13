@@ -1,0 +1,241 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13228] Re: postgresql&#45;7.0beta1 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 23 Feb 2000 15:39:37 +0900 -->
+<!--X-Message-Id: 20000223153937M.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200002230618.PAA18129@mailgw.jkk.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13228] Re: postgresql-7.0beta1 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00267.html">Date Prev</A>][<A HREF="msg00270.html">Date Next</A>][<A HREF="msg00265.html">Thread Prev</A>][<A HREF="msg00269.html">Thread Next</A>][<A HREF="index.html#00268">Date Index</A>][<A HREF="threads.html#00268">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13228] Re: postgresql-7.0beta1</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Feb 2000 15:39:37 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00265.html">200002230618.PAA18129@mailgw.jkk.hitachi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; これで、makeが通ったのでmake installしました。
+&gt; initdbでエラーが出るので調べてみると、
+&gt; データベースの配置パス($PGDATA)に "."が含まれていると
+&gt; Segmentation faultとなりcore dumpします。
+&gt; 6.5.3までは、パスのチェックが甘かったのですが、7.0beta1では、
+&gt; 
+&gt; backend/utils/misc/database.c
+&gt; の中で
+&gt;         char illegal_dbpath_chars[] =
+&gt;             "\001\002\003\004\005\006\007\010"
+&gt;             "\011\012\013\014\015\016\017\020"
+&gt;             "\021\022\023\024\025\026\027\030"
+&gt;             "\031\032\033\034\035\036\037"
+&gt;             "'.";
+&gt; 
+&gt; 使用できない文字を定義してます。
+
+これはひどい。これでは
+
+/usr/local/postgresql-7.0b1/data
+
+とかいう$PGDATAが使えない:-&lt;本家にメールします。
+
+&gt;# pg_ctl っていうコマンドが追加されてますね。
+&gt;# 幸せになれそうです。
+
+私が作りました。使ってやって下さい。マニュアルを付けておきます。
+
+簡単に使うには、pg_ctl start でpostmasterの起動、pg_ctl stopで停止、
+pg_ctl restartで再起動です。$PGDATAが設定されている方が使い方が簡単に
+なります。
+
+--------------------------------------------------------------------------
+NAME
+
+pg_ctl - starts/stops/restarts postmaster
+
+SYNOPSIS
+
+pg_ctl [-w][-D database_dir][-p path_to_postmaster][-o "postmaster_opts"] start
+pg_ctl [-w][-D database_dir][-m [s[mart]|f[ast]|i[mmediate]]] stop
+pg_ctl [-w][-D database_dir][-m [s[mart]|f[ast]|i[mmediate]][-o "postmaster_opts"] restart
+pg_ctl [-D database_dir] status
+
+DESCRIPTION
+
+pg_ctl is a utility for starting, stopping or restarting postmaster.
+
+Starting postmaster
+
+To start postmaster:
+
+pg_ctl start
+
+If -w is supplied, pg_ctl waits for the database server comes up, by
+watching for creation of the pid file (PGDATA/postmaster.pid), for up
+to 60 seconds.
+
+Parameters to invoke postmaster are taken from following sources:
+
+Path to postmaster: found in the command search path
+Database directory: PGDATA environment variable
+Other parameters: PGDATA/postmaster.opts.default
+
+postmaster.opts.default contains parameters for postmaster. With a
+default installation, the "-S" option is enabled. So "pg_ctl start"
+implies:
+
+postmaster -S
+
+Note that postmaster.opts.default is installed by initdb from
+lib/postmaster.opts.default.sample under the PostgreSQL installation
+directory (lib/postmaster.opts.default.sample is copied from
+src/bin/pg_ctl/postmaster.opts.default.sample while installing
+PostgreSQL).
+
+To override default parameters you can use -D, -p and -o options.
+
+-D database_dir
+	specifies the database directory
+
+-p path_to_postmaster
+	specifies the path to postmaster
+
+-o "postmaster_opts"
+	specifies any parameters for postmaster
+
+Examples:
+
+# blocks until postmaster comes up
+pg_ctl -w start
+
+# specifies postmaster path
+pg_ctl -p /usr/local/pgsq/bin/postmaster start
+
+# uses port 5433 and disables fsync
+pg_ctl -o "-o -F -p 5433" start
+
+Stopping postmaster
+
+pg_ctl stop
+
+stops postmaster.
+
+There are several options for the stopping mode.
+
+-w
+	waits for postmaster to shut down
+
+-m [s[mart]|f[ast]|i[mmediate]]
+       specifies the shutdown mode. smart mode waits for all
+       the clients to logout. This is the default.
+       fast mode sends SIGTERM to the backends, that means
+       active transactions get rolled back. immediate mode sends SIGUSR1
+       to the backends and lets them abort. In this case, database recovery
+       will be neccessary on the next startup.
+
+
+Restarting postmaster
+
+This is almost equivalent to stopping postmaster then starting it
+again except that the parameters for postmaster used before stopping
+it would be used too. This is done by saving them in
+PGDATA/postmaster.opts file. -w, -D, -m, -fast, -immediate and -o
+can also be used in the restarting mode and they have same meanings as
+described above.
+
+Examples:
+
+# restarts postmaster in the simplest form
+pg_ctl restart
+
+# restarts postmaster, waiting for it to shut down and to come up
+pg_ctl -w restart
+
+# uses port 5433 and disables fsync next time
+pg_ctl -o "-o -F -p 5433" restart
+
+Getting status from postmaster
+
+To get status information from postmaster:
+
+pg_ctl status
+
+Following is sample outputs from pg_ctl.
+
+pg_ctl: postmaster is running (pid: 13718)
+options are:
+/usr/local/src/pgsql/current/bin/postmaster
+-p 5433
+-D /usr/local/src/pgsql/current/data
+-B 64
+-b /usr/local/src/pgsql/current/bin/postgres
+-N 32
+-o '-F'
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00269" HREF="msg00269.html">[pgsql-jp 13229] Re: postgresql-7.0beta1</A></STRONG>
+<UL><LI><EM>From:</EM> HYODO Takashi &lt;hyodo@integra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00265" HREF="msg00265.html">[pgsql-jp 13225] postgresql-7.0beta1</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;iwakiri@jkk.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00267.html">[pgsql-jp 13227] Re: select文のwhere句にてデータの一部分を条件判断につかいたいのですが・・・</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 13230] LockRelease/LockReplaceのエラーが出ます</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00265.html">[pgsql-jp 13225] postgresql-7.0beta1</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00269.html">[pgsql-jp 13229] Re: postgresql-7.0beta1</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00268"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00268"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

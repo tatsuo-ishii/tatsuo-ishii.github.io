@@ -1,0 +1,244 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4950] Re: functional index (Re: date in a month) -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Tue, 04 Aug 1998 18:55:37 +0900 -->
+<!--X-Message-Id: 199808040955.SAA29701@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805120347.MAA10773@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4950] Re: functional index (Re: date in a month) </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00020.html">Thread Prev</A>][<A HREF="msg00140.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4950] Re: functional index (Re: date in a month)</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 04 Aug 1998 18:55:37 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。だいぶ前の話題ですが("[pgsql-jp 3903] date in a month" から
+のスレッドです)、
+
+Subject: [pgsql-jp 4009] functional index (Re: date in a month) にて:
+
+&gt;らOK」ということです。これがバグなのか仕様なのかはわかりませんが。ただ、
+&gt;別の致命的問題として、作成された functional index が (explain で見る限
+&gt;り)使われない、というのがあります。これではせっかく作った索引が意味な
+&gt;しですね。
+[略]
+&gt;create table d1(d date);
+&gt;CREATE FUNCTION date2month(date)
+&gt;RETURNS datetime
+&gt;AS '/mnt2/home/mgr/t-ishii/doc/PostgreSQL/functional_index/date2month/date2month.so'
+&gt;LANGUAGE 'c';
+&gt;(300 records insertion here)
+&gt;create index d1index on d1 using btree (date2month(d)  datetime_ops);
+&gt;vacuum d1;
+&gt;explain select * from d1 where date2month(d) = 'Mon Mar 01 00:00:00 1999 JST'::datetime;
+&gt;NOTICE:  QUERY PLAN:
+&gt;
+&gt;Seq Scan on d1  (cost=13.96 size=166 width=4)
+&gt;
+&gt;EXPLAIN
+
+この問題を解決する 6.3.2 用のパッチが出ていますので、添付しておきます。
+こちらで試した限りではうまくインデックスが使われるようになりました。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+------------------------------- cut here ------------------------------
+Message-ID: &lt;35C1DCFB.92EA50F9@krs.ru&gt;
+Date: Fri, 31 Jul 1998 23:04:27 +0800
+From: Vadim Mikheev &lt;vadim@krs.ru&gt;
+Organization: OJSC Rostelecom (Krasnoyarsk)
+X-Mailer: Mozilla 4.05 [en] (X11; I; FreeBSD 2.2.6-RELEASE i386)
+MIME-Version: 1.0
+To: Vince Vielhaber &lt;vev@michvhf.com&gt;
+CC: "(PostgreSQL-development)" &lt;hackers@postgreSQL.org&gt;,
+        Bruce Momjian &lt;maillist@candle.pha.pa.us&gt;
+Subject: Re: [HACKERS] OR clause status report
+References: &lt;XFMail.980731100514.vev@michvhf.com&gt;
+Content-Type: multipart/mixed; boundary="------------60A007D8168BCB48ABBE654B"
+Sender: owner-pgsql-hackers@hub.org
+Precedence: bulk
+
+This is a multi-part message in MIME format.
+--------------60A007D8168BCB48ABBE654B
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Vince Vielhaber wrote:
+&gt; 
+&gt; Yep, it created it that time but still won't use it. :(
+
+Yes, I see.
+
+This is patch for 6.3.2
+CVS updated.
+
+Bruce, could you add this to TODO:
+
+&gt;&gt; campsites=&gt; create index lower_city on locations (lower(city));
+&gt;&gt; ERROR:  DefineIndex: (null) class not found
+&gt;&gt; campsites=&gt;
+&gt; 
+&gt; Ok, this works:
+&gt; 
+&gt; create index lower_city on locations (lower(city) text_ops);
+&gt; 
+&gt; Something broken in DefineIndex -:((
+&gt; XXX_ops for function rettype should be used...
+
+Should be easy to fix but no time -:(
+
+Vadim
+--------------60A007D8168BCB48ABBE654B
+Content-Type: text/plain; charset=us-ascii; name="DF"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename="DF"
+
+*** src/backend/optimizer/path/indxpath.c.orig	Fri Jul 31 22:54:58 1998
+--- src/backend/optimizer/path/indxpath.c	Fri Jul 31 22:56:38 1998
+***************
+*** 410,419 ****
+  	int			curIndxKey;
+  	Oid			curClass;
+  
+! 	if (clauseinfo_list == NIL)
+  		return NIL;
+  
+! 	while (!DoneMatchingIndexKeys(indexkeys, index))
+  	{
+  		List	   *tempgroup = NIL;
+  
+--- 410,419 ----
+  	int			curIndxKey;
+  	Oid			curClass;
+  
+! 	if (clauseinfo_list == NIL || indexkeys[0] == 0)
+  		return NIL;
+  
+! 	do
+  	{
+  		List	   *tempgroup = NIL;
+  
+***************
+*** 443,449 ****
+  		indexkeys++;
+  		classes++;
+  
+! 	}
+  
+  	/* clausegroup holds all matched clauses ordered by indexkeys */
+  
+--- 443,449 ----
+  		indexkeys++;
+  		classes++;
+  
+! 	} while (!DoneMatchingIndexKeys(indexkeys, index));
+  
+  	/* clausegroup holds all matched clauses ordered by indexkeys */
+  
+***************
+*** 474,483 ****
+  	Oid			curClass;
+  	bool		jfound = false;
+  
+! 	if (join_cinfo_list == NIL)
+  		return NIL;
+  
+! 	while (!DoneMatchingIndexKeys(indexkeys, index))
+  	{
+  		List	   *tempgroup = NIL;
+  
+--- 474,483 ----
+  	Oid			curClass;
+  	bool		jfound = false;
+  
+! 	if (join_cinfo_list == NIL || indexkeys[0] == 0)
+  		return NIL;
+  
+! 	do
+  	{
+  		List	   *tempgroup = NIL;
+  
+***************
+*** 523,529 ****
+  		indexkeys++;
+  		classes++;
+  
+! 	}
+  
+  	/* clausegroup holds all matched clauses ordered by indexkeys */
+  
+--- 523,529 ----
+  		indexkeys++;
+  		classes++;
+  
+! 	} while (!DoneMatchingIndexKeys(indexkeys, index));
+  
+  	/* clausegroup holds all matched clauses ordered by indexkeys */
+  
+
+--------------60A007D8168BCB48ABBE654B--
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00140" HREF="msg00140.html">[pgsql-jp 5072] Re: functional index (Re: date in a month)</A></STRONG>
+<UL><LI><EM>From:</EM> SHIOZAKI Takehiko &lt;takehi-s@ascii.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 4949] Re: DateTime型のフォーマット変換</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 4951] 日時の並び替え。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 4951] 日時の並び替え。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00140.html">[pgsql-jp 5072] Re: functional index (Re: date in a month)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

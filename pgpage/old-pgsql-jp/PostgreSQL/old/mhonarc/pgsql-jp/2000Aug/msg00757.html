@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17159] Re: 複数キーワードから検索するDB -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Wed, 30 Aug 2000 20:48:41 +0900 -->
+<!--X-Message-Id: 39ACF499.65B01F17@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: xepya1fkot2.fsf@ic.src.ricoh.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17159] Re: 複数キーワードから検索するDB </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00756.html">Date Prev</A>][<A HREF="msg00758.html">Date Next</A>][<A HREF="msg00756.html">Thread Prev</A>][<A HREF="msg00767.html">Thread Next</A>][<A HREF="index.html#00757">Date Index</A>][<A HREF="threads.html#00757">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17159] Re: 複数キーワードから検索するDB</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 30 Aug 2000 20:48:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00753.html">xepya1fkot2.fsf@ic.src.ricoh.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Koichi INOUE wrote:
+&gt; 
+&gt; 井上ともうします。
+&gt; 
+&gt; 多少一般的質問になってしまいますが、
+&gt; 
+&gt; あるオブジェクトを任意個のキーワードをつけて登録しておき、後からキーワー
+&gt; ドを用いて検索をかける
+&gt; という使い方のDBを作ろうとしています。
+&gt; 
+&gt; 考えられる形としては、
+&gt; 1.  各オブジェクトに一異なID番号を発行して、そのIDとキーワードのペアの
+&gt; テーブルを作る。ID, キーワードともに複数の列に現れる。
+&gt; select object_id from table_name where keyword = 'KEYWORD';
+&gt; のような形でIDを得て、それを使って元のオブジェクトを別テーブルから取り
+&gt; 出す。
+&gt; というのがあると思います。
+
+目的とかデーター量によりけりだと思いますが、
+第2案よりは、第1案の方が一般的でしょう。
+
+さらに、シノニム(同義語)検索も考慮して、
+キーワード自体もコード化して、
+(1)シノニム表
+   CREATE TABLE synonymtab(keyid int4, keyword text);
+(2)キーワードIDと検索対象のIDだけの表。
+   CREATE TABLE retrieve(keyid int4, objid int4);
+(3)検索対象のオブジェクト
+   CREATE TABLE objdata(objid serial, objtext text ...... );
+という３表にする方法も考えられます。
+
+シノニム表は、例えばつぎのようになります。
+10012  東京大学
+10012  東大
+18710  プリント基板
+18710  積層基板
+
+&gt; しかし、これだとIDを一意に保つ処理をプログラムで書かないといけないと思
+&gt; うのですが、そこに同時アクセスなどを考えないといけないとすると、あまり
+&gt; RDBを利用する意味がない気がします。
+
+PostgreSQL の SEQUENCE を使えば、一意の ID が、
+簡単に生成できます。
+
+同時アクセス云々以下の意味が、わからないのですが、
+トランザクション制御で十分ではないでしょうか。
+逆に、トランザクション制御が必要だから、RDB を
+使いたいという場合が多いのでは。
+
+&gt; PostgreSQLを利用する場合、このような一意のIDを発行して管理し、DBのダン
+&gt; プとかも大変でないような方法はあるでしょうか。
+
+オンラインバックアップもあるし、問題はないと
+思います。
+
+何を、心配されているのでしょうか？。
+
+質問の前に、シーラカンス本など、一通り目を通し
+ておくべきだと思います。
+
+&gt; 2.
+&gt; それぞれのオブジェクトと一緒のレコードにキーワードを','などで区切って
+&gt; 書き込んだvarcharなどの文字列フィールドを一つつけておく。検索はlikeな
+&gt; どで部分文字列一致を用いて行う。
+&gt; というのも可能ではあると思いますが、このようなやり方は現実的でしょうか？
+
+まあ、目的と、データー量次第なんですが。
+
+将来いろんな用途に使おうとしたとき、応用がきか
+なくなります。
+前方一致検索にならないから、INDEX も使えないとか
+問題は多いでしょう。
+完全一致にしたいなら、キーワードに絶対出現しない
+文字で囲むというような、工夫が必要でしょう。
+と、いったとこでしょうか。
+
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+ (株)ソフト工房     近藤直文     Email:  nkon@shonan.ne.jp 
+    PostgreSQL 汎用DB検索ツール デモ  
+        <A HREF="http://www.softkoubou.co.jp/cslweb/index.php3">http://www.softkoubou.co.jp/cslweb/index.php3</A>
+_/__/_/_/_//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/__/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00767" HREF="msg00767.html">[pgsql-jp 17169] Re: 複数キーワードから検索するDB</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi INOUE &lt;inoue@argv.org&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00753" HREF="msg00753.html">[pgsql-jp 17155] 複数キーワードから検索するDB</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi INOUE &lt;kinoue@ic.src.ricoh.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00756.html">[pgsql-jp 17158] Re: 複数キーワードから検索するDB</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00758.html">[pgsql-jp 17160] Re: アップデート時のおかしな現象。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00756.html">[pgsql-jp 17158] Re: 複数キーワードから検索するDB</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00767.html">[pgsql-jp 17169] Re: 複数キーワードから検索するDB</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00757"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00757"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,213 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8018] Re: How to Transaction ? -->
+<!--X-From: baba takanori <baba@tfive.co.jp> -->
+<!--X-Date: Wed, 14 Apr 1999 16:03:08 +0900 -->
+<!--X-Message-Id: 199904140718.QAA06462@ns.tfive.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199904140149.KAA23424@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8018] Re: How to Transaction ? </TITLE>
+<LINK REV="made" HREF="mailto:baba@tfive.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00208.html">Date Prev</A>][<A HREF="msg00210.html">Date Next</A>][<A HREF="msg00196.html">Thread Prev</A>][<A HREF="msg00210.html">Thread Next</A>][<A HREF="index.html#00209">Date Index</A>][<A HREF="threads.html#00209">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8018] Re: How to Transaction ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: baba takanori &lt;<A HREF="mailto:baba@tfive.co.jp">baba@tfive.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Apr 1999 16:03:08 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00196.html">199904140149.KAA23424@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井さん、素早いレスポンス感謝々々です。
+(思いのほか早かったので、あわくってしまいました)
+
+&gt; &gt;しばらく前から、当ＭＬを拝見させて頂いていましたが、
+&gt; &gt;最近になって自己紹介しなければいけない事を知りまして、
+&gt; &gt;自己紹介するのが遅れてしまいました。申し訳ありませんでした。m(_ _)m
+&gt; 
+&gt; いえ、自己紹介はあくまでお願いであって、義務ではありませんから...
+&gt; 
+
+初めてのこととて慣れないもので、過敏になってしまいました。(^_^;)
+
+&gt; トランザクションがからむのでお断りしておきますが、以下の議論は 6.4.x 
+&gt; を前提にした話です。6.5 では一部異るところがあります。
+
+6.5ではMulti Versioning Concurrency Controlが導入され、トランザクション
+の同時実行が可能になった。
+というところですね？
+6.5の導入も考えましたが、今のところ安定していないようなので見合わせています。
+
+本来ならば、フリーソフトを使わせて頂いているのだから、インストールやregression
+test結果、bench結果などをご報告するぐらいのことはやって、少しでも貢献すべきなの
+ですが、現在納期がせまっていて余裕が無いのと、システムに不安定な要素を加えたく
+ないので．．．
+どうかご容赦下さい。
+余裕ができたら、6.5の導入と諸テスト結果をご報告させて頂きますので。
+
+&gt; 
+&gt; 確認ですが、T1, T2 は書き込みを行なわないのですね？
+
+アプリケーションの仕様としては、書込みも行いますが、この件に関しては読み込みだけ
+を行った場合でも件の現象が発生します。（当然、書込みの場合でも同様の現象は出ます）
+ＳＱＬを管理する為のクラスを作り、読み込み／書き込み処理両方からこのクラスを使っ
+ています。
+このクラスのＳＱＬ発行用メソッドで、
+1.BEGIN WORK 発行
+2.LOCK TABLE 発行
+3.SQL文発行
+4.SQL文が書込み系ならば COMMIT WORK 発行
+
+を行い、SQL文が読込み系ならば別のメソッドで
+1.ResultSet読込み
+2.COMMIT WORK 発行
+
+といった具合で、今のところいたって単純な構成です。
+
+&gt; 
+&gt; # 誤解を防ぐために言っておきますが、LOCK を発行しなくても、SELECT が実
+&gt; # 行開始した時点でロックが自動的にそのテーブルにかかります。LOCK コマン
+&gt; # ドとはちょっと違う「共有ロック」というものですが...
+
+はい、SELECT文でLOCKがかかるのは知っていましたが、
+
+&gt;                                                         (もっとも、ロッ
+&gt; クしても、パフォーマンス以外の悪影響はありません。)
+
+といった理由で、今のところプログラムのロジックを単純にするため、読込み／
+書込みの別なくほとんど同じ手順にしています。
+
+ところで、
+&gt; 確認ですが、T1, T2 は書き込みを行なわないのですね？であれば、LOCK は必
+&gt; 要ありません。その方が T1, T2 が並行に走るので良いです。
+                         〜〜〜〜〜〜〜〜〜
+超基本的なことなのかも知れませんが、↑これは知りませんでした。
+これは、 BEGIN WORK を行わないで SELECT文を発行した場合の動作なんでしょうか。
+PostgreSQLでは、読み書きの別なくクエリーの処理そのものが直列処理だと思い
+込んでいました。
+もっとしっかりマニュアルを読み返して見ます。
+
+話が、本題から逸れていしまいました。スミマセン
+
+&gt; SQL92 で言っている「エージェント」の概念が PostgreSQL の実装と完全には
+&gt; 一致していないのです。PostgreSQL では、
+&gt; 
+&gt; 	1個の SQL エージェント == 1 個の SQL 接続
+&gt; 
+&gt; と考えたほうが良いです。それに、SQL92 で言う「接続の休止」がトランザク
+&gt; ションにも適用されるのかどうか。私は適用されないと思います。つまり、一
+&gt; 旦開始されたトランザクションは、エージェント側からは休止されることはな
+&gt; いと解釈しています。
+
+この辺は低レベルのことで、ブラックボックスと考えていいのですね。
+
+&gt; 
+&gt; ところで、そもそも質問に戻りますが、もしかして T1, T2 は 1個の Java ア
+&gt; プリケーションプロセスから発行されているのですか(別スレッドにしている
+&gt; ケースも含めて)？それだと何かありそう。
+
+私アプリケーションの構成として、
+・バックエンド層は PostgreSQL がトランザクションの直列処理のため、シングル
+　セッション（HORBの _Skeleton クラス 各メソッドにsinchronized修飾子）。
+・フロントエンド層は、Webからの検索を目的としているので、マルチクライアント
+　（HORBの _Proxy クラス）。
+・バックエンド層、フロントエンド層はＳＱＬ管理クラスからＳＱＬ文を受け取って
+　JDBCを介してPostgreSQLに渡し、その結果を ResultSet として受取ってＳＱＬ管
+　理クラスに返すだけの機能を持つ。
+・Webブラウザ上のJavaアプレット（JBuilder2でGUIを開発）からＳＱＬ管理クラス
+　クを呼び出してＳＱＬの発行、結果の取得（トランザクションの実行）を行う。
+
+となっています。ので、複数のプロセス（というか、ネット上の複数のホスト）から
+同時にトランザクションの実行を行います。
+また、LAN（イーサネット）上の１つのホスト上からJBuilder2のデバッガで複数の
+アプレットを立上げ、それぞれから同時に検索を行うこともあります。
+この何れの場合でも、例の現象がでます。
+
+&gt; 
+&gt; そのJavaアプリケーションを 2 本立ち上げ、それぞれ T1 T2 を発行させても
+&gt; 同じ現象が起こるでしょうか？
+
+起こります。
+
+&gt; 
+&gt; # なんとなく JDBC か Java の問題のような気がしてきた...
+
+うーむ．．．
+SQL92のトランザクション動作の解釈とか、そんな簡単なことを考えていたんですが、
+思ったより根が深いのかな？('_';) ＜−汗かいてばっかりです
+
+こういう現象は、よくある事例なんでしょうか？それとも、私だけの特殊ポカミス
+なのか、この分野での経験が皆無なので、その辺が良く分かりません。
+
+このメールを書いているうちに、どんどん新着メールが増えている...
+なんて活発なMLなのでしょう。
+タジタジ...
+
+といったところです。よろしくお願いします。
+
+------------------------------------------------------------
+馬場孝典                Email   baba@tfive.co.jp
+  (株)ティーファイブ    WWW     工事中
+------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00210" HREF="msg00210.html">[pgsql-jp 8019] Re: How to Transaction ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00196" HREF="msg00196.html">[pgsql-jp 8005] Re: How to Transaction ?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 8017] Re: FATAL 1: btree: BTP_CHAIN flag was expected in ...</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 8019] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 8005] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 8019] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00209"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00209"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

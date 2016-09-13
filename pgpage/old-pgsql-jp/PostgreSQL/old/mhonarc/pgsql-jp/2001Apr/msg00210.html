@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20785] Re: データベース名の扱いについて -->
+<!--X-From: "Kawai,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Fri, 20 Apr 2001 11:14:11 +0900 -->
+<!--X-Message-Id: 008a01c0c93f$a6708b10$0a00a8c0@nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3ADF85622C6.D653KABU@smtp1.big.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20785] Re: データベース名の扱いについて </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00209.html">Date Prev</A>][<A HREF="msg00211.html">Date Next</A>][<A HREF="msg00208.html">Thread Prev</A>][<A HREF="msg00203.html">Thread Next</A>][<A HREF="index.html#00210">Date Index</A>][<A HREF="threads.html#00210">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20785] Re: データベース名の扱いについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Kawai,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 20 Apr 2001 11:14:11 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00208.html">3ADF85622C6.D653KABU@smtp1.big.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+----- Original Message -----
+From: "T.Kabu" &lt;kabu@big.or.jp&gt;
+To: &lt;pgsql-jp@sra.co.jp&gt;
+Sent: Friday, April 20, 2001 9:40 AM
+Subject: [pgsql-jp 20783] データベース名の扱いについて
+
+
+&gt;
+&gt; こんにちは、蕪木＠ＢＩＧです。
+（中略）
+&gt; 具体的には、Perl で
+&gt;
+&gt; &gt; Pg::connectdb("dbname=HOGEHOGE")
+&gt;
+&gt; はデータベース名「hogehoge」を見て、PHP4での
+&gt;
+&gt; &gt; pg_connect("dbname=HOGEHOGE");
+&gt;
+&gt; は「HOGEHOGE」を見る、というものです。
+&gt;
+&gt; Perlモジュールの方ではデータベース名を勝手に小文字に変換している？
+&gt; ようなのですが、これは既知の問題（またはPostgreSQLとしての使用上の
+&gt; 制限：データベース名は絶対に小文字でなければならない等）なのでしょ
+&gt; うか？
+確かにPgモジュールの内部で小文字に変換していますね。
+ディストリビューションのChangesを見ると
+&lt;quote&gt;
+1.7.0   Feb 20 1998
+(snip)
+ - connectdb() converts dbname to lower case,
+   unless it is surrounded by double quotes
+&lt;/quote&gt;
+と書いてあるので、ダブルクォートで囲めばいいのかなぁと思ったら
+うまく行きません。調べて見たら、変換の部分が間違っているようです。
+よりによってC（Pg.xs）で変換しなくてもいいのに...。
+Pg.xsのconnectdbで'='を探した後に、それを飛ばしていないのが直接
+原因です。ですから  ptr++; とでもを追加すれば大丈夫なはずです。
+
+ex.Pg.xs(pgsql_perl5-1.9.0) 106行目あたり
+while (*ptr &amp;&amp; *ptr != '=') {
+     ptr++;
+}
+ptr++; /* Skip '=' */
+while (*ptr &amp;&amp; (*ptr == ' ' || *ptr == '\t')) {
+    ptr++;
+}
+
+これでPgをリビルドして、
+  $oConn = Pg::connectdb('dbname="HOGEHOGE" user=postgres');
+のようにdbnameの値をダブルクォートで囲んでやれば大丈夫なはずです。
+ちなみにDBD::Pgでは小文字化はしてないみたいです。
+
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=hogehoge', 'postgres', '');
+はＮＧで
+$hDb = DBI-&gt;connect('dbi:Pg:dbname=HOGEHOGE', 'postgres', '');
+はＯＫでした。
+
+PS.
+&gt;「postgresql-7.0.3+php-4.0.4pl1+perl-5.7.0+apache_1.3.14」
+Pg.pm(pgsql)のバージョンも教えていただいた方がとは思いますが。
+私には開発バージョン（Perl5.7.0）を利用するほど度胸はないや...。
+
+==============================================
+川合 孝典 (Hippo2000)
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+   <A HREF="http://www.hippo2000.net/">http://www.hippo2000.net/</A>
+    DBI日本語メーリングリスト管理人、 Kansai.pm所属
+==============================================
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00208" HREF="msg00208.html">[pgsql-jp 20783] データベース名の扱いについて</A></STRONG>
+<UL><LI><EM>From:</EM> "T.Kabu" &lt;kabu@big.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 20784] Re: インデックスのファイルサイズ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 20786] make install のエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00208.html">[pgsql-jp 20783] データベース名の扱いについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00203.html">[pgsql-jp 20778] Re: PostgreSQL on NT  で文字コードの指定は出来ますか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00210"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00210"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

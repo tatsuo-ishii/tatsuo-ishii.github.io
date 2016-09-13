@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22755] Re: カラムの桁数やNOT&#45;NULL属性の取得について -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 13 Aug 2001 06:13:20 +0900 -->
+<!--X-Message-Id: 3B76F170.5134ADAF@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010813030529.EB40.INAMOTO@kt.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22755] Re: カラムの桁数やNOT-NULL属性の取得について </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00090.html">Thread Prev</A>][<A HREF="msg00089.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22755] Re: カラムの桁数やNOT-NULL属性の取得について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 13 Aug 2001 06:13:20 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00090.html">20010813030529.EB40.INAMOTO@kt.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Naota Inamoto wrote:
+&gt; 
+&gt; 稲本と申します。
+&gt; 
+&gt; libpqを使って、テーブルのカラムの 桁数や NOT-NULL属性を取得することは
+&gt; 可能でしょうか？
+.....略.....
+
+下記ＳＱＬ文を参考に。表示桁数は目的に応じて調整してください。
+詳細は、マニュアルのカタログ関係を見て下さい。
+
+SELECT
+    pg_attribute.attnum         AS 列番,
+    pg_class.relname            AS 表名,
+    pg_attribute.attname        AS 列名,
+    pg_attribute.atttypid       AS 型番,
+    pg_type.typname             AS 型名,
+
+    case
+        when pg_type.typname='bpchar'           then  pg_attribute.atttypmod-4
+        when pg_type.typname='varchar'          then  pg_attribute.atttypmod-4
+        when pg_type.typname='numeric'          then (pg_attribute.atttypmod-4) / 65536
+        when pg_type.typname='decimal'          then (pg_attribute.atttypmod-4) / 65536
+        when pg_type.typname='date'             then 10
+        when pg_type.typname='time'             then  8
+        when pg_type.typname='timestamp'        then 19
+        when pg_type.typname='bool'             then 1
+        end                     AS 長さ,
+
+    case
+        when pg_type.typname='numeric'          then ((pg_attribute.atttypmod-4) % 65536)
+        when pg_type.typname='decimal'          then ((pg_attribute.atttypmod-4) % 65536)
+        end                     AS 小数,
+
+    pg_attribute.attnotnull     AS "NULL",
+    -- pg_class.relacl          AS "アクセス権限",
+    pg_attribute.attnelems      AS 配列,
+    pg_attribute.atthasdef      AS "DEF"
+
+FROM    pg_class,    pg_type,    pg_attribute
+WHERE
+        pg_attribute.attrelid   = pg_class.oid
+AND     pg_type.oid             = pg_attribute.atttypid  
+AND     pg_class.oid            = pg_attribute.attrelid
+AND     pg_attribute.attnum     &gt;= 0                    -- oid,cmax等除外
+AND     pg_class.relkind        = 'r'           -- r:表のみ i:index S:SEQUENCE
+AND     pg_class.relname        NOT LIKE  'pg_%'        -- 表名:カタログ除外
+ORDER BY
+    pg_class.relname,
+    pg_attribute.attnum
+;
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+PostgreSQL+PHP ソースコードジェネレーター セミナースライド
+          <A HREF="http://www.shonan.ne.jp/~nkon/cslpg.a.semi/">http://www.shonan.ne.jp/~nkon/cslpg.a.semi/</A>
+          <A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00090" HREF="msg00090.html">[pgsql-jp 22753] カラムの桁数やNOT-NULL属性の取得について</A></STRONG>
+<UL><LI><EM>From:</EM> Naota Inamoto &lt;inamoto@kt.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 22754] Re: バイナリ型byteaについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 22756] Re: バイナリ型byteaについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 22753] カラムの桁数やNOT-NULL属性の取得について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 22752] バイナリ型byteaについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 18300] Re: INSERT  されたレコードのシルアル値の取得 -->
+<!--X-From: Kaori Inaba <i&#45;kaori@sra.co.jp> -->
+<!--X-Date: Mon, 23 Oct 2000 19:27:25 +0900 -->
+<!--X-Message-Id: 20001023192725T.i&#45;kaori@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39F3F8AB294.62D1MAEDA@askulw3 -->
+<!--X-Reference-Id: 200010230912.AA00879@sft&#45;matu.p.mcits.mci.mei.co.jp -->
+<!--X-Reference-Id: 39F406AB32.62D2MAEDA@askulw3 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 18300] Re: INSERT  されたレコードのシルアル値の取得 </TITLE>
+<LINK REV="made" HREF="mailto:i-kaori@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00343.html">Date Prev</A>][<A HREF="msg00345.html">Date Next</A>][<A HREF="msg00343.html">Thread Prev</A>][<A HREF="msg00346.html">Thread Next</A>][<A HREF="index.html#00344">Date Index</A>][<A HREF="threads.html#00344">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 18300] Re: INSERT  されたレコードのシルアル値の取得</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kaori Inaba &lt;<A HREF="mailto:i-kaori@sra.co.jp">i-kaori@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 23 Oct 2000 19:27:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00340.html">39F3F8AB294.62D1MAEDA@askulw3</A>&gt;&lt;<A HREF="msg00341.html">200010230912.AA00879@sft-matu.p.mcits.mci.mei.co.jp</A>&gt;&lt;<A HREF="msg00343.html">39F406AB32.62D2MAEDA@askulw3</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+稲葉です。
+
+From: Satoshi Maeda &lt;maeda@motion.ne.jp&gt;
+Subject: [pgsql-jp 18299] Re: INSERT  されたレコードのシルアル値の取得 
+Date: Mon, 23 Oct 2000 18:36:43 +0900
+
+&gt; こんにちわ前田です。
+&gt; 
+&gt; &gt; 松本＠川崎市在住です。
+&gt; &gt; mydb&gt;insert into kudamono (fruits) values ('melon');
+&gt; &gt; の後で
+&gt; &gt; mydb&gt;select currval('kudamono_key_seq');
+&gt; &gt; ではだめなのでしょうか？ insert と select が同時にできる方法が
+&gt; &gt; あれば私も知りたいです。
+&gt; &gt; 
+&gt; &gt; (有)ネットリンクス   松本豊
+&gt; &gt; 03-5363-2388 
+&gt; 
+&gt; INSERTとSELECTの間で別のINSERTが走ってしまうとまずいので
+&gt; 同時に出来ないのかと思い、投稿させて頂きました。
+&gt; やはり、自動採番では無理のような気がしてきました。
+
+INSERT と SELECT の間で別の INSERT が走っても SELECT は 自分が
+INSERT した値を取り出すことができるようです。
+
+これは、2つ psql を起動して実験してみればわかります。
+1つを P1,もう一つを P2 としてみます。
+psql を 2つ起動して以下を順番に実行してみました。
+
+--- (P1)で実行(ここから) ----------------------------------------------
+
+kaori=# create table t1 (t text,i serial);
+NOTICE:  CREATE TABLE will create implicit sequence 't1_i_seq' for 
+SERIAL column 't1.i'
+NOTICE:  CREATE TABLE/UNIQUE will create implicit index 't1_i_key' 
+for table 't1'
+CREATE
+kaori=# insert into t1 values ('aaa');
+INSERT 547679 1
+kaori=# select currval('t1_i_seq');
+ currval 
+---------
+       1
+(1 row)
+
+--- (P1)で実行(ここまで) -------------------------------------------------
+
+--- (P2)で実行(ここから) ----------------------------------------------
+kaori=# insert into t1 values ('bbb');
+INSERT 547680 1
+kaori=# select currval('t1_i_seq');
+ currval 
+---------
+       2
+(1 row)
+--- (P1)で実行(ここまで) -------------------------------------------------
+
+--- (P1)で実行(ここから) ----------------------------------------------
+kaori=# select * from t1;
+  t  | i 
+-----+---
+ aaa | 1
+ bbb | 2
+(2 rows)
+
+kaori=# select currval('t1_i_seq');
+ currval 
+---------
+       1
+(1 row)
+
+--- (P1)で実行(ここまで) -------------------------------------------------
+
+結果として同じセッション内では、自分が INSERT した直後の currval を
+保持することが分かりました。もちろん、一度 psql を終了するなどセッションを
+終了してしまえば話は別ですが、PostgreSQLではこのような仕様になっている
+ようなので、松本さんのお望みのことはできるのではないでしょうか？
+
+i-kaori
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00353" HREF="msg00353.html">[pgsql-jp 18309] Re: INSERT されたレコードのシルアル値の取得（お礼）</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Maeda &lt;maeda@motion.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00346" HREF="msg00346.html">[pgsql-jp 18302] Re: INSERT  されたレコードのシルアル値の取得</A></STRONG>
+<UL><LI><EM>From:</EM> "N.Ogiso" &lt;ogiso@use-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp 18296] INSERT されたレコードのシルアル値の取得</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Maeda &lt;maeda@motion.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00341" HREF="msg00341.html">[pgsql-jp 18297] Re:  INSERT されたレコードのシルアル値の取得</A></STRONG>
+<UL><LI><EM>From:</EM> sft-y.matumoto@p.mcits.mci.mei.co.jp (松本豊)</LI></UL></LI>
+<LI><STRONG><A NAME="00343" HREF="msg00343.html">[pgsql-jp 18299] Re: INSERT  されたレコードのシルアル値の取得</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Maeda &lt;maeda@motion.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00343.html">[pgsql-jp 18299] Re: INSERT  されたレコードのシルアル値の取得</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00345.html">[pgsql-jp 18301] Re:  INSERT されたレコードのシルアル値の取得</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00343.html">[pgsql-jp 18299] Re: INSERT  されたレコードのシルアル値の取得</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00346.html">[pgsql-jp 18302] Re: INSERT  されたレコードのシルアル値の取得</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00344"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00344"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

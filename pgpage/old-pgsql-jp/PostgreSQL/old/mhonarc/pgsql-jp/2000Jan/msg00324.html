@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12780] Re: Q) select .. limit 1とfunction -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 23 Jan 2000 19:10:19 +0900 -->
+<!--X-Message-Id: 20000123191019Z.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000123142112K.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12780] Re: Q) select .. limit 1とfunction </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00323.html">Date Prev</A>][<A HREF="msg00325.html">Date Next</A>][<A HREF="msg00322.html">Thread Prev</A>][<A HREF="msg00326.html">Thread Next</A>][<A HREF="index.html#00324">Date Index</A>][<A HREF="threads.html#00324">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12780] Re: Q) select .. limit 1とfunction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 23 Jan 2000 19:10:19 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00322.html">20000123142112K.ken@ns1.tydfam.machida.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; create table price (
+&gt;    product_id  int4 not NULL,
+&gt;    customer_id int4 not NULL,
+&gt;    effective_date date not NULL,
+&gt;    price float8 not NULL
+&gt; );
+&gt; 
+&gt; create function get_price (int, int, date) returns float8 as '
+&gt;   select price from price
+&gt;    where prod_id = $1 and customer_id = $2
+&gt;     and effective_date &lt;= $3
+&gt;   order by ($3 - effective_date) limit 1
+&gt; ' language 'SQL';
+&gt; 
+&gt; これを作ろうとすると、
+&gt; 
+&gt; ERROR:  function declared to return float8 returns \
+&gt;         multiple values in final retrieve
+&gt; 
+&gt; と出て function が作れません。
+&gt; 価格表に、当該価格の適用終了日を加える方法で、処理していますが、 between xx and yy
+&gt; としなければならないのと、価格表の更新の時に古いデータの適用終了日を書換える作業が入るの
+&gt; で出来れば、上のような方法を取りたいのですが、、、。 
+&gt; 
+&gt; 一般に価格改定をすると、旧価格をオーバーライドする格好で、それ以降新価格となると思います
+&gt; のでロジックは間違っていないと思いますが、、、。
+
+業務ロジックを理解していないので間違っているかも知れませんが、
+
+create function get_price (int, int, date) returns float8 as '
+  select price from price
+  where ($3 - effective_date) =
+  (select max($3 - effective_date) from price where
+  product_id = $1 and customer_id = $2
+  and effective_date &lt;= $3);
+' language 'SQL';
+CREATE
+
+では如何?
+
+ちなみに、
+
+create function get_price (int, int, date) returns setof float8 as '
+						   ~~~~~
+  select price from price
+   where prod_id = $1 and customer_id = $2
+    and effective_date &lt;= $3
+  order by ($3 - effective_date) limit 1
+' language 'SQL';
+
+とやっても
+
+&gt; ERROR:  function declared to return float8 returns \
+&gt;         multiple values in final retrieve
+
+でした。order by が入っていると駄目みたいですね。なんでだろう?
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00326" HREF="msg00326.html">[pgsql-jp 12782] Re: Q) select .. limit 1とfunction</A></STRONG>
+<UL><LI><EM>From:</EM> Yamada Ken Takeshi &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00322" HREF="msg00322.html">[pgsql-jp 12778] Q) select .. limit 1 とfunction</A></STRONG>
+<UL><LI><EM>From:</EM> Yamada Ken Takeshi &lt;ken@tydfam.machida.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00323.html">[pgsql-jp 12779] Re: octet_lengthとupper/lower</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00325.html">[pgsql-jp 12781] Re: pgaccessでエラーメッセージが出ます。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00322.html">[pgsql-jp 12778] Q) select .. limit 1 とfunction</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00326.html">[pgsql-jp 12782] Re: Q) select .. limit 1とfunction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00324"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00324"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11509] Re: countが0と表示したい場合には？ -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 04 Nov 1999 09:50:58 +0900 -->
+<!--X-Message-Id: 199911040050.JAA00986@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199911031755.AA00144@note01.be.mbn.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11509] Re: countが0と表示したい場合には？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00082.html">Date Prev</A>][<A HREF="msg00084.html">Date Next</A>][<A HREF="msg00079.html">Thread Prev</A>][<A HREF="msg00132.html">Thread Next</A>][<A HREF="index.html#00083">Date Index</A>][<A HREF="threads.html#00083">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11509] Re: countが0と表示したい場合には？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 04 Nov 1999 09:50:58 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 今、class dagekiは以下のようなになっています。
+&gt; 
+&gt; dageki
+&gt; playerid | sayuu |...| batterkiroku |...|
+&gt;         1	1		 HIT
+&gt; 	1	1		 HIT
+&gt; 	2	1	 	 HIT
+&gt; 	2	1	　   HOMERUN
+&gt; 	3	2		GORO
+&gt; 	4	1		 HIT
+&gt; 	4	2		 FLY
+&gt; 
+&gt; このとき、
+&gt; 
+&gt; select playerid,sayuu,count(playerid)
+&gt; from dageki
+&gt; where batterkiroku = 'HIT'
+&gt; group by playerid,sayuu;
+&gt; 
+&gt; としたときには,属性batterkirokuに'HIT'がないplayerid,sayuu
+&gt; の組は出力されませんが、（下表）
+&gt; 
+&gt; |playerid| sayuu | count |
+&gt;         1       1       2
+&gt;         2       1       1
+&gt;         4       1       1 
+&gt; 
+&gt; これをcountが0である、と表示したいのです。（下表)
+&gt; 
+&gt; playerid| sayuu | count |
+&gt;        1       1      2
+&gt;        2       1      1
+&gt;        3       2      0
+&gt;        4       1      1
+&gt;        4       2      0 
+&gt; 
+&gt; なにかよい方法はありますでしょうか？
+&gt; 
+&gt; 試みた方法としては
+&gt; 
+&gt; select playerid,sayuu,count(playerid)
+&gt; from dageki
+&gt; where batterkiroku = 'HIT'
+&gt; group by playerid,sayuu
+&gt; union
+&gt; select playerid,sayuu,0
+&gt; from dageki
+&gt; group by playerid,sayuu;
+&gt; 
+&gt; 等、union(allも含め)を使って色々やってみたのですが
+&gt; group by のせいなのかうまくいきませんでした。
+
+というか、union を使うと意図しない結果になると思います。
+
+-- これではうまくいかない
+select playerid,sayuu,count(playerid)
+from dageki
+where batterkiroku = 'HIT'
+group by playerid,sayuu
+union
+select playerid,sayuu,0
+from dageki
+where batterkiroku &lt;&gt; 'HIT'
+group by playerid,sayuu;
+
+playerid|sayuu|count
+--------+-----+-----
+       1|    1|    2
+       2|    1|    0
+       2|    1|    1
+       3|    2|    0
+       4|    1|    1
+       4|    2|    0
+(6 rows)
+
+&gt; バージョンは6.4.0、FreeBSD2.2.7で使っています。
+&gt; どなたか御教授よろしくお願いいたします。
+
+発想を変えて、count()ではなく、sum()を使ったらどうでしょう。HIT なら 1 
+それ以外なら 0 とみなして足し算してしまうわけです。そのために新たに列
+を追加するのも面倒なので、case を使って、
+
+select playerid,sayuu,sum(case batterkiroku when 'HIT' then 1 else 0 end)
+from dageki
+group by playerid,sayuu;
+
+とします。ただし、これは 6.5 以降でしか使えません。6.4 の場合は、
+
+case batterkiroku when 'HIT' then 1 else 0 end;
+
+と同じことをする関数を定義して、
+
+sum(myfunc(batterkiroku))
+
+に置き換えれば良いでしょう。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00132" HREF="msg00132.html">[pgsql-jp 11558] Re: Re: countが0と表示したい場合には？</A></STRONG>
+<UL><LI><EM>From:</EM> yuuki shimamoto &lt;rock1996@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00079" HREF="msg00079.html">[pgsql-jp 11504] countが0と表示したい場合には？</A></STRONG>
+<UL><LI><EM>From:</EM> yuuki shimamoto &lt;rock1996@be.mbn.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00082.html">[pgsql-jp 11507] 連続したクエリー処理</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00084.html">[pgsql-jp 11510] Re: UNICODEの扱い</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00079.html">[pgsql-jp 11504] countが0と表示したい場合には？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00132.html">[pgsql-jp 11558] Re: Re: countが0と表示したい場合には？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00083"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00083"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

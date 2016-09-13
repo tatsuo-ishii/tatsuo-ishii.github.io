@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11731] RE: ODBCでvarcharに配列を使ったレコードの更新 -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Fri, 12 Nov 1999 11:39:29 +0900 -->
+<!--X-Message-Id: NDBBKLBKJJMLDCBMIODFIECOCBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199911111417.AA00604@icecream.rccn.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11731] RE: ODBCでvarcharに配列を使ったレコードの更新 </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00301.html">Date Prev</A>][<A HREF="msg00304.html">Date Next</A>][<A HREF="msg00296.html">Thread Prev</A>][<A HREF="msg00331.html">Thread Next</A>][<A HREF="index.html#00303">Date Index</A>][<A HREF="threads.html#00303">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11731] RE: ODBCでvarcharに配列を使ったレコードの更新</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 12 Nov 1999 11:39:29 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt; こんばんは。ハイファイネットの三並です。
+&gt;
+&gt; WindowsでODBCを使ってPostgreSQLにアクセスしているのですが
+&gt; 問題が発生したので質問させていただきます。
+&gt;
+&gt; WindowsでAccess97からODBC経由でリンクを張ってPostgreSQLにアクセスをしてい
+ま
+&gt; す。
+&gt; ここでvarcharに配列を使ったデータを含んだレコードは更新をしようとすると失
+敗
+&gt; するのです。
+&gt;
+&gt; 具体的には
+&gt; psqlで
+&gt; create table test(a int2 primary key, b varchar(8)[]);
+&gt; insert into test(a,b) values(1,'{1,3}');
+&gt; insert into test(a,b) values(2,'{ab,6}');
+&gt; を入れておき、
+&gt; Accessからこのテーブルにアクセスしてレコードを変更しようとすると
+&gt; 「ODBC--リンクテーブル'test'で更新に失敗しました。」
+&gt; OKとすると
+&gt; 「Error while executing the query;
+&gt; ERROR: Unable to identify an operator '=' for types '_varchar'
+&gt; and 'unknown'
+&gt;  You will have to retype this query using an explicit cast (#1)」
+&gt; とエラーが出てしまいます。
+
+  原因は、PostgreSQLに、varchar配列型に対する'='演算方法が「なぜか」登録され
+ていないためです。通常ならバグとも言える内容ですが、PostgreSQLには「なぜか」
+登録抜けしている演算が多いので（使用頻度が低いと判断されたのか？）、仕様とも
+言います（笑）。
+
+  PostgreSQLのスーパーユーザになって、該当データベースで以下のSQL文を実行す
+れば、varchar配列型に対する'='演算方法が登録できます。
+
+	（ステップ1）
+	insert into pg_operator
+	select
+		'=', usesysid, 0, 'b', 't', 't', 1015, 1015, 16,
+		0, 0, 0, 0, 'array_eq', 'eqsel', 'eqjoinsel'
+	from pg_user
+	where usename = USER;
+
+	（ステップ2）
+	update pg_operator
+	set oprcom = oid
+	where
+		oprname = '=' and oprkind = 'b' and
+		oprleft = 1015 and oprright = 1015;
+
+  この作業は、作業を行ったデータベースにしか反映されません。他のデータベース
+や新たに作成したデータベースには反映されません。他のデータベースにも反映させ
+たい場合には、それぞれで上記作業を実行してください。
+
+  新たに作成したデータベースにも自動的に反映させたい場合には、template1デー
+タベースでも上記作業を実行してください。このデータベースはデフォルトで存在す
+るもので、新規データベースの雛型として利用されます。
+
+●追伸
+
+  上記作業はシステムカタログを変更しますので、万が一にも無いとは思いますが、
+不都合発生時のリカバリ方法を説明しておきます。
+
+  まずは、ステップ1（ステップ1です！2ではないです）の出力結果の内、オブジェ
+クトIDをメモしておいてください。ステップ1の出力結果はたとえば次の様なもので
+す。
+
+	INSERT 145920 1
+
+  この表示の内、最初の数字がオブジェクトIDです（この例では145920）。
+
+  動作がおかしいと判断した場合は、以下のSQL文を実行することで、登録した演算
+方法を削除できます。
+
+	delete from operator
+	where oid = オブジェクトID;
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00331" HREF="msg00331.html">[pgsql-jp 11759] Re: ODBCでvarcharに配列を使ったレコードの更新</A></STRONG>
+<UL><LI><EM>From:</EM> Keisuke Minami &lt;keisuke@rccn.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00295" HREF="msg00295.html">[pgsql-jp 11723] ODBCでvarcharに配列を使ったレコードの更新</A></STRONG>
+<UL><LI><EM>From:</EM> Keisuke Minami &lt;keisuke@rccn.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00301.html">[pgsql-jp 11730] Re: EUCでのデータ転送について。。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00304.html">[pgsql-jp 11732] Open Source Matsuri Video Chuukei!</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 11724] Re: ODBCでvarcharに配列を使ったレコードの更新</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00331.html">[pgsql-jp 11759] Re: ODBCでvarcharに配列を使ったレコードの更新</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00303"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00303"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

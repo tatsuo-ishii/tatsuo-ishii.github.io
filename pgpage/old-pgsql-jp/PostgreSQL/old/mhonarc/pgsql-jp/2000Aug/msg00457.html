@@ -1,0 +1,212 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16843] Re: [pgsql&#45;jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Tue, 22 Aug 2000 18:48:03 +0900 (JST) -->
+<!--X-Message-Id: 20000822184803.1AE92938@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NEBBIPCKMDIGJJHFKAONEEFACAAA.tokuya@mail.sankyo&#45;unyu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16843] Re: [pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlasto </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00458.html">Date Prev</A>][<A HREF="msg00459.html">Date Next</A>][<A HREF="msg00453.html">Thread Prev</A>][<A HREF="msg00464.html">Thread Next</A>][<A HREF="index.html#00457">Date Index</A>][<A HREF="threads.html#00457">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16843] Re: [pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Aug 2000 18:48:03 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00453.html">NEBBIPCKMDIGJJHFKAONEEFACAAA.tokuya@mail.sankyo-unyu.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+徳家さん、レスに感謝致します
+
+&gt;こんにちわ。徳家です。
+&gt;OIDについては、自分なりにチェックしました。
+&gt;OIDは各インターフェイスでまちまちの扱いなので、極力呼び出したりしないように
+&gt;するのが良いと思います。
+&gt;PostgreSQL内だけにとどめても、オブジェクトの作成も制限されるほとなので、外部
+&gt;のプログラムからの利用は厳しいものがあります。
+&gt;OIDによるレコード管理は諦め、シリアル型のカラムを1つ追加させるようにし対応し
+&gt;ました。
+なるほど、またもや人生のように「岐路」に立たされたわけですね。
+45歳にもなりますと、方向変換までの時間も、精神的にも
+なかなかです。みなさんは馬力のあるクルーザーでしょう。
+小生は、沈みかけの砂利運搬船です。すぐに方向変換せよと念じても
+ずっと前進しております・・・
+本当にアドバイスありがとうございます。
+この件の別の意味での解決策がなければ、OIDでの管理を今後も続く
+PostgreSQLのバージョンアップ時の移植性も考えて、諦めることと
+致しましょう。OIDでの管理で肯定的な文章を日本語のFAQで読みましたが、
+実は英文を読むとOIDをキーとして利用してはいけないよと書かれて
+いたのかもしれませんね（日本語化された方への侮辱ではありません！)
+
+&gt;また複数のテーブルで1つのシーケンスを利用した実験して成功しています。(^^;)
+&gt;
+&gt;CREATE SEQUENCE "seq";
+&gt;CREATE TABLE a ( a INT4 DEFAULT NEXTVAL('seq'), ........);
+&gt;CREATE TABLE b ( b INT4 DEFAULT NEXTVAL('seq'), ........);
+&gt;
+&gt;値をとる時は、
+&gt;SELECT CURRVAL('seq');
+&gt;です。
+&gt;
+&gt;この方法だと複数のテーブルでの一意の値がとれるので、OIDとソックリになります
+&gt;よ。
+&gt;一意の値が必要なテーブルだけでの通し番号なのでOIDより長持ちします。
+参考にさせていただきます。ありがとうございます。
+
+&gt;どのように構成しているか今ひとつ把握できていませんが、「これではテーブルの再
+&gt;構成が大変だ」という場合は
+&gt;SELECT MIN(OID) FROM TABLE;
+&gt;でマイナスの値であればpg_getlastoid()の戻り値に-1をかけてあげればいかかで
+&gt;しょうか？
+&gt;
+&gt;このような方法ではダメですか？？？　(^^;;;;
+おっしゃる通りです。当面の解決策は「かけるマイナス壱」ですね。
+なんか、かっこわるいですが・・・
+
+&gt;徳家
+&gt;
+&gt;
+&gt;&gt; 徳田と言います
+&gt;&gt;
+&gt;&gt; 【現象】
+&gt;&gt; INSERT 直後に pg_getlastoid() を実行すると、本来自動生成した
+&gt;&gt; OID番号と異なる数値を返数する現象です。信じていただけないと
+&gt;&gt; 存じます。目下、PostgreSQL7.0.2は負(マイナス)のOIDを自動
+&gt;&gt; 生成しています。例えば　-2147479072　とかです。
+&gt;&gt; 仮に今、INSERTを実行し自動的に生成されたOIDが -2147479072
+&gt;&gt; だとしましょう。そして、このINSERTをPHPでpg_execした直後に
+&gt;&gt; pg_getlastoid()を実行すると、何と戻り値が正数になってしまいます。
+&gt;&gt; つまり、pg_getlastoid() の戻り値は ＋2147479072 となります。
+&gt;&gt; みなさんのところでは、異常はないですか？
+&gt;&gt; きっとみなさんのところでは「OIDは正数だよ！」って言われるので
+&gt;&gt; しょうね。
+&gt;&gt;
+&gt;&gt; PHPは確かにPostgres7.0.2をインストールした直後に、PHPを
+&gt;&gt; 再度コンパイルし、Apacheのモジュールに置換させましたが
+&gt;&gt; PHPのソースは変わっておりません。
+&gt;&gt;
+&gt;&gt; 現在の環境
+&gt;&gt; PostgreSQL 7.0.2 (gcc 2.7.2.3)
+&gt;&gt; (postgresql-7.0.2-patched-20000820.tar.gz)
+&gt;&gt; php-3.0.15-i18n-ja
+&gt;&gt; apache_1.3.12+openssl-0.9.5a+ssl_1.40
+&gt;&gt; でPostgreSQLを利用中です。
+&gt;&gt; Linux 2.0.36
+&gt;&gt;
+&gt;&gt; 新規利用ではなく、以前のバージョンのPostgreSQL6.5.3で
+&gt;&gt; 利用中の管理ミスで異常な状況となったために
+&gt;&gt; PostgreSQLのみを最新版にアップグレードし、
+&gt;&gt; データーベース情報はpg_dumpではなく
+&gt;&gt; psql の copy の WITH OIDS オプション付きでダンプし、
+&gt;&gt; 7.0.2にしてから、OID 込みで復元しました。
+&gt;&gt; (pg_dump -o でOID付きで出力し、psql -f で
+&gt;&gt; 読み込んでも OID を復元しなかった理由もあります・・・）
+&gt;&gt; 「なぜ OID を復元するのか？！」と疑問のメールが
+&gt;&gt; 来そうですが、独自の判断でOIDを直接参照するシステムとして
+&gt;&gt; PHPで開発を進めております。本世代のシステムをOracleなど
+&gt;&gt; 他のSQLに移植予定がないためと、地理データーの扱いの
+&gt;&gt; 利用によります。
+&gt;&gt;
+&gt;&gt; 確かに「OIDの復元で、OID自動発生ルーチンと競合しない
+&gt;&gt; のかな〜」などと考えながら作業を「OIDが完璧に復元できたか」
+&gt;&gt; をチェックしながら移植作業を行いました。
+&gt;&gt;
+&gt;&gt; そして、PostgreSQL 6.5.3 で完璧に動作していたPHPスクリプトが
+&gt;&gt; ことごとくエラーを吐き出しました。「え〜！　うそだろ」状態です。
+&gt;&gt;
+&gt;&gt; そこで発見できたのが、新規OIDがやたら大きな負の数字となっている
+&gt;&gt; 点でした。以前のバージョンである 6.5.3 時代ではOIDが全て
+&gt;&gt; 正数でしたので、SELECT構文などの WHERE で OID を特定する場合、
+&gt;&gt; シングルクオーテーションは在っても無くてもエラーにはなりません
+&gt;&gt; でした。例えば
+&gt;&gt;
+&gt;&gt; $OID_ = 12345678;
+&gt;&gt; $query = "select * from junk where oid = $OID_";
+&gt;&gt;
+&gt;&gt; でも異常ではなかったのですが・・・負の数字となった今では
+&gt;&gt; 必ず「’」シングルクオーテイションで囲まないとエラーにならないで
+&gt;&gt; 参照不能となります。そこで全てのPHPソースを編集しました。
+&gt;&gt;
+&gt;&gt; まだエラーがありました、SELECT の DISTINCT ON に続く
+&gt;&gt; フィールド指定に小括弧が必須となったことです。6.5.3では
+&gt;&gt; 少括弧が無くてもエラーではありませんでした。
+&gt;&gt;
+&gt;&gt; 少々脱線しましたが、目下、pg_getlastoid()の振る舞いを
+&gt;&gt; PHPなどのソフトでごまかすルーチンを思いつかないので
+&gt;&gt; MLにアップ致しました。みなさんのお知恵を拝借したいと
+&gt;&gt; 存じます。
+&gt;&gt;
+&gt;&gt; ※ PostgreSQL 6.5.3 から postgreSQL 7.0.2 への移植作業に
+&gt;&gt; 　傾注しておりましたので、MLのチェックができておりません。
+&gt;&gt; 　過去の小生のML発言へのResponseへの返答が滞っている場合は
+&gt;&gt; 　緊急作業だったためと免じてくださいませ。
+&gt;&gt;
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+     Yoshio Tokuda
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00464" HREF="msg00464.html">[pgsql-jp 16850] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00453" HREF="msg00453.html">[pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Eiji Tokuya" &lt;tokuya@Mail.Sankyo-Unyu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00458.html">[pgsql-jp 16844] Re: PostgreSQLの管理用ツール</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00459.html">[pgsql-jp 16845] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00453.html">[pgsql-jp 16839] RE: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00464.html">[pgsql-jp 16850] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00457"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00457"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

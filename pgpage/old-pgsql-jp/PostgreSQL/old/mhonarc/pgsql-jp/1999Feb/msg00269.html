@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7144] Re: semget failed (No space left on device) が出る -->
+<!--X-From: takehi&#45;s@ascii.co.jp (SHIOZAKI Takehiko) -->
+<!--X-Date: Fri, 19 Feb 1999 10:32:40 +0900 -->
+<!--X-Message-Id: 199902190132.KAA22602@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v0401015cb2f19d1be08c@tk.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7144] Re: semget failed (No space left on device) が出る </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00268.html">Date Prev</A>][<A HREF="msg00270.html">Date Next</A>][<A HREF="msg00262.html">Thread Prev</A>][<A HREF="msg00273.html">Thread Next</A>][<A HREF="index.html#00269">Date Index</A>][<A HREF="threads.html#00269">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7144] Re: semget failed (No space left on device) が出る</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A> (SHIOZAKI Takehiko)</LI>
+<LI><em>Date</em>: Fri, 19 Feb 1999 10:32:40 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00262.html">v0401015cb2f19d1be08c@tk.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+
+[On Feb 18, Takuya Abe &lt;abet@tk.airnet.ne.jp&gt; writes:]
+&gt;
+&gt;options		CHILD_MAX=1024	# 増やした
+&gt;options		OPEN_MAX=1024	# 増やした
+
+この辺りの設定は/etc/login.confのmaxproc(-cur)やopenfiles(-cur)でも
+できます。というかそちらにも縛られた気がします。
+
+&gt;maxusers	200		# 増やした
+
+過去の経験では、最大で512までしかできませんでした。
+
+&gt;# Semaphore
+&gt;options		SEMMAP=31
+&gt;options		SEMMNI=51	# 増やした
+&gt;options		SEMMNS=101	# 増やした
+&gt;options		SEMMNU=61
+&gt;options		SEMMSL=61
+&gt;options		SEMOPM=101	# 増やした
+&gt;options		SEMUME=11
+&gt;options		SHMALL=5001	# 増やした
+&gt;options		"SHMMAX=(SHMMAXPGS*PAGE_SIZE+1)"
+&gt;options		SHMMAXPGS=5001	# 増やした
+&gt;options		SHMMIN=2
+&gt;options		SHMMNI=33
+&gt;options		SHMSEG=9
+
+本家の方ではこの手の話題も出てましたよね。Solaris 7が元ネタでしたが、
+それに特化した話でもないと思うので、引用しておきます。
+
+|&gt;&gt;These settings are far too small if you hope to go beyond a couple dozen
+|&gt;&gt;Postgres backends.  Postgres requires one semaphore per backend, which
+|&gt;&gt;it (presently) allocates in groups of 16.  Thus you cannot get past 48
+|&gt;&gt;backends with these kernel settings --- starting the 49th backend requires
+|&gt;&gt;allocating semaphores 49-64, but your system is set up to allow only 60
+|&gt;&gt;semas total.
+|&gt;&gt;
+|&gt;&gt;(If your platform doesn't have a TEST_AND_SET implementation then
+|&gt;&gt;several more semas are needed for spinlock emulation, but I assume
+|&gt;&gt;that's not a problem on Solaris.)
+|&gt;&gt;
+|&gt;&gt;SEMMNI should also be bumped up, since you could not get past 10*16
+|&gt;&gt;backends with it set at 10 --- and that's not allowing for anything
+|&gt;&gt;else to be using semaphores!  It'd be foolish not to leave at least
+|&gt;&gt;a couple dozen semas and sema IDs free at Postgres' peak usage.
+|&gt;&gt;
+|&gt;&gt;I dunno what SEMMAP is (no such parameter in my kernel) but it
+|&gt;&gt;probably needs to be at least as large as SEMMNI, possibly larger.
+|&gt;
+|&gt;Ok. If I consider 64 backends, at least following settings would be
+|&gt;required from your suggestion:
+|&gt;
+|&gt;64  entries in semaphore map (SEMMAP)
+|&gt;64  semaphore identifiers (SEMMNI)
+|&gt;64  semaphores in system (SEMMNS)
+|&gt;25  max semaphores per id (SEMMSL)
+|&gt;
+|&gt;Is this correct?
+|&gt;
+|No.  You do need SEMMNS &gt;= 64 of course, but Postgres only needs a
+|sema identifier for each block of 16 semas, so SEMMNI &gt;= 4 will work.
+|According to my references, the recommended value of SEMMAP is SEMMNI+2
+|(it's for keeping track of unused "holes" between allocated sema-ID
+|groups, so that seems like it ought to be enough).  SEMMSL could be as
+|low as 16, though I see no reason to reduce the default value.
+|
+|In reality, of course, you had better leave some slop for other Unix
+|programs to be able to grab semas of their own.  I'd suggest at least
+|doubling the minimum SEMMNS and SEMMNI.  (On my HP box, ipcs shows
+|various root-owned subsystems using 6 sema IDs with a total of 8 semas.
+|So I'd need at least SEMMNS = 72, SEMMNI = 10 to run 64 backends ---
+|with no margin for error.)
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00273" HREF="msg00273.html">[pgsql-jp 7147] Re: semget failed (No space left on device) が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00262" HREF="msg00262.html">[pgsql-jp 7137] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00268.html">[pgsql-jp 7143] RE: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 7145] Re: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 7137] Re: semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00273.html">[pgsql-jp 7147] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00269"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00269"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

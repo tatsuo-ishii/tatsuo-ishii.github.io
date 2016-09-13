@@ -1,0 +1,122 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11238] Re: The fastest way to find max()/min() -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 19 Oct 1999 23:11:29 +0900 -->
+<!--X-Message-Id: 199910191411.XAA05642@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19991019211043N.tesh@alifegarden.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11238] Re: The fastest way to find max()/min() </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00263.html">Date Prev</A>][<A HREF="msg00265.html">Date Next</A>][<A HREF="msg00262.html">Thread Prev</A>][<A HREF="msg00185.html">Thread Next</A>][<A HREF="index.html#00264">Date Index</A>][<A HREF="threads.html#00264">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11238] Re: The fastest way to find max()/min()</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 Oct 1999 23:11:29 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; こんにちは。中村＠ALife Gardenです。
+&gt; 
+&gt; ＃ 残念ながらレスをいただけなかったので、
+&gt; ＃ 自分なりに試行錯誤しているの図を報告＆質問
+
+すんません。フォローするのを忘れてました:-)
+
+&gt; その後、「苦手」と言っていたruleとtriggerを使って、
+&gt; 色々試していますが、お手上げです。
+
+rule や trigger は調べてませんが、元の質問にお答えします。
+
+&gt; &gt; 質問(１)btreeの性質上、maxの検索にbtreeを使うことは可能で
+&gt; &gt; 	あるような気がするのですが、何か使われない理由が
+&gt; &gt; 	あるのでしょうか？
+
+PostgreSQL の拡張性(ユーザ定義データ型)を考えると、実装が難しいそうで
+す。
+
+&gt; &gt; 質問(２)もし、indexを使って高速化、という目論見が不可能
+&gt; &gt; 	であるとすれば、max()を速く見付けるための一番いい
+&gt; &gt; 	方法って何が考えられますか？
+
+6.5.x での話ですが、うまい逃げがあります。まず、min()の場合。
+
+select aid from accounts where aid &gt; 0 order by aid limit 1;
+
+ここで、aid にはインデックスが張ってあり、aid には 0 より小さい値は入
+らない、という前提になっています。aid に 0 以下の値が入力される場合は、
+適当に where 句を変更して下さい。これでインデックスを使って高速に最小
+値が求まります。ポイントは、「where aid &gt; 0」で、これで無理矢理インデッ
+クスを使わせています(開発中の 7.0では、この where 句は不要です)。
+
+次にmax()。これは残念ながら素の 6.5.x では駄目で、井上さんが作成したパッ
+チが必要です(このパッチは 7.0 に取り込まれています)。
+
+<A HREF="ftp://ftp.sra.co.jp/pub/cmd/postgres/6.5.2/patches/desc-sort.patch.gz">ftp://ftp.sra.co.jp/pub/cmd/postgres/6.5.2/patches/desc-sort.patch.gz</A>
+
+に置いておきますので、まずこれを当ててバックエンドを作り直して下さい。
+そして、
+
+select aid from accounts where aid &gt; 0 order by aid desc limit 1;
+
+で見事に最大値が求まるはずです。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00262" HREF="msg00262.html">[pgsql-jp 11236] Re: The fastest way to find max()/min()</A></STRONG>
+<UL><LI><EM>From:</EM> tesh Nakamura &lt;tesh@alifegarden.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp 11237] Re: Q) limit - offset</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00265.html">[pgsql-jp 11239] order by とsort memory</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 11236] Re: The fastest way to find max()/min()</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 11146] RE: [pgsql-jp 11143] PHP3をi-modeからアクセス可能ですか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00264"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00264"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

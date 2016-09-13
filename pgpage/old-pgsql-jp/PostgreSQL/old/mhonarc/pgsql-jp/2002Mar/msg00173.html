@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25196] Re: JDBCドライバ(7.2) でのエンコーディング判断障害 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sun, 10 Mar 2002 10:04:43 +0900 -->
+<!--X-Message-Id: 20020310100443E.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020310002355.DCB0.YTP@vc&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25196] Re: JDBCドライバ(7.2) でのエンコーディング判断障害 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00172.html">Date Prev</A>][<A HREF="msg00174.html">Date Next</A>][<A HREF="msg00172.html">Thread Prev</A>][<A HREF="msg00175.html">Thread Next</A>][<A HREF="index.html#00173">Date Index</A>][<A HREF="threads.html#00173">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25196] Re: JDBCドライバ(7.2) でのエンコーディング判断障害</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 10 Mar 2002 10:04:43 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00172.html">20020310002355.DCB0.YTP@vc-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; 最近PostgreSQLを使い出しました。(2日目です)
+&gt; JDBCドライバを使って次の環境で評価していましたが、
+&gt; 日本語エンコーディングの判断に障害が見られるようなので
+&gt; 報告します。
+&gt; 
+&gt; ※既知の障害あるいは私の設定ミスが考えられる場合は
+&gt;   ご指摘下さい。
+&gt;   また、バグ報告などの宛先等ご教示下されば幸いです。
+
+日本だとこのMLですが，英語がOKなら本家の(www.postgresql.org参照)が正式
+なバグ情報の送付先になります．
+[略]
+&gt; ■障害の原因と思われる箇所
+&gt; 上記トレースにあるencodingは、
+&gt; org.postgresql.Connection#openConnection()の中で
+&gt; 次の命令によって取得しています。
+&gt; set datestyle to 'ISO'; select version(), 
+&gt;   case when pg_encoding_to_char(1) = 'SQL_ASCII'
+&gt;   then 'UNKNOWN' else get
+&gt; 
+&gt; ※結果
+&gt;                            version                           | getdatabaseencoding
+&gt; -------------------------------------------------------------+---------------------
+&gt;  PostgreSQL 7.2 on i586-pc-linux-gnu, compiled by GCC 2.95.2 | EUC_JP
+&gt; 
+&gt; このため、ストリームから実際に取得しているデータは
+&gt; シフトJISであるのにもかかわらず、
+&gt; JavaのStringに変換する際にはエンコーディングタイプをEUC_JP
+&gt; としてnewするために文字化けが発生しています。
+&gt; 
+&gt; ■対応案
+&gt; サーバから送られて来るデータがシフトJISでなので、
+&gt; そのエンコーディング名を取得するように変更する
+&gt; 必要があると思われます。
+&gt; またはその逆で、PGCLIENTENCODINGの値に関係なく
+&gt; DBのエンコーディングでサーバ側が送信すると
+&gt; いうように変更するか、です。
+
+ほぼ田中さんの分析通りですが，これは既知の問題で，Connection.javaの328
+位からのコメントに書いてある通りです．
+
+対処方法ですが，7.1など，7.2よりも前のバージョンのPostgreSQLのサーバに
+接続する必要がなければ，342行目の
+
+"case when pg_encoding_to_char(1) = 'SQL_ASCII' then 'UNKNOWN' else
+getdatabaseencoding() end";
+
+を
+
+"case when pg_encoding_to_char(1) = 'SQL_ASCII' then 'UNKNOWN' else
+pg_client_encoding() end";
+
+に変更すればOKです．
+
+あるいはプロパティcharSetにSJISをセットしてもいけると思いますが，試し
+ていません．
+
+&gt; ★その他気になったこと
+&gt; org.postgresql.core.Encodingクラスの中で設定されている
+&gt; エンコーディング名に"MS932"が見当たりません。(SJISはあります)
+&gt; ご存じのようにJDK1.2以降、Windowsでのデフォルトエンコーディングは
+&gt; "MS932"になっています。
+&gt; このあたりの対応をうまく行わないと、「〜」などの文字が
+&gt; 化ける原因になるのではないかな、と思いました。
+
+うーん，このあたりの事情は良く分かりません．フォローをお願いします &gt;
+詳しい方
+
+&gt; DB側のエンコードでSJISの指定が不可能ならば
+&gt; MS932&lt;-&gt;SJISでの問題は現状起きませんが、
+&gt; Windows版PostgreSQLもあるようなので(私は未使用)
+&gt; 少し心配です。
+
+PostgreSQLはDBエンコーディングにSJISやMS932は指定できません．
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00175" HREF="msg00175.html">[pgsql-jp: 25198] Re: JDBCドライバ(7.2)でのエンコーディング判断障害</A></STRONG>
+<UL><LI><EM>From:</EM> TANAKA Yoshihiro &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00172" HREF="msg00172.html">[pgsql-jp: 25195] JDBCドライバ(7.2)でのエンコーディング判断障害</A></STRONG>
+<UL><LI><EM>From:</EM> YTP &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00172.html">[pgsql-jp: 25195] JDBCドライバ(7.2)でのエンコーディング判断障害</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00174.html">[pgsql-jp: 25197] Re: JDBCドライバ(7.2) でのエンコーディング判断障害</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00172.html">[pgsql-jp: 25195] JDBCドライバ(7.2)でのエンコーディング判断障害</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00175.html">[pgsql-jp: 25198] Re: JDBCドライバ(7.2)でのエンコーディング判断障害</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00173"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00173"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

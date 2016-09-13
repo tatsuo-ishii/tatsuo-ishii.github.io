@@ -1,0 +1,170 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5428] Re: Re: psql for Win32で日本語 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 18 Sep 1998 15:20:31 +0900 -->
+<!--X-Message-Id: 199809180620.PAA10721@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000201bde2c8$b8bbe4a0$2801007e@cadzone.tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5428] Re: Re: psql for Win32で日本語 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00219.html">Date Prev</A>][<A HREF="msg00221.html">Date Next</A>][<A HREF="msg00218.html">Thread Prev</A>][<A HREF="msg00221.html">Thread Next</A>][<A HREF="index.html#00220">Date Index</A>][<A HREF="threads.html#00220">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5428] Re: Re: psql for Win32で日本語</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 18 Sep 1998 15:20:31 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;井上＠セーレンです。
+&gt;
+&gt;&gt;
+&gt;&gt; 石井です。
+&gt;&gt;
+&gt;&gt; &gt;井上＠セーレンです。
+&gt;&gt; &gt;
+&gt;&gt; &gt;6.4βでwindowsでpsql,libpqが使えるはずですが、日本語は
+&gt;&gt; &gt;どうするのでしょうか？
+&gt;&gt; &gt;MULTIBYTE=SJISをdefineしておけばよいのでしょうか？
+&gt;&gt; &gt;UNIXなら全部ひっくるめてMB=EUC-JPとすればよかった
+&gt;&gt; &gt;のですが？
+&gt;&gt;
+&gt;&gt; うーん、Win32 環境でコンパイルしたことがないので分かりません。まだ誰も
+&gt;&gt; multi-byte 付でコンパイルしたことがないのではないでしょうか。
+&gt;&gt;
+&gt;&gt; あくまで予想ですが、文字コードの問題は
+&gt;&gt;
+&gt;&gt; 	MULTIBYTE=SJIS
+&gt;&gt;
+&gt;&gt; で良いと思いますが、改行コードはどうなるんでしょう？
+&gt;
+&gt;恥ずかしながら、今まで考えたことがなかったので更に質問。
+&gt;
+&gt;コンパイル時の MULTIBYTE=.. と環境変数 PGCLIENTENCODINGの
+&gt;間にはどのような関係があるのでしょうか？
+&gt;環境変数PGCLIENTENCODINGを使う場合でも、クライアント
+&gt;プログラムはMULTIBYTE=..を意識する必要があるのでしょうか？
+
+結論から言うと、意識する必要はありませんが、その前に
+
+&gt;&gt; 	MULTIBYTE=SJIS
+
+っていうのは嘘でした。訂正です。6.4 の場合、
+
+MULTIBYTE=EUC_JP
+
+にしておき、環境変数 PGCLIENTENCODING に SJIS を設定する
+
+あるいは
+
+MULTIBYTE はなんでもOK
+
+createdb -E EUC_JP あるいは SQL から "create database with
+encoding='EUC_JP' を実行し、EUC_JP のデータベースを作っておいて、環境
+変数 PGCLIENTENCODING に SJIS を設定する。
+
+という手順になります。
+
+正確に言うと、6.4 では、バックエンド側の文字コードは以下の順で決定され
+ます。
+
+1. コンパイル時に MULTIBYTE に設定したコードが、デフォルトの文字コード
+になる
+
+2. initdb で文字コードを指定しない場合は 1 で設定した文字コードが 
+template1 データベースに設定される。-e で文字コードを指定すると、それ
+が template1 データベースに設定される。
+
+3. createdb(あるいは create database)は、文字コードを指定しない場合は 
+template1 に設定されている文字コードを継承する。-E で明示的に文字コー
+ドを指定すると、それがデータベースの文字コードになる。
+
+4. バックエンドは、スタートアップ時に、3 で決まるそのデータベースの文
+字コードを認識し、バックエンドの文字コードとする
+
+次に PGCLIENTENCODING ですが、これがフロントエンドで指定されていない場
+合は、まずバックエンドに文字コードを問い合わせ、それをフロントエンド側
+の文字コードとします。
+
+PGCLIENTENCODING が指定されている場合は、それをバックエンドに伝えます。
+バックエンド側では、バックエンドの文字コードとフロントエンドの文字コー
+ドが異る場合は、文字コードの変換を行ないます。
+
+というわけで、6.4 では MULTIBYTE で指定するコードは実はなんでも良くて、
+initdb ないし createdb で文字コードを指定すればそれで動いてくれます。
+
+例外は regression test で、MULTIBYTE で指定したコードでテストを行ない
+ます。
+
+ちなみに、6.4 では test/mb/ というテストが追加されてます。mbregress.sh 
+というスクリプトを起動すると、データベース生成時に文字コードを指定する
+動作およびPGCLIENTENCODINGにSJISを指定する動作の regression test を実
+施します。こちらは MULTIBYTE の指定は無関係です。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00221" HREF="msg00221.html">[pgsql-jp 5430] Re: psql for Win32で日本語</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00218" HREF="msg00218.html">[pgsql-jp 5426] Re: psql for Win32で日本語</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00219.html">[pgsql-jp 5427] Re: Web 連携システムでの印刷</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00221.html">[pgsql-jp 5430] Re: psql for Win32で日本語</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00218.html">[pgsql-jp 5426] Re: psql for Win32で日本語</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00221.html">[pgsql-jp 5430] Re: psql for Win32で日本語</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00220"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00220"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

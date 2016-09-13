@@ -1,0 +1,59 @@
+<A NAME="0">
+<PRE><B>
+From: Masaharu Onishi &lt;onishi@nova.co.jp&gt;
+Date: Mon, 11 Dec 1995 15:44:43 +0900
+Subject: [postgres95 291] Re: pg95 on BSD/OS 2.0 
+Message-Id: &lt;199512110644.PAA03985@onsgw.nova.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+&gt;&gt;&gt;&gt;&gt; &quot;Tatsuo&quot; == Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; writes:
+
+    Tatsuo&gt; 詳しく調べたわけではないのですが、正規表現を使った検索では、
+    Tatsuo&gt; 正規表現をコンパイルした結果をキャッシュしておいて
+    Tatsuo&gt; 再利用するようになっています。直感的にはこの辺にバグが潜んでいるのでは、
+    Tatsuo&gt; という気がします。（コードを見る暇が無いので、あくまで推測です）
+    Tatsuo&gt; 調べるとしたら、src/backend/utils/adt （だったと思う）の
+    Tatsuo&gt; あたりでしょうね。
+
+アドバイスありがとうございます。
+というわけで、src/backend/utils/adt/regexp.c を調べてみました。
+すると、
+	static int
+	RE_compile_and_execute(struct varlena *text_re, char *text)
+	{
+		int	oldest;
+		int	n;
+		int	i;
+		char    *re;
+		int regcomp_result;
+
+		/* check for direct pointer equality, 
+		   this can happen when a constant is being used for comparison */
+		for (i=0; i&lt; rec;i++) {
+		    if ( rev[i].cre_text == text_re )
+			return(regexec(&amp;rev[i].cre_re, text, 0,
+				       (regmatch_t *) NULL, 0) == 0);
+		}
+
+		re = textout(text_re);
+		...
+	}
+というコードになっていて、前回までの検索パターンのキャッシュに
+今回の検索パターン文字列(実際は varlena という構造)と、ポインタ値で
+比較して同じものがあればその時のコンパイルパターンを元に regexec する
+ようになっています。なんだかあやしげですね。
+コメントをみると、何らかのコンスタントを念頭に置いているようですが、
+それはさておき、上の方で、
+	違うパターンには必ず違うポインタ値をもつ varlena 構造体を
+	生成する
+という保証(そんなことは可能か？)をしないかぎりこのコードは機能しませんね。
+上の方まで追いかける気力が今はないので、とりあえず、上記の for ループを
+コメントにしたところ、正常な動作をしました。
+
+とりあえず、御報告まで。
+--
+大西雅晴  （株式会社ノヴァ）	onishi@nova.co.jp
+<HR>
+</PRE>

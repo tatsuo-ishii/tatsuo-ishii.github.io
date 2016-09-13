@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27147] Re: 見積り表領域と -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Sun, 25 Aug 2002 21:20:50 +0900 (JST) -->
+<!--X-Message-Id: 20020825.212050.74724143.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 66413d689d6048f790$NiftyInterway@nifty.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27147] Re: 見積り表領域と </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00278.html">Date Prev</A>][<A HREF="msg00280.html">Date Next</A>][<A HREF="msg00278.html">Thread Prev</A>][<A HREF="msg00276.html">Thread Next</A>][<A HREF="index.html#00279">Date Index</A>][<A HREF="threads.html#00279">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27147] Re: 見積り表領域と</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Sun, 25 Aug 2002 21:20:50 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00278.html">66413d689d6048f790$NiftyInterway@nifty.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "sasaki" &lt;GSP05271@nifty.com&gt;
+Date: Sun, 25 Aug 2002 18:03:28 +0900 (JST)
+
+;;; &gt; ;;; 表領域の計算式　：
+;;; &gt; 
+;;; &gt;   レコードのデータ部分は、6 + 64 + 8 = 78 でなく、次のようになります。
+;;; &gt; 
+;;; &gt;       (4 + 6 + 2)  : フィールド長 + データ部長 + アラインメント
+;;; &gt;       +
+;;; &gt;       (4 + 64 + 0) : フィールド長 + データ部長 + アラインメント
+;;; &gt;       +
+;;; &gt;       8            : データ長
+;;; 
+;;; 　上記レコードのフィールド長の決め方が理解できない。
+----------------------------------------------------------------
+;;; 　char型の場合、フィールド長が4 byte ,smallint型 及び int型 及び　timestamp型
+;;; 　の場合は 0 フィールド長でしょうか？
+
+  そうなります。int などは、データ型でサイズが決まるので、フィールド長は不要です。
+
+;;; 　アラインメントについてはどうやって決めるのでしょうか？　
+;;;   char型、smallint型、int型、timestamp型によって違うのでしょうか?
+;;;   char型のデータが複数ある場合は、順番にも関係があるのでしょうか？
+
+  機械語レベルでのデータ配置のアラインメントと基本的な考え方は同一です。C なら
+ば、SunPro、HP-UX、GCC の C コンパイラのマニュアルには、そのコンパイラでの構造
+体アラインメントの説明があるはずなので、参考になります。
+
+;;; 　ページヘッダを 20 としてと書いてあるが、ページヘッダの決め方について教えてく
+;;; ださい。
+
+  src/include/storage/bufage.h の PageHeaderData です。pg_filedump で見ると、
+以下の ^^^^ の部分です。
+
+    Block    0 ******************************************************
+    &lt;Header&gt; -----
+     Block Offset: 0x00000000         Offsets: Lower     280 (0x0118)
+     Block Size: 8192                          Upper     392 (0x0188)
+     LSN:  logid      0 recoff 0x00137b3c      Special  8192 (0x2000)
+     Items:   65                   Free Space:  112
+     Length (including item array): 284
+
+      0000: 00000000 00137b3c 00000013 01180188  ......{&lt;........
+      	    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      0010: 20002000 3f108078 3e208078 3d308078   . .?..x&gt; .x=0.x
+            ^^^^^^^^
+      0020: 3c408078 3b508078 3a608078 39708078  &lt;@.x;P.x:`.x9p.x
+      0030: 38808078 37908078 36a08078 35b08078  8..x7..x6..x5..x
+    ...
+
+;;; &gt;   単インデックスが 2 つなので、インデックスファイルは 2 つになります。インデ
+;;; ッ
+;;; &gt; クスタプルの長さは、それぞれ、20 と 76 です。
+;;; &gt; 
+;;; 　　20,76の計算式は？
+
+  src/include/itup.h の sizeof(IndexTupleData) + キーフィールド長です。
+
+  ヘッダーファイルを見ながら pg_filedump (<A HREF="http://sources.redhat.com/rhdb/tools.html">http://sources.redhat.com/rhdb/tools.html</A>
+の下の方) で確かめると掴みやすいです。
+
+
+Kenji Sugita
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00278" HREF="msg00278.html">[pgsql-jp: 27146] Re: 見積り表領域と</A></STRONG>
+<UL><LI><EM>From:</EM> "sasaki" &lt;GSP05271@nifty.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00278.html">[pgsql-jp: 27146] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00280.html">[pgsql-jp: 27148] 旧dbexpertはebeasyに名前を変えました</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00278.html">[pgsql-jp: 27146] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00276.html">[pgsql-jp: 27144] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00279"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00279"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

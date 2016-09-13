@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2005] 6.1 big endian problem patch(Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? ) -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii> -->
+<!--X-Date: Thu, 19 Jun 1997 11:15:19 +0900 -->
+<!--X-Message-Id: 199706190215.LAA25816@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199706180636.PAA11533@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2005] 6.1 big endian problem patch(Re: 6.1+jp_patch under Sola </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00126.html">Date Prev</A>][<A HREF="msg00129.html">Date Next</A>][<A HREF="msg00119.html">Thread Prev</A>][<A HREF="msg00105.html">Thread Next</A>][<A HREF="index.html#00127">Date Index</A>][<A HREF="threads.html#00127">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2005] 6.1 big endian problem patch(Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? )</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;t-ishii&gt;</LI>
+<LI><em>Date</em>: Thu, 19 Jun 1997 11:15:19 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;というか、big endian な 6.1 がダメなんです。
+&gt;
+&gt;サーバ		クライアント	結果
+&gt;------------------------------------
+&gt;Sparc(6.1)	Sparc(6.0)	×
+&gt;Sparc(6.0)	Sparc(6.1)	×
+&gt;Sparc(6.1)	Intel(6.0)	×
+&gt;
+&gt;こうなるはずです。つまり、
+&gt;
+&gt;    6.1 の big endian な PostgreSQL は 6.1 の big endian な PostgreSQL 
+&gt;    としかお話ができない
+&gt;
+&gt;ということです。
+
+これでは不便だし、ODBC が動かないとか色々不都合があるので、この問題を
+修正するパッチを作りました。cut here 以下をセーブして postgresql-v6.1 
+に行き(つまり src の上)、patch -p &lt; endian.patch として当てて下さい。
+
+#もちろんこのパッチは Sun などの big endian なマシン以外の Intel ベース
+#のプラットフォームに適用しても全く問題ありません。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+---------------------- endian.patch ------------------------
+Index: src/backend/libpq/pqcomprim.c
+===================================================================
+RCS file: /home/mgr/t-ishii/repository/postgresql-v6.1/src/backend/libpq/pqcomprim.c,v
+retrieving revision 1.1.1.1
+diff -c -r1.1.1.1 pqcomprim.c
+*** pqcomprim.c	1997/06/16 01:45:30	1.1.1.1
+--- pqcomprim.c	1997/06/19 01:44:43
+***************
+*** 24,34 ****
+  #  define hton_l(n) n
+  #else	/* BYTE_ORDER != LITTLE_ENDIAN */
+  #  if BYTE_ORDER == BIG_ENDIAN
+! #    define ntoh_s(n) (u_short)(((u_char *) &amp;n)[0] &lt;&lt; 8 | ((u_char *) &amp;n)[1])
+! #    define ntoh_l(n) (u_long)(((u_char *)&amp;n)[0] &lt;&lt; 24 | \
+! 							((u_char *)&amp;n)[1] &lt;&lt; 16 | \
+!       	             	   ((u_char *)&amp;n)[2] &lt;&lt; 8 | ((u_char *)&amp;n)[3])
+! #    define hton_s(n) (u_short)(((u_char *) &amp;n)[2] &lt;&lt; 8 | ((u_char *) &amp;n)[3])
+  #    define hton_l(n) (ntoh_l(n))
+  #  else	/* BYTE_ORDER != BIG_ENDIAN */
+  #    if BYTE_ORDER == PDP_ENDIAN
+--- 24,34 ----
+  #  define hton_l(n) n
+  #else	/* BYTE_ORDER != LITTLE_ENDIAN */
+  #  if BYTE_ORDER == BIG_ENDIAN
+! #    define ntoh_s(n) (u_short)(((u_char *) &amp;n)[1] &lt;&lt; 8 | ((u_char *) &amp;n)[0])
+! #    define ntoh_l(n) (u_long)(((u_char *)&amp;n)[3] &lt;&lt; 24 | \
+! 							((u_char *)&amp;n)[2] &lt;&lt; 16 | \
+!       	             	   ((u_char *)&amp;n)[1] &lt;&lt; 8 | ((u_char *)&amp;n)[0])
+! #    define hton_s(n) (ntoh_s(n))
+  #    define hton_l(n) (ntoh_l(n))
+  #  else	/* BYTE_ORDER != BIG_ENDIAN */
+  #    if BYTE_ORDER == PDP_ENDIAN
+***************
+*** 43,51 ****
+  int pqPutShort(int integer, FILE *f)
+      {
+      int retval = 0;
+!     u_short n;
+  		
+!     n = hton_s(integer);
+      if(fwrite(&amp;n, sizeof(u_short), 1, f) != 1)
+      	retval = EOF;
+      
+--- 43,52 ----
+  int pqPutShort(int integer, FILE *f)
+      {
+      int retval = 0;
+!     u_short n,s;
+  		
+!     s = integer;
+!     n = hton_s(s);
+      if(fwrite(&amp;n, sizeof(u_short), 1, f) != 1)
+      	retval = EOF;
+      
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00119" HREF="msg00119.html">[pgsql-jp 1997] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug?</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 2004] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug? and workaround.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00129.html">[pgsql-jp 2007] Re: benchmark on FreeBSD</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00119.html">[pgsql-jp 1997] Re: 6.1+jp_patch under Solaris2.5.1 (x86): bug?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00105.html">[pgsql-jp 1983] 初めまして</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00127"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00127"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

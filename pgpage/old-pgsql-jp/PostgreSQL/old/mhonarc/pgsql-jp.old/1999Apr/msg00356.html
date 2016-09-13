@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8165] JDBC2 Driver patch for current. -->
+<!--X-From: yutaka tanida <yutaka@marin.or.jp> -->
+<!--X-Date: Wed, 21 Apr 1999 15:54:42 +0900 -->
+<!--X-Message-Id: 371D763219D.1FDFYUTAKA@malgate.marin.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8165] JDBC2 Driver patch for current. </TITLE>
+<LINK REV="made" HREF="mailto:yutaka@marin.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00355.html">Date Prev</A>][<A HREF="msg00357.html">Date Next</A>][<A HREF="msg00359.html">Thread Prev</A>][<A HREF="msg00370.html">Thread Next</A>][<A HREF="index.html#00356">Date Index</A>][<A HREF="threads.html#00356">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8165] JDBC2 Driver patch for current.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: yutaka tanida &lt;<A HREF="mailto:yutaka@marin.or.jp">yutaka@marin.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Apr 1999 15:54:42 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷田です。
+
+　会社でPostgreSQLを使ってJDBCの勉強をしていたら、CurrentのJDBCドライバー
+にはJDBC2で増えたStatement.[add|clear|execute]Batch()が未実装だったので作っ
+てみました。
+　optionalと書いてあるので別になくてもいいのですが、なんとなく使ってみた
+かったので。
+
+　今からでも6.5に間に合いますかねえ？
+
+--
+Yutaka tanida / S34 Co., Ltd.
+tanida@s34.co.jp (Office)
+yutaka@marin.or.jp(Private, or if you *HATE* Microsoft Outlook)
+
+
+
+--- interfaces/jdbc/postgresql/jdbc2/Statement.java.orig	Wed Apr 21 14:54:36 1999
++++ interfaces/jdbc/postgresql/jdbc2/Statement.java	Wed Apr 21 15:38:39 1999
+@@ -6,6 +6,7 @@
+ // postgresql.jdbc1 package.
+ 
+ import java.sql.*;
++import java.util.Vector;
+ 
+ /**
+  * A Statement object is used for executing a static SQL statement and
+@@ -27,6 +28,7 @@
+     SQLWarning warnings = null;	// The warnings chain.
+     int timeout = 0;		// The timeout for a query (not used)
+     boolean escapeProcessing = true;// escape processing flag
++    private Vector batch=null;
+     
+ 	/**
+ 	 * Constructor for a Statement.  It simply sets the connection
+@@ -325,17 +327,38 @@
+     
+     public void addBatch(String sql) throws SQLException
+     {
+-	throw postgresql.Driver.notImplemented();
++      if(batch==null) {
++        batch=new Vector();
++      }
++      batch.addElement(sql);
+     }
+     
+     public void clearBatch() throws SQLException
+     {
+-	throw postgresql.Driver.notImplemented();
++      if(batch!=null) {
++        batch.removeAllElements();
++      }
+     }
+     
+     public int[] executeBatch() throws SQLException
+     {
+-	throw postgresql.Driver.notImplemented();
++      if(batch==null || batch.isEmpty()) {
++        throw new SQLException("batch is empty.");
++      }
++      int size=batch.size();
++      int[] result=new int[size];
++      int i=0;
++      this.execute("begin;");
++      try{
++        for(i=0;i&lt;size;i++) {
++          result[i]=this.executeUpdate((String)batch.elementAt(i));
++        }
++        this.execute("commit;");
++      }catch(SQLException e) {
++        this.execute("abort;");
++        throw new SQLException("result returns in \""+batch.elementAt(i)+"\".aborted." );
++      }
++      return result;
+     }
+     
+     public java.sql.Connection getConnection() throws SQLException
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00370" HREF="msg00370.html">[pgsql-jp 8179] Re: JDBC2 Driver patch for current.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00355.html">[pgsql-jp 8164] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00357.html">[pgsql-jp 8166] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00359.html">[pgsql-jp 8168] 6.5Beta1 bench</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00370.html">[pgsql-jp 8179] Re: JDBC2 Driver patch for current.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00356"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00356"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

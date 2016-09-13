@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25649] Re: 外部キーのリファレンス先のテーブル所有者 -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Mon, 22 Apr 2002 23:31:05 +0900 -->
+<!--X-Message-Id: 3CC41EA9.4078B038@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3CC337351D6.0EEAKITAMURA@sv.zoozee.jp -->
+<!--X-Reference-Id: 20020422123217D.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25649] Re: 外部キーのリファレンス先のテーブル所有者 </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00168.html">Date Prev</A>][<A HREF="msg00170.html">Date Next</A>][<A HREF="msg00166.html">Thread Prev</A>][<A HREF="msg00170.html">Thread Next</A>][<A HREF="index.html#00169">Date Index</A>][<A HREF="threads.html#00169">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25649] Re: 外部キーのリファレンス先のテーブル所有者</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 22 Apr 2002 23:31:05 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00163.html">3CC337351D6.0EEAKITAMURA@sv.zoozee.jp</A>&gt; &lt;<A HREF="msg00166.html">20020422123217D.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田＠横から失礼します。
+
+Tatsuo Ishii wrote:
+
+&gt; &gt; 7.0.3 でも、7.1.3 でも同じ動作です。
+&gt; &gt;
+&gt; &gt; ムリなのはしょうがないのですが、この仕様、皆さんは納得できますか？
+&gt; 
+&gt; 7.2のGRANT REFERENCESで解決できない問題なのですか?
+
+私もそう思ったのですが、なんだかちょっとおかしいので。
+（cygwinの7.2.1-1で試しました）
+まず参照されるtableを作り、
+\c - wada
+You are now connected as new user wada.
+CREATE TABLE test1(id int primary key);
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index
+ 'test1_pkey' for table 'test1'
+CREATE
+
+GRANTせずに参照しようとすると、
+\c - tester
+You are now connected as new user tester.
+CREATE TABLE test2(id int, FOREIGN KEY(id) REFERENCES test1(id)
+ ON DELETE CASCADE);
+NOTICE:  CREATE TABLE will create implicit trigger(s) for FOREIGN KEY
+check(s)
+ERROR:  permission denied
+エラーメッセージが新しくなってます。ここはOK。
+
+次に、GRANT REFERENCES して
+\c - wada
+You are now connected as new user wada.
+GRANT REFERENCES ON test1 TO tester;
+GRANT
+
+それから参照すると、
+\c - tester
+You are now connected as new user tester.
+CREATE TABLE test2(id int, FOREIGN KEY(id) REFERENCES test1(id) 
+ON DELETE CASCADE);
+NOTICE:  CREATE TABLE will create implicit trigger(s) for
+ FOREIGN KEY check(s)
+CREATE
+ちゃんとできました。ここもOK（？）
+
+ところが、
+DROP TABLE test2;
+NOTICE:  DROP TABLE implicitly drops referential integrity trigger
+ from table "test1"
+ERROR:  test1: Must be table owner.
+となって自分がownerなtableを削除できません。実際にはtest1のtriggerの
+方が削除できないようなので、
+
+\c - wada
+You are now connected as new user wada.
+GRANT TRIGGER ON test1 TO tester;
+GRANT
+としてみても、
+
+\z test1
+Access privileges for database "wada"
+ Table |     Access privileges
+-------+----------------------------
+ test1 | {=,wada=arwdRxt,tester=xt}
+(1 row)
+
+\c - tester
+You are now connected as new user tester.
+DROP TABLE test2;
+NOTICE:  DROP TABLE implicitly drops referential integrity
+ trigger from table "test1"
+ERROR:  test1: Must be table owner.
+
+念のため GRANT ALL もやってみましたが変化ありません。
+INSERTとDELETEが別なのでINSERT権限だけでは自分で追加した
+レコードを削除できないのと似たようではありますが。。。
+
+そもそも別々にGRANTできるのに、GRANT TRIGGER してない状態で
+ ON DELETE な REFERENCE を作れたのがおかしいような気がします。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00171" HREF="msg00171.html">[pgsql-jp: 25651] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@zoozee.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00170" HREF="msg00170.html">[pgsql-jp: 25650] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00163" HREF="msg00163.html">[pgsql-jp: 25643] 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@zoozee.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00166" HREF="msg00166.html">[pgsql-jp: 25646] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00168.html">[pgsql-jp: 25648] Re: java.sql.Exception</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00170.html">[pgsql-jp: 25650] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00166.html">[pgsql-jp: 25646] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00170.html">[pgsql-jp: 25650] Re: 外部キーのリファレンス先のテーブル所有者</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00169"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00169"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

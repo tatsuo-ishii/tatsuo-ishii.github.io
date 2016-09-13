@@ -1,0 +1,173 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16756] RE: vacuumdb 実行後、検索が遅くなる問題 -->
+<!--X-From: "Hiroshi Inoue" <Inoue@tpf.co.jp> -->
+<!--X-Date: Fri, 18 Aug 2000 12:42:37 +0900 -->
+<!--X-Message-Id: 000801c008c6$59f74ce0$2801007e@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 50158B900247D411B8120090CC01C0EC1E0580@leo.forest.synox.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16756] RE: vacuumdb 実行後、検索が遅くなる問題 </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00369.html">Date Prev</A>][<A HREF="msg00371.html">Date Next</A>][<A HREF="msg00367.html">Thread Prev</A>][<A HREF="msg00365.html">Thread Next</A>][<A HREF="index.html#00370">Date Index</A>][<A HREF="threads.html#00370">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16756] RE: vacuumdb 実行後、検索が遅くなる問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroshi Inoue" &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 18 Aug 2000 12:42:37 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt;
+&gt; 初めて投稿させていただきます、栗原です。
+&gt;
+&gt; 件名の通り、作成直後は普通に検索ができるのですが、vacuumdb を実行すると
+&gt; 非常に遅くなってしまい、困っています。
+&gt; 検索しに行く順番が変わったことで、遅くなるのは分かるのです
+&gt; が、これを回避する
+&gt; ことは
+&gt; できないのでしょうか？
+&gt;
+&gt; 以下、使用テーブルと環境等です。
+&gt; # できるだけ小さいテーブルとデータで再現させようとしたのですが、なかなか
+&gt; # 再現しないので長くなってしまいました。
+&gt;
+&gt; OS：Redhat Linux 6.1
+&gt; バージョン：PostgreSQL 6.5.3
+&gt; メモリ：128MB
+&gt; ------------------------------------------------------------------
+&gt; ----------
+&gt; ----
+&gt; [テーブル構造]
+&gt; create table test_a
+&gt; (
+&gt;   id      integer        not null check(id &lt; 999999999),
+&gt;   text1   varchar(200)   not null,
+&gt;   status  smallint       not null default 0,
+&gt;   constraint test_a_key primary key (id)
+&gt; );
+&gt;
+&gt; create table test_b
+&gt; (
+&gt;   id      integer        not null check(id &lt; 999999999),
+&gt;   a_id    integer        not null,
+&gt;   type1   integer        not null,
+&gt;   type2   integer        not null,
+&gt;   constraint test_b_key primary key (id),
+&gt;   constraint test_b_ukey unique (type1, type2, a_id)
+&gt; );
+&gt;
+&gt; create table test_c
+&gt; (
+&gt;   id      integer        not null check(id &lt; 999999999),
+&gt;   a_id    integer        not null,
+&gt;   type1   integer        not null default -1,
+&gt;   constraint test_c_key primary key (id),
+&gt;   constraint test_c_ukey unique (a_id)
+&gt; );
+&gt;
+&gt; [実行QUERY]
+&gt; select
+&gt;   count(*)
+&gt; from
+&gt;   test_a as a, test_b as b, test_c as c
+&gt; where
+&gt;   a.id = b.a_id and c.a_id = a.id and
+&gt;   a.text1 like '%4%' and a.status = 0 and
+&gt;   b.type1 = 0 and b.type2 = 0;
+&gt;
+
+[snip]
+
+&gt;
+&gt; [クエリープラン]
+&gt;
+&gt; vacuumdb 使用前（1秒かからずに応答）
+&gt;
+&gt; Aggregate  (cost=6.10 rows=2 width=12)
+&gt;   -&gt;  Nested Loop  (cost=6.10 rows=2 width=12)
+&gt;     -&gt;  Nested Loop  (cost=4.05 rows=1 width=8)
+&gt;       -&gt;  Index Scan using test_b_ukey on test_b b  (cost=2.00 rows=1
+&gt; width=4)
+&gt;       -&gt;  Index Scan using test_a_key on test_a a  (cost=2.05 rows=1
+&gt; width=4)
+&gt;     -&gt;  Index Scan using test_c_ukey on test_c c  (cost=2.05 rows=1000
+&gt; width=4)
+&gt;
+&gt; vacuumdb --analyze 使用後（数分かかって応答）
+&gt;
+&gt; Aggregate  (cost=457.10 rows=1 width=12)
+&gt;   -&gt;  Nested Loop  (cost=457.10 rows=1 width=12)
+&gt;     -&gt;  Nested Loop  (cost=396.05 rows=1 width=8)
+&gt;       -&gt;  Seq Scan on test_a a  (cost=394.00 rows=1 width=4)
+&gt;       -&gt;  Index Scan using test_c_ukey on test_c c  (cost=2.05 rows=10000
+&gt; width=4)
+&gt;     -&gt;  Index Scan using test_b_ukey on test_b b  (cost=61.05 rows=10000
+&gt; width=4)
+&gt;
+
+test_b_ukeyが使われていますが、test_b_ukeyの最初のカラム（type1)は
+実質的に一つの値（0）しかないようです。  残念ながら、このようなマルチ
+カラムインデクスに対して6.5.x（7.0は多分大丈夫）はあまり賢くありません。
+test_b_ukeyをたとえば(a_id, type1, type2) のようにされてはいかがでしょう。
+
+Hiroshi Inoue
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00367" HREF="msg00367.html">[pgsql-jp 16753] vacuumdb 実行後、検索が遅くなる問題</A></STRONG>
+<UL><LI><EM>From:</EM> tetsuya@synox.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00369.html">[pgsql-jp 16755] Re: [pgsql-jp 16723] 定期的なスクリプト【便乗】</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00371.html">[pgsql-jp 16757] エラー後のexecuteQuery() ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00367.html">[pgsql-jp 16753] vacuumdb 実行後、検索が遅くなる問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 16751] RE: [pgsql-jp 16746] Re: 年と月で範囲指定をするには？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00370"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00370"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

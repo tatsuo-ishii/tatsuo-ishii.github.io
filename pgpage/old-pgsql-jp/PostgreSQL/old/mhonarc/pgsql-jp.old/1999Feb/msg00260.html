@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7135] Re: semget failed (No space left on device) が出る -->
+<!--X-From: TANIYAMA Hideki <yoko@sunny.co.jp> -->
+<!--X-Date: Thu, 18 Feb 1999 17:09:54 +0900 -->
+<!--X-Message-Id: 199902180809.RAA09127@ganymede.sunny.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902180710.QAA09056@srapc451.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7135] Re: semget failed (No space left on device) が出る </TITLE>
+<LINK REV="made" HREF="mailto:yoko@sunny.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00259.html">Thread Prev</A>][<A HREF="msg00262.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7135] Re: semget failed (No space left on device) が出る</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: TANIYAMA Hideki &lt;<A HREF="mailto:yoko@sunny.co.jp">yoko@sunny.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 18 Feb 1999 17:09:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00259.html">199902180710.QAA09056@srapc451.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+谷山です。
+
+&gt;&gt;&gt;&gt; On Thu, 18 Feb 1999 16:10:03 +0900,
+&gt;&gt;&gt;&gt; 	Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt; wrote:
+
+&gt;&gt; FreeBSDでは、root権限で"sysctl -w kern.maxfiles=4096"などと指示する
+&gt;&gt; ことによって、簡単に動的にこの最大値を増やすことができます。
+
+t-ishii&gt; kernel を作り直すとすると、どうするのが良いでしょう？
+
+このへんは、/usr/src/sys/compile/{CONFIG_NAME}/param.cと、
+/usr/src/sys/i386/conf/LINTを突き合わせてみると大変わかりやすいと思い
+ます。
+
+たとえば、file tableの数は、param.cで
+
+#define NPROC (20 + 16 * MAXUSERS)
+#define MAXFILES (NPROC*2)
+
+のように定義されていて、#ifndef MAXFILES等で囲まれていないので、
+param.cをゴリゴリ書き換えない限りデフォルト値は必ずMAXUSERSの関数にな
+ります。
+
+で、マクロMAXUSERSの記述に関しては、configのファイルの予約キーワードに
+なっていて、GENERICなどのconfigでも、
+
+maxusers	10		(FreeBSD 2.2.7RのGENERICの場合)
+
+のように記述されているので、これを変更すればOKです。pstat -Tで680が最
+大数で出るということは、maxusers 20でコンパイルされたkernelということ
+になります。
+
+私はいちいちカーネルを作り直すのが面倒なので、/usr/local/etc/rc.dに
+00.sysctl.shなんていうファイルを作って、maxfilesに関してはそこでsysctl
+-wしてしまっています。
+
+# プロセステーブルが溢れる(NPROCが不足する)場合はkernelを作り直すしか
+# 手がありませんが
+
+&gt;&gt; 以前、ためしにやってみた時には、kern.maxfilesを4096にして、3800個く
+&gt;&gt; らいのファイルを同時にopenしてみたのですが、特に異常は見られません
+&gt;&gt; でした。でも、負荷をかけると、kernelのmbufが足りなくなるなどの思わ
+&gt;&gt; ぬ副作用があるかもしれません。
+
+t-ishii&gt; うーん、これもありますね。
+
+同時open fd数がmbufの消費にどのように関係するのかまではよくわからない
+のですが、mbufの数自体はconfigでいじれそうです。
+
+param.cには
+
+/* maximum # of mbuf clusters */
+#ifndef NMBCLUSTERS
+#define NMBCLUSTERS (512 + MAXUSERS * 16)
+#endif
+int     nmbclusters = NMBCLUSTERS;
+
+/* allocate 1/4th amount of virtual address space for mbufs XXX */
+int     nmbufs = NMBCLUSTERS * 4;
+
+のような記述があって、LINTには
+
+options         NMBCLUSTERS=1024
+
+のような記述例があるので、これをいじってやればいいように思えます。(試
+したことはないんですが)
+
+〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜〜  谷山 秀樹 yoko@sunny.co.jp
+  よこなみ よこなみ よこなみ よこなみ   株式会社 サニーソフト
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00259" HREF="msg00259.html">[pgsql-jp 7134] Re: semget failed (No space left on device) が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 7134] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 7136] RE: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 7134] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 7137] Re: semget failed (No space left on device)が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

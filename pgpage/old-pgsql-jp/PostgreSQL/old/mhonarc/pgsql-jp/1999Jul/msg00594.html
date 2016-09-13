@@ -1,0 +1,185 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9794] 片岡＠インターウィズさま、お世話になっておりますMOTOです。 -->
+<!--X-From: "Ogawa" <ogawa@n&#45;create.co.jp> -->
+<!--X-Date: Fri, 30 Jul 1999 11:29:01 +0900 -->
+<!--X-Message-Id: 000f01beda33$4975d980$0c01a8c0@tk013.ocn.ad.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NDBBKLBKJJMLDCBMIODFGEOJCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9794] 片岡＠インターウィズさま、お世話になっておりますMOTOです </TITLE>
+<LINK REV="made" HREF="mailto:ogawa@n-create.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00593.html">Date Prev</A>][<A HREF="msg00595.html">Date Next</A>][<A HREF="msg00593.html">Thread Prev</A>][<A HREF="msg00621.html">Thread Next</A>][<A HREF="index.html#00594">Date Index</A>][<A HREF="threads.html#00594">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9794] 片岡＠インターウィズさま、お世話になっておりますMOTOです。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Ogawa" &lt;<A HREF="mailto:ogawa@n-create.co.jp">ogawa@n-create.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 30 Jul 1999 11:29:01 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00593.html">NDBBKLBKJJMLDCBMIODFGEOJCAAA.kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+MOTOです。
+片岡＠インターウィズさま、早速のご助言ありがとうございます。
+
+&gt;   ユーザAが読みこみをおこなっている間というのは、先にコードにおけるレコー
+ド
+&gt; セット（あ、RDOだからリザルトセットか）のオープンからクローズまでのことで
+&gt; しょうか。以下、そう仮定します。
+
+それで結構です。
+
+&gt;   まず１つ、トランザクションを使用してみてはどうでしょうか。ただし
+PostgreSQL
+&gt; サーバが6.5未満の場合、自分で自分をデッドロックするかもしれませんので注意
+し
+&gt; てください。ODBCのオプションの「Use Declare/Fetch」はオフになっているのも
+確
+&gt; 認してください（このオプションは更新には向いていません）。
+&gt;   ２つ目ですが、リザルトセットのプロパティに「排他ロックする」と言うのが
+あっ
+&gt; たと思います。これを設定してみてはどうでしょうか。
+
+早速試してみました。
+
+Q１．PostgreSQLのバージョン
+A１．使用中のPostgreSQLのバージョンは6.5です。
+
+Q２．ODBCのオプションの「Use Declare/Fetch」はオフになっているのも確
+　　認してください。
+A２．以前からオフに設定してあります。
+
+Q３．トランザクションを使用してみてはどうでしょうか。
+A３．以下にソースを掲載します。
+       *1参照
+       トランザクション処理の判断材料として、RowCountプロパテイ（rdoResultset
+が
+      アクセスしたレコード数) を使用しました。*3を参照して下さい。
+
+Q４．リザルトセットのプロパティに「排他ロックする」と言うのがあっ たと思いま
+す。
+　　これを設定してみてはどうでしょうか。
+A４．以下にソースを掲載します。
+　　　*２参照　　（以前にも試したことはあるのですがうまくいきませんでし
+た。）
+
+環境：Win95,VB5
+
+ Dim SQL As String
+ Dim cl As rdoColumn
+ Dim qd As New rdoQuery
+ Dim cn As rdoConnection
+ Dim en As rdoEnvironment
+ Dim rdResult As rdoResultset
+
+ strConnect = "ODBC;DATABASE;nrec;UID=guest1;PWD=guest1;DSN=PostgreSQL"
+
+Set en = rdoEngine.rdoEnvironments(0)
+Set cn = en.OpenConnection("", rdDriverNoPrompt, False, strConnect)
+
+cn.BeginTrans   '// 　トランザクション開始　//  *1
+
+Set qd.ActiveConnection = cn
+qd.SQL = "SELECT * From equip WHERE num = " &amp; mm(Row, 0) &amp; ";"
+
+'//   引数LockTypeをｒｄConcurLockに変更＝＞ 排他ロック //
+Set rdResult = qd.OpenResultset(rdOpenKeyset, rdConcurLock, rdAsyncEnable)
+'*2
+With rdResult
+
+   If Not .EOF Then
+        .Edit
+        !equip_name = ReturnString
+        .Update
+        If .RowCount = 1 Then   '*3
+            cn.CommitTrans   '//　コミットする。//  *1
+        Else
+            cn.RollbackTrans  '// ロールバックする。//  *1
+        End If
+   End If
+   .Requery
+End With
+
+rdResult.Close
+Set rdResult = Nothing
+
+cn.Close
+Set cn = Nothing
+
+en.Close
+Set en = Nothing
+
+実行してみましたが、以下のエラーメッセージが表示されます。
+”[Microsofr][ODBC Cursor Library]カーソルライブラリは有効ではありません。"
+ODBCドライバのほうでカーソルを有効にする設定があるのでしょうか？
+以前なにかの書籍でBatchカーソルを使用する手法をみて使ってみたのですが
+同じエラーメッセージが出ました。
+
+お忙しいことと思いますので、時間があいたときで結構ですので再度お知恵を
+拝借願えませんでしょうか？
+
+私は私のほうで、自身で解決できるようがんばってみます。
+よろしくお願いします。
+
+追記　長くなってすみません。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00621" HREF="msg00621.html">[pgsql-jp 9821] Re:  片岡＠インターウィズさま、お世話になっておりますMOTOです。</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsushi Sugihara &lt;sugihara@gix.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00593" HREF="msg00593.html">[pgsql-jp 9793] RE: 片岡＠インターウィズさま、ご返答ありがとうございます。</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00593.html">[pgsql-jp 9793] RE: 片岡＠インターウィズさま、ご返答ありがとうございます。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00595.html">[pgsql-jp 9795] サーバーのスペックはどれくらい必要でしょうか?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00593.html">[pgsql-jp 9793] RE: 片岡＠インターウィズさま、ご返答ありがとうございます。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00621.html">[pgsql-jp 9821] Re:  片岡＠インターウィズさま、お世話になっておりますMOTOです。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00594"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00594"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

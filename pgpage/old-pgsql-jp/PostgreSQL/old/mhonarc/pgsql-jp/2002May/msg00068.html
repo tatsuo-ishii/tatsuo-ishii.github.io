@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25833] Nomura -->
+<!--X-From: daikin@hkr.ne.jp -->
+<!--X-Date: Sun,  5 May 2002 11:48:06 &#45;0400 (EDT) -->
+<!--X-Message-Id: 20020505154806.6682F1EF325@ml.postgresql.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205051134.AA01344@libretto.niji&#45;net.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25833] Nomura </TITLE>
+<LINK REV="made" HREF="mailto:daikin@hkr.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00067.html">Date Prev</A>][<A HREF="msg00069.html">Date Next</A>][<A HREF="msg00066.html">Thread Prev</A>][<A HREF="msg00073.html">Thread Next</A>][<A HREF="index.html#00068">Date Index</A>][<A HREF="threads.html#00068">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25833] Nomura</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:daikin@hkr.ne.jp">daikin@hkr.ne.jp</A></LI>
+<LI><em>Date</em>: Sun,  5 May 2002 11:48:06 -0400 (EDT)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Reference</em>: &lt;<A HREF="msg00066.html">200205051134.AA01344@libretto.niji-net.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんわ、ひらめ(野村 大樹)と申します。
+
+まいパパさん wrote:
+&gt;[pgsql-jp: 25827] にも書いたとおり、昨日InterBaseのポーティングを
+&gt;された小山海平さんとお話をしていた時に、「PostgreSQLのコンカレント
+&gt;バキュームってどういう方法で実現されているのでしょうね？」という話
+&gt;になりました。
+
+たぶん、自分にはわからないレベルの会話が背後に飛び交っていそうな気が
+するのですが、ドキュメントでしたら、Administrator's guide の chapter
+8. Routine Database Maintenanceのあたりではないしょうか。
+
+自分の目についた所をニつひろってみました。
+
+--#1------------------------------------------------------------------------
+ Beginning in PostgreSQL 7.2, the standard form of VACUUM can run in parallel 
+with normal database operations (selects, inserts, updates, deletes, but not 
+changes to table schemas). Routine vacuuming is therefore not nearly as 
+intrusive as it was in prior releases, and it's not as critical to try to 
+schedule it at low-usage times of day.
+
+PostgreSQL 7.2 から、VACUUMコマンド(通常モード)は他のデータベース操作と同時
+並行して使うことができるようになりました。例えばselect, insert, update, 
+delete 等の操作です。ただし、テーブルレイアウトの変更とかはだめです。
+毎日実行するvacuumは以前のバージョンに比べて、intrusiveではなくなりました。
+誰も使っていない時に、vacuumを実行する操作(例えばcronで真夜中に)は、以前程
+神経を使わなくても済むようになりました。
+
+
+--#2------------------------------------------------------------------------
+The standard form of VACUUM is best used with the goal of maintaining a fairly 
+level steady-state usage of disk space. The standard form finds old tuples and 
+makes their space available for re-use within the table, but it does not try 
+very hard to shorten the table file and return disk space to the operating 
+system. If you need to return disk space to the operating system you can use 
+VACUUM FULL
+
+通常モードのvacuumは "fairly level steady-state usage of disk space" をメンテ
+ナンスするには最適でしょう。通常モードは古いタプルを探しだし、テーブルがその
+タプル達が占めていた領域を再利用できるようにします。しかし、テーブルのサイズを
+短くして、オペレーティングシステムに空き領域としてお返しするということはしま
+せん。もし、空き領域をお返ししたい時は、vaccumコマンドのFULLモードを使ってく
+ださい。
+
+-----------------------------------------------------------------------------
+
+もっとソースコードに近い話をお求めになってらっしゃるような感じが、、、
+やはりhackersな方でないとなんとも、、、
+
+"fairly level steady-state usage of disk space" 
+これは、例えば、テスト環境で1000万件insert、削除、なんて
+のをやっていて、通常モードのvacuumはしらせてても、disk space
+を解放しませんよというような、意味ですよね。
+なんて訳せばいいのでしょう？どなたか査読願います。
+
+ではでは。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00076" HREF="msg00076.html">[pgsql-jp: 25841] Re: Nomura</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[pgsql-jp: 25838] Re: Nomura</A></STRONG>
+<UL><LI><EM>From:</EM> Ryuichiro Munechika &lt;munetika@niji-net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00066" HREF="msg00066.html">[pgsql-jp: 25831] コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> Ryuichiro Munechika &lt;munetika@niji-net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00067.html">[pgsql-jp: 25832]  Re: 「Oracle に比べるとフリーだから不安」と言わ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00069.html">[pgsql-jp: 25834] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00066.html">[pgsql-jp: 25831] コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp: 25838] Re: Nomura</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00068"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00068"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

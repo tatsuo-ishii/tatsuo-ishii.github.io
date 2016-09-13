@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21437] Re: コピーコマンドについて改めPQfinish()について -->
+<!--X-From: Tsuyoshi SASAMOTO <sasamoto@e&#45;vision.co.jp> -->
+<!--X-Date: Wed, 23 May 2001 17:32:50 +0900 (JST) -->
+<!--X-Message-Id: 200105230832.RAA04898@mailhost.e&#45;vision.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 49256A55.0006C1D5.00@notesmailgw -->
+<!--X-Reference-Id: 009501c0e352$5b708ca0$c900a8c0@IBM -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21437] Re: コピーコマンドについて改めPQfinish()について </TITLE>
+<LINK REV="made" HREF="mailto:sasamoto@e-vision.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00481.html">Date Prev</A>][<A HREF="msg00483.html">Date Next</A>][<A HREF="msg00477.html">Thread Prev</A>][<A HREF="msg00484.html">Thread Next</A>][<A HREF="index.html#00482">Date Index</A>][<A HREF="threads.html#00482">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21437] Re: コピーコマンドについて改めPQfinish()について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:sasamoto@e-vision.co.jp">sasamoto@e-vision.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 May 2001 17:32:50 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00449.html">49256A55.0006C1D5.00@notesmailgw</A>&gt;&lt;<A HREF="msg00477.html">009501c0e352$5b708ca0$c900a8c0@IBM</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt;少し追いかけてみました。
+&gt;
+&gt;PQsetdbLogin（）は、次のようになっています。
+&gt; :
+&gt;この connectDBStart() の中で非同期（O_NONBLOCK）のソケットが作られて、
+&gt;connect()が行われるのですが、ここでは、errnoはEINPROGRESSとなり、
+&gt;エラーにはなりません。
+&gt;そして次のconnectDBComplete()で、接続の処理ステップが進められますが、
+&gt;ここでENETUNREACHのエラーとなって、エラー終了します。
+&gt;しかし、ソケット自体は開かれたままです。これは仕様でしょう。
+
+なるほど......デフォルトではnon-blockingになるんですね．
+私のところでは，--with-opensslでコンパイルしたんで，non-blocking
+には設定されないので，connectDBStart()中のエラー処理でclose()
+されて，sockに-1が代入されるので問題が発生しない......ということに
+なっているようです．
+
+で，non-blockingな場合にどうするか，ですが，Solarisのmanからの引用ですが
+
+     int connect(int  socket,  const  struct  sockaddr  *address,
+     socklen_t address_len);
+         :
+         :
+USAGE
+     If connect() fails, the state of the socket is  unspecified.
+     Portable  applications  should close the file descriptor and
+     create a new socket before attempting to reconnect.
+
+となっています．OSによっては，connect()に失敗したsocketのfdも
+意味があるのかも知れませんが，そういうOSがあったとしても，
+それは移植性に乏しい（少なくともSolarisではstateがunspecified
+となる）ので，portableなapplicationであるPostgreSQLでは，
+これに依存すべきではない，つまりconnectDBComplete()中でclose()
+してsockに-1を代入する処理をした方がいいような気がしますが，
+どうなんでしょう？
+
+ということなので，
+
+&gt;接続されていないソケットを指定したときにselect()がいつ処理を戻すのか、
+&gt;よく理解していませんが、
+
+この場合のselect()の振る舞いも，OSによって異なる（＝あてにならない）
+のではないでしょうか？
+
+
+&gt;#あと、本題とは外れますが、
+&gt;static int
+&gt;connectMakeNonblocking(PGconn *conn)
+&gt;{
+&gt;#ifndef WIN32
+&gt;    if (fcntl(conn-&gt;sock, F_SETFL, O_NONBLOCK) &lt; 0)
+&gt;            ・・・
+&gt;となっているのは、
+&gt;    int flags = fcntl(conn-&gt;sock, F_GETFL, 0);
+&gt;    if (fcntl(conn-&gt;sock, F_SETFL, flags|O_NONBLOCK) &lt; 0)
+&gt;            ・・・
+&gt;が正しいんでしょうね？元々設定されていたフラグがなくなってしまいますから。
+&gt;（ちなみにやってみると、ここでのflagsは2(=O_RDWR)となっていました）
+
+またSolarisのmanからの引用で恐縮ですが
+
+     int fcntl(int fildes, int cmd, /* arg */ ...);
+         :
+         :
+     F_SETFL
+           Set the file status flags, defined in  &lt;fcntl.h&gt;,  for
+           the  file  description associated with fildes from the
+           corresponding bits in the third argument,  arg,  taken
+           as  type  int.  Bits  corresponding to the file access
+           mode and the oflag values that  are  set  in  arg  are
+           ignored. If any bits in arg other than those mentioned
+           here are changed by the  application,  the  result  is
+           unspecified.
+
+ということで，fcntl()ではO_RDWRというようなアクセスモードのフラグは
+無視されるということのようですね．もっとも，これもOSによっては
+そうではないかも知れませんが......
+
+
+Tsuyoshi SASAMOTO
+sasamoto@e-vision.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00484" HREF="msg00484.html">[pgsql-jp 21439] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 21404] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> Fumikatu_Saitoh@hq.digi.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00477" HREF="msg00477.html">[pgsql-jp 21432] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+<UL><LI><EM>From:</EM> "Masao Kumagishi" &lt;kumagishi@jfc-net.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00481.html">[pgsql-jp 21436] Re: 7.1.1+Solaris8 (Intel)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00483.html">[pgsql-jp 21438] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00477.html">[pgsql-jp 21432] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00484.html">[pgsql-jp 21439] Re: コピーコマンドについて改めPQfinish()について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00482"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00482"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

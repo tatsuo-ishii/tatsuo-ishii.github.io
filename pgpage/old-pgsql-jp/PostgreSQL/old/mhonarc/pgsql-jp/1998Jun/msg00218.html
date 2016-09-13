@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4488] Re: database default encoding -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Wed, 17 Jun 1998 13:14:14 +0900 -->
+<!--X-Message-Id: 199806170414.NAA09685@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199806170332.MAA09349@jack.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4488] Re: database default encoding </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00217.html">Date Prev</A>][<A HREF="msg00219.html">Date Next</A>][<A HREF="msg00216.html">Thread Prev</A>][<A HREF="msg00220.html">Thread Next</A>][<A HREF="index.html#00218">Date Index</A>][<A HREF="threads.html#00218">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4488] Re: database default encoding</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 17 Jun 1998 13:14:14 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;青木@kinotropeです。
+[略]
+&gt;このENCODINGとはデータベースに格納される時のcharsetを指定するという 
+&gt;ことだとすると、ENCODINGよりCHARSETの方が相応しいと思いますがどうで 
+&gt;しょうか。
+
+難しいところですね。私も悩んだのですが、CHARSET = character set は日本
+語に直すと「文字集合」です。たとえば日本語の文字集合を考えてみますと、
+JIS X0201, JIS X0208, JISX0212 などの*複数の*文字集合から構成されてい
+ます。したがって、日本語用のデータベースの文字コードを charset で指定
+するとすると、charset の*集合*を与える必要があります。
+
+次に、同じ文字集合でもコンピュータが扱う際に複数のコード化が考えられま
+す。日本語ならば ISO-2022-JP, EUC_JP, SJIS などいろいろあるわけで、コー
+ド化の方法を明確にしなければ、実際にはコンピュータで扱うことができませ
+ん。
+
+以上の理由から、私は charset という言葉を使いませんでした。いかがでしょ
+う？
+
+なお、以下、「エンコーディング」という言葉と「文字コード」という言葉を
+両方使うかも知れませんが、同じ意味だと思って下さい。
+
+&gt;&gt; また、このエンコーディングに関する情報は pg_database テーブルにカ 
+&gt;ラ
+&gt;&gt; ムを追加して格納する予定です(initdb が必要)。
+&gt;
+&gt;以前JDBC経由のテストを少し行っていたんですが、サーバ側のcharsetが動 
+&gt;的には分からないので、charsetに合わせてドライバを修正するか、または 
+&gt;パラメータとしてcharsetをもらうようにドライバを修正しなければならな 
+&gt;いと思っていました。
+&gt;
+&gt;でもcharset情報が取得できればJDBCドライバ側でUNICODEから/への変換が 
+&gt;スマートになりますね。
+&gt;(ドライバの保守性、アプリケーション側でサーバ側のcharsetを意識しなく 
+&gt;て済む)
+
+はい、後述の SHOW SERVER_ENCODING でサーバのエンコーディング(間接的に
+文字集合も分かります)が取得可能になります。
+
+&gt;以前文字コードの変換はバックエンドで行った方がいい、というような話題 
+&gt;があったと思いますが、libpq等のクライアント側ライブラリで行うだけで 
+&gt;もいいんじゃないでしょうか。
+
+この辺はクライアント側で選択できるはずです。MB3 (multi-byte patch
+beta3) では、サーバ側とクライアント側のエンコーディングが異る場合、サー
+バ側で自動的に文字コード変換が行なわれます。もしクライアント側で変換を
+行ないたい場合は、クライアント側のコードをサーバと合わせておけば無変換
+状態でデータが送られて来ますので、それをクライアント側で変換すれば良い
+わけです。
+
+&gt;&gt; これに伴い、サーバ側のエンコーディングを動的に変更するコマンドも追
+&gt;&gt; 加します。
+&gt;&gt;
+&gt;&gt; SET SERVER_ENCODING TO 'encoding';
+&gt;&gt; SHOW SERVER_ENCODING;
+&gt;&gt; RESET SERVER_ENCODING;
+&gt;
+&gt;これを実行するとなると現在格納されているデータを変換するという作業が 
+&gt;発生する。
+
+もしくは、インスタンス単位でDBに書き込んだ時のエンコーディング情報を取
+得できるようにするかですね。これはちょっと大変そう。やっぱりやめましょ
+うか？(とあっさりあきらめる:-)
+SHOW SERVER ENCODING は残しますが。
+
+ちなみに、これをまじめにやる場合は SQL92 の NATIONAL CHARACTER をサポー
+トするのがまっとうなんでしょうね。
+# 6.4 ではサポートされるかも。
+
+&gt;また、新しく設定しようとしているcharsetへ変換できない場合もある。
+&gt;ので動的に変更するのは難しいのではないですか?
+
+サーバ &lt;--&gt; クライアントで字コード変換を行なう場合でも、このようなこと
+が起きる可能性がありますが、その場合は適当な文字に置き換えます。MB3 で
+は、"(16進)"のようにしています:-)
+
+&gt;PostgreSQL以外ではOracleを使っていますが、Oracleではcharsetはcreate  
+&gt;databaseのときに指定できるだけで、一切変更はできないようです。
+
+クライアントの文字コードは切替えられますね。ただし、その場合でもクライ
+アントの文字コードは database の文字コードと同じか「subset」でなければ
+ならない、とあります。今一つこの「subset」の意味が不明確ですが、たとえ
+ば database が EUC_JP なら、クライアント側の文字コードは ASCII にでき
+る、っていう意味ですかね？
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00222" HREF="msg00222.html">[pgsql-jp 4492] Re: database default encoding</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00220" HREF="msg00220.html">[pgsql-jp 4490] Re: database default encoding</A></STRONG>
+<UL><LI><EM>From:</EM> Koichi Nakatani &lt;nakatani@konica.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00216" HREF="msg00216.html">[pgsql-jp 4486] Re: database default encoding</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00217.html">[pgsql-jp 4487] RE: How to set sequnce-numner automatically</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00219.html">[pgsql-jp 4489] Re: getrusage(はじめまして)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00216.html">[pgsql-jp 4486] Re: database default encoding</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00220.html">[pgsql-jp 4490] Re: database default encoding</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00218"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00218"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

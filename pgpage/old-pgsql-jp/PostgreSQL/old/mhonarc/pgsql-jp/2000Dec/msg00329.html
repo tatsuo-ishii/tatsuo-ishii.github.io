@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19207] Re: null date expression -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 22 Dec 2000 22:31:25 +0900 -->
+<!--X-Message-Id: 20001222223125M.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20001221230356O.ryo@ryo.com -->
+<!--X-Reference-Id: 20001222175441L.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 006c01c06bff$41089d50$186315ac@tsc.tokyo.se.fujitsu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19207] Re: null date expression </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00328.html">Date Prev</A>][<A HREF="msg00330.html">Date Next</A>][<A HREF="msg00328.html">Thread Prev</A>][<A HREF="msg00347.html">Thread Next</A>][<A HREF="index.html#00329">Date Index</A>][<A HREF="threads.html#00329">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19207] Re: null date expression</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 22 Dec 2000 22:31:25 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00324.html">20001221230356O.ryo@ryo.com</A>&gt;&lt;<A HREF="msg00327.html">20001222175441L.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00328.html">006c01c06bff$41089d50$186315ac@tsc.tokyo.se.fujitsu.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; | 全くその通りです．もともとPostgreSQLは = null なんて邪道なのは許してな
+&gt; | かったんですが，ACCESS がこういう書き方しかできないので，やむを得ずそ
+&gt; | れも許すようにした経緯があったような気がします．
+&gt; |
+&gt; | どこまでもダメなやつ &gt; ACCESS
+&gt; 
+&gt; 　後学のためにも教えてもらえませんか。
+&gt; 　ACCESS(MS Accessですよね)では "is null" ではなく "= null" しか出来ない、と
+&gt; いうのはどういう条件のときでしょうか。
+&gt; 　ちなみに、Access 97 から PostgreSQL 6.5.3 にテーブル(muser)をリンクし、そ
+&gt; のテーブルに対して Access のクエリ作成機能で新規作成し、抽出条件に "Is Null"
+&gt; が入力できます(Nullを入れると"Is"が補完される)。また、その SQL は以下の通り
+&gt; です：
+&gt; 
+&gt; SELECT muser.entry_date, muser.regist_date
+&gt; FROM muser
+&gt; WHERE (((muser.regist_date) Is Null));
+&gt; 
+&gt; ※muser.regist_date は datetime です
+&gt; 
+&gt; 　Access を擁護するつもりはこれっぽっちもありませんが(^^;)、気になったもので
+&gt; お聞きした次第です。
+&gt; 
+&gt; # Access 97 以前のバージョンでは未確認です
+
+ふむ．少なくともAccess 97では直っているということですか?それともODBCド
+ライバが修正してくれてるのだろうか?
+
+改めて本家のMLのアーカイブをチェックしましたが，やっぱりAccessのせいで
+PostgreSQLのパーサをわざわざ直したということのようです．
+
+&gt;Subject: Re: [HACKERS] comparing rows 
+&gt;From: Tom Lane &lt;tgl@sss.pgh.pa.us&gt;
+&gt;To: Bruce Momjian &lt;pgman@candle.pha.pa.us&gt;
+&gt;cc: Magnus Hagander &lt;mha@sollentuna.net&gt;, Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;,
+&gt;        pgsql-hackers@postgresql.org
+&gt;Date: Thu, 03 Aug 2000 10:40:24 -0400
+&gt;Comments: In-reply-to Bruce Momjian &lt;pgman@candle.pha.pa.us&gt;	message dated "Thu, 03 Aug 2000 10:24:28 -0400"
+&gt;
+&gt;Bruce Momjian &lt;pgman@candle.pha.pa.us&gt; writes:
+&gt;&gt; I thought our only kludge was allowing = NULL because we got tons of MS
+&gt;&gt; folks complaining in the past before we did this.  Are you thinking that
+&gt;&gt; the newer MS versions will not give us a problem.
+&gt;
+&gt;Well, I'm not sure.  Magnus is saying that the newer MS servers default
+&gt;to spec-compliant semantics --- ie, foo = NULL will yield NULL.  But
+&gt;IIRC the original complaints were because MS tools like Access would
+&gt;*generate* this expression and expect it to behave like foo IS NULL.
+&gt;
+&gt;Can MS have fixed all their apps already?  Seems unlikely.  Maybe we
+&gt;have to leave the kluge in there awhile longer.
+&gt;
+&gt;			regards, tom lane
+&gt;
+
+また，それを裏付けるようにソースの中にもこんなコメントがあります．
+
+					/*
+					 * Special-case "foo = NULL" and "NULL = foo" for
+					 * compatibility with standards-broken products
+					 * (like Microsoft's).  Turn these into IS NULL exprs.
+					 */
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00347" HREF="msg00347.html">[pgsql-jp 19225] Re: null date expression</A></STRONG>
+<UL><LI><EM>From:</EM> "ALIHALA Hiroshi" &lt;arihara@tokyo.se.fujitsu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp 19202] Re: null date expression</A></STRONG>
+<UL><LI><EM>From:</EM> hosoi@ryo.com</LI></UL></LI>
+<LI><STRONG><A NAME="00327" HREF="msg00327.html">[pgsql-jp 19205] Re: null date expression</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00328" HREF="msg00328.html">[pgsql-jp 19206] Re: null date expression</A></STRONG>
+<UL><LI><EM>From:</EM> "ALIHALA Hiroshi" &lt;arihara@tokyo.se.fujitsu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 19206] Re: null date expression</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00330.html">[pgsql-jp 19208] HELP:PHP4+PostgreSQL の設定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00328.html">[pgsql-jp 19206] Re: null date expression</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00347.html">[pgsql-jp 19225] Re: null date expression</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00329"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00329"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

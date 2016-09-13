@@ -1,0 +1,158 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9015] Re: インデックスの前方一致検索 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 23 Jun 1999 18:08:38 +0900 -->
+<!--X-Message-Id: 199906230908.SAA09252@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9906230816.AA00535@mebius.apl.pref.akita.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9015] Re: インデックスの前方一致検索 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00448.html">Date Prev</A>][<A HREF="msg00451.html">Date Next</A>][<A HREF="msg00448.html">Thread Prev</A>][<A HREF="msg00451.html">Thread Next</A>][<A HREF="index.html#00449">Date Index</A>][<A HREF="threads.html#00449">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9015] Re: インデックスの前方一致検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 23 Jun 1999 18:08:38 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt;そこで、早速の質問で恐縮なのですが、
+&gt;&gt;indexを作成し、そのindexの項目で前方一致検索をした場合に、そのヒット件数が少  
+&gt;&gt;なければ(1000件以内)すぐに終了するのですが、ヒット件数が大量になると極端に時  
+&gt;&gt;間がかかってしまいます。この現象は、そういうものなのでしょうか？
+&gt;
+&gt;えっと、explain SQL文　とやって、本当にindexが使われてるかどうか
+&gt;まず確認してみてください。
+&gt;indexが使われていれば、上記の結果に"index scan"という文字が
+&gt;含まれているはずです。
+
+というか、元記事の質問はindexが使われているとかえって遅い、というもの
+のようです。
+
+&gt;&gt;select count(*) from syoshi_tbl where syomei ~ '^日本の歴史';
+&gt;&gt;81件　検索時間　約１秒
+&gt;&gt;select count(*) from syoshi_tbl where syomei ~ '^日本の';
+&gt;&gt;8464件　検索時間　約２分１０秒
+&gt;&gt;select count(*) from syoshi_tbl where syomei ~ '^日本';
+&gt;&gt;38927件　　検索時間　約１０分２０秒
+
+上3つはすべてindexが使われる検索パターンですが、御覧のように検索結果が
+多くなるほど遅くなっています。
+
+&gt;&gt;select count(*) from syoshi_tbl where syomei ~ '日本';
+&gt;&gt;55834件  検索時間　約 ３０秒（全件検索の場合は全て３０秒程度でした）
+
+それにたいしてこちらはindexを使わない検索になるので、どのみち全テーブ
+ルをなめますから(sequential scan、略して seq scan と呼ぶことにします)
+すべて同じくらいの時間がかかります。
+
+なぜこんなことが起きるかと言うと、indexは小量のデータを取り出すのは高
+速ですが、大量のデータを取り出すのは遅いということです。理想的には、同
+じ前方一致検索でも＊予想される＊検索件数が少ない場合はindexを使い、多
+い場合はseq scan にするプランをオプティマイザが生成すれば良いのですが、
+簡単には検索件数を予測することはできません。
+
+一つの対策としては、limit か cursor を使って検索結果全部を取り出さない
+ようにする、という手があります。
+
+&gt;&gt;38927件　　検索時間　約１０分２０秒
+
+38927件ヒットしても実際にはこれを全部表示はしないと思うので、適当に最
+初の100件位表示して終りにすれば、見かけ上処理時間が短縮されます。
+
+しかし、検索件数を正確に知るのが目的である場合はこの手は使えません。そ
+の場合は、しょうがないのでオプティマイザが阿呆な分を補ってやるしかあり
+ません。たとえば、検索キーワードが3文字以上の場合は
+
+select count(*) from syoshi_tbl where syomei ~ '^日本の';
+
+ではなくて
+
+select count(*) from syoshi_tbl where syomei ~* '^日本の';
+
+にするとかすると、強制的にseq scanになります。
+
+&gt;えっと、やりたいことは分かるんですが、もし「日本」と言う文字で始まる
+&gt;書名全部ということであれば
+&gt;select count(*) from syoshi_tbl where syomei ~ '日本%';
+&gt;ちゅうのが本筋かと・・・（本題とは無関係？　^^;）
+
+これは
+
+select count(*) from syoshi_tbl where syomei like '日本%';
+
+の間違い？でも、like にしても速度は一緒ですよ。
+
+&gt;もし「書名中に日本が含まれるもの」というのであれば
+&gt;select count(*) from syoshi_tbl where syomei ~ '%日本%';
+&gt;というのもありますが、これは間違いなくindexが使われないので
+&gt;非常に遅くなることを覚悟してください。
+
+上でのべたように、逆に早くなる場合もあります。
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00451" HREF="msg00451.html">[pgsql-jp 9017] Re: インデックスの前方一致検索</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp 9014] Re:インデックスの前方一致検索</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshio Funaki &lt;yoshio@apl.pref.akita.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00448.html">[pgsql-jp 9014] Re:インデックスの前方一致検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00451.html">[pgsql-jp 9017] Re: インデックスの前方一致検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00448.html">[pgsql-jp 9014] Re:インデックスの前方一致検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00451.html">[pgsql-jp 9017] Re: インデックスの前方一致検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00449"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00449"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

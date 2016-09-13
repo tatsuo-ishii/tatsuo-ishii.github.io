@@ -1,0 +1,201 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7633] Re: Linux WORLDの記事 -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Sat, 20 Mar 1999 18:02:35 +0900 -->
+<!--X-Message-Id: 199903200902.SAA02075@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903200204.LAA01097@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7633] Re: Linux WORLDの記事 </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00385.html">Date Prev</A>][<A HREF="msg00387.html">Date Next</A>][<A HREF="msg00384.html">Thread Prev</A>][<A HREF="msg00388.html">Thread Next</A>][<A HREF="index.html#00386">Date Index</A>][<A HREF="threads.html#00386">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7633] Re: Linux WORLDの記事</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 20 Mar 1999 18:02:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; ところで、JDBC を使った更新系のベンチマークの記事もあったのですが、こっ
+&gt; ちが面白かったです。残念ながら PostgreSQL は遅い、ということを印象づけ
+&gt; る結果になってしまってるのですが。また、「PostgreSQLはサーバのCPUパワー
+&gt; をフルに消費しているのに対し...」とかかれています。ただのライター(？)
+&gt; の方にしてはするどい分析ですが、これはたぶん spin lock で busy wait し
+&gt; ているせいではないかと思います。つまり、テーブルロックがボトルネックに
+&gt; なっているのでしょう。この記事で使ったベンチマークは WWW で公開されて
+&gt; いるので、入手して 6.5 でどの程度の性能向上がみられるのか確認してみた
+&gt; いと思います。
+
+やってみました。結論から言うと、それ以前の問題でした。
+
+結果を報告する前に、このベンチマークの概要を説明します。良くは知らない
+のですが、このベンチマークは TPC BM B という標準ベンチマークに基づくも
+のだそうです。(プログラムは 
+<A HREF="http://www.worldserver.com/mm.mysql/performance/">http://www.worldserver.com/mm.mysql/performance/</A> から入手)
+
+テーブルとしては、以下を使います。
+
+CREATE TABLE branches (
+	Bid         INT NOT NULL, PRIMARY KEY(Bid),
+	Bbalance    INT,
+	filler      CHAR(88));
+
+CREATE TABLE tellers (
+	Tid         INT NOT NULL, PRIMARY KEY(Tid),
+	Bid         INT,
+	Tbalance    INT,
+	filler      CHAR(84));
+
+CREATE TABLE accounts (
+	Aid         INT NOT NULL, PRIMARY KEY(Aid),
+	Bid	    INT,
+	Abalance    INT,
+	filler      CHAR(84));
+
+CREATE TABLE history (
+	Tid         INT,
+	Bid         INT,
+	Aid         INT,
+	delta       INT,
+	time        TIMESTAMP,
+	filler      CHAR(22));
+
+データ件数は以下です。
+
+branches	1
+tellers		10
+accounts	10万
+history		0
+
+# 10万件のデータを登録するのに3時間ほどかかりました。
+
+雑誌の例では、10 クライアントが同時に 10 トランザクションを実行し、す
+べてのトランザクションが終了するまでの時間から、1秒当たりの実行トラン
+ザクション数を計算し、比較しています。
+
+トランザクションの内容は、
+
+	accounts から select (検索キーは Aid)
+	tellers に update
+	branches に update
+	上記の操作を history に insert
+
+というものです。
+
+3/10位の 6.5 snapshotを使い、記事と同じ条件と思われるパラメータ(10クラ
+イアント／10 トランザクション)で実行してみました。
+
+java JDBCBench -driver postgresql.Driver -url 'jdbc:
+postgresql://localhost:5433/test?user=t-ishii&amp;password=""' -tpc 10 -clients 10
+
+さて、結果ですが、最初に実行したときは、0.6トランザクション/秒しか出ず、
+がっくりでした。ちなみに、雑誌の記事では
+
+	PostgreSQL 6.4.2	0.66
+	InterBase		1.0
+	Oracle 8.0.5		26.68
+
+となっています。プラットフォームはすべて x86/Linux (Pentium 200Mhz 互
+換の IDT WinChip っていうのだそうです。良く知りませんが)です。また、
+Java プログラムを実行するフロントエンドは別の WinNT になってます。私の
+実験環境は LinuxPPC 180MHzで、フロントエンド／バックエンド兼用と、かな
+り不利な条件のはずですが、0.66 vs. 0.6 で、まあ結果的に似た値になって
+います。
+
+とにかく異常に遅いので原因を調べてみました。すると、なんと vacuum がか
+かっていないのが分かりました。つまり、accounts (10万件)から毎回 
+sequential scan をやっていたわけです。これでは遅いのは当り前です。早速 
+vacuum をかけてもう一度やってみると、6.7 トランザクション/秒出るように
+なりました！まだまだ Oracle には負けてますが、InterBase の6倍以上高速
+です。
+
+改めて痛感しましたが、ベンチマークデータはとかく結果が一人歩きしがちで
+す。よくその内容を確認しないと、ある製品に対して一方的に不利な結果が出
+る可能性があります。
+# InterBase もなんか遅すぎるような気がするな。
+
+とにかく、trigger の件と合わせ、この件もIDGになんらかの形で伝えること
+にします。
+
+# 以前Unix User 誌(1998年9月号)で、インデックスもはらずに、PostgreSQL 
+# の検索が非常に遅いと取れるような記事を書いていた、かなだ某とかいうラ
+# イター(かどうか知らない)がいましたが、それに比べればずっとましではあ
+# りますけど。
+
+P.S. ところで、このベンチマークプログラム、なぜかマルチユーザ用のテス
+トなのにデータベースへのコネクションを 1 本しか張りません。一応ユーザ
+数分だけスレッドを生成してはいますが、本当の意味でのPostgreSQL のマル
+チユーザ環境のテストにはなっていません。そこで、ちょっとプログラムを修
+正し、ユーザ数分だけコネクションを張るようにしてみました。同時に同じテー
+ブルに更新がかかるにもかかわらず、単一コネクションと比べてほとんど性能
+の劣化がありません。MVCC のご利益ですね。
+
+SMP 環境でテストしてみれば、おそらくシングルコネクションに比べてかなり
+性能が向上するのが確認できるはずです。
+---
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00388" HREF="msg00388.html">[pgsql-jp 7635] Re: Linux WORLDの記事</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00384" HREF="msg00384.html">[pgsql-jp 7631] Re: Linux WORLDの記事</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00385.html">[pgsql-jp 7632] Re:LWCJ99 SRAブース</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00387.html">[pgsql-jp 7634] Re: contrib/array の makeについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 7631] Re: Linux WORLDの記事</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00388.html">[pgsql-jp 7635] Re: Linux WORLDの記事</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00386"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00386"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

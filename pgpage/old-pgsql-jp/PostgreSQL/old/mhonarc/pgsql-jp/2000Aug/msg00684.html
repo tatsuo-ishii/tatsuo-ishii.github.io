@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17080] Re: Subject header problem -->
+<!--X-From: Youichi Iwakiri <yiwakiri@st.rim.or.jp> -->
+<!--X-Date: Mon, 28 Aug 2000 12:23:40 +0900 -->
+<!--X-Message-Id: 200008280323.MAA22941@mail1.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200008260210.LAA19001@mail1.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17080] Re: Subject header problem </TITLE>
+<LINK REV="made" HREF="mailto:yiwakiri@st.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00683.html">Date Prev</A>][<A HREF="msg00685.html">Date Next</A>][<A HREF="msg00645.html">Thread Prev</A>][<A HREF="msg00706.html">Thread Next</A>][<A HREF="index.html#00684">Date Index</A>][<A HREF="threads.html#00684">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17080] Re: Subject header problem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Youichi Iwakiri &lt;<A HREF="mailto:yiwakiri@st.rim.or.jp">yiwakiri@st.rim.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 28 Aug 2000 12:23:40 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00645.html">200008260210.LAA19001@mail1.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+いわきりです
+
+I wrote:
+ &gt;Tatsuo Ishiiさんの&lt;<A HREF="msg00641.html">20000826102118G.t-ishii@sra.co.jp</A>&gt;から
+ &gt; &gt;来週中の作業を考えていますので、distribute用のパッチはその後、majordom
+ &gt; &gt;がうまくいかなかったときにでもお願いできますでしょうか。
+ &gt;解りました。用意だけはしておくようにします。
+
+あまりに呆気なかったのでpatchを流しておきます。
+変更は、Makefileとdistribute.cのみです。
+手で直したほうが良いかも ;p
+#実質4行ですむとは恐るべし &gt; libmimekit
+
+確認テストとして、私がpgsql-jp mailing listに
+参加してからの10322通中の問題のあったSubject headerを
+含む記事574通を一通りdistributeに処理させました。
+問題無き事を確認済みです。
+
+libmimekitを利用しますのでお持ちで無い場合は下記から
+入手してください。
+ <A HREF="ftp://ftp.etl.go.jp/pub/DeleGate/">ftp://ftp.etl.go.jp/pub/DeleGate/</A>
+因みにlibmimekitは単体での配布は行われていませんので
+DeleGeteの最新版を入手しtar ballを展開するとmimekitという
+ディレクトリがありますのでそこでmake(gmake)してください。
+
+以下、patchです。
+
+Index: distribute/Makefile
+diff -c distribute/Makefile:1.1.1.1 distribute/Makefile:1.2
+*** distribute/Makefile:1.1.1.1	Sun Aug 27 05:40:49 2000
+--- distribute/Makefile	Sun Aug 27 08:13:37 2000
+***************
+*** 73,79 ****
+  
+  LIBS=
+  MAKE=	make
+! CC= 	${PURIFY} ${PURIFYOPTS} gcc
+  #-D__USE_FIXED_PROTOTYPES__
+  
+  WHERE=	/usr/local/libexec
+--- 73,79 ----
+  
+  LIBS=
+  MAKE=	make
+! CC= 	${PURIFY} ${PURIFYOPTS} gcc -g3
+  #-D__USE_FIXED_PROTOTYPES__
+  
+  WHERE=	/usr/local/libexec
+***************
+*** 123,129 ****
+  all: xdistribute xarchive
+  
+  xdistribute: ${DOBJS}
+! 	${CC} ${CFLAGS} -o xdistribute ${DOBJS}
+  	@size xdistribute
+  
+  xarchive: ${AOBJS}
+--- 123,129 ----
+  all: xdistribute xarchive
+  
+  xdistribute: ${DOBJS}
+! 	${CC} ${CFLAGS} -o xdistribute ${DOBJS} -L/usr/local/lib -lmimekit
+  	@size xdistribute
+  
+  xarchive: ${AOBJS}
+Index: distribute/distribute.c
+diff -c distribute/distribute.c:1.1.1.1 distribute/distribute.c:1.3
+*** distribute/distribute.c:1.1.1.1	Sun Aug 27 05:40:50 2000
+--- distribute/distribute.c	Sun Aug 27 08:29:57 2000
+***************
+*** 1,4 ****
+! /* $Id: distribute.c,v 1.1.1.1 2000/08/26 20:40:50 iwakiri Exp $
+   *
+   * distribute - a mailing list distributor: main module
+   *
+--- 1,4 ----
+! /* $Id: distribute.c,v 1.3 2000/08/26 23:29:57 iwakiri Exp $
+   *
+   * distribute - a mailing list distributor: main module
+   *
+***************
+*** 1310,1316 ****
+  #endif
+      
+  #if defined(SUBJALIAS)
+!     AddAliasIDToSubject(subjectbuf, subject, aliasid, issuenum);
+  #else
+      strcpy(subjectbuf, subject);
+  #endif
+--- 1310,1318 ----
+  #endif
+      
+  #if defined(SUBJALIAS)
+!     MIME_strHeaderDecode(subject, subjectbuf, MAXSUBJLEN);
+!     AddAliasIDToSubject(subject, subjectbuf, aliasid, issuenum);
+!     MIME_strHeaderEncode(subject, subjectbuf, MAXSUBJLEN);
+  #else
+      strcpy(subjectbuf, subject);
+  #endif
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00706" HREF="msg00706.html">[pgsql-jp 17102] Re: Subject header problem</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00645" HREF="msg00645.html">[pgsql-jp 17040] Subject header problem</A></STRONG>
+<UL><LI><EM>From:</EM> Youichi Iwakiri &lt;yiwakiri@st.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00683.html">[pgsql-jp 17078] RE: テーブル設計</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00685.html">[pgsql-jp 17081] Re: テーブル設計</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00645.html">[pgsql-jp 17040] Subject header problem</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00706.html">[pgsql-jp 17102] Re: Subject header problem</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00684"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00684"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

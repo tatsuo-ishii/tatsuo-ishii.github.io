@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14674] Re: HP&#45;UX での自動起動設定 -->
+<!--X-From: "Michitoshi Sato lum@uni.sony.co.jp" <lum@uni.sony.co.jp> -->
+<!--X-Date: Mon, 22 May 2000 14:51:28 +0900 -->
+<!--X-Message-Id: 200005220551.OAA20132@minerva.uni.sony.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 1000522140430.00000FDD.yoooka@system.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14674] Re: HP-UX での自動起動設定 </TITLE>
+<LINK REV="made" HREF="mailto:lum@uni.sony.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00384.html">Date Prev</A>][<A HREF="msg00386.html">Date Next</A>][<A HREF="msg00384.html">Thread Prev</A>][<A HREF="msg00391.html">Thread Next</A>][<A HREF="index.html#00385">Date Index</A>][<A HREF="threads.html#00385">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14674] Re: HP-UX での自動起動設定</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Michitoshi Sato <A HREF="mailto:lum@uni.sony.co.jp">lum@uni.sony.co.jp</A>" &lt;<A HREF="mailto:lum@uni.sony.co.jp">lum@uni.sony.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 22 May 2000 14:51:28 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+佐藤通敏です。
+HP-UXではなくて、Solaris8ですしかもPostgreSQL7.0ですが
+こいつには、pg_ctlというコマンドがありますので
+
+/etc/init.d/pgsql、/etc/rc0.d/K34pgsql、/etc/rc1.d/K34pgsql、
+/etc/rc2.d/S94pgsql、/etc/rcS.d/K34pgsqlに
+
+#!/sbin/sh
+#
+# Copyright (c) 2000, by Michitoshi Sato.
+# All rights reserved.
+#
+#ident	"@(#)pgsql.sh	1.6	2000/04/17 Michitoshi Sato"
+
+PGSQL_HOME=/usr/local/pgsql
+PGDATA=${PGSQL_HOME}/data
+
+case "$1" in
+start)
+	cmdtext="starting"
+	;;
+restart)
+	cmdtext="restarting"
+	;;
+stop)
+	cmdtext="stopping"
+	;;
+*)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+	;;
+esac
+
+echo "PosgreSQL $cmdtext."
+
+status=`${PGSQL_HOME}/bin/pg_ctl -D $PGDATA $1 2&gt;&amp;1`
+
+if [ $? != 0 ]; then
+	echo "$status"
+	exit 1
+fi
+exit 0
+
+と書いて起動しています。以前にSolaris7でpg_ctlが無かった時は、
+
+
+#!/bin/sh
+#
+# Copyright (c) 1999, by Michitoshi Sato.
+#
+# Startup for Postgre SQL Server
+#
+
+PGSQL=/usr/local/pgsql
+
+case "$1" in
+'start')
+        if [ -f $PGSQL/bin/postmaster ] ; then
+                echo "Postgres SQL server starting."
+                su - postgres -c "$PGSQL/bin/postmaster -D $PGSQL/data -S -i" &gt;/dev/console 2&gt;&amp;1 &amp;
+        fi
+        ;;
+'stop')
+        /usr/bin/pkill -x -u postgres postmaster
+        ;;
+*)
+        echo "Usage: /etc/init.d/pgsql { start | stop }"
+        ;;
+esac
+exit 0
+
+
+と書いて pgsqlのhome directoryに
+#
+# @(#) .profile 1.5 99/07/01 postgres
+#
+PATH=/usr/bin:/usr/local/pgsql/bin:/usr/local/bin
+export PATH
+LD_LIBRARY_PATH=/opt/NSUG/pgsql/lib
+export LD_LIBRARY_PATH
+USER=postgres
+export USER
+
+とか書いていました。
+
+違いは-Bを指定してないだけですね
+
+&gt; 初めまして、大岡と申します。
+&gt; 
+&gt; 今度、業務で PostgreSQL と Apache と PHP を使って Web アプリを作ること
+&gt; になったんですが、プラットフォームが HP-UX の WS を使わなければならなく
+&gt; なり、少し困っています。
+&gt; 
+&gt; インストールや手動での起動は成功したんですが、いざスクリプトを書いて
+&gt; ブート時に自動的に postmaster を起動させようとしてもうまくいきません。
+&gt; 
+&gt; 起動部分のスクリプトは、
+&gt; 
+&gt;   su - postgres -c "/usr/local/pgsql/bin/postmaster \
+&gt;    -D /usr/local/pgsql/data \
+&gt;    -i -B 256 -S"
+&gt; 
+&gt; となっているのですが、これを実行させると
+&gt; 
+&gt;   FATAL: StreamServerPort: bind() failed: Address already in use
+&gt;           Is another postmaster already running on that port?
+&gt;           If not, wait a few seconds and retry.
+&gt;   /usr/local/pgsql/bin/postmaster: cannot create INET stream port
+&gt; 
+&gt; というメッセージが出て、起動に失敗してしまいます。
+&gt; （もちろん postmaster は事前に起動させていません）
+&gt; 
+&gt; 普通に su - postgres としてから postmaster を実行すると、ちゃんと
+&gt; 起動するんですが…。
+&gt; 
+&gt; どなたか HP-UX の環境でうまく自動起動されている方はいらっしゃらない
+&gt; でしょうか？
+&gt; もしいらっしゃるようなら、どのようなスクリプトを書かれているか教えて
+&gt; いただけないでしょうか。
+&gt; 
+&gt; どうぞよろしくお願い致します。
+&gt; 
+&gt; 
+&gt;     ┌────────────────┐
+&gt;        大岡由佳＠日立製作所
+&gt;           yoooka@system.hitachi.co.jp
+&gt;     └────────────────┘
+&gt; 
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00391" HREF="msg00391.html">[pgsql-jp 14680] Re[2]: HP-UX での自動起動設定</A></STRONG>
+<UL><LI><EM>From:</EM> 大岡由佳&lt;yoooka@system.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00384" HREF="msg00384.html">[pgsql-jp 14673] HP-UX での自動起動設定</A></STRONG>
+<UL><LI><EM>From:</EM> 大岡由佳&lt;yoooka@system.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 14673] HP-UX での自動起動設定</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00386.html">[pgsql-jp 14675] Re: HP-UX  での自動起動設定</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00384.html">[pgsql-jp 14673] HP-UX での自動起動設定</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00391.html">[pgsql-jp 14680] Re[2]: HP-UX での自動起動設定</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00385"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00385"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

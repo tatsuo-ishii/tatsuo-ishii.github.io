@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 14234] mod_perl と　Pg.soの関係について -->
+<!--X-From: "Osamu Ohashi" <osamu@telsysnet.com> -->
+<!--X-Date: Thu, 27 Apr 2000 21:33:09 &#45;0400 -->
+<!--X-Message-Id: NDBBJPLGMKIHALINKAFOOENPCDAA.osamu@telsysnet.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 14234] mod_perl と　Pg.soの関係について </TITLE>
+<LINK REV="made" HREF="mailto:osamu@telsysnet.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00529.html">Date Prev</A>][<A HREF="msg00531.html">Date Next</A>][<A HREF="msg00532.html">Thread Prev</A>][<A HREF="msg00549.html">Thread Next</A>][<A HREF="index.html#00530">Date Index</A>][<A HREF="threads.html#00530">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 14234] mod_perl と　Pg.soの関係について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Osamu Ohashi" &lt;<A HREF="mailto:osamu@telsysnet.com">osamu@telsysnet.com</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 27 Apr 2000 21:33:09 -0400</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大橋と申します。
+みなさまいつもありがとうございます。
+
+過去ログをいろいろ調べてためしました。
+よくある内容なのですが。なぜかすべて下記のerrorになってしまいます。
+
+環境は
+−−−−−
+FreeBSD 3.4＋Apache/1.3.9＋２０００年４月のPache済みPostgreSQLです。
+コマンドラインは問題なく動きます。
+そして問題なのがmod_perl-1.21利用時です。
+
+
+---------------ただ環境変数をダンプするソースです−−−−−−−
+#!/usr/bin/perl
+use Pg;
+print "&lt;html&gt;&lt;body&gt;env=$ENV{'MOD_PERL'}&lt;br&gt;\n";
+print "&lt;html&gt;&lt;body&gt;LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'}&lt;br&gt;\n";
+print "&lt;html&gt;&lt;body&gt;PGLIB=$ENV{'PGLIB'}&lt;br&gt;\n";
+print "&lt;html&gt;&lt;body&gt;PGDATA=$ENV{'PGDATA'}&lt;br&gt;\n";
+if (exists $ENV{'MOD_PERL'}){
+ print "Running as mod_perl";
+}else{
+ print "Running as a CGI";
+}
+print "&lt;/body&gt;&lt;/html&gt;";
+---------------
+
+このuse　Pg;行で
+エラーがでます。（下記がそのhttpd-error.logエラーログです）
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+[Thu Apr 27 08:22:58 2000] [error] Can't load
+'/usr/local/lib/perl5/site_perl/5.
+005/i386-freebsd/auto/Pg/Pg.so' for module Pg: Shared object "libpq.so.2"
+not fo
+und at /usr/libdata/perl/5.00503/DynaLoader.pm line 169.
+
+ at /isp/www/cgi-bin/test1.cgi line 3
+BEGIN failed--compilation aborted at /isp/www/cgi-bin/test1.cgi line 3.
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+use Pgをコメントアウトにすると
+
+env=mod_perl/1.21
+LD_LIBRARY_PATH=/usr/local/pgsql/lib
+PGLIB=
+PGDATA=
+Running as mod_perl
+の出力がブラウザに出ます。
+試しにhttpd.confに
+	SetEnv LD_LIBRARY_PATH "/usr/local/pgsql/lib"
+	SetEnv PGLIB "/usr/local/pgsql/lib"
+	SetEnv PGDATA "/usr/local/pgsql/data"
+を設定してもエラーは同じでした。
+
+最終的にたどり着いた
+---------
+[pgsql-jp 8312] Re: perlのusePg でエラーが出る などの
+[pgsql-jp 7242] Re: PgモジュールがCGIで動作しません。
+[pgsql-jp 7244] RE: Re: PgモジュールがCGIで動 作しません。
+[pgsql-jp 7876] Re: Can't load Pg.so
+[pgsql-jp 7897] Re: Can't load Pg.so
+---------
+の情報から以下を試してみましたが
+[対策]
+(1) /etc/ld.so.confに /usr/local/pgsql/libを追加
+(2) apache の場合、httpd.conf に
+　　SetEnv LD_LIBRARY_PATH /usr/local/pgsql/lib
+(3)Pgの再コンパイル
+などです。
+
+(2)を記述してldconfigのみコマンドをたたけばいいのでしょうか
+また/etc/ld-elf.so.confとかもあるのですが関係ないですよね？
+
+でも同じでした。
+
+根本的に何がまずいのでしょうか。
+もうここで３日も経ってしまいました、
+チェックポイントなどがあれば助かります。
+よろしくお願いします。
+
+
+/ from /------------------------------------------
+Osamu Ohashi
+Telsys Network USA
+594 Broadway,Suite 1003,New York,NY 10012
+Tel:212.625.1283 Fax:212.226.0990
+<A HREF="mailto:osamu@telsysnet.com">mailto:osamu@telsysnet.com</A>
+<A HREF="http://www.telsysnet.com">http://www.telsysnet.com</A>
+--------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00573" HREF="msg00573.html">[pgsql-jp 14280] Re: mod_perlと　Pg.soの関係について</A></STRONG>
+<UL><LI><EM>From:</EM> Issei Numata &lt;issei@heart.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00571" HREF="msg00571.html">[pgsql-jp 14278] Re: mod_perl と　Pg.soの関係について</A></STRONG>
+<UL><LI><EM>From:</EM> sakai h &lt;marc@rti.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00549" HREF="msg00549.html">[pgsql-jp 14253] Re: mod_perl と　Pg.soの関係について</A></STRONG>
+<UL><LI><EM>From:</EM> Shinichi Moritani &lt;ml@softcream.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00529.html">[pgsql-jp 14233] Re: $n件目から $m件目までのデータ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00531.html">[pgsql-jp 14235] Re: データ型datetimeの出力</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00532.html">[pgsql-jp 14236] Re: アクセス９７によるデータベースとの接続</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00549.html">[pgsql-jp 14253] Re: mod_perl と　Pg.soの関係について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00530"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00530"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

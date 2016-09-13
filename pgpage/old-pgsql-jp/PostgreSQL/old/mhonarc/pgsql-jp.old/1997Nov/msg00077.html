@@ -1,0 +1,261 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2948] Re: regression test failed on Solaris 2.5.1x86 -->
+<!--X-From: Motonobu Takahashi <monyo@sec.rd.nttdata.co.jp> -->
+<!--X-Date: Thu, 13 Nov 1997 21:38:49 +0900 -->
+<!--X-Message-Id: 199711131238.VAA19306@loire.ts.sec.rd.nttdata.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199711111217.VAA28721@meshsv26.tk.mesh.ad.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2948] Re: regression test failed on Solaris 2.5.1x86 </TITLE>
+<LINK REV="made" HREF="mailto:monyo@sec.rd.nttdata.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00076.html">Date Prev</A>][<A HREF="msg00078.html">Date Next</A>][<A HREF="msg00073.html">Thread Prev</A>][<A HREF="msg00069.html">Thread Next</A>][<A HREF="index.html#00077">Date Index</A>][<A HREF="threads.html#00077">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2948] Re: regression test failed on Solaris 2.5.1x86</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Motonobu Takahashi &lt;<A HREF="mailto:monyo@sec.rd.nttdata.co.jp">monyo@sec.rd.nttdata.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 13 Nov 1997 21:38:49 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00073.html">199711111217.VAA28721@meshsv26.tk.mesh.ad.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  たかはしもとのぶ@NTTDATA です。
+
+  石井さんからの suggestion を元に、 regression test に失敗している原
+因を探って見ました。
+  後、自宅の SS2 の Solaris2.5.1 でも同じ事を行なって見ました。
+Solaris2.5.1x86 では、何回行なっても同じ test が失敗します。
+
+  ちなみに、make 及び make install, regression test 等は、全て同じスク
+リプトを使って自動化してますので、タイプミスと言う事はない筈です。
+
+  スクリプトは同じものを使っているのですが、唯一異なっている所は、
+x86 版は CFLAGS="-O2 -mpentium" SPARC 版は CFLAGS="-O2 -mcypress" とい
+う所だけです。  
+  また、Makefile.custom は
+
+[10][seine#admin]less src/Makefile.custom 
+USE_TCL= true
+TCL_INCDIR= /opt/local/tcl/include
+TCL_LIBDIR= /opt/local/tcl/lib
+TCL_LIB= -ltcl
+TK_INCDIR= /opt/local/tk/include
+TK_LIBDIR= /opt/local/tk/lib
+TK_LIB= -ltk
+X11_INCDIR= /opt/X11R6/include
+X11_LIBDIR= /opt/X11R6/lib
+X11_LIB= -lX11
+# HAVE_Cplusplus= true
+JP= 1
+
+です。
+
+1. overflow した時のエラー文字列の違いによるもの
+
+(1) エラーになるテスト
+  int2 ..  failed
+  int4 ..  failed
+  oidint2 ..  failed
+  oidint4 ..  failed
+
+(2) エラーの詳細
+  例えば、以下のように、エラーメッセージが異なっているため。
+
+&lt; WARN:pg_atoi: error reading "100000": Math result not representable
+---
+&gt; WARN:pg_atoi: error reading "100000": Result too large
+
+(3) 原因
+  例えば、以下のように、エラーメッセージが異なっているため。
+
+(4) 対策
+  実質的には特に問題はない。
+
+2. 日付の値が異なっている
+
+(1) エラーになるテスト
+  abstime ..  failed
+  horology ..  failed
+  hash_index.out
+  tinterval ..  failed
+
+(2) エラーの詳細
+  例えば abstime.out の中で以下のように異なっている。
+
+25c25
+&lt;      |Sat May 10 23:59:12 1947 PST
+---
+&gt;      |Sun May 11 00:59:12 1947 PDT
+
+  その他の上記の test も、必ず、上記の日付のところが合致しておらずエラー
+になっている。
+  ただし、 hash_index.out の中では、以下のような相違もある。
+857c857
+&lt;            |Thu 13 Jun 00:00:00 1957 PDT   
+---
+&gt;            |Thu 13 Jun 01:00:00 1957 PDT   
+
+(3) 原因
+  不明
+
+3. random 関数の仕様?
+
+(1) エラーになるテスト
+  random ..  failed
+
+(2) エラーの詳細
+  以下の通り
+
+10c10
+&lt;    92
+---
+&gt;    97
+16c16
+&lt;    98
+---
+&gt;   101
+
+(3) 原因
+  random(3c) の仕様??
+  コンパイルログを見ると、 random(), srandom() のところで、型が違うと
+言う warnging が出ている。
+  ちなみに Solaris では、
+
+SYNOPSIS
+     long random();
+
+     int srandom( unsigned seed);
+
+     char *initstate( unsigned seed, char *state, int n);
+
+     char *setstate( char *state);
+
+となっている。
+
+(4) 対策
+  なし。
+
+4. 浮動小数点計算の違いによると思われるもの
+
+(1) エラーになるテスト
+  float8 ..  failed
+  geometry ..  failed
+
+(2) エラーの詳細
+  以下の通り
+
+float8.out
+206,214c206
+&lt; bad|            ?column?
+&lt; ---+--------------------
+&lt;    |                   1
+&lt;    |7.39912306090513e-16
+&lt;    |                   0
+&lt;    |                   0
+&lt;    |                   1
+&lt; (5 rows)
+&lt; 
+---
+&gt; WARN:exp() result is out of range
+
+geometry.out 例えば以下のような感じ
+&lt;    |((-3,0),(-2.59807621135332,1.5),(-1.5,2.59807621135332),(-1.83690953073357e-16,3),(1.5,2.59807621135332),(2.59807621135332,1.5),(3,3.67381906146713e-16),(2.59807621135332,-1.5),(1.5,-2.59807621135332),(5.5107285922007e-16,-3),(-1.5,-2.59807621135332),(-2.59807621135332,-1.5))
+&gt;    |((-3,0),(-2.59807621135076,1.50000000000442),(-1.49999999999116,2.59807621135842),(1.53102359017709e-11,3),(1.50000000001768,2.59807621134311),(2.59807621136607,1.4999999999779),(3,-3.06204718035418e-11),(2.59807621133545,-1.50000000003094),(1.49999999996464,-2.59807621137373),(-4.59307077053127e-11,-3),(-1.5000000000442,-2.5980762113278),(-2.59807621138138,-1.49999999995138))
+
+(3) 原因
+  ドキュメントを見る限り、これはしょうがないのかしら。
+  exp(3M) 関数の仕様?
+
+(4) 対策
+  なし。
+
+# 因みに、 SS2 で行った所、 select_views.out でも、同じように小数点以
+下の細かい所が違っていてエラーになっている所があった。
+
+select_views.out
+299c299
+&lt; I- 580                        Ramp|[(-121.9043,37.998),(-121.9036,37.013),(-121.902632,37.0174),(-121.9025,37.018)]                                                                                                                                                                                                                                                                                                                                                            |(-121.903606173677,37.0216872455902)
+---
+&gt; I- 580                        Ramp|[(-121.9043,37.998),(-121.9036,37.013),(-121.902632,37.0174),(-121.9025,37.018)]                                                                                                                                                                                                                                                                                                                                                            |(-121.903606173677,37.0216872455785)
+
+5. よくわからない
+
+(1) エラーになるテスト
+  misc ..  failed
+
+(2) エラーの詳細
+  以下の通り
+misc.out
+462d461
+&lt; copy_seq       
+511c510
+&lt; (66 rows)
+---
+&gt; (65 rows)
+
+(3) 原因
+  不明
+
+(4) 対策
+  不明
+
+--------------------------------------------------------------------
+技術開発本部 ソフトウェア技術センタ インテグレーションサポート担当
+高橋 基信(たかはし もとのぶ)             monyo@sec.rd.nttdata.co.jp
+--------------------------------------------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00073" HREF="msg00073.html">[pgsql-jp 2944] Re: regression test failed on Solaris 2.5.1x86</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp (Tatsuo Ishii)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00076.html">[pgsql-jp 2947] 6.2.1 Benchmark (TP 560, Linux)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00078.html">[pgsql-jp 2949] Re: アプレット</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00073.html">[pgsql-jp 2944] Re: regression test failed on Solaris 2.5.1x86</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00069.html">[pgsql-jp 2940] How do you do?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00077"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00077"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

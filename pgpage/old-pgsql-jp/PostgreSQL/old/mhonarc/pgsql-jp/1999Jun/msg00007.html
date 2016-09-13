@@ -1,0 +1,193 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8573] Re: 大量のデータ処理について教えて下さい。 -->
+<!--X-From: "terumi.chida" <terumi@rnac.ne.jp> -->
+<!--X-Date: Tue, 01 Jun 1999 16:14:28 +0900 -->
+<!--X-Message-Id: 37538853.A0E056AD@rnac.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37530DDA.4D8CA002@rnac.ne.jp -->
+<!--X-Reference-Id: 375360F832A.9DD0SAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8573] Re: 大量のデータ処理について教えて下さい。 </TITLE>
+<LINK REV="made" HREF="mailto:terumi@rnac.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00006.html">Date Prev</A>][<A HREF="msg00008.html">Date Next</A>][<A HREF="msg00005.html">Thread Prev</A>][<A HREF="msg00008.html">Thread Next</A>][<A HREF="index.html#00007">Date Index</A>][<A HREF="threads.html#00007">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8573] Re: 大量のデータ処理について教えて下さい。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "terumi.chida" &lt;<A HREF="mailto:terumi@rnac.ne.jp">terumi@rnac.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Jun 1999 16:14:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00002.html">37530DDA.4D8CA002@rnac.ne.jp</A>&gt; &lt;<A HREF="msg00005.html">375360F832A.9DD0SAKAIDA@mail.psn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+さっそくのレスありがとうございます。
+
+&gt; 境田です。
+&gt;
+&gt; On Tue, 01 Jun 1999 07:31:55 +0900
+&gt; "terumi.chida" &lt;terumi@rnac.ne.jp&gt; さん wrote:
+&gt; &gt;
+&gt; &gt; 最近データ件数がふえるに伴い検索速度もぐっとおちてきております。現在の検
+&gt; &gt; 索速度はクエリーにもよりますが、２０秒〜５分といったところです。
+&gt; &gt; インデックスを含めたＤＩＳＫ使用容量は、計２Ｇを超えているようです。
+&gt; &gt;
+&gt; &gt; １）今より検索速度を上げる手だてがあるのでしょうか？
+&gt; &gt; 　　たとえばメモりをたすとか、データベース構造を変えるとか。
+&gt;
+&gt; 　メモリ不足(swap発生)がありましたら、それはすぐに増設すべき
+&gt; です。（ディスクスピードもかなり影響します。）
+
+&gt;
+
+確かに複雑なクエリーを実行するとＤＩＳＫかからからとまわっています。メモリ増設を
+検討します。
+でもどのくらい増設するのが適切なのでしょうか？
+
+&gt; # (私の大嫌い^^;な)vacuumは実行してますよね？
+&gt;
+
+やっておりませんでした。
+毎日データを追加するときにインデックスをはずしてinsertしてからインデックスをつく
+りなおしてますがやっぱり必要なのでしょうか？
+以前は行ってましたが、インデックスの再構築をした場合とあまりかわりなかった記憶が
+ありまして・・・
+またやってみます。
+
+&gt; &gt; create table siwake_tab
+&gt; &gt; (
+&gt; &gt;         keiri_date      char(8),
+&gt; &gt;  ..途中省略 ..
+&gt; &gt;         rec_key         char(15)
+&gt; &gt; );
+&gt; &gt;
+&gt; &gt; create table tax_tab
+&gt; &gt; (
+&gt; &gt;         rec_key         char(15),
+&gt; &gt;         s_zei           char(2)
+&gt; &gt; )
+&gt; &gt;
+&gt; &gt; create index keiri_date_index on siwake_tab using btree (keiri_date);
+&gt; &gt; ...途中省略...
+&gt; &gt; create index kari_kin_index   on siwake_tab using btree (kari_kin);
+&gt; &gt;
+&gt; &gt; create index rec_key_index_t     on tax_tab using btree (rec_key);
+&gt; &gt; create index s_zei_index_t       on tax_tab using btree (s_zei);
+&gt;
+&gt; 　どのような select文を使用してますか？
+&gt;
+
+＊アクセス９７で生成されたselect分についてはこんなかんじです。
+SELECT siwake_tab.keiri_date, siwake_tab.ssiten_cd, siwake_tab.kanjou_cd,
+siwake_tab.jigyo_cd, tax_tab.s_zei, siwake_tab.hsiten_cd, siwake_tab.kenmei,
+siwake_tab.bumon_cd, siwake_tab.kari_kin AS 借方金額, siwake_tab.kasi_kin AS 貸方
+金額, siwake_tab.tekiyo, siwake_tab.denpyo_no, siwake_tab.tanto
+FROM siwake_tab LEFT JOIN tax_tab ON siwake_tab.rec_key = tax_tab.rec_key
+WHERE (((siwake_tab.keiri_date)&gt;=[経理日?] And (siwake_tab.keiri_date)&lt;=[?経理
+日]) AND ((siwake_tab.kanjou_cd)&gt;=[勘定科目?] And (siwake_tab.kanjou_cd)&lt;=[?勘定
+科目]) AND ((tax_tab.s_zei)&lt;[固定税区分?] Or (tax_tab.s_zei)&gt;[?固定税区分]) AND
+((siwake_tab.hsiten_cd)&gt;=[発生支店?] And (siwake_tab.hsiten_cd)&lt;=[?発生支店]));
+＊上記[？＊＊＊？]についてはいろんなパターンがありますので都度パラメタ入力で渡し
+てます。
+
+&gt; 　おそらく、
+&gt;   select ... from siwake_tab, tax_tab
+&gt;    where siwake_tab.rec_key = tax_tab.rec_key ...;
+&gt;
+&gt;   のような select文を使用していることと思いますが、この場合、
+&gt; 　siwake_tabテーブルの"rec_key"に索引を作成した方がいいです。
+
+＊すいません。siwake_tabのrec_keyにもインデックスをはってました。
+
+
+&gt; # それと、where句において等号で比較される索引がある場合、create
+&gt; 　indexに unique指定できるものは指定した方が良いです。その方
+&gt; 　が若干速くなります。
+&gt;
+&gt; &gt; ３）siwake_tabとtax_tabをrec_keyをキーとしてs_zei.siwake_tabに
+&gt; &gt; s_zei.tax_tabをセット（７７万件すべてのupdate）したいのですが時間かかり
+&gt; &gt; すぎて断念しました。何かいい方法はありますか。
+&gt; &gt;
+&gt;
+&gt; 　どのような update文を使用してますか？
+&gt;
+
+たしかupdate siwake_tab set s_zei.siwake_tab = s_zei.tax_tab where
+rec_key.siwake_tab = rec_key.tax_tab;
+だったような気がします。
+
+&gt;
+
+&gt;  テストしましたら、処理時間など教えてくださいね。
+
+了解しました。
+
+今後ともよろしくお願いします。
+****************
+terumi.chida
+terumi@rnac.ne.jp
+****************
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00058" HREF="msg00058.html">[pgsql-jp 8624] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00008" HREF="msg00008.html">[pgsql-jp 8574] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroki Kataoka" &lt;kataoka@interwiz.koganei.tokyo.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 8568] 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> "terumi.chida" &lt;terumi@rnac.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00005" HREF="msg00005.html">[pgsql-jp 8571] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 8572] psqlで大量のデータが表示できません</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 8574] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00005.html">[pgsql-jp 8571] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 8574] Re: 大量のデータ処理について教えて下さい。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00007"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00007"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25214] Re: Windows上JDBC   でのエンコーディング -->
+<!--X-From: Tsunehisa Kazawa <kazawa@sons.co.jp> -->
+<!--X-Date: Mon, 11 Mar 2002 11:30:00 +0900 -->
+<!--X-Message-Id: 200203111041.32564@digitune.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20020311014327.14CF.YTP@vc&#45;net.ne.jp -->
+<!--X-Reference-Id: 200203110812.43628@digitune.org -->
+<!--X-Reference-Id: 20020311095849.11FF.YTP@vc&#45;net.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25214] Re: Windows上JDBC   でのエンコーディング </TITLE>
+<LINK REV="made" HREF="mailto:kazawa@sons.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00190.html">Date Prev</A>][<A HREF="msg00199.html">Date Next</A>][<A HREF="msg00195.html">Thread Prev</A>][<A HREF="msg00198.html">Thread Next</A>][<A HREF="index.html#00191">Date Index</A>][<A HREF="threads.html#00191">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25214] Re: Windows上JDBC   でのエンコーディング</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsunehisa Kazawa &lt;<A HREF="mailto:kazawa@sons.co.jp">kazawa@sons.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 11 Mar 2002 11:30:00 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>Organization</em>: SONS,. Ltd.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00185.html">20020311014327.14CF.YTP@vc-net.ne.jp</A>&gt; &lt;<A HREF="msg00187.html">200203110812.43628@digitune.org</A>&gt; &lt;<A HREF="msg00188.html">20020311095849.11FF.YTP@vc-net.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+加澤と申します。
+
+もっぱら Java の話になってしまいます。すみません。
+
+TANAKA Yoshihiro wrote:
+&gt; 田中 良浩 です。
+[略]
+&gt; 文字化けの経験はお持ちですか?
+
+ええ、かなり昔からお付き合いさせていただいております。
+
+[略]
+&gt; 論より証拠ですよね...
+&gt; 実験してみました。
+[略]
+&gt; いかがですか、"SJIS"エンコーディングだと化けますよね?
+&gt; Javaな方にはご自分の環境で確認していただければ、と思います。
+
+このテストプログラムの問題は、SJIS コンバータを使って Unicode 化
+した String に対し、出力段では Windows 環境でのデフォルトエンコー
+ディング、つまり MS932 コンバータを暗黙に利用していることにありま
+す。違うコンバータを通せば、最終結果のコードが違うものになるのはあ
+る意味当然ですよね。出力段に、明示的に SJIS エンコーダを指定した
+PrintWriter 等を利用すれば問題なく出力出来るはずです。
+
+そもそも、例えば SJIS コンバータの扱う「〜」と、MS932 コンバータ
+の扱う「〜」は Unicode 的に別のコードが割り当てられた別の文字にな
+りますから、これらを同一に扱いたいのであれば、Java レベルでそういっ
+たコードを書く必要があります。
+
+もう一つの手として、そのシステム内ではどちらかしか現れないように水
+際で念入りに調整する、という手段がありますが、僕はその場合、\uff5e
+ではなく \u301c 側を使う方が (つまり SJIS コンバータを使う方が)、
+のちのち他のコードとの変換などを考えた場合、安全なのではないかと考
+えます。ましてや、同じ DB 上のデータを別のマシン上の JavaVM 上に
+それぞれ読み込んだ時に、片や \u301c となり、片や \uff5e となるよ
+うな実装は最悪だと思います (デフォルトエンコーダを使う、というのは
+そういうことです)。
+
+確認したわけではありませんが、今回の場合 DB 側には EUC-JP で格納さ
+れ、SJIS コンバータを使って Unicode 化されていることから考えると、
+そのコードポイントは \u301c なのではないかと思います (ShiftJIS で
+の「〜 (0x81、0x60)」を MS932 エンコーダで読み込んだ時の、\uff5e
+ではなく、です)。ですから、この文字を Shift JIS の 0x81、0x60 に
+戻したいのであれば SJIS コンバータを使う必要があるのです。これをも
+し MS932 エンコーダで 0x81、0x60 に戻したいのであれば、Java レベル
+で明示的に \u301c &lt;-&gt; \uff5e 間の文字変換 (違う文字なのだから当然)
+を行うのが筋であると僕は思います。
+
+この辺の問題はいろいろと複雑ですが、いろいろなシステム間の相互運用性
+を考えるためには避けて通れない部分でもありますから、安易にデフォルト
+エンコーディングを使う、という発想ではなく、きっちりと考えるようにし
+た方がいいです。
+
+この辺の挙動を確認するプログラムを添付しておきますので、よく考えてみ
+てください。
+
+public class test {
+    private static String byte2str(byte[] b) {
+        StringBuffer strbuf = new StringBuffer();
+        for (int i = 0; i &lt; b.length; i++) {
+            int c = (b[i] &lt; 0) ? b[i] + 0x100 : b[i];
+            strbuf.append(Integer.toString(c / 16, 16));
+            strbuf.append(Integer.toString(c % 16, 16));
+        }
+        return new String(strbuf);
+    }
+    public static void main(String[] args) throws Exception {
+        String t1 = "\u301c";
+        String t2 = "\uff5e";
+        System.out.println(t1 + ":SJIS=" + byte2str(t1.getBytes("SJIS"))
+            + ":MS932=" + byte2str(t1.getBytes("MS932")));
+        System.out.println(t2 + ":SJIS=" + byte2str(t2.getBytes("SJIS"))
+            + ":MS932=" + byte2str(t2.getBytes("MS932")));
+        byte[] b = { (byte) 0x81, (byte) 0x60 };
+        System.out.println("SJIS=" + Integer.toString(((int) new String(b
+            , "SJIS").charAt(0)), 16));
+        System.out.println("MS932=" + Integer.toString(((int) new String(b
+            , "MS932").charAt(0)), 16));
+    }
+}
+
+-- 
+加澤恒央
+Tsunehisa KAZAWA
+kazawa@sons.co.jp
+SONS,. Ltd. Programmer
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00185" HREF="msg00185.html">[pgsql-jp: 25208] Windows上JDBCでのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> YTP &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00187" HREF="msg00187.html">[pgsql-jp: 25210] Re: Windows上JDBC でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00188" HREF="msg00188.html">[pgsql-jp: 25211] Re: Windows上JDBC  でのエンコーディング</A></STRONG>
+<UL><LI><EM>From:</EM> TANAKA Yoshihiro &lt;ytp@vc-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00190.html">[pgsql-jp: 25213] Re: Windows上JDBC でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00199.html">[pgsql-jp: 25222] 幾何関数について　教えてください</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00195.html">[pgsql-jp: 25218] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00198.html">[pgsql-jp: 25221] Re: Windows上JDBC   でのエンコーディング</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00191"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00191"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

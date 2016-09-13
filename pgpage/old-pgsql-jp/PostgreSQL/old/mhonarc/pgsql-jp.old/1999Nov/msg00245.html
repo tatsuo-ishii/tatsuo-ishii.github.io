@@ -1,0 +1,159 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11673] Re: ツリー表示をおこう方法についてお聞きしたい -->
+<!--X-From: MUKOJIMA Hideaki <mkj@gn.ccc.canon.co.jp> -->
+<!--X-Date: Tue, 09 Nov 1999 09:40:21 +0900 -->
+<!--X-Message-Id: 38276D756E.3217MKJ@blizzard.ccc.canon.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 002901bf2a09$96ef4a40$0200a8c0@bluewrs -->
+<!--X-Reference-Id: 382709E7.C42BC435@ops.dti.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11673] Re: ツリー表示をおこう方法についてお聞きしたい </TITLE>
+<LINK REV="made" HREF="mailto:mkj@gn.ccc.canon.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00244.html">Date Prev</A>][<A HREF="msg00246.html">Date Next</A>][<A HREF="msg00243.html">Thread Prev</A>][<A HREF="msg00246.html">Thread Next</A>][<A HREF="index.html#00245">Date Index</A>][<A HREF="threads.html#00245">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11673] Re: ツリー表示をおこう方法についてお聞きしたい</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: MUKOJIMA Hideaki &lt;<A HREF="mailto:mkj@gn.ccc.canon.co.jp">mkj@gn.ccc.canon.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 09 Nov 1999 09:40:21 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00241.html">002901bf2a09$96ef4a40$0200a8c0@bluewrs</A>&gt; &lt;<A HREF="msg00243.html">382709E7.C42BC435@ops.dti.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+むこうじまともうします。
+
+on Tue, 09 Nov 1999 02:35:35 +0900
+keisakai &lt;keisakai@ops.dti.ne.jp&gt; wrote:
+&gt;&gt; 　記事ＩＤ　元記事ＩＤ　深さ
+&gt;&gt; 　１　　　　０　　　　　１
+&gt;&gt; 　２　　　　１　　　　　２
+&gt;&gt; 　３　　　　１　　　　　２
+&gt;&gt; 　４　　　　３　　　　　３　
+&gt;&gt; 　５　　　　３　　　　　３
+&gt;&gt; 　６　　　　４　　　　　４
+&gt;&gt; 　７　　　　２　　　　　３
+(途中略)
+&gt;深さの考え方は、私も一度検討しました。
+&gt;問題としているのは、上記の項目に索引をつけて、ツリー表示するとき、単純に
+&gt;１ページ表示分の件数を読んで、字下げのため深さだけ考慮して表示するように
+&gt;したかったのです。
+&gt;つまり、データベースのある項目に対するシーケンス指定だけで表示をしたかっ
+&gt;たのです。
+&gt;(記事ＩＤ＝２のあどに７を表示したい)
+&gt;
+&gt;上記のケースだと、次のようにツリー表示時点で肉体労働(?、階層関係を意識し
+&gt;た複数のアクセスに)なってしまいます。
+&gt;つまり、
+&gt;１．まず、深さ=１のデータを対象に読む。（これは投稿記事)
+&gt;２．それのレスを探すため、深さ=２のデータを読む。（以下はレス記事)
+&gt;３．おなじく２．のデータレス記事を探すため、深さ＝３の記事を読む。
+&gt;　　そして、２と本処理を繰り返す。
+&gt;４．つぎの深さ=１のデータに対して、同じように２と３を繰り返す。
+&gt;
+&gt;あとは検討してみます。
+
+深さをテーブルに持つ必要は無いのではないでしょうか？
+#個人的にはＤＢが壊れた時のメンテが面倒になるので、(その処理がレスポンス
+#に多大な影響をもたらさない限り）余計なキーは持たない方が良いように思い
+#ます。
+
+表示時に、親ＩＤと深さを引数にして、そのＩＤを親に持つ子をselectし、子ID
+とカウントアップした深さを引数に自関数を呼び出す、って感じの再帰関数を使
+うのが一番簡単かと思います。
+まぁやたらselectを発行しちゃうのですが。
+
+以下、PHP3+PostgreSQLを使ってやっつけで書いたサンプルです。
+#&lt;ul&gt;&lt;/ul&gt;を使っているので、特に深さ($nest)は使っていません。
+
+function tree_select($sel_pid, $nest) {
+  global $conn;
+  $result = pg_Exec($conn,"select id, subject, uid, date  from bbs where
+  pid = '$sel_pid' order by date desc;");
+  if($result) {
+    $rowcnt = pg_numrows($result);
+    echo "&lt;ul&gt;\n";
+    for($i = 0; $i &lt; $rowcnt; $i++) {
+      $rows = pg_fetch_row($result,$i);
+      $prstr = implode(array($rows[1],$rows[2],$rows[3]), ":");
+      echo "&lt;li&gt;${prstr}\n";
+      tree_select($rows[0], $nest+1);
+    }
+    echo "&lt;/ul&gt;\n";
+    pg_freeresult($result);
+  }
+}
+tree_select("0", 0);
+
+テーブルbbsにはid(自ID)とpid(親ID)、subject(題)、uid(ユーザID),date(日
+付)なんかが入っています。
+
+
+
+MUKOJIMA Hideaki &lt;mkj@gn.ccc.canon.co.jp&gt;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00434" HREF="msg00434.html">[pgsql-jp 11867] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+<UL><LI><EM>From:</EM> keisakai &lt;keisakai@ops.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00247" HREF="msg00247.html">[pgsql-jp 11675] Re:ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Iwamura" &lt;iwamura@bluesystems.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00246" HREF="msg00246.html">[pgsql-jp 11674] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+<UL><LI><EM>From:</EM> 石井　彰 &lt;isalpha@ra2.so-net.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00241" HREF="msg00241.html">[pgsql-jp 11669] Re:ツール表示をおこう方法についてお聞きしたい</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Iwamura" &lt;iwamura@bluesystems.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00243" HREF="msg00243.html">[pgsql-jp 11671] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+<UL><LI><EM>From:</EM> keisakai &lt;keisakai@ops.dti.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00244.html">[pgsql-jp 11672] Re:ツール表示をおこう方法についてお聞きしたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 11674] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00243.html">[pgsql-jp 11671] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00246.html">[pgsql-jp 11674] Re: ツリー表示をおこう方法についてお聞きしたい</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00245"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00245"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

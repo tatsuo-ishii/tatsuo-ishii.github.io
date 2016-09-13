@@ -1,0 +1,171 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1164] Re:**3 introduction&questions -->
+<!--X-From: Atsushi Mano <a_mano@habitat1.brnj.com> -->
+<!--X-Date: Sat, 14 Dec 1996 17:38:51 +0900 -->
+<!--X-Message-Id: 199612140838.RAA22140@habitat1.brnj.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 9612130354.AA13357@mugi.cec.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1164] Re:**3 introduction&amp;questions </TITLE>
+<LINK REV="made" HREF="mailto:a_mano@habitat1.brnj.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00074.html">Date Prev</A>][<A HREF="msg00075.html">Date Next</A>][<A HREF="msg00072.html">Thread Prev</A>][<A HREF="msg00044.html">Thread Next</A>][<A HREF="index.html#00073">Date Index</A>][<A HREF="threads.html#00073">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1164] Re:**3 introduction&amp;questions</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Atsushi Mano &lt;<A HREF="mailto:a_mano@habitat1.brnj.com">a_mano@habitat1.brnj.com</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 14 Dec 1996 17:38:51 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00067.html">9612130354.AA13357@mugi.cec.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ベアネット＠真野です。
+
+From: sakamoto@cec.co.jp (Kazuki Sakamoto)
+Subject: [postgres95 1158] Re: Re: introduction&amp;questions
+Date: Fri, 13 Dec 96 12:54:59 JST
+
+&gt;  &gt; &gt; ２：Netscape等のビューワーから送られる検索対象文字はSJIS,JIS,EUCと
+&gt;  &gt; &gt; 　　多彩になることが考えられるが、どの時点でEUCに変換してpostgres95
+&gt;  &gt; &gt; 　　にSQLをかけるようにすればもっとも効率がよいか。
+&gt;  &gt; CGI などに渡して、nkf などをフィルタさせてやるのが現実的でしょうか...
+&gt; 
+&gt; CGIでperlを使うならjcode.plとかもありですね。
+
+私は、PHP/FI ではなく CGI.pm という Perl5 CGI ライブラリ
+("<A HREF="http://www-genome.wi.mit.edu/ftp/pub/software/WWW/cgi_docs.html">http://www-genome.wi.mit.edu/ftp/pub/software/WWW/cgi_docs.html</A>")
+を用いているのですが、その場合には、Perl スクリプトは、
+
+  use CGI;
+  $query = new CGI;
+  require 'jcode.pl';
+  $query_string=$query-&gt;param('query_string');
+  &amp;jcode'convert(*query_string,'euc');
+
+てな感じでしょうか。
+
+また、クライアントに出力される文字列を JIS 等に統一したい場
+合は、Perl スクリプトの先頭で、
+  open(NKF, "|nkf -j");
+  select(NKF);
+とやれば OK ですね。
+
+
+これとは別ですが、Perl CGI スクリプトへの引数渡しでは、２バ
+イト文字(漢字)がうまく渡されません。"真","淳"等がだめですが、
+平仮名は大丈夫です。また、パス情報を渡す方法では、全然だめで
+す。CGI でない通常の Perl スクリプトだと、うまくゆきます。引
+数等が Web サーバに戻ったときに化けるようです。
+
+日本語を引数で渡す場面としては、例えば住所録データベースで、
+５０音を表示させて各文字にハイパーリンクを張り、その文字をク
+リックすると、その文字が CGI に渡されて、その文字を頭文字と
+する読みを検索する等があります。
+
+この場合、私は、mewencode や uuencode/uudecode 等のツールで、
+引数に対して base64 符号化／復号をしています。
+
+ただし、文字列中の半角スペースは引数の区切りとみなされてしま
+うため、base64 符号化する前に '_' 等に変換して渡し、受信後に
+元に戻しています。
+
+また、base64 コードには、引数の区切りに対応する '+' 記号が含
+まれるため、'*' 等に変換しておき、受信後に元に戻しています。
+更に、base64 コードに含まれるパディング用記号 '=' もうまく渡
+されないので、'%' 等に変換しておき、受信後に元に戻しています。
+
+で、次のような感じでしょうか。ただし、引き渡す文字列は１行に
+納まるほどに短いと仮定しています。長い場合は、改行を chop す
+る等の作業が必要になります。
+
+&lt;Encoding&gt;
+  $send_string =~ s/\s/_/g;   # $send_string 中の スペース -&gt; "_"
+  open(B64, "echo $send_string|mewencode -b|"); # base64 符号化
+  $_=&lt;B64&gt;;
+  close B64;
+  chop;			# 改行の除去
+  s/\+/\*/g;		# 符号中の "+" -&gt; "*"
+  s/\=/\%/g;		# 符号中の "=" -&gt; "%"
+  $encoded_string=$_;   # これが引数
+
+  use CGI;
+  $query = new CGI;
+  print $query-&gt;header;
+  print $query-&gt;start_html();
+  print "&lt;A HREF=\"$CGI_BIN/test.pl?$encoded_string\"&gt;&lt;I&gt; TEST &lt;/I&gt;&lt;/A&gt;";
+  print $query-&gt;end_html;
+
+
+&lt;Decoding&gt;
+  $received_string=$ARGV[0];	  # 引数の取出し
+  $received_string =~ s/\*/\+/g;  # 符号中の "*" -&gt; "+"
+  $received_string =~ s/\%/\=/g;  # 符号中の "%" -&gt; "="
+  open(B64, "echo $received_string|mewencode -b -d|"); # 復号
+  $_=&lt;B64&gt;;
+  close B64;
+  chop;
+  s/_/ /g;			  # "_" -&gt; スペース
+  $send_string=$_;
+  require 'jcode.pl';
+  &amp;jcode'convert(*send_string,'euc');
+---
+------------------------------------------------------------- 
+ATSUSHI MANO / BearNet Inc. ceo
+E-mail		a_mano@brnj.com
+------------------------------------------------------------- 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00067" HREF="msg00067.html">[postgres95 1158] Re: Re: introduction&amp;questions</A></STRONG>
+<UL><LI><EM>From:</EM> sakamoto@cec.co.jp (Kazuki Sakamoto)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00074.html">[postgres95 1165] Re: Re of Re:introduction&amp;questions</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00075.html">[postgres95 1166] Japanese PHP/FI beta</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00072.html">[postgres95 1163] Re: introduction&amp;questions</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00044.html">[postgres95 1135] Re:Re: 1 byte KANA</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00073"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00073"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

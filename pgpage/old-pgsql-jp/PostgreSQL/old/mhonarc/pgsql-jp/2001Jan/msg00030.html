@@ -1,0 +1,184 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19337] BIT data types -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 05 Jan 2001 13:20:06 +0900 -->
+<!--X-Message-Id: 20010105132006T.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010104141436.09eab906.hotta@net&#45;newbie.com -->
+<!--X-Reference-Id: 200101050906665.SM00202@goodday -->
+<!--X-Reference-Id: 20010105111943.5a4cb471.hotta@net&#45;newbie.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19337] BIT data types </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00029.html">Date Prev</A>][<A HREF="msg00031.html">Date Next</A>][<A HREF="msg00029.html">Thread Prev</A>][<A HREF="msg00008.html">Thread Next</A>][<A HREF="index.html#00030">Date Index</A>][<A HREF="threads.html#00030">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19337] BIT data types</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 05 Jan 2001 13:20:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00021.html">20010104141436.09eab906.hotta@net-newbie.com</A>&gt;&lt;<A HREF="msg00028.html">200101050906665.SM00202@goodday</A>&gt;&lt;<A HREF="msg00029.html">20010105111943.5a4cb471.hotta@net-newbie.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．サブジェクト変えました．
+
+BIT型は7.0.xではまだ不完全で，完全な実装は7.1からになります．
+7.1ベータでのサンプルをお見せします．興味のある方は，スナップショット
+を取得していろいろお試し下さい．
+
+test=# create table t1(b bit(64));
+CREATE
+test=# insert into t1 values(B'111100001111');
+INSERT 166520 1
+test=# select * from t1;
+                                b                                 
+------------------------------------------------------------------
+ 1111000011110000000000000000000000000000000000000000000000000000
+(1 row)
+
+test=# insert into t1 values('XF0F');
+INSERT 166521 1
+test=# select * from t1;
+                                b                                 
+------------------------------------------------------------------
+ 1111000011110000000000000000000000000000000000000000000000000000
+ 1111000011110000000000000000000000000000000000000000000000000000
+(2 rows)
+
+test=# create table t2(b bit varying(64));
+CREATE
+test=# insert into t2 values(B'111100001111');
+INSERT 166534 1
+test=# insert into t2 values('XF0F');
+INSERT 166535 1
+test=# select * from t2;
+      b       
+--------------
+ 111100001111
+ 111100001111
+(2 rows)
+
+SQL92と違いは，
+
+o SQL92では，X'F0F'と書くところを，PostgreSQLでは'XF0F'と書かないと怒
+  られる
+
+o SQL92では許されていない"bit varying" (桁数指定なし)が許されている
+
+o bit_length()がない(代わりにlength()が使える)．--&gt;たぶん忘れてるだけ
+
+ってとこでしょうか．
+--
+Tatsuo Ishii
+
+
+&gt; select * from pg_type where typname like '%bit%';
+&gt; 
+&gt; して varbit という型を見つけました。
+&gt; 
+&gt; hotta=# create table bittest (id int, val varbit);
+&gt; CREATE
+&gt; hotta=# insert into bittest values (1, 'X0');
+&gt; INSERT 29107 1
+&gt; hotta=# insert into bittest values (2, 'X1');
+&gt; INSERT 29108 1
+&gt; hotta=# insert into bittest values (3, 'X2');
+&gt; INSERT 29109 1
+&gt; hotta=# select * from bittest;
+&gt;  id |   val   
+&gt; ----+---------
+&gt;   1 | B'0000'
+&gt;   2 | B'0001'
+&gt;   3 | B'0010'
+&gt; (3 rows)
+&gt; 
+&gt; hotta=# insert into bittest values (3, 'XF');
+&gt; INSERT 29110 1
+&gt; hotta=# insert into bittest values (3, 'XFF');
+&gt; ERROR:  varbit_in: bit string of size 8 cannot be written into varying
+&gt; bits(1)
+&gt; 
+&gt; 5 bit 以上は配列で取らないといけない？
+&gt; 
+&gt; hotta=# drop table bittest;
+&gt; DROP
+&gt; hotta=# create table bittest (id int, val varbit[2]);
+&gt; CREATE
+&gt; hotta=# insert into bittest values (3, 'X3F');
+&gt; ERROR:  array_in: Need to specify dimension
+&gt; hotta=# insert into bittest values (3, '{X3,XF}');
+&gt; INSERT 29121 1
+&gt; hotta=# select * from bittest;
+&gt;  id |          val          
+&gt; ----+-----------------------
+&gt;   3 | {"B'0011'","B'1111'"}
+&gt; (1 row)
+&gt; 
+&gt; 使い勝手はあんまりよくなさげですね。
+&gt; 
+&gt; -- 
+&gt; 堀田　倫英（メール／ホームページアドレスが変わりました。）
+&gt; Official : hotta@18software.co.jp  / Private : hotta@net-newbie.com
+&gt; Web  : <A HREF="http://www.net-newbie.com">http://www.net-newbie.com</A>   
+&gt; 今年の課題：「IPを消すにはどうしたらいいですか？」
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00021" HREF="msg00021.html">[pgsql-jp 19324] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;hotta@net-newbie.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00028" HREF="msg00028.html">[pgsql-jp 19335] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Hosokawa Tetsuichi &lt;hosokawa@good-day.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00029" HREF="msg00029.html">[pgsql-jp 19336] Re: 処理停止？</A></STRONG>
+<UL><LI><EM>From:</EM> Michihide Hotta &lt;hotta@net-newbie.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 19336] Re: 処理停止？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00031.html">[pgsql-jp 19338] Re: Excel  のピボットテーブル</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00029.html">[pgsql-jp 19336] Re: 処理停止？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00008.html">[pgsql-jp 19311] Re: backend FATAL error</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00030"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00030"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

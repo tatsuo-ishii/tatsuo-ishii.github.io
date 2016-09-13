@@ -1,0 +1,181 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7745] Re: vacuum -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 26 Mar 1999 19:57:23 +0900 -->
+<!--X-Message-Id: 199903261057.TAA01266@ext16.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 36FB452628.4B45SAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7745] Re: vacuum </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00488.html">Date Prev</A>][<A HREF="msg00490.html">Date Next</A>][<A HREF="msg00488.html">Thread Prev</A>][<A HREF="msg00493.html">Thread Next</A>][<A HREF="index.html#00489">Date Index</A>][<A HREF="threads.html#00489">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7745] Re: vacuum</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 26 Mar 1999 19:57:23 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt; 境田です。
+
+&gt; 　従いまして、insert;commit; は意味的には begin;insert;end;
+&gt; と全く同等です。begin;を書くとNOTICE が出力されますので、結
+&gt; 局、ecpgでは「begin/endは不要」で、commit; さえ書けばいいの
+&gt; だと判断しました。
+
+ecpg のデフォルトの動作はそうですが、
+
+-t	Turn off auto-transactin mode
+
+で変えられます。
+
+&gt; &gt; ちょっと ecpg は使い込んでいないので良く分かりませんが、もしかしてバッ
+&gt; &gt; クエンドではなく、フロントエンド(ecpg で作成したアプリケーション)の方
+&gt; &gt; が out of memory になっている、ということはありませんか？
+&gt; &gt; 
+&gt; 
+&gt;   frontend側アプリは非常に単純で、文字列操作や配列およびmalloc
+&gt; ()などメモリを壊しそうな部分はありません。
+&gt; 
+&gt;   また、frontend側のアプリがエラーストップしたのではなくinsert
+&gt; の結果 (sqlcodeの値とsqlエラーメッセージ)を表示してプログラム
+&gt; を正常に停止させましたので、frontend側アプリのエラーではないと
+&gt; 思います。
+
+いえ、私の言っているのは ecpg の吐き出すコードに問題がありませんか、と
+いうことです。ちょっと見てみたのですが、如何にもメモリーリークっぽいと
+ころがありました。
+
+ecpglib.c に
+create_statement(int lineno, struct statement ** stmt, char *query, va_list ap)
+{
+	struct variable **list = &amp;((*stmt)-&gt;inlist);
+	enum ECPGttype type;
+
+	if (!(*stmt = (struct statement *) ecpg_alloc(sizeof(struct statement), lineno)))
+
+というのがあって、insert などを実行する度に ecpg_alloc()を呼んでメモリ
+を獲得しているのですが、どこにもそのメモリが解放されている雰囲気があり
+ません:-)しかも、エラーメッセージが "out of memory" でしたっけ。これっ
+て ecpg_alloc() の中で出力されているメッセージではありませんか？
+
+&gt;   こちらは、6.4.2で最新パッチではありませんが、最新パッチで解
+&gt; 決する可能性はありますか？
+
+いえ。
+
+とりあえず、src/interfaces/lib/ecpglib.c 添付の当ててみて下さい。まあ、
+他にもメモリーリークがあるかもしれないので、このパッチだけでは直るとは
+保証できませんが。
+
+&gt; &gt; それはともかく、A と B で、どうして1時間20分 vs. 9分30秒 ほどの差が付
+&gt; &gt; くのか興味深いですね。
+&gt; 
+&gt;   Bマシンの場合、おそらく DPT社製RAIDボードの4MBキャッシュが
+&gt; 有効に働いているのでしょう
+
+ふむふむ。でも効果的ですね、このRAIDボード。差し支えなかったらいくらぐ
+らいするのか教えて下さい。
+---
+Tatsuo Ishii
+
+*** ecpglib.c~	Sat Oct  3 11:33:15 1998
+--- ecpglib.c	Fri Mar 26 19:51:05 1999
+***************
+*** 862,867 ****
+--- 862,868 ----
+  {
+  	va_list		args;
+  	struct statement *stmt;
++ 	int status;
+  
+  	va_start(args, query);
+  	if (create_statement(lineno, &amp;stmt, query, args) == false)
+***************
+*** 876,882 ****
+  		return false;
+  	}
+  
+! 	return (ECPGexecute(stmt));
+  }
+  
+  
+--- 877,885 ----
+  		return false;
+  	}
+  
+! 	status  = ECPGexecute(stmt);
+! 	free((void *)stmt);
+! 	return(status);
+  }
+  
+  
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00522" HREF="msg00522.html">[pgsql-jp 7778] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00498" HREF="msg00498.html">[pgsql-jp 7754] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00493" HREF="msg00493.html">[pgsql-jp 7749] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00487" HREF="msg00487.html">[pgsql-jp 7743] Re: vacuum</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00488.html">[pgsql-jp 7744] Re: vacuum</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00490.html">[pgsql-jp 7746] Re: LinuxWordlにて特異点発生（Re: Linux WORLDの記事）</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00488.html">[pgsql-jp 7744] Re: vacuum</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00493.html">[pgsql-jp 7749] Re: vacuum</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00489"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00489"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

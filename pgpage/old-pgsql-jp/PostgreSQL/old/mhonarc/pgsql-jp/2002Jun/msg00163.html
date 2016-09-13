@@ -1,0 +1,164 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26384] Re: ビット演算子での配列について -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Sat, 15 Jun 2002 17:21:04 +0900 (JST) -->
+<!--X-Message-Id: 20020615.172104.74725581.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 005501c2141b$92660ff0$0101a8c0@onomura -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26384] Re: ビット演算子での配列について </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00160.html">Thread Prev</A>][<A HREF="msg00157.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26384] Re: ビット演算子での配列について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Sat, 15 Jun 2002 17:21:04 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00160.html">005501c2141b$92660ff0$0101a8c0@onomura</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "ono" &lt;ono@galasp.dnsalias.com&gt;
+Subject: [pgsql-jp: 26381] ビット演算子での配列について
+Date: Sat, 15 Jun 2002 12:20:16 +0900
+
+;;; 質問１：
+;;; ビット演算子の配列を使用したく、
+;;; create table tablebit2( tbit2 bit(4)[]);
+;;; とし
+;;; insert into tablebit2 values({'B'1011',B'1111'}');
+;;; を行うと
+;;; 
+;;; ERROR:  parser: parse error at or near "{"
+;;; 
+;;; とエラーになってしまいます。
+
+  次のようにすると INSERT できます。
+
+    =# create table tablebit2( tbit2 bit(4)[]);
+    CREATE
+    =# insert into tablebit2 values ('{B1011, B1111}');
+    INSERT 41033 1
+    =# select tbit2[1] | B'0100' from tablebit2 ;
+     ?column? 
+    ----------
+     1111
+    (1 row)
+
+    =# 
+
+;;; 質問２：
+;;; ビット演算子を使用するとDBのデータサイズはビット演算子分のみになるのでしょう
+;;; か。
+
+  例えば、以下のタプルサイズはどちらも同じになります。
+
+    create table tablebit2(tbit2 bit(4)[]);
+    create table tablebit2(tbit2 bit(8)[]);
+
+  タプルサイズを考えるには、他のカラムとの関係でのアラインメント、圧縮なども考
+える必要があるので、カラムひとつのみで考えない方がよいです。
+
+  結果を見てしまうならば、以下のツールを使うとタプルサイズがどのようになったか
+を調べることができます。
+
+    <A HREF="http://sources.redhat.com/rhdb/tools.html">http://sources.redhat.com/rhdb/tools.html</A>
+    pg_filedump
+
+;;; ７になってから始めてなので/DATA下を見てもどれが該当テーブルなのか判りません
+;;; でした。
+
+  contrib の oid2name を使うか、次のようにして分かります。
+
+    =# select relname, relfilenode from pg_class where relname !~ '^pg_';
+	relname     | relfilenode 
+    ----------------+-------------
+     pm_aggregate   |       16655
+     pm_database    |       16658
+     pm_class       |       16661
+     class1         |       30978
+     seq1           |       30989
+     vclass1        |       30991
+     class2c        |       41015
+     class2c1       |       41017
+     class2         |       41005
+     class2_j_index |       41008
+     class2c2       |       41019
+     class3         |       41024
+     tablebit2      |       41028
+     classbit256    |       41039
+     tablebit3      |       41042
+    (15 rows)
+
+    =# 
+
+
+Kenji Sugita
+sugita@sra.co.jp
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00160" HREF="msg00160.html">[pgsql-jp: 26381] ビット演算子での配列について</A></STRONG>
+<UL><LI><EM>From:</EM> "ono" &lt;ono@galasp.dnsalias.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp: 26383] Re: 送信データの安全性</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp: 26385] Re: ビット演算子での配列について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp: 26381] ビット演算子での配列について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00157.html">[pgsql-jp: 26378] PL/pgSQLの質問です。「'」でくくった中での変数展開について。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

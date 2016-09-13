@@ -1,0 +1,199 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26091] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。 -->
+<!--X-From: Hiroshi Inoue <Inoue@tpf.co.jp> -->
+<!--X-Date: Thu, 23 May 2002 18:41:26 +0900 -->
+<!--X-Message-Id: 3CECB946.9E9AA401@tpf.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3CEC9B71.EB621825@tpf.co.jp -->
+<!--X-Reference-Id: 200205230854.AA02334@KAKURAIBM.saki.netwk.ntt&#45;at.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26091] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得する </TITLE>
+<LINK REV="made" HREF="mailto:Inoue@tpf.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00325.html">Date Prev</A>][<A HREF="msg00327.html">Date Next</A>][<A HREF="msg00324.html">Thread Prev</A>][<A HREF="msg00340.html">Thread Next</A>][<A HREF="index.html#00326">Date Index</A>][<A HREF="threads.html#00326">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26091] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hiroshi Inoue &lt;<A HREF="mailto:Inoue@tpf.co.jp">Inoue@tpf.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 23 May 2002 18:41:26 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00322.html">3CEC9B71.EB621825@tpf.co.jp</A>&gt; &lt;<A HREF="msg00324.html">200205230854.AA02334@KAKURAIBM.saki.netwk.ntt-at.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+井上です。
+
+&gt; こんにちは。
+&gt; 加倉です。
+&gt; 
+&gt; お返事ありがとう御座います。
+&gt; 
+&gt; &gt; &gt; ■現象
+&gt; &gt; &gt; - VARCHAR(40) の列の OCTET LENGTH に 0 が返される。
+&gt; &gt; &gt; - OCTET_LENGTH の取得は SQLColAttribute で SQL_DESC_OCTET_LENGTH
+&gt; &gt; &gt; を指定しています。
+&gt; &gt; &gt; 　SQLRETURN は SQL_SUCCESS が返されています。
+&gt; &gt; &gt; ※参考までに、Column Size, Display Size は各々 40 と 40 が返されて
+&gt; &gt; &gt; います。
+&gt; &gt;
+&gt; &gt; 問題がいくつかありそうです。
+&gt; &gt;
+&gt; &gt; 1）SQL_DESC_OCTET_LENGTHはODBC3.Xで追加された項目ですが、
+&gt; &gt; 　普通にコンパイルしてもODBC2.50対応のドライバしか作成
+&gt; &gt; 　されません。値の0とSQL_SUCCESSはドライバマネージャー
+&gt; &gt; 　が返しているのではないかと思われます。
+&gt; 
+&gt; unixODBC の SQLColAttribute のソースを確認してみました。
+&gt; (gdb でのトレースと、ソースの確認)
+&gt; 
+&gt; unixODBC では ODBC 3 の Field Itentifier を 2 の形式に変換しようとして
+&gt; ますが、OCTET_LENGTH は変換対象がないので、そのまま OCTET_LENGTH を
+&gt; PostgreSQL の Driver の SQLColAttributes (Attribute ではなく Attributes)
+&gt; に渡して呼び出しています。
+&gt; PostgreSQL の PGAPI_ColAttributes のソースも目視で確認しました。
+&gt; PGAPI_Colattributes は対応する field type (field identifier) がない場合
+&gt; 値の 0 と SQL_SUCCESS を返しています。
+&gt; field type の場合わけを switch 文で行っていますが、switch 文に default
+&gt; ラベルがなく、無条件に成功してしまうようです。
+
+なるほどこれはチョンボですね。最新のソースではエラーに
+なります。最新のソースは
+　<A HREF="http://developer.postgresql.org/cvsweb.cgi/pgsql/src/interfaces/odbc/">http://developer.postgresql.org/cvsweb.cgi/pgsql/src/interfaces/odbc/</A>
+で確認することが可能です。
+ 
+&gt; &gt; 2) PostgreSQL7.2.xに付属のソースではOCTET_LENGTHに対応
+&gt; &gt; 　する実装がありません。
+&gt; 
+&gt; 確かに確認しました。
+&gt; 
+&gt; &gt; 1)についてはODBCVER=0x0300を定義すればODBC3.0対応の
+&gt; &gt; 　ドライバが作成されるかもしれません。残念ながら
+&gt; &gt; 　unixODBCで試したことはないので保証はできません。
+&gt; 
+&gt; PostgreSQL のソースでは、SQLColAttribute も PGAPI_ColAttributes が呼び出
+&gt; されているようなので結果は同じになると思われます。
+
+最新のソースでは
+#ifdef (ODBCVER &gt;= 0x0300) 以下
+  ODBC3.X用にいくつか追加されています。
+ 
+&gt; &gt; 2)については最新の開発中ソースを使用する必要があります。
+&gt; &gt; 　ちなみに最新の実装では
+&gt; &gt;
+&gt; &gt; &gt; ■加倉の認識
+&gt; &gt; &gt; - PostgreSQL 7.2.1 では VARCHAR は文字単位になっているので
+&gt; &gt; &gt; 、OCTET LENGTH (転送に必
+&gt; &gt; &gt; 　要なバッファのバイトサイズ)は、EUC_JP の場合 2(または3)×
+&gt; &gt; &gt; ColumnSize が戻らなけれ
+&gt; &gt;
+&gt; &gt; はマルチバイト付のコンパイルの場合、無条件に3XColumnSizeが
+&gt; &gt; 返ります。ただし254（正確にはMax Varchar Size)を超えたら
+&gt; &gt; 254にしてしまいます。(VAR)CHARが文字単位というのはODBC
+&gt; &gt; ドライバにとっては厄介な変更で仕方なくこうしてあります。
+&gt; 
+&gt; なぜ OCTET_LENGTH が Max Varchar Size を超えたら 254 バイトに丸められて
+&gt; しまうのですか？(不勉強ですみません。)
+&gt; MSDN の以下の URL では、OCTET LENGTH は可変長文字列は最大バイト数を返すと
+&gt; 書かれていますが？
+&gt; <A HREF="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/odbc/htm/odbcsqlcolattribute.asp">http://msdn.microsoft.com/library/default.asp?url=/library/en-us/odbc/htm/odbcsqlcolattribute.asp</A>
+&gt; ここでいう最大バイト数とは取得するのに必要な転送バッファの最大サイズを意
+&gt; 味しているのだと思いますがどうでしょう。転送バッファの最大サイズなら、254
+&gt; で丸める意味はないとおもいますが。
+&gt; OCTET_LENGTH で最大バイト数が分からないと、VARCHAR 型のデータは SQLBindCol
+&gt; ではデータを取得しずらくなってしまいます。
+
+確かにおっしゃるとおりなのですが、ODBCでは254を境に
+SQL_VARCHARからSQL_LONGVARCHARへと別の扱いになって
+しまいます。そして不幸なことにSQL_LONGVARCHARを
+SQL_VARCHARほどうまく扱えないアプリが多いのです。
+VARCHARだから最大文字数に達するデータがあるかどうか
+もあやしい。３倍になるのは最悪のシナリオに過ぎずす
+べてasciiなら１倍ですんでしまう。7.1からの単純コン
+バージョンなら元々バイト数も足りているはずである。
+そもそも7.1迄はそうだったのだし文字数とバイト数を
+区別しないユーザーもいるだろう。等々を勘案して現在
+の内容にしています。たいしたものをうまないこういう
+所で悩まなければならないのにはいつもうんざりする
+のですが。
+ 
+&gt; 参考までに、SQLServer のドライバでは NVARCHAR 型(unicodeです)の場合は、
+&gt; 2×ColumnSize をそのまま返すようです。特に値の丸めは行われていません。
+
+Unicodeの場合は文字数とバイト数の対応が明確なのですっきり
+しています。PostgreSQLでもunicode対応のものはSQLServerと
+同じ計算をします。
+
+regards,
+Hiroshi Inoue
+	<A HREF="http://w2422.nsk.ne.jp/~inoue/">http://w2422.nsk.ne.jp/~inoue/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00344" HREF="msg00344.html">[pgsql-jp: 26109] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0  になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kakura &lt;kakura@saki.netwk.ntt-at.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00340" HREF="msg00340.html">[pgsql-jp: 26105] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00322" HREF="msg00322.html">[pgsql-jp: 26087] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00324" HREF="msg00324.html">[pgsql-jp: 26089] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0  になる。</A></STRONG>
+<UL><LI><EM>From:</EM> Tetsuya Kakura &lt;kakura@saki.netwk.ntt-at.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00325.html">[pgsql-jp: 26090] レコードを返す関数を作りたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00327.html">[pgsql-jp: 26092] Re: \i によるインポートで文字列リテラルのエスケープが正常に解釈されない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp: 26089] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0  になる。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00340.html">[pgsql-jp: 26105] Re: 7.2 ODBC ドライバでSQL_DESC_OCTET_LENGTHを取得すると0 になる。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00326"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00326"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

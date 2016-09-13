@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2806] 関数でnull のtext を返すには -->
+<!--X-From: Tanaka&#45;Qtaro&#45;Yasuhiro <tanaq@ca2.so&#45;net.or.jp> -->
+<!--X-Date: Wed, 29 Oct 1997 02:13:46 +0900 -->
+<!--X-Message-Id: 199710281713.CAA25499@mail.ca2.so&#45;net.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710280947.SAA15827@srashd.sra.co.jp -->
+<!--X-Reference-Id: 199710281013.TAA14931@c.gp.mag.keio.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2806] 関数でnull のtext を返すには </TITLE>
+<LINK REV="made" HREF="mailto:tanaq@ca2.so-net.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00219.html">Date Prev</A>][<A HREF="msg00221.html">Date Next</A>][<A HREF="msg00214.html">Thread Prev</A>][<A HREF="msg00226.html">Thread Next</A>][<A HREF="index.html#00220">Date Index</A>][<A HREF="threads.html#00220">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2806] 関数でnull のtext を返すには</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tanaka-Qtaro-Yasuhiro &lt;<A HREF="mailto:tanaq@ca2.so-net.or.jp">tanaq@ca2.so-net.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 Oct 1997 02:13:46 +0900</LI>
+<LI><em>References</em>: Your message of "Tue, 28 Oct 1997 18:47:52 +0900"&lt;<A HREF="msg00212.html">199710280947.SAA15827@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田中久太郎＠三鷹市です。
+
+カナのソートの件ではお世話になりました。
+そのあと自分でも組み込みの関数を作りたくて、見よう見まねで関数を
+作ってみました。＃ C についてはホントに初心者なんですが。
+
+システムのユーザーID を与えると /etc/passwdのコメント部分を抜き
+出して（pwd.h の getpwuid を使ってます） text で返すという関数な
+のですが、うまく動きません。
+存在しない UID のときには Null を返したいのですが、それがうまく
+動いていないようなんです。
+
+どこが悪いのかご指摘いただければ幸いです。
+
+システムは Linux (Slackware-3.0) で PostgreSQL v6.1 jp.path ありです。
+
+以下ソースです。
+/* pgsql function - pwuid_to_gecos */
+#include "postgres.h"
+#include &lt;pwd.h&gt;
+
+/*#define DEBUG_TEST*/
+#ifdef DEBUG_TEST
+#define palloc malloc
+#endif
+
+extern text *pwuid_to_gecos(int4 uid);
+
+text *pwuid_to_gecos(int4 uid)
+{
+    struct passwd *pwdtbl;
+    text *tn;
+    char *cn;
+    pwdtbl = getpwuid(uid);
+    if (pwdtbl == NULL) {
+	tn = (text *) palloc(VARHDRSZ);
+	VARSIZE(tn) = VARHDRSZ;
+        return tn;
+    }
+    cn = pwdtbl-&gt;pw_gecos;
+    tn = (text *) palloc(VARHDRSZ + strlen(cn));
+    VARSIZE(tn) = strlen(cn) + VARHDRSZ;
+    strcpy(VARDATA(tn),cn);
+    return tn;
+}
+
+
+#ifdef DEBUG_TEST
+
+#include "stdlib.h"
+
+void main(int argc, char *argv[]){
+    int4 uid;
+    if(argc == 2){
+        uid = atoi(argv[1]);
+        printf("your input : %s\n",VARDATA(pwuid_to_gecos(uid)));
+    }
+}
+#endif
+
+
+
+// <A HREF="mailto:tanaq@ca2.so-net.or.jp">mailto:tanaq@ca2.so-net.or.jp</A>
+// Tanaka 'Q-taro' Yasuhiro - Mitaka-shi Tokyo, Japan
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00226" HREF="msg00226.html">[pgsql-jp 2812] Re: 関数でnull の text を返すには</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 2798] Re: Postgres transaction control</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00214" HREF="msg00214.html">[pgsql-jp 2800] Re: Postgres transaction control</A></STRONG>
+<UL><LI><EM>From:</EM> Morimasa Aketa &lt;ake@mag.keio.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00219.html">[pgsql-jp 2805] Re: How to copy</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00221.html">[pgsql-jp 2807] Re: How to copy</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00214.html">[pgsql-jp 2800] Re: Postgres transaction control</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00226.html">[pgsql-jp 2812] Re: 関数でnull の text を返すには</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00220"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00220"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

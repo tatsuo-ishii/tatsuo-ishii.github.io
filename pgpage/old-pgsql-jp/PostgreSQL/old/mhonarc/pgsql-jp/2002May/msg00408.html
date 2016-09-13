@@ -1,0 +1,168 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26173] left outer joinした後のNULLを検索できません。 -->
+<!--X-From: Yoshitake Shinohara <yoshi@yyn.jp> -->
+<!--X-Date: Wed, 29 May 2002 02:18:07 +0900 (JST) -->
+<!--X-Message-Id: 1022606287.3cf3bbcf861c5@sv01 -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26173] left outer joinした後のNULLを検索できません。 </TITLE>
+<LINK REV="made" HREF="mailto:yoshi@yyn.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00407.html">Date Prev</A>][<A HREF="msg00409.html">Date Next</A>][<A HREF="msg00421.html">Thread Prev</A>][<A HREF="msg00410.html">Thread Next</A>][<A HREF="index.html#00408">Date Index</A>][<A HREF="threads.html#00408">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26173] left outer joinした後のNULLを検索できません。</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshitake Shinohara &lt;<A HREF="mailto:yoshi@yyn.jp">yoshi@yyn.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 29 May 2002 02:18:07 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>User-Agent</em>: IMP/PHP IMAP webmail program 2.2.7</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+みなさま、はじめまして。
+
+よしたけ＠YYNと申します。
+
+7.1.2から7.2.1へ本日(って、もう昨日ですね(T.T))バージョンアップを行いま
+して、今まで動いていたコードが動かなくなってしまいました。
+
+drop table tmp;
+create table tmp(
+ 	id int4,
+	mail text,
+ 	name text,
+	note text
+);
+
+drop table address;
+create table address(
+ 	id int4,
+	mail text,
+ 	name text,
+	flag int4
+);
+
+insert into tmp values (1,'123@foo.bar','123','qaz');
+insert into tmp values (1,'456@foo.bar','456','wsx');
+insert into tmp values (2,'789@foo.bar','789','edc');
+
+insert into address values (1,'456@foo.bar','456',1);
+
+というテーブル/データがあるとします。
+
+「addressにid,mailの組み合わせで登録されていないtmpのデータをaddressに
+  登録したい。」
+という事を行いたいと思っております。
+
+これに対し、7.1.2では
+insert into address (id,mail,name,flag) (
+ select t.id,t.mail,t.name,1 from tmp t
+  left outer join address a
+   on t.id = a.id and t.mail = a.mail
+ where a.mail &lt;&gt; t.mail or a.mail = NULL
+);
+という内容のコードで実現しておりました。(実際にはテーブル名等多少違い
+ます)
+
+このコードで7.2.1にて実行すると、
+INSERT 0 0
+という結果で登録できません。
+
+調べてみたところ、
+test=#  select * from tmp t
+test-#   left outer join address a
+test-#    on t.id = a.id and t.mail = a.mail
+test-# ;
+ id |    mail     | name | note | id |    mail     | name | flag 
+----+-------------+------+------+----+-------------+------+------
+  1 | 123@foo.bar | 123  | qaz  |    |             |      |     
+  1 | 456@foo.bar | 456  | wsx  |  1 | 456@foo.bar | 456  |    1
+  2 | 789@foo.bar | 789  | edc  |    |             |      |     
+(3 rows)
+
+とwhere句を定義しなければ期待通りに表示されるのですが、
+
+test=#  select * from tmp t
+test-#   left outer join address a
+test-#    on t.id = a.id and t.mail = a.mail
+test-#  where a.mail &lt;&gt; t.mail or a.mail = NULL
+test-# ;
+ id | mail | name | note | id | mail | name | flag 
+----+------+------+------+----+------+------+------
+(0 rows)
+
+と本来表示されてほしい123@foo.barと789@foo.barのレコードが表示されません。
+
+7.2.1にて仕様変更になった箇所なのか、バグなのか、それともコーディングの
+ミスなのか教えていただけますよう、お願いいたします。
+
+また、こちらの対処方法もございましたらばお教え頂ければ幸いです。
+
+------------------------
+YYN partnership company
+Yoshitake Shinohara
+yoshi@yyn.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00412" HREF="msg00412.html">[pgsql-jp: 26177] Re: left outer join した後のNULLを検索できません。</A></STRONG>
+<UL><LI><EM>From:</EM> Kenji Ono &lt;ono@fjct.fujitsu.com&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00410" HREF="msg00410.html">[pgsql-jp: 26175] Re: left outer joinした後のNULL を検索できません。</A></STRONG>
+<UL><LI><EM>From:</EM> Tsunehisa Kazawa &lt;kazawa@sons.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00407.html">[pgsql-jp: 26172] Re: 集約関数と副問い合わせ</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00409.html">[pgsql-jp: 26174] SELECT TIMESTAMP(CURRENT_DATE, CURRENT_TIME) について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00421.html">[pgsql-jp: 26186] Re: SELECT TIMESTAMP(CURRENT_DATE, CURRENT_TIME) について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00410.html">[pgsql-jp: 26175] Re: left outer joinした後のNULL を検索できません。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00408"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00408"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

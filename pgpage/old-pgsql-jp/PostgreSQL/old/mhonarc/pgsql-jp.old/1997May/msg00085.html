@@ -1,0 +1,176 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1833] Re: Q: select -->
+<!--X-From: taro@kinotrope.co.jp (Sakamoto taro) -->
+<!--X-Date: Wed, 21 May 1997 17:57:06 +0900 -->
+<!--X-Message-Id: 199705210857.RAA20295@spade02.kinotrope.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199705210250.LAA14287@srashd.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1833] Re: Q: select </TITLE>
+<LINK REV="made" HREF="mailto:taro@kinotrope.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00084.html">Date Prev</A>][<A HREF="msg00086.html">Date Next</A>][<A HREF="msg00084.html">Thread Prev</A>][<A HREF="msg00086.html">Thread Next</A>][<A HREF="index.html#00085">Date Index</A>][<A HREF="threads.html#00085">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1833] Re: Q: select</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:taro@kinotrope.co.jp">taro@kinotrope.co.jp</A> (Sakamoto taro)</LI>
+<LI><em>Date</em>: Wed, 21 May 1997 17:57:06 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00084.html">199705210250.LAA14287@srashd.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Subject: [postgres95 1832] Re: Q: select 
+Date: Wed, 21 May 1997 11:50:22 +0900
+
+&gt; 石井です。
+&gt; 
+&gt; &gt;坂本です。
+&gt; &gt;
+&gt; &gt;PostgreSQL の質問というより、SQL の質問になるかもしれないので、
+&gt; &gt;恐縮なのですが、
+&gt; &gt;
+&gt; &gt;現在、全文検索システムを作成しようといろいろ試みています。
+&gt; &gt;
+&gt; &gt;create table kindex(
+&gt; &gt;   key    varchar(64),
+&gt; &gt;   id     int4
+&gt; &gt;);
+&gt; &gt;
+&gt; &gt;create table url(
+&gt; &gt;   id        int4,
+&gt; &gt;   url       text,
+&gt; &gt;   base      text,
+&gt; &gt;   lastmod   int4,
+&gt; &gt;   size      int4,
+&gt; &gt;   title     text,
+&gt; &gt;   description text
+&gt; &gt;);
+&gt; &gt;
+&gt; &gt;create index urlindex on url using hash (id int4_ops);
+&gt; &gt;create index kindexindex on kindex using hash (key varchar_ops);
+&gt; &gt;
+&gt; &gt;こんなもんかなーという感じで、table を作成しました。
+&gt; &gt;index の作成方法でもっとよい方法があるのかしれませんが、いまでも、
+&gt; &gt;なかなかのスピードで満足しています。
+&gt; 
+&gt; 全文検索システムとの事ですが、テキスト本体は
+&gt; 
+&gt; 	description text
+&gt; 
+&gt; ですか？ 8192 bytes 以上のテキストを格納できないのが辛いところですね
+&gt; (実際にはもっと少ない)。
+
+保存はURL だけで、実際のページにみにいきます。
+description には、そのページのあたまの数行を入れてあります。
+
+&gt; &gt;本題なのですが、よくありがちな、たくさんページがヒットしたばあい
+&gt; &gt;はじめの10 ページぶんだけ、こ出しにして、それ以上をみたいときには、
+&gt; &gt;さらにボタンを押させるということをしたいのです。
+&gt; 
+&gt; user interface にどのような実装を考えられてるのかわかりませんが、通常
+&gt; は declare cursor を使えば良いでしょう。あるいは、libpq や pgtcl なら
+&gt; 検索結果の中から任意の位置のインスタンスを取り出す事ができるので、お望
+&gt; みの事は容易に実現できます。
+
+cursor で、fetch も使えると思ったのですが、
+fetch でも、n1 から n2 というような範囲指定ができないようですね。
+
+Pg.pm でlibpq を扱っているので、おっしゃるとおり容易なのですが、
+そもそも、この要求は検索スピードをあげるということにあります。
+
+検索をいろいろためすと、ヒットするページが多くなればなるほど、
+検索時間がかかっているように思えます。(あたりまえ)
+想像するに、みつかったオブジェクトの生成に資源を消費しているの
+だとおもいます。(自信がない)
+素人考えで、もっとよい方法があるのじゃないかな？と思ったわけです。
+
+&gt; また、web のようにページに跨ってデータベースアクセスのセッションを継続
+&gt; できない場合は、hit したインスタンスの oid を temp file などに記憶して
+&gt; おき、file name やポインタなどを CGI の引数で渡しておけば可能です(いつ 
+&gt; temp file を消去するか、という問題はありますが)。
+
+oid の件了解です。oid をはじめしらなかったので、わざわざ自分でリンクの
+ための一意なインデックスを作成してました。oid を使えば
+良かったのですね。create index の説明書で、セカンド index と
+いっていた意味がわかりました。
+
+といってもあまり速度はかわらなそうだけど。とりあえず試してみます。
+
+&gt; &gt;その場合、SELETE 文の指定で、10 Hit だけ出力するとか、次の10 個
+&gt; &gt;を出力するなんていうことができるのでしょうか？
+&gt; 
+&gt; SELECT だけでは直接はできないですね。
+&gt; 
+&gt; &gt;現在、何レコード蓄えられているか表示するにはどうしたらよいのでしょうか？
+&gt; &gt;システムカタログ？あたりを参照すればいいのかなーとなんとなく思っています。
+&gt; 
+&gt; 全レコード件数ならば count(*) で取れますが。
+
+これは、SQL のコマンド？でしょうか？
+
+just=&gt; count (*);
+WARN:parser: parse error at or near "count"
+
+じゃないみたいですね。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[postgres95 1834] Re: Q: select</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00084" HREF="msg00084.html">[postgres95 1832] Re: Q: select</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00084.html">[postgres95 1832] Re: Q: select</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00086.html">[postgres95 1834] Re: Q: select</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00084.html">[postgres95 1832] Re: Q: select</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00086.html">[postgres95 1834] Re: Q: select</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00085"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00085"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

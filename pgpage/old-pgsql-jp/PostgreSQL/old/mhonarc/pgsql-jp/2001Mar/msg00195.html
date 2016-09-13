@@ -1,0 +1,134 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20329] Re: 検索の負荷と論理演算判定を使用したテーブル検索 -->
+<!--X-From: Junichi Kuroki <kuroki@mycc.co.jp> -->
+<!--X-Date: Wed, 14 Mar 2001 10:39:31 +0900 -->
+<!--X-Message-Id: 20010314102300.4E35.KUROKI@mycc.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 010401c0abe4$5185f2c0$020019ac@rimserver.yo.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20329] Re: 検索の負荷と論理演算判定を使用したテーブル検索 </TITLE>
+<LINK REV="made" HREF="mailto:kuroki@mycc.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00194.html">Date Prev</A>][<A HREF="msg00196.html">Date Next</A>][<A HREF="msg00194.html">Thread Prev</A>][<A HREF="msg00196.html">Thread Next</A>][<A HREF="index.html#00195">Date Index</A>][<A HREF="threads.html#00195">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20329] Re: 検索の負荷と論理演算判定を使用したテーブル検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Junichi Kuroki &lt;<A HREF="mailto:kuroki@mycc.co.jp">kuroki@mycc.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Mar 2001 10:39:31 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00191.html">010401c0abe4$5185f2c0$020019ac@rimserver.yo.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; 奥村と申します。
+
+　黒木です。
+
+&gt; ***************
+&gt; 再度質問です。
+&gt; postgres で where 句に対しての上記のような論理演算判定は可能で
+&gt; しょうか？
+&gt; 自分でも調べたのですが見当たりませんでした。
+&gt; ***************
+
+　私も調べてみたのですが結局方法が無かったので関数を自作してみました。
+でも7.1からはbit演算が出来るようになるんですよね？　ただいまスナップ
+ショットのインストール中・・・。
+
+----- bit.c -----
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;pgsql/postgres.h&gt;
+
+bool bitcheck( int4 a, int4 b ) {
+  if( a &amp; b ) return(TRUE) ; else return(FALSE) ;
+}
+----- bit.c -----
+
+上記ソースを適当なフォルダに配置し、
+
+gcc -o bit.o -c bit.c
+gcc -shared -o bit.so bit.o
+
+でユーザー定義関数がコンパイル出来ます。後は適当なフォルダに
+関数を配置し(/var/lib/pgsql/addfunc/bit.so に置くと仮定)
+
+----- addfunc.sql -----
+\connect - postgres
+CREATE FUNCTION "bitcheck" (int4,int4 ) RETURNS boolAS
+'/var/lib/pgsql/addfunc/bit.so' LANGUAGE 'C';
+----- addfunc.sql -----
+
+というファイルを作成して
+
+pgsql -f addfunc.sql
+
+でこの関数が使用可能になります。使用方法は
+
+select * from tablename where bitcheck( カラム名, ビット情報 ) = true ;
+
+という風に使えます。
+
+######################################
+#! /usr/bin/kuroki
+#
+# 黒木淳一 : kuroki@mycc.co.jp
+# 株式会社クリスタルクリエイツ
+#            <A HREF="http://www.mycc.co.jp/">http://www.mycc.co.jp/</A>
+#
+######################################
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 20325] 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+<UL><LI><EM>From:</EM> "Voice" &lt;voice@blues.interq.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 20328] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 20330] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 20328] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 20330] Re: 検索の負荷と論理演算判定を使用したテーブル検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00195"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00195"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

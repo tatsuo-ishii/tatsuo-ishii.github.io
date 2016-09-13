@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2460] Re: freeze on running regression test -->
+<!--X-From: t&#45;ishii@sra.co.jp (Tatsuo Ishii) -->
+<!--X-Date: Tue, 9 Sep 1997 23:16:48 +1000 -->
+<!--X-Message-Id: 199709091416.XAA04004@meshsv26.tk.mesh.ad.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2460] Re: freeze on running regression test </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00032.html">Date Prev</A>][<A HREF="msg00034.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00034.html">Thread Next</A>][<A HREF="index.html#00033">Date Index</A>][<A HREF="threads.html#00033">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2460] Re: freeze on running regression test</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A> (Tatsuo Ishii)</LI>
+<LI><em>Date</em>: Tue, 9 Sep 1997 23:16:48 +1000</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井＠ＳＲＡです。私にも何が悪いのか分かりません。
+Linux ELF/x86 では初めて聞く症状です。...とこれだけでは
+ナニなので、分かる範囲で書きます。
+
+At  4:57 PM 97.9.9 +0900, HIROSE-31-Masaaki wrote:
+&gt;自己リプライです。
+&gt;
+&gt;自分が 97.9.6ごろに書いた
+&gt;「[pgsql-jp 2447] freeze on running regression test (Linux/S」
+&gt;のメールを引用します
+&gt;
+&gt;&gt; 初めて PostgreSQL をインストールしたのですが、どうも挙動がおかしい
+&gt;&gt; のでメールしました。
+&gt;snip
+&gt;&gt; 症状は、
+&gt;&gt; ●regression test をすると、途中で止まってしまう。
+&gt;
+&gt;その後、6.1、6.1.1 で jp.patch を当てる/当てない、gcc のオプション
+&gt;をいろいろ変えてみるなど試したのですが、結果は同じでした。
+&gt;
+&gt;# なぜか make bench.out.perquery はあっさりこなしくれました。
+
+postmaster 経由で SELECT するとバックエンドが死んでしまうようですね。
+make bench.out.perqueryが動くのは、postgres プロセスを直接起動するから
+でしょうか。とすると、死んでいる場所はプロセス間通信か、shared memory
+周りということになるのかな。いずれにしても、gdb で死んでいる場所を
+見つければはっきりします。
+
+&gt;と書いてあったのですが、shared memory support とは具体的に make config
+&gt;でのどの項目なのでしょうか。
+&gt;
+&gt;関係あるかわかりませんが、
+&gt;
+&gt;CONFIG_SYSVIPC=y
+&gt;
+&gt;にはなってます。
+
+Linux/x86 では、デフォルトで shared memory が入っているはずなので、
+直接関係ないと思います。ひろせさんがお使いのカーネルはオリジナルの
+ままですよね？
+
+&gt;また、一度 postmaster が core を吐いたので strings で覗いてみたのです
+&gt;が、ちんぷんかんぷんでした。(^^;
+
+strings で見てもしょうがないです:-)
+gdb /usr/local/pgsql/bin/postgres core で where コマンドを
+使えば、どこで落ちているか位は分かりますね。それを報告してみては
+如何でしょう。postmaster -d の出力で signal 11 が記録されてますから、
+おそらくどこかで segmentation fault を起こしているのだと思います。
+後、ASSERTION をオンにしてコンパイルしてみるのも有益な情報が
+得られる可能性があります。
+
+&gt;インストールはMLのページの記事を参考にしたのですが、Linux-ELF では
+&gt;他になにか必要なのでしょうか。
+
+うーん、Linux-ELF/x86 では本当にすんなりインストールできる
+はずなのですが...
+
+&gt;環境は、
+&gt;Linux 2.0.30 / Slackware 3.2 （だったと思います）
+&gt;CPU: Cyrix 6x86 P133+
+&gt;RAM: 32MB
+&gt;
+&gt;postgresql-v6.1.1 + jp.patch (1997/7/22版)
+&gt;flex version 2.5.4
+&gt;GNU Make version 3.75
+&gt;gcc version 2.7.2.1
+&gt;
+&gt;です。
+
+うーむ、全く模範的な環境ですね。悪いところが見あたりません。
+まさかとは思いますが、ハードトラブル？たとえば、CPU やメモリ
+を差し替えると直ったりして。
+---
+Tatsuo Ishii
+t-ishii@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00035" HREF="msg00035.html">[pgsql-jp 2462] Re: freeze on running regression test</A></STRONG>
+<UL><LI><EM>From:</EM> HIROSE-31-Masaaki &lt;hirose31@t3.rim.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00034" HREF="msg00034.html">[pgsql-jp 2461] Re: freeze on running regression test</A></STRONG>
+<UL><LI><EM>From:</EM> Atushi Sakauchi &lt;sakauchi@micon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00032.html">[pgsql-jp 2459] Re: freeze on running regression test</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 2461] Re: freeze on running regression test</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 2464] Benchmark Result</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 2461] Re: freeze on running regression test</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00033"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00033"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

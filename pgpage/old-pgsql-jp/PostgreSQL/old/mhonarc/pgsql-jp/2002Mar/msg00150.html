@@ -1,0 +1,248 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25173] Re: INSERT文に関して -->
+<!--X-From: "KAWAI,Takanori" <GCD00051@nifty.ne.jp> -->
+<!--X-Date: Sat, 9 Mar 2002 11:39:36 +0900 -->
+<!--X-Message-Id: 00b001c1c713$ac5d8280$0b00a8c0@hippo2000 -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 00f301c1c643$4e76c6c0$a623780a@silence.sys.mapion.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25173] Re: INSERT文に関して </TITLE>
+<LINK REV="made" HREF="mailto:GCD00051@nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00149.html">Date Prev</A>][<A HREF="msg00151.html">Date Next</A>][<A HREF="msg00125.html">Thread Prev</A>][<A HREF="msg00122.html">Thread Next</A>][<A HREF="index.html#00150">Date Index</A>][<A HREF="threads.html#00150">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25173] Re: INSERT文に関して</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "KAWAI,Takanori" &lt;<A HREF="mailto:GCD00051@nifty.ne.jp">GCD00051@nifty.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 9 Mar 2002 11:39:36 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00124.html">00f301c1c643$4e76c6c0$a623780a@silence.sys.mapion.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+川合孝典です。
+
+私としても杉田さんの書かれている通り、まずは実際にやって試して
+見るのが一番だと思います。（人に聞くより確実にレスポンスがあるし）
+
+----- Original Message -----
+From: "Tadashi Kanbayashi" &lt;Tadashi.Kanbayashi@toppan.co.jp&gt;
+To: &lt;pgsql-jp@ml.postgresql.jp&gt;
+Sent: Friday, March 08, 2002 10:48 AM
+Subject: [pgsql-jp: 25147] Re: INSERT文に関して
+
+
+&gt; 神林です。
+（中略）
+&gt; PostgreSQLの場合も、prepareした後のSQL文の解析結果は、
+&gt; キャッシュされているんでしょうか。パフォーマンス的にもそうであれば
+&gt; 教えていただいた方法が最良かと思います。
+＃解析結果のキャッシュってOracleとかのイメージなんでしょうけれども
+DBD::Pgのドキュメント(いくつかあるんですがPg.pmのPOD部分）に
+あるよう、SQLの解析結果はキャッシュはされません。
+
+&lt;引用&gt;
+PostgreSQL does not have the concept of preparing
+a statement. Hence the prepare method just stores
+the statement after checking for place-holders.
+No information about the statement is available
+after preparing it.
+&lt;/引用&gt;
+ただDBD::PgとしてはSQLステートメントそのものやプレースホルダに
+関する情報は保持していますから、そのあたりがあとから効いてきます。
+で、実際試してみましたが、当然というかCOPYコマンドがぶっちぎりの
+最速です。特にデータが大量になればなるほど効いてくるでしょう。
+
+変数を埋め込むと遅くなるのは当たり前（prepareも入りますけど、
+それ以前にステートメントを展開するのにも時間が掛かりますしね）
+
+また件数が多くなると複数ステートメントを１度に実行したほうが
+プレースホルダを利用するよりも遅くなってしまいました。
+CPUタイムからするとPostgreSQL本体のほうで時間が掛かって
+いるようにも見えますが、さだかではありません。
+＃少なくともあまりいい手段だとも思えないし。
+
+[環境]
+TurboLinux6.0 Workstation PostgreSQL 7.1.3
+Perl 5.00503 Pg 1.9.0
+
+[実行結果]
+1000件
+COPY : 0 wallclock secs ( 0.01 usr +  0.00 sys =  0.01 CPU)
+Embed: 2 wallclock secs ( 0.91 usr +  0.11 sys =  1.02 CPU)
+Place: 1 wallclock secs ( 0.29 usr +  0.04 sys =  0.33 CPU)
+Multi: 0 wallclock secs ( 0.02 usr +  0.00 sys =  0.02 CPU)
+
+2000件
+COPY : 0 wallclock secs ( 0.02 usr +  0.00 sys =  0.02 CPU)
+Embed: 4 wallclock secs ( 1.78 usr +  0.33 sys =  2.11 CPU)
+Place: 2 wallclock secs ( 0.54 usr +  0.15 sys =  0.69 CPU)
+Multi: 2 wallclock secs ( 0.05 usr +  0.01 sys =  0.06 CPU)
+
+10,000件
+COPY : 0 wallclock secs ( 0.10 usr +  0.00 sys =  0.10 CPU)
+Embed:19 wallclock secs ( 8.80 usr +  0.90 sys =  9.70 CPU)
+Place:11 wallclock secs ( 2.45 usr +  0.62 sys =  3.07 CPU)
+Multi:18 wallclock secs ( 0.24 usr +  0.07 sys =  0.31 CPU)
+
+[実行したスクリプト]
+use strict;
+use Benchmark;
+use DBI;
+my @tb;
+my $hDb = DBI-&gt;connect('dbi:Pg:dbname=gotdate', 'postgres', '',
+      {AutoCommit=&gt;0, RaiseError=&gt;1}) || die $DBI::errstr;
+$hDb-&gt;do('DROP TABLE emp');
+$hDb-&gt;do('CREATE TABLE emp (no integer, name varchar(80))');
+my @aData = ([10, 'ABC']) x $ARGV[0];
+my $sSQL = 'SELECT COUNT(*) FROM emp';
+eval {
+#1. COPY command
+    print "COPY:\n";
+    $hDb-&gt;do('DELETE FROM emp');
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+    print scalar(localtime), "\n";
+    push(@tb, Benchmark-&gt;new);
+    {
+        my $raData;
+        $hDb-&gt;do('copy emp from stdin');
+        foreach $raData (@aData) {
+            $hDb-&gt;func(join("\t", @$raData). "\n", 'putline');
+        }
+        $hDb-&gt;func("\\.\n", 'putline');
+        $hDb-&gt;func('endcopy');
+    }
+    push(@tb, Benchmark-&gt;new);
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+
+#2. Embed
+    print "Embed:\n";
+    $hDb-&gt;do('DELETE FROM emp');
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+    print scalar(localtime), "\n";
+    push(@tb, Benchmark-&gt;new);
+    {
+        my $raData;
+        foreach $raData (@aData) {
+            $hDb-&gt;do(
+              'INSERT INTO emp VALUES('.
+              join(',', map { "'$_'"} @$raData). ')');
+        }
+        $hDb-&gt;commit;
+    }
+    push(@tb, Benchmark-&gt;new);
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+
+#3. Placeholder
+    print "Placeholder:\n";
+    $hDb-&gt;do('DELETE FROM emp');
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+    print scalar(localtime), "\n";
+    push(@tb, Benchmark-&gt;new);
+    {
+        my $raData;
+        my $hSt = $hDb-&gt;prepare('INSERT INTO emp VALUES(?, ?)');
+        foreach $raData (@aData) {
+            $hSt-&gt;execute(@$raData);
+        }
+        $hDb-&gt;commit;
+    }
+    push(@tb, Benchmark-&gt;new);
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+
+#4. Multi-Statement
+    print "Multi:\n";
+    $hDb-&gt;do('DELETE FROM emp');
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+    print scalar(localtime), "\n";
+    push(@tb, Benchmark-&gt;new);
+    {
+        my @aSt = map {
+         'INSERT INTO emp VALUES('.
+          join(',', map { "'$_'"} @$_). ");\n";
+        }  @aData;
+        $hDb-&gt;do("@aSt");
+        $hDb-&gt;commit;
+    }
+    push(@tb, Benchmark-&gt;new);
+    print "CNT:", $hDb-&gt;selectrow_array($sSQL), "\n";
+};
+die $@ if($@);
+$hDb-&gt;disconnect;
+print "COPY :",timestr(timediff($tb[1], $tb[0])),"\n";
+print "Embed:",timestr(timediff($tb[3], $tb[2])),"\n";
+print "Place:",timestr(timediff($tb[5], $tb[4])),"\n";
+print "Multi:",timestr(timediff($tb[7], $tb[6])),"\n";
+
+===================================================
+川合 孝典 (Hippo2000)
+   DBI日本語メーリングリスト管理人、Kansai.pm所属
+   kwitknr@cpan.org GCD00051@nifty.ne.jp
+   <A HREF="http://member.nifty.ne.jp/hippo2000">http://member.nifty.ne.jp/hippo2000</A>
+   <A HREF="http://www.hippo2000.net/">http://www.hippo2000.net/</A>
+「Perlを256倍使うための本　DBI編」　3/14発売
+<A HREF="http://www.ascii.co.jp/books/detail/4-7561/4-7561-4058-0.html">http://www.ascii.co.jp/books/detail/4-7561/4-7561-4058-0.html</A>
+===================================================
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00124" HREF="msg00124.html">[pgsql-jp: 25147] Re: INSERT文に関して</A></STRONG>
+<UL><LI><EM>From:</EM> "Tadashi Kanbayashi" &lt;Tadashi.Kanbayashi@toppan.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00149.html">[pgsql-jp: 25172] Re: function の引数の数について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00151.html">[pgsql-jp: 25174] カンマとバックスラッシュ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp: 25148] Re: INSERT文に関して</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00122.html">[pgsql-jp: 25145] Unicode での運用</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00150"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00150"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16365] Re: postgreSQL7.0.2+JDBCで日本語 -->
+<!--X-From: Kazumasa Gotoh <kgotoh@cic&#45;kk.co.jp> -->
+<!--X-Date: Mon, 31 Jul 2000 10:44:16 +0900 -->
+<!--X-Message-Id: 20000731104416C.kgotoh@cic&#45;kk.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 39839AAE23E.43ACMSHOJI@mail.jwp.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16365] Re: postgreSQL7.0.2+JDBCで日本語 </TITLE>
+<LINK REV="made" HREF="mailto:kgotoh@cic-kk.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00596.html">Date Prev</A>][<A HREF="msg00598.html">Date Next</A>][<A HREF="msg00594.html">Thread Prev</A>][<A HREF="msg00598.html">Thread Next</A>][<A HREF="index.html#00597">Date Index</A>][<A HREF="threads.html#00597">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16365] Re: postgreSQL7.0.2+JDBCで日本語</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kazumasa Gotoh &lt;<A HREF="mailto:kgotoh@cic-kk.co.jp">kgotoh@cic-kk.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 31 Jul 2000 10:44:16 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00594.html">39839AAE23E.43ACMSHOJI@mail.jwp.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+From: shoji &lt;mshoji@jwp.co.jp&gt;
+Date: Sun, 30 Jul 2000 12:02:06 +0900
+
+&gt; １．ブラウザからの文字列(srcstr)を
+&gt; String enc = response.getCharacterEncoding();
+&gt; String unistr = convSrc2Unicode(srcstr, enc);
+&gt; でunicodeにしておきます。
+
+間違っているという事はありませんが、本来であれば getParameter() とか、
+getParametarValues() メソッドは正しいコンバータが使われるので、
+特殊な変換は必要ないはずなのですが、現在のところ HTTP リクエストでは
+POST/GET ともにエンコーディングの指定ができません。
+このため Servlet Engine ではどのコンバータを使用するか判断できない
+事になってしまうそうです。そこでその回避策として
+
+   new String(value[0].getByte("ISO8859_1"), "JISAutoDetect")
+
+のように、自分で Unicode に変換する必要があります。JISatutoDetect に
+しているのは、ブラウザ側が JIS, SJIS, EUC いずれのコードを送って
+くるのかが Servlet 側では予測できないからです。
+
+&gt; ２．データベースから
+&gt; String unistr = convDb2Unicode(rs, index);
+&gt; によってunicodeで取り出します。
+&gt; 
+&gt; ３．データベースへはunicode文字列(srcstr)を
+&gt; String dbstr = convUnicode2Db(srcstr);
+&gt; によってデータベース用のエンコードにして書き込みます。
+
+この処理はおかしいとは言い切れませんが、本来はこんな事はしなくても
+よいはずなのです。
+
+Java では内部処理はすべて Unicode で行われますが、JDBC ドライバでは
+本来 DB エンコーディング -&gt; Unicode や Unicode -&gt; DB エンコーディング
+の変換は自動で行われるものなのです。
+
+ただ、PostgreSQL のデフォルトの JDBC ドライバは DB 文字エンコーディング
+と Java 文字エンコーディングが同じでないと、この自動変換がうまくいかない
+という問題があります。
+持田さんのパッチはこの問題を解消するものですが、現在のところ 7.0.x に
+対応したパッチはないようです。
+
+私は PostgreSQL, Java 環境の両方のエンコーディングを EUC に合わせる
+事によって、JDBC ドライバの自動変換にまかせています。
+
+&gt; バックスラッシュにより文字化けしますのでbsl2bslbslにより
+&gt; バックスラッシュ＋バックスラッシュに変換しております。
+&gt;
+&gt; ４．文字列をHTMLで表示するときは特殊文字が悪さをするので
+&gt; convUnicode2htmlstrにより変換しております。
+
+この処理は必要ですね。PHP なんかだと専用の関数が用意されているの
+ですが、Servlet API にはないので自作する必要があります。
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+(株) セントラル情報センター
+       ネットワークグループ  後藤和政    kgotoh@cic-kk.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00606" HREF="msg00606.html">[pgsql-jp 16374] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> shoji &lt;mshoji@jwp.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00598" HREF="msg00598.html">[pgsql-jp 16366] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> Kazumasa Gotoh &lt;kgotoh@cic-kk.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00594" HREF="msg00594.html">[pgsql-jp 16362] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+<UL><LI><EM>From:</EM> shoji &lt;mshoji@jwp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00596.html">[pgsql-jp 16364] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00598.html">[pgsql-jp 16366] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00594.html">[pgsql-jp 16362] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00598.html">[pgsql-jp 16366] Re: postgreSQL7.0.2+JDBCで日本語</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00597"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00597"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

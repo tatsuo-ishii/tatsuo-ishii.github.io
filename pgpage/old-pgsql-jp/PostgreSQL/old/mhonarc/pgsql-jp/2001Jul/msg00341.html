@@ -1,0 +1,127 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22476] Re: text 型に対するoctet_length()について -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Thu, 19 Jul 2001 16:30:28 +0900 -->
+<!--X-Message-Id: 20010719163028B.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010718173524.6830c9d7.daishin@d.email.ne.jp -->
+<!--X-Reference-Id: 20010719131102L.t&#45;ishii@sra.co.jp -->
+<!--X-Reference-Id: 20010719153403.7edecc84.daishin@d.email.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22476] Re: text 型に対するoctet_length()について </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00340.html">Date Prev</A>][<A HREF="msg00342.html">Date Next</A>][<A HREF="msg00335.html">Thread Prev</A>][<A HREF="msg00309.html">Thread Next</A>][<A HREF="index.html#00341">Date Index</A>][<A HREF="threads.html#00341">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22476] Re: text 型に対するoctet_length()について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 19 Jul 2001 16:30:28 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00317.html">20010718173524.6830c9d7.daishin@d.email.ne.jp</A>&gt;&lt;<A HREF="msg00325.html">20010719131102L.t-ishii@sra.co.jp</A>&gt;&lt;<A HREF="msg00335.html">20010719153403.7edecc84.daishin@d.email.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; こんにちは。シーラカンス本、改訂第三版で勉強しています。土井です。
+
+どうもです:-)
+
+&gt; &gt; 単に圧縮前のバイト長を知りたいのなら，
+&gt; &gt; 
+&gt; &gt; select octet_length(data::varchar) from test_text;
+&gt; &gt; 
+&gt; &gt; じゃ駄目ですか?
+&gt; 
+&gt; 全然、全然ダメじゃないです。ものごっつスマートです。
+&gt; 型変換を使うことで、圧縮が解けると理解致しましたが、よろしいのでしょうか?
+
+実際はこんな感じで動くはずです．
+
+1. data::varcharを解釈する
+
+text型であるtest_text.dataはvarchar型と内部データ構造が同じなので，型
+変換用の関数は呼ばれない．そのまま，varchar型として扱う
+
+2. octet_length(varchar)を呼び出す
+
+PostgreSQLでは，関数のオーバロードが可能です．octet_lengthという関数の
+実体は複数あり，引数がvarcharになっているものは，
+varcharoctetlen (src/backend/utils/adt/varchar.cで定義)が呼ばれます．
+
+3. varcharoctetlen は，PG_GETARG_VARCHAR_P マクロを使って，
+   test_text.data を読み出します．
+
+4. PG_GETARG_VARCHAR_P は，DatumGetVarCharP --&gt; PG_DETOAST_DATUM --&gt;
+   pg_detoast_datum となって，結局 pg_detoast_datum を呼び出します．こ
+   の関数は圧縮されたデータを伸張して返します．
+
+5. そこで varcharoctetlen は伸張後のバイト数を返します．
+
+-------
+
+すでにお気づきと思いますが，同じ octet_length でも，text 型の場合は圧
+縮後のバイト数を返し，varchar, char では圧縮前(というよりは伸張後)のバ
+イト数を返します．一貫性がないな，という気がしますね:-)
+--
+Tatsuo Ishii
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00317" HREF="msg00317.html">[pgsql-jp 22452] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Doi Daishin &lt;daishin@d.email.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00325" HREF="msg00325.html">[pgsql-jp 22460] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00335" HREF="msg00335.html">[pgsql-jp 22470] Re: text 型に対するoctet_length()について</A></STRONG>
+<UL><LI><EM>From:</EM> Doi Daishin &lt;daishin@d.email.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00340.html">[pgsql-jp 22475] Re: エクセルデータをきれいにpostgres のテーブルに変換するには？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00342.html">[pgsql-jp 22477] Re: posgreSQL with cobalt raq4</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00335.html">[pgsql-jp 22470] Re: text 型に対するoctet_length()について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00309.html">[pgsql-jp 22444] トランザクションについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00341"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00341"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

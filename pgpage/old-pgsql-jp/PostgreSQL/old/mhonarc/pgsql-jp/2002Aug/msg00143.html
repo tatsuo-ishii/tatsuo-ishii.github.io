@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27011] Re: 表領域の計算方法 -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Tue, 13 Aug 2002 16:45:25 +0900 (JST) -->
+<!--X-Message-Id: 20020813.164525.130235867.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 4.3.2&#45;J.20020813105844.028507d8@ns1.oak.forus.or.jp -->
+<!--X-Reference-Id: 3D58B421.7080600@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27011] Re: 表領域の計算方法 </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00142.html">Date Prev</A>][<A HREF="msg00145.html">Date Next</A>][<A HREF="msg00141.html">Thread Prev</A>][<A HREF="msg00147.html">Thread Next</A>][<A HREF="index.html#00143">Date Index</A>][<A HREF="threads.html#00143">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27011] Re: 表領域の計算方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 13 Aug 2002 16:45:25 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00127.html">4.3.2-J.20020813105844.028507d8@ns1.oak.forus.or.jp</A>&gt;&lt;<A HREF="msg00141.html">3D58B421.7080600@shonan.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;
+Date: Tue, 13 Aug 2002 16:24:17 +0900
+
+;;; システムカタログではなく、contrib/oid2name を改良
+;;; した単独のツールの方がよいのでは。
+...
+;;; PostgreSQL には、表領域を事前に確保しておくという
+;;; 考え方がないので、表領域のサイズが必要な都度実行す
+;;; る単体ツールの方が適切だと思います。
+
+  7.3devel に contrib/dbsize というのがあります。
+
+    ====  README.dbsize  ===========================================
+    This module contains two functions that report the size of a given
+    database or relation.  E.g.,
+
+    SELECT database_size('template1');
+    SELECT relation_size('pg_class');
+
+    These functions report the actual file system space.  Thus, users can
+    avoid digging through the details of the database directories.
+
+    Copy this directory to contrib/dbsize in your PostgreSQL source tree.
+    Then just run make; make install.  Finally, load the functions into any
+    database using dbsize.sql.
+
+    When computing the size of a table, it does not include TOAST or index
+    disk space.
+
+;;; 表領域は計算である程度見積もりできると思いますが、
+;;; $PGDATA の下には、SORT や MERGE JOIN 等々で使用する
+;;; WORK FILE も作成されます。これらはどういう SQL が
+;;; どういうタイミングで発行されるかによるので HDD 容量の
+;;; 予測が難しいです。皆さんは、どのように見積もられている
+;;; でしょうか？。
+
+  ソートファイルについては、簡単な実験からは、最悪で、
+
+    ソートされるレコードサイズ * レコード数 * 1.1
+
+でよさそうです。ソートがどの SQL で要求されるかとレコード数については、そのシ
+ステムで使う典型的な SQL を実際に近いデータで explain して予測値を決めるとか。
+
+;;; $PGDATA のパーティションの使用状況をモニターして、
+;;; 早めに対策するといった運用で対処するしかないでしょうか。
+
+  運用時間の経過と共に、データ量や質が変わって行くので、予測しても実際のモニター
+で予測と違って来ていないかを監視する必要があると思います。
+
+
+Kenji Sugita
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00147" HREF="msg00147.html">[pgsql-jp: 27015] Re: 表領域の計算方法</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00127" HREF="msg00127.html">[pgsql-jp: 26995] Re: 表領域の計算方法</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00141" HREF="msg00141.html">[pgsql-jp: 27009] Re: 表領域の計算方法</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00142.html">[pgsql-jp: 27010] Re: 表領域の計算方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00145.html">[pgsql-jp: 27013] Re: 表領域の計算方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00141.html">[pgsql-jp: 27009] Re: 表領域の計算方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00147.html">[pgsql-jp: 27015] Re: 表領域の計算方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00143"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00143"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

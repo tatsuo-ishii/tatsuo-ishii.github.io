@@ -1,0 +1,124 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24592] cidr or inet 型への変換 -->
+<!--X-From: Yuuitiro Matsumotoまつもと ゆういちろう<yuuitiro@vcnet.toyama.toyama.jp> -->
+<!--X-Date: Thu, 31 Jan 2002 16:51:15 +0900 (JST) -->
+<!--X-Message-Id: 20020131.165115.39154741.yuuitiro@vcnet.toyama.toyama.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24592] cidr or inet 型への変換 </TITLE>
+<LINK REV="made" HREF="mailto:yuuitiro@vcnet.toyama.toyama.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00261.html">Date Next</A>][<A HREF="msg00261.html">Thread Prev</A>][<A HREF="msg00259.html">Thread Next</A>][<A HREF="index.html#00260">Date Index</A>][<A HREF="threads.html#00260">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24592] cidr or inet 型への変換</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yuuitiro Matsumotoまつもと ゆういちろう&lt;<A HREF="mailto:yuuitiro@vcnet.toyama.toyama.jp">yuuitiro@vcnet.toyama.toyama.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 31 Jan 2002 16:51:15 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+まつもと＠システムコボともうします。
+
+  マニュアルや、Mailinglist の過去のログを見てみたのですが、記述がなかっ
+たようなのでちょっと聞いてみます。
+
+# PostgreSQL 7.1.3 patched 20010914 を使っています。
+
+いま、ホスト名を格納したフィールドがあるのですが、このフィールドには
+DNS で解決できなかったホスト名は IP Address をそのまま格納しています。
+(ホスト名表記と IP Address 表記が混在しています)
+
+DNS とは別に、/etc/networks のような(FreeBSD の場合ですが)、cidr block 
+に名前を付けたようなテーブル(*1)を PostgreSQL で持ち、DNS で解決できな
+かったホスト名に関しては、このテーブルを検索することによって、何らかの
+名前に変換しようとしています。
+
+そこで、このテーブルを検索して名前を返す関数を作ろうとしたのですが、
+text 型から cidr or inet 型へのキャストはサポートされないようなので関
+数を作ることは出来ませんでした。
+
+varchar / text 型で '192.168.1.1' のようなフォーマットで格納されている
+ものを cidr or inet 型へ変換することはできるのでしょうか。どんな値が入っ
+ているかわからない text 型からは無理だとしても、数値型などから cidr 型
+に変換することは出来ないのかなぁと思っているのですが,,,, 
+
+# to_**** 系の関数でも、cidr 型へ変換するようなものは見当たらず、
+# cidr 型から他の型に変換するものばかりですよね...
+
+
+-- *1 
+create table "hostaddr" (
+  "ipaddr" cidr,
+  "name" text
+);
+
+-- 作ってみた関数
+create function addrtohostname(text)
+  returns text as '
+    select case
+      when $1 ~ ''^(.[0-9]*)\.(.[0-9]*)\.(.[0-9]*)\.(.[0-9]*)$'' then
+        (select name from hostaddr where hostaddr.ipaddr = $1::cidr)
+                                                           ^^^^^^^^-- *2
+      else
+        $1
+    end
+  '
+  language 'sql';
+
+*2 の部分がキャスト出来ずにエラーになってしまう。cidr ''$1'' とかも
+   やってみたのですが同じくエラーに... 
+
+-- 
+System COBO Co, Ltd. / Yuuitiro Matsumoto
+yuuitiro@vcnet.toyama.toyama.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 24591] ADO 、VB6でグループ関数が使用できない。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 24593] Re:deadlock 調査</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 24593] Re:deadlock 調査</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00259.html">[pgsql-jp 24591] ADO 、VB6でグループ関数が使用できない。</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00260"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00260"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

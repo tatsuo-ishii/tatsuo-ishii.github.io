@@ -1,0 +1,174 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8166] Re: float4 &#45;> float8 convertion probrem -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Wed, 21 Apr 1999 16:20:23 +0900 -->
+<!--X-Message-Id: 19990421162023X.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: v0401010fb3431bdc30fb@str.hitachi.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8166] Re: float4 -&gt; float8 convertion probrem </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00356.html">Date Prev</A>][<A HREF="msg00358.html">Date Next</A>][<A HREF="msg00354.html">Thread Prev</A>][<A HREF="msg00360.html">Thread Next</A>][<A HREF="index.html#00357">Date Index</A>][<A HREF="threads.html#00357">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8166] Re: float4 -&gt; float8 convertion probrem</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 21 Apr 1999 16:20:23 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00354.html">v0401010fb3431bdc30fb@str.hitachi.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+
+1. SQL 標準
+
+On Wed, 21 Apr 1999 15:25:07 +0900, Eitetsu OOMOTO &lt;oomoto@ics.kyoto-su.ac.jp&gt; wrote:
+&gt; &gt; float から double への値変換で発生する誤差ではないかと
+&gt; &gt; 思います．(おまけ参照下さい．)
+
+これは私の早計です．IEEE 754 で発生する現象ですね．(2 を参照下さい)
+
+&gt; &gt; # SQL では浮動小数点の計算精度はどうやって定義されているのかな．．．
+&gt; 
+&gt; SQL92の規格としては，「実装定義」になってるようです．
+&gt; 参考文献：
+&gt; 	「SQL92完全ガイド」  pp.453-454, J.Melton &amp; A.R. Simon著　トッパン発行
+&gt; 	ISBN 4-8101-8922-8
+
+なるほどそうですか．．．．IEEE 754 に固有ということは，
+他の DBMS でも出る可能性あり，ということですね．
+
+# 大本先生が読んでいるということは，あまり下手なことは書けませんねぇ (^^;
+# 大学関係者はどの程度読んでいるでしょうか？ あまり post は無いようですが...
+
+2. IEEE 754
+
+On Wed, 21 Apr 1999 15:08:28 +0900, Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt; wrote:
+&gt; &gt;   a = 1.23
+&gt; 
+&gt; 　このa と1.23 は、いくつになっているのでしょう？　というのは
+&gt; a も1.23 も2 進で格納されているはずで、それが両方とも
+&gt; 1.2300000190734863 なんていう値でしたら、たしかにb は0 になる
+&gt; と思いますが、10進 -&gt; 2進変換誤差がたまたま同じだっただけで、
+&gt; f77にすれば10進 -&gt; 2進変換誤差がなくなるわけではないのでは
+&gt; ないかと思います。
+&gt; 　それにしても、なんで1.2300000190734863 なんて、1.23 より大きい
+&gt; 値になるのでしょう？　2進に変換した時に無限小数になって途中で
+&gt; 打ち切られ、要は切り捨てで、元の数より小さくなると思ってました。
+&gt; ここって切り上げなんでしょうか。0捨1入?
+
+久しぶりに一年生用の計算問題をやってみました．
+1.23 を 2 進になおすと，
+
+	1.001 1101 0111 0000 1010 0011 1101 ...
+
+となります．IEEE 754 では 0捨1入 を取っているようですから，
+IEEE 754 単精度の仮数部が 23 bit 長 (24 bit 精度) であることを
+考えると，
+
+	1.001 1101 0111 0000 1010 0100
+          --- ---- ---- ---- ---- ----| ここまで
+
+というようになりますね．
+
+変換以前に，1.23 の IEEE 単精度表現が持っている問題ですから，
+ftod() をどうしようと，修正はできませんねぇ ...
+
+
+3. F77
+
+&gt; At 14:49 +0900 99.4.21, Yoshihiko ICHIKAWA wrote:
+...
+&gt; &gt; これはちょっと気になったので試してみました．SUN の SPARCWorks f77
+...
+&gt; &gt; 		real*4  x
+&gt; &gt; 		real*8  y
+&gt; &gt; 		x = 1.23
+&gt; &gt; 		y = x
+&gt; &gt; 		write(*,*) x, y
+&gt; &gt; 		stop
+...
+&gt; &gt; 	ichikawa@sv:~/tmp[545]% ./aaa
+&gt; &gt; 	     1.23000    1.2300000190735
+...
+&gt; 　このx の値って、フォーマット使ってy と同じ桁数だけ出せますでしょうか。
+
+同じです:
+	...
+	write(*, 100) x, y
+	stop
+  100	format(F20.18, ', ', F20.18)
+	...
+
+1.230000019073486328, 1.230000019073486328
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00360" HREF="msg00360.html">[pgsql-jp 8169] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00354" HREF="msg00354.html">[pgsql-jp 8163] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00356.html">[pgsql-jp 8165] JDBC2 Driver patch for current.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00358.html">[pgsql-jp 8167] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00354.html">[pgsql-jp 8163] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00360.html">[pgsql-jp 8169] Re: float4 -&gt; float8 convertion probrem</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00357"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00357"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

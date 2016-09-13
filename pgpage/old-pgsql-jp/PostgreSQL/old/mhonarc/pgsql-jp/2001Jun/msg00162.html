@@ -1,0 +1,152 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21783] Re: PostgreSQL&#45;7.1.2 でWALを使わない方法 -->
+<!--X-From: tmori@tech.isac.co.jp -->
+<!--X-Date: Tue, 12 Jun 2001 19:01:42 +0900 (JST) -->
+<!--X-Message-Id: 20010612191032I.tmori@tech.isac.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010612083000.B52BB6AFBC@mail.suyama.net -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21783] Re: PostgreSQL-7.1.2 でWALを使わない方法 </TITLE>
+<LINK REV="made" HREF="mailto:tmori@tech.isac.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00161.html">Date Prev</A>][<A HREF="msg00163.html">Date Next</A>][<A HREF="msg00161.html">Thread Prev</A>][<A HREF="msg00160.html">Thread Next</A>][<A HREF="index.html#00162">Date Index</A>][<A HREF="threads.html#00162">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21783] Re: PostgreSQL-7.1.2 でWALを使わない方法</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:tmori@tech.isac.co.jp">tmori@tech.isac.co.jp</A></LI>
+<LI><em>Date</em>: Tue, 12 Jun 2001 19:01:42 +0900 (JST)</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00161.html">20010612083000.B52BB6AFBC@mail.suyama.net</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+森＠アイザックです。
+
+フォローアップありがとうございます。
+
+&gt;&gt;&gt; 陶山　泰 &lt;yasushi@suyama.net&gt; wrote :
+    at Tue, 12 Jun 2001 17:30:00 +0900 ...
+
+&gt; tmori&gt; copy from コマンドを使って400MBほどのテキストファイルからロードして
+&gt; tmori&gt; みたところ、8GBのディスク領域をログで使い果たしてしまいました。
+&gt; tmori&gt; （途中でdisk fullエラーとなったので、8GBで足りたかどうかは判りません）
+&gt; 
+&gt; 　８ＧＢを消費したログはほんとにトランザクションログ（ＷＡＬログ）な
+&gt; のでしょうか。
+
+正確な数値は記録してなかったのですが、大体
+
+$PGDATA/base が１割
+$PGDATA/pg_xlogが９割
+
+と、全てではありませんが大部分がログでした。
+因みにindexをdropした時は、$PGDATA/baseと$PGDATA/pg_xlogが
+ほぼ同サイズでしたので、この大量のログはindexを更新する際に
+発生するWALだと解釈しています。
+
+indexは、複合カラムb-treeが２つ（うち一つは主キー）です。
+
+
+&gt; 　そうであれば、CHECKPOINT 間隔を短く設定することで、ログサイズを小さ
+&gt; くできるのではないでしょうか。
+
+先のメールでは説明を省かせて頂いたのですが、実は私も陶山さんと
+同じようなことを考えて試してみたのです。
+
+PosgreSQL-7.1 documentの9.3章(WAL Configuration)に、
+
+============
+After a checkpoint has been made, any log segments 
+written before the redo record are removed, 
+so checkpoints are used to free disk space in the 
+WAL directory. (When WAL-based BAR is implemented, 
+the log segments can be archived instead of just 
+being removed.) 
+============
+
+という記述があるので、いかにもcheckpointで古いログを
+消しそうなのですが、結果は駄目でした。
+
+これはどういうことかと、本家のMLを漁ったところ、
+正にこれ、といったpatchが流れてました。
+
+&gt; Author: Tom Lane &lt;tgl@sss.pgh.pa.us&gt; 
+&gt; Date: Wed 06 Jun 13:29:22 2001 EDT
+&gt; Subject: [PATCHES] Patch to reduce WAL log space usage
+&gt; 
+&gt; Per recent discussions in pghackers, I have tweaked the WAL code so that
+&gt; each checkpoint truncates the log at the prior checkpoint's redo point,
+&gt; not its undo point.  (There is no point in keeping the undo information
+&gt; until we have UNDO support, which doesn't seem to be imminent.)  This
+&gt; should reduce disk space usage very considerably in the presence of
+&gt; long-running transactions.
+&gt;
+(snip)
+
+ただ、このパッチは私の手元にある7.1.2のソースには当らず、
+どうしたものかと思案している間に気づいたのですが、
+問題は、ディスク領域が不足することではなくて、それだけ
+大量のI/Oが発生してしまう、ということであり、checkpointで
+ログをtruncateしてくれるだけでは解決にならないのです。
+
+ということで、先のメールの質問になりました。
+
+--
+tmori@tech.isac.co.jp
+森 真史 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00161" HREF="msg00161.html">[pgsql-jp 21782] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+<UL><LI><EM>From:</EM> 陶山　泰&lt;yasushi@suyama.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 21782] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00163.html">[pgsql-jp 21784] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 21782] Re: PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00160.html">[pgsql-jp 21781] PostgreSQL-7.1.2 でWALを使わない方法</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00162"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00162"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

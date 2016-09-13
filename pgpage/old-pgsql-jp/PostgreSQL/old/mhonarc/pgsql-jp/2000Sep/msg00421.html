@@ -1,0 +1,142 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 17752] Re: レコード数に制限 -->
+<!--X-From: Jun Kitamura <jun&#45;n@ga2.so&#45;net.ne.jp> -->
+<!--X-Date: Tue, 19 Sep 2000 01:31:56 +0900 -->
+<!--X-Message-Id: 39C6437C6E.EA19JUN&#45;N@mail.ga2.so&#45;net.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000701c02144$e9b4b200$025011ac@nms -->
+<!--X-Reference-Id: 200009181408.XAA26448@mail2.rim.or.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 17752] Re: レコード数に制限 </TITLE>
+<LINK REV="made" HREF="mailto:jun-n@ga2.so-net.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00420.html">Date Prev</A>][<A HREF="msg00422.html">Date Next</A>][<A HREF="msg00415.html">Thread Prev</A>][<A HREF="msg00452.html">Thread Next</A>][<A HREF="index.html#00421">Date Index</A>][<A HREF="threads.html#00421">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 17752] Re: レコード数に制限</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:jun-n@ga2.so-net.ne.jp">jun-n@ga2.so-net.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 19 Sep 2000 01:31:56 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00408.html">000701c02144$e9b4b200$025011ac@nms</A>&gt; &lt;<A HREF="msg00415.html">200009181408.XAA26448@mail2.rim.or.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。北村です。
+
+&gt; &gt; &gt; ってな感じにやれば、フロントエンド側(PHPなど)では、エラーチェックだけで
+&gt; &gt; &gt; 良いので、いちいち最大値などを調べる必要はなくなりますね。
+&gt; 
+&gt; うぉー、ユーザ定義関数というのはこういうところにも使えるんですね。
+&gt; # というか、こういう時のために用意してあるんですかね?
+&gt; ちょっと感動しました。こういう発見があるから、この世界はやめられません ^^;
+うん。こういう発見は楽しいですよね。
+ユーザ定義関数はいろいろ応用ききますよ。
+
+&gt; &gt; 予約のキャンセルが入った時は困っちゃいますね。
+&gt; &gt; 「トリガで、BEFORE INSERT を使ったほうが良い」ということで・・・。
+&gt; &gt; では。
+トリガを定義するのは面倒くさいって時には、トリガを使わずにやる方法もあり
+ます。
+先の方法だと、
+&gt;--予約ファイル
+&gt;create table t2(cd int, num int CHECK(num &lt;= fMaxCnt(cd)));
+&gt;--次の連番取得
+&gt;create function fGetNextNOT(int) returns int as
+&gt;'select (count(*) + 1)::int from t2 where cd = $1'
+&gt;language 'sql';
+num が関数(fMaxCnt(チケットCD))以下であることが条件なので、キャンセルが入
+った場合にそのレコードを削除し別テーブルに残しておいても、途中の番号が欠
+番になるだけで、関数 fGetNextNOT(int) は、次の連番を取得しようとして
+CHECKに引っかかってしまいます。そこで、キャンセルが入った場合は、レコード
+を削除するとともに、num の値を -1 してやれば問題はなくなります。
+--キャンセルログテーブル(面倒なんで簡単にしてます)
+create table t2_del(cd int,num int);
+--キャンセル処理(チケットCD:1 チケット連番:2 のキャンセル)
+begin;
+ insert into t2_del (select * from t2 where cd = 1 and num = 2);
+ delete from t2 where where cd = 1 and num = 2;
+ update t2 set num = num - 1 where cd = 1 and num &gt; 2;
+commit;
+この処理を PL/pgSQL などで関数化(fCancel(チケットCD,チケット連番)とか)す
+れば、「ある程度」は問題なく使えるような気がします。あまり深く追ってない
+ので、どっかに詰めの甘い部分があるかもしれません(いつものように)。その時
+はごめんなさい。
+(先にも書きましたが、トリガで BEFORE INSERT でチェック・・・が正解だと思いま
+す。多分 ・・・汗 )
+
+&gt; ... シーラカンス本読んで勉強いたします _o_
+&gt; # なんか先日からこんなのばっかり... ^^;
+シーラカンス本をお持ちなら、ユーザ定義関数の部分を読み直すと良いと思いま
+す。引数に型としてのテーブルが使える・・・とか書いてあるんですが、案外覚えて
+なかったりしますよね。上記の例だと、チケットマスタ(t1)の cd を与えるため
+に int型の引数にしてますが、 t1 を引数にとれば、チケット名(t1.name)からの
+予約とかも出来てしまうんですよ(cd でやったほうが安全だとは思いますが)。
+
+色々試すと面白いですよね。
+私も今は、継承(inherits)の面白い使い方はないか模索してるんですが(5月くら
+いの 船木＠秋田県立図書館さん と 石井さんのやり取りを見てて触発されてたり
+する)、また出来上がったら報告します。
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00452" HREF="msg00452.html">[pgsql-jp 17783] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00408" HREF="msg00408.html">[pgsql-jp 17739] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> "Jun Kitamura" &lt;jun-n@ga2.so-net.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00415" HREF="msg00415.html">[pgsql-jp 17746] Re: レコード数に制限</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Yamada &lt;s-yamada@kh.rim.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00420.html">[pgsql-jp 17751] Re: PostgreSQL とJavaServletの日本語対応について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00422.html">[pgsql-jp 17753] Re: PostgreSQL とJavaServletの日本語対応について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00415.html">[pgsql-jp 17746] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00452.html">[pgsql-jp 17783] Re: レコード数に制限</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00421"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00421"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

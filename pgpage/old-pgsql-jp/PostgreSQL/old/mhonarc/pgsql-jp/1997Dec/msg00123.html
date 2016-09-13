@@ -1,0 +1,156 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3161] 索引（index）の作成について -->
+<!--X-From: nakahasi@sapmed.ac.jp (Nozomi Nakahashi) -->
+<!--X-Date: Fri, 19 Dec 1997 16:46:46 +0900 (JST) -->
+<!--X-Message-Id: 199712190746.QAA15171@serpent.cc.sapmed.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3161] 索引（index）の作成について </TITLE>
+<LINK REV="made" HREF="mailto:nakahasi@sapmed.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00122.html">Date Prev</A>][<A HREF="msg00124.html">Date Next</A>][<A HREF="msg00127.html">Thread Prev</A>][<A HREF="msg00125.html">Thread Next</A>][<A HREF="index.html#00123">Date Index</A>][<A HREF="threads.html#00123">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3161] 索引（index）の作成について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:nakahasi@sapmed.ac.jp">nakahasi@sapmed.ac.jp</A> (Nozomi Nakahashi)</LI>
+<LI><em>Date</em>: Fri, 19 Dec 1997 16:46:46 +0900 (JST)</LI>
+<LI><em>Cc</em>: <A HREF="mailto:nakahasi@sapmed.ac.jp">nakahasi@sapmed.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+中橋＠国立がん です。
+内山さん、早速のフォローを有難うございます。
+
+&gt;&gt; 	インデックスの作り方は、
+&gt;&gt; 
+&gt;&gt; 	psql=&gt;create index testindex on test using btree( test_a);
+&gt;&gt; 
+&gt;&gt; のようです。これは、test というテーブル（クラス）の test_a という
+&gt;&gt; 列の検索を早くしようとしているインデックスです。testindex という
+&gt;&gt; のは、インデックスの名前です。
+&gt;&gt; 	しかし、これだけでは、状況にあったインデックスを作ることが
+&gt;&gt; 難しいと思います。
+&gt;&gt; 	テーブルを作ったときの create 文と、遅くて困っている select
+&gt;&gt; 文をお教え頂ければ、もっと状況にあったインデックスの作り方を教えてく
+&gt;&gt; ださる方もいらっしゃると思います。
+
+私の格闘しているデータは医薬品添付文書（いわゆる薬の説明書）のデータ
+でありまして、一つの文書に複数の品目が収載されていたり、複数の化合物が
+含まれていたりするため正規化したテーブルを作成するまでに私なりに
+かなり悩みまして（素人ですから...）、どうにかこうにかテーブルを作成
+したまではよかったのですがかなりテーブルが細分化されてしまいました。
+
+とりあえず実験として
+
+・薬剤の品目名マスタテーブル
+
+  CREATE TABLE DRUGMASTER (
+      code  int4,
+      name  varchar(128)
+  );
+
+・製造、販売、輸入会社名マスタテーブル
+
+  CREATE TABLE CORPMASTER (
+      code  int4,
+      name  varchar(128)
+  );
+
+・品目に対する会社のテーブル
+
+  CREATE TABLE CORPMASTER (
+      drugcode  int4,
+      category  int4,
+      corpcode  int4
+  );
+
+を作成し、apache 1.1.3 + PHP/FI 2.0 でWWWから見れるようにとテストページを
+作成しました。
+テストページは品目名マスタから部分一致で該当する品目名をリストアップする
+という極めて初歩的なものです。
+
+  SELECT * FROM DRUGMASTER WHERE name LIKE '%（入力キーワード）%';
+
+品目名マスタから部分一致で品目名を検索するときは1秒程度でリストアップして
+くれるのですが、その品目に該当する会社名を呼び出そうとすると10秒ほどの
+時間を要してしまいます。
+表の結合とか、副問い合わせとかがまだ分からないので、ユーザーマニュアルと
+首っぴきで
+
+  CREATE FUNCTION cname(int4) RETURNS varchar AS
+    'SELECT CORPMASTER.name FROM CORPMASTER
+       WHERE CORPTABLE.drug = $1
+       AND CORPTABLE.corpcode = CORPMASTER.code;'
+       LANGUAGE 'sql';
+
+という関数を定義して使ったのが、パフォーマンスを遅くしている原因なので
+しょうか。
+またちなみにこの関数では該当する最初の会社名しか出力しません。
+本当は、同一薬剤で製造と販売が異なるものが数多くあるのでそれをまとめて
+出力出来るようにしたいといろいろ試行錯誤していますが、近くにSQLの詳しい
+人がいるわけでもなく、なかなか「学成り難し」状態が続いております。
+
+大変初歩的な質問で申し訳ありませんが、どなたかアドバイスいただければ
+幸いです。宜しくお願い致します。
+
+Nozomi Nakahashi----------------------------
+National Cancer Center Research Institute
+Cancer Information and Epidemiology Division
+5-1-1 Tsukiji Chuo-ku Tokyo, 104 Japan
+Tel: +81-3-5550-2020    Fax: +81-3-5550-2027
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 3163] Re: 索引（index）の作成について</A></STRONG>
+<UL><LI><EM>From:</EM> 清水昭博&lt;gen@himx.hek.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00122.html">[pgsql-jp 3160] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00124.html">[pgsql-jp 3162] はじめまして</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00127.html">[pgsql-jp 3165] Re: はじめまして</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 3163] Re: 索引（index）の作成について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00123"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00123"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

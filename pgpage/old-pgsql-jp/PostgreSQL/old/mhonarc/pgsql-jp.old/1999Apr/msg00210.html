@@ -1,0 +1,150 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8019] Re: How to Transaction ? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 14 Apr 1999 17:32:28 +0900 -->
+<!--X-Message-Id: 199904140832.RAA03384@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199904140718.QAA06462@ns.tfive.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8019] Re: How to Transaction ? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00209.html">Date Prev</A>][<A HREF="msg00211.html">Date Next</A>][<A HREF="msg00209.html">Thread Prev</A>][<A HREF="msg00212.html">Thread Next</A>][<A HREF="index.html#00210">Date Index</A>][<A HREF="threads.html#00210">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8019] Re: How to Transaction ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 14 Apr 1999 17:32:28 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;石井さん、素早いレスポンス感謝々々です。
+&gt;(思いのほか早かったので、あわくってしまいました)
+
+どういたしまして。でも、なんか Java の deep な世界に入りつつあるようで、
+そろそろ私の手には負えない気が...
+
+&gt;&gt; トランザクションがからむのでお断りしておきますが、以下の議論は 6.4.x 
+&gt;&gt; を前提にした話です。6.5 では一部異るところがあります。
+&gt;
+&gt;6.5ではMulti Versioning Concurrency Controlが導入され、トランザクション
+&gt;の同時実行が可能になった。
+&gt;というところですね？
+
+そのようですが、私もまだ良く分かっていないところが...:-)
+
+&gt;6.5の導入も考えましたが、今のところ安定していないようなので見合わせています。
+
+まだまだβですから...
+
+&gt;余裕ができたら、6.5の導入と諸テスト結果をご報告させて頂きますので。
+
+貢献の仕方は色々ありますので、特に 6.5 βに拘らなくても...
+6.4.x の問題点を見つけたりするのも立派な貢献だと思います。往々にして同
+じ問題が 6.5 にもあったりしますし。
+
+&gt;ところで、
+&gt;&gt; 確認ですが、T1, T2 は書き込みを行なわないのですね？であれば、LOCK は必
+&gt;&gt; 要ありません。その方が T1, T2 が並行に走るので良いです。
+&gt;                         〜〜〜〜〜〜〜〜〜
+&gt;超基本的なことなのかも知れませんが、↑これは知りませんでした。
+&gt;これは、 BEGIN WORK を行わないで SELECT文を発行した場合の動作なんでしょうか。
+&gt;PostgreSQLでは、読み書きの別なくクエリーの処理そのものが直列処理だと思い
+&gt;込んでいました。
+
+どんな場合でも READ ONLY のトランザクション同士なら並列動作します。
+
+&gt;私アプリケーションの構成として、
+&gt;・バックエンド層は PostgreSQL がトランザクションの直列処理のため、シングル
+&gt;　セッション（HORBの _Skeleton クラス 各メソッドにsinchronized修飾子）。
+&gt;・フロントエンド層は、Webからの検索を目的としているので、マルチクライアント
+&gt;　（HORBの _Proxy クラス）。
+&gt;・バックエンド層、フロントエンド層はＳＱＬ管理クラスからＳＱＬ文を受け取って
+&gt;　JDBCを介してPostgreSQLに渡し、その結果を ResultSet として受取ってＳＱＬ管
+&gt;　理クラスに返すだけの機能を持つ。
+
+実際に JDBC ドライバを呼び出しているのはバックエンド層ですよね。
+
+&gt;・Webブラウザ上のJavaアプレット（JBuilder2でGUIを開発）からＳＱＬ管理クラス
+&gt;　クを呼び出してＳＱＬの発行、結果の取得（トランザクションの実行）を行う。
+&gt;
+&gt;となっています。ので、複数のプロセス（というか、ネット上の複数のホスト）から
+&gt;同時にトランザクションの実行を行います。
+
+うーん、Java 良く知らないので外しているかも知れませんが、バックエンド
+層のプロセスはもしかして 1 個だけなんですか？つまり、
+
+Applet (N) &lt;---&gt; WWW サーバ (Servlet? + HORB フロントエンド) (N)
+			^
+			|
+			+--&gt; HORB バックエンド (1) &lt;---&gt; PostgreSQL
+
+こうですか？HORB は良く分かりませんが、これってうまく動くんだろうか？
+HORB バックエンドが N 個なら分かるんですが。
+
+HORB フロントエンドが直接 JDBC を呼ぶとまずいのですか？
+---
+t-ishii@sra.co.jp	石井達夫
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00212" HREF="msg00212.html">[pgsql-jp 8021] Re: How to Transaction ?</A></STRONG>
+<UL><LI><EM>From:</EM> baba takanori &lt;baba@tfive.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00209" HREF="msg00209.html">[pgsql-jp 8018] Re: How to Transaction ?</A></STRONG>
+<UL><LI><EM>From:</EM> baba takanori &lt;baba@tfive.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 8018] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00211.html">[pgsql-jp 8020] 6.5beta1 regression on Sun Ultra 5</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00209.html">[pgsql-jp 8018] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00212.html">[pgsql-jp 8021] Re: How to Transaction ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00210"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00210"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

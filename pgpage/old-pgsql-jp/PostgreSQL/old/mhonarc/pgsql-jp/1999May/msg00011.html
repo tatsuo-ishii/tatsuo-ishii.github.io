@@ -1,0 +1,131 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8283] Re: （一時テーブルが必要？）Re^5:マルチユーザー -->
+<!--X-From: "MINOHATA Norio" <minohata@com&#45;net.co.jp> -->
+<!--X-Date: Sat, 1 May 1999 17:31:56 +0900 -->
+<!--X-Message-Id: 005401be93ad$14013000$9754add2@comnet.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199904281437.XAA00625@ext16.sra.co.jp -->
+<!--X-Reference-Id: 372998AD.FC5AA984@mug.biglobe.ne.jp -->
+<!--X-Reference-Id: 372AAA27.6AF12D38@mug.biglobe.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8283] Re: （一時テーブルが必要？）Re^5:マルチユーザー </TITLE>
+<LINK REV="made" HREF="mailto:minohata@com-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00009.html">Date Prev</A>][<A HREF="msg00012.html">Date Next</A>][<A HREF="msg00010.html">Thread Prev</A>][<A HREF="msg00034.html">Thread Next</A>][<A HREF="index.html#00011">Date Index</A>][<A HREF="threads.html#00011">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8283] Re: （一時テーブルが必要？）Re^5:マルチユーザー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "MINOHATA Norio" &lt;<A HREF="mailto:minohata@com-net.co.jp">minohata@com-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 1 May 1999 17:31:56 +0900</LI>
+<LI><em>References</em>: &lt;199904281437.XAA00625@ext16.sra.co.jp&gt; &lt;372998AD.FC5AA984@mug.biglobe.ne.jp&gt; &lt;<A HREF="msg00007.html">372AAA27.6AF12D38@mug.biglobe.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+箕畑@旭紙業です。
+
+&gt; select ta.recordno,ta.eauthor from literaturetb ta,keywordtb tb
+&gt;   where (tb.keyword ~* 'something' and ta.recordno=tb.recordno)
+&gt;   or (ta.etitle ~* 'something');
+&gt; 
+&gt; とすると、何分待っても、ハードディスクアクセスのみで答えが出てきません。
+
+or以降の条件が間違っています。
+この部分ではテーブルの結合の条件が明記されて
+いないので、全ての組み合わせを列挙して
+しまうという事態に陥っています。
+
+例えば、
+literaturetbに(etitle ~* 'something')に該当するレコードが100個、
+keywordtbの全レコード数が20000個あったとすると、
+or以降の条件でselectされるレコード数は、
+  100 × 20000 = 2000000個!
+になります。
+# 待っている間にUNIXシェル上からdfされるとわかりますが、
+# データベースの入ってるパーティションの使用量が異常に上昇します。
+
+
+対処法1.品行方正バージョン
+  unionを使用して全体を次のように書きかえる。
+
+  select ta.recordno,ta.eauthor from literaturetb ta,keywordtb tb
+    where tb.keyword ~* 'something' and ta.recordno=tb.recordno
+  union
+  select ta.recordno,ta.eauthor from literaturetb ta
+    where ta.etitle ~* 'something';
+
+対処法2.不良バージョン
+  keywordtbに次のようなダミーのレコードを作る。
+    keyword ='テキトー'
+    recordno=0       &lt;-literaturetb中に存在しないレコード番号
+
+  or以降の条件を次のように書きかえる
+    (ta.etitle ~* 'something' and tb.recordno=0)
+
+
+多分、どちらの対処法でもほぼお望みの速度が得られると思います。
+
+--
+有限会社アイピーシー/旭紙業株式会社
+箕畑典男
+minohata@com-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00034" HREF="msg00034.html">[pgsql-jp 8307] （一時テーブル）Re^5:マルチユーザー</A></STRONG>
+<UL><LI><EM>From:</EM> "K. Takai" &lt;ktakai@mug.biglobe.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00007" HREF="msg00007.html">[pgsql-jp 8279] （一時テーブルが必要？）Re^5:マルチユーザー</A></STRONG>
+<UL><LI><EM>From:</EM> "K. Takai" &lt;ktakai@mug.biglobe.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00009.html">[pgsql-jp 8281] Re: Database template1 does not exist in pg_databaseと言われますが・・・</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00012.html">[pgsql-jp 8284] Re: varchar or text</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00010.html">[pgsql-jp 8282] Re: （一時テーブルが必要？）Re^5:		マルチユーザー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00034.html">[pgsql-jp 8307] （一時テーブル）Re^5:マルチユーザー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00011"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00011"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

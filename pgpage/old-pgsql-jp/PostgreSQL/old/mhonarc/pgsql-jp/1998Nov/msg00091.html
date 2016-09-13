@@ -1,0 +1,169 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5872] Re: data list -->
+<!--X-From: Masahiro Akagi <makagi@jaist.ac.jp> -->
+<!--X-Date: Fri, 13 Nov 1998 03:34:38 JST -->
+<!--X-Message-Id: 199811121834.DAA02360@mail.jaist.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199811120931.SAA04630@sauce.annie.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5872] Re: data list </TITLE>
+<LINK REV="made" HREF="mailto:makagi@jaist.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00090.html">Date Prev</A>][<A HREF="msg00099.html">Date Next</A>][<A HREF="msg00086.html">Thread Prev</A>][<A HREF="msg00105.html">Thread Next</A>][<A HREF="index.html#00091">Date Index</A>][<A HREF="threads.html#00091">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5872] Re: data list</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Masahiro Akagi &lt;<A HREF="mailto:makagi@jaist.ac.jp">makagi@jaist.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 13 Nov 1998 03:34:38 JST</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+赤木＠JAISTです。
+
+なかはら＠電通大さんの
+&gt; 不定長のリストをどう扱うべきかで困っています。
+&gt; 
+&gt; 実際には www の bookmarks を postgreSQL で処理させようとしていて、
+&gt; 各行には URL が１つと、ジャンルと優先順位の組が複数あります。
+について、
+
+1),
+まず、関係データベースの最も正当な方法として、
+
+url            |category            |lank
+---------------+--------------------+----
+<A HREF="http://www.hoge">http://www.hoge</A>|comp                |   1
+<A HREF="http://www.hoge">http://www.hoge</A>|lang                |   3
+<A HREF="http://www.hoge">http://www.hoge</A>|palmtop             |   4
+<A HREF="http://www.foo">http://www.foo</A> |lang                |   2
+
+というように正規化してやることです。
+
+2),
+次に、Postgres っぽい(?)方法として、配列を使うものです。
+# Date: Fri, 13 Nov 1998 01:14:56 JST
+# From: Masahiro Akagi &lt;makagi@jaist.ac.jp&gt;
+# Subject: [pgsql-jp 5871] array of char
+# で書いたように char の配列が作れなかったため、
+# 下では、text型を利用してます。
+
+create table bookmarks (
+	url		varchar(256),
+	category	text[][]
+);
+insert into bookmarks
+	values ('<A HREF="http://www.hoge">http://www.hoge</A>','{{comp,1},{lang,3},{palmtop,4}}');
+insert into bookmarks
+	values ('<A HREF="http://www.hogehoge">http://www.hogehoge</A>','{{comp,2}}');
+
+url                |category                                   
+-------------------+-------------------------------------------
+<A HREF="http://www.hoge">http://www.hoge</A>    |{{"comp","1"},{"lang","3"},{"palmtop","4"}}
+<A HREF="http://www.hogehoge">http://www.hogehoge</A>|{{"comp","2"}}                             
+
+これは、
+
+select url from bookmarks
+where bookmarks.category[1][2] = '2';
+url                
+-------------------
+<A HREF="http://www.hogehoge">http://www.hogehoge</A>
+(1 row)
+
+などのように問い合わせられます。
+もちろん、update も出来ますが、私の知る限りでは
+要素ごとの更新はできませんでした。
+また、要素の追加もできません。
+（もしかしたら、これらに対する解決法があるかもしれません）
+
+3),
+さらには、Postgres を使うが故の方法として、新たな型を定義することです。
+例えば、(2)の例で言えば、
+2次配列ではなく、あらたに (char, int) みたいな型 taple を定義してやっ
+て、属性 category の型を taple[] としてやるのが、きれいかも知れない。
+要するに、入れ子型リレーションを表現しているわけですが、
+これは RDBMS を退化させていることになりますね。
+# はて、配列型がある利点ってなんでしたっけ？
+
+それよりも、リスト型を定義してやるとか。
+リスト型ができるかどうかは分かりませんが、ユーザマニュアルなどを見れば、
+拡張の方法が書かれています。
+内部表現は C で書けるのですから、なんらかのアルゴリズム辞典などに
+書かれている リストの作り方を応用すればできるでしょう。
+ただ、想像するに、要素の追加とかをする関数の定義のあたりが
+大変そうですね。
+
+
+私の知識の及ぶ範囲ではこのぐらいですが、参考になれば幸いです。
+
+
+(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)
+
+  赤木匡博 (Masahiro Akagi)
+ 【北陸先端科学技術大学院大学(JAIST) 情報科学研究科 (M1) 】
+ 【情報システム学専攻 ソフトウエア基礎講座 片山研究室所属】
+  E-mail: makagi@jaist.ac.jp
+  URL: <A HREF="http://www.jaist.ac.jp/~makagi/">http://www.jaist.ac.jp/~makagi/</A>
+
+(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)(*_*)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00105" HREF="msg00105.html">[pgsql-jp 5886] Re: data list</A></STRONG>
+<UL><LI><EM>From:</EM> nt@annie.ne.jp (NAKAHARA Takahumi)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 5867] data list</A></STRONG>
+<UL><LI><EM>From:</EM> nt@annie.ne.jp (NAKAHARA Takahumi)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00090.html">[pgsql-jp 5871] array of char</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00099.html">[pgsql-jp 5880] Re: DISTINCT</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 5867] data list</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00105.html">[pgsql-jp 5886] Re: data list</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00091"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00091"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

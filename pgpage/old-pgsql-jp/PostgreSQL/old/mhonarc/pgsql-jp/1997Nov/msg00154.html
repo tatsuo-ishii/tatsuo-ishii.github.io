@@ -1,0 +1,136 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3025] Give me an advise about file construction -->
+<!--X-From: Yoshio Funaki <yoshio@Air.akita&#45;u.ac.jp> -->
+<!--X-Date: Thu, 27 Nov 1997 17:44:53 +0900 -->
+<!--X-Message-Id: 9711270844.AA00194@mebius.air.akita&#45;u.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199711261058.TAA05883@technoa.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3025] Give me an advise about file construction </TITLE>
+<LINK REV="made" HREF="mailto:yoshio@Air.akita-u.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00153.html">Date Prev</A>][<A HREF="msg00155.html">Date Next</A>][<A HREF="msg00155.html">Thread Prev</A>][<A HREF="msg00146.html">Thread Next</A>][<A HREF="index.html#00154">Date Index</A>][<A HREF="threads.html#00154">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3025] Give me an advise about file construction</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshio Funaki &lt;<A HREF="mailto:yoshio@Air.akita-u.ac.jp">yoshio@Air.akita-u.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 27 Nov 1997 17:44:53 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+船木＠秋田県立図書館です。しばらくＲＯＭしてましたが
+どうにも解決できない問題にぶち当たってしまいまして
+ぜひ先達の皆様にご教示いただきたいと考えまして・・・。
+
+で、問題の内容なのですが図書の書誌データについてなのです。
+図書館で取り扱う図書のデータというのは、結構項目が多くて
+書名、著者名は言うに及ばす、出版地、件名、価格、大きさなど
+さまざまな形式のデータがありまして、しかもそれが混在しています。
+さらに１書誌内のデータ項目数が可変、データ長も固定と
+可変が入り交じっていたりと、ＲＤＢになじませようとすると
+結構大変で頭を悩ましています。
+
+で、参考までにありそうなパターンを書きますと（あくまで嘘っこデータ）
+項目No. Sub    Sub No.	実際のデータ
+010	A	1	10253489（ユニークナンバー　固定長）
+020	A	1	4-2345-987-1（ＩＳＢＮ　固定長）
+100	A	1	必修英単語（本書名　可変長）
+100	A	2	大学受験合格シリーズ（叢書名　可変長）
+251	A	1	磯野　波平/著（著者　漢字表記　可変長）
+251	B	1	イソノ/ナミヘイ（著者　カナ表記　可変長）
+	・
+	・
+521	A	1	磯野　波平（辞書作成用　可変長）
+521	B	1	イソノ　ナミヘイ（辞書作成用　可変長）
+	・
+	・
+990	X	1	秋田県立図書館（所蔵館　可変長）
+
+で、010〜100は固定長で必須。
+251〜800までは項目数もデータ長も可変。（たとえば521という項目がない等）
+900〜990までは必須
+という感じです。また、各項目にはA〜Xまでのサブフィールド名がついていて、
+さらに細かく1〜99個の間でサブフィールドが増加するというぐあいです。
+（以下の図参照）
+
+251 - A
+    - B
+	・
+	・
+    - X - 1
+	  ・
+	　・
+	- 99
+
+全ての項目が常にあらわれるかどうかを考えずに（ファイルサイズの問題は別として）
+全ての項目を造っておいて、データを該当カラムに書き込み、検索対象のインデックス
+をそれぞれ造るという解決方法はありますが、膨大な無駄を含んだファイルを造るこ
+になり、検索スピードも遅くなるのは目に見えてます。
+
+現在考えているのは、とりあえずマスター（必須部分のみ）と各項目名に対応した
+ファイルをそれぞれ造り、キーとしてユニークインデックスを共通に持って、
+表示する必要がある項目のみ、ユニークインデックスをキーとして随時個々の
+ファイルから読み込んだらどうかと考えていますが、これも根本的な解決に
+ならないような気がしてます。（サブフィールドの問題があるので・・・）
+どうしても表集計ソフトの２次元表的感覚から抜け出せなくて、表を３段くらい
+重ねたイメージしか出てきません。
+何か良い考え方がありましたら、是非ご教示下さい。
+	
+yoshio@air.akita-u.ac.jp 船木　喜夫
+ 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00148" HREF="msg00148.html">[pgsql-jp 3019] Can not input ACCESS+PostODBC</A></STRONG>
+<UL><LI><EM>From:</EM> Hirotaka Aoki &lt;aoki@technoa.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00153.html">[pgsql-jp 3024] Re: Can not input ACCESS+PostODBC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 3026] Re: Can not input ACCESS+PostODBC</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00155.html">[pgsql-jp 3026] Re: Can not input ACCESS+PostODBC</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00146.html">[pgsql-jp 3017] Re: flat file password authentication</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00154"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00154"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

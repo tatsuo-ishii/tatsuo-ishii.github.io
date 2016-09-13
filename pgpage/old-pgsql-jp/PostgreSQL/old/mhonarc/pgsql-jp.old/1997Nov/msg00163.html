@@ -1,0 +1,196 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3034] use system passwd for authentication -->
+<!--X-From: gin@kohoku.jac&#45;net.com (Uchida Hitoshi) -->
+<!--X-Date: Fri, 28 Nov 1997 22:43:10 +0900 -->
+<!--X-Message-Id: 19971128224310P.gin@kohoku.jac&#45;net.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3034] use system passwd for authentication </TITLE>
+<LINK REV="made" HREF="mailto:gin@kohoku.jac-net.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00162.html">Date Prev</A>][<A HREF="msg00164.html">Date Next</A>][<A HREF="msg00166.html">Thread Prev</A>][<A HREF="msg00161.html">Thread Next</A>][<A HREF="index.html#00163">Date Index</A>][<A HREF="threads.html#00163">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3034] use system passwd for authentication</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:gin@kohoku.jac-net.com">gin@kohoku.jac-net.com</A> (Uchida Hitoshi)</LI>
+<LI><em>Date</em>: Fri, 28 Nov 1997 22:43:10 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+内田です。
+
+先日でた、System の Password を利用した、flat password 認証を、再度つ
+くってみました。
+
+とはいっても、なかみは apache の mod_auth_sys のパクリです (^^;
+
+pg_hba.conf で、以下のように、指定されたパスワードファイルが、pwd.h 中
+の _PATH_PASSWD と同じであるとき、システムのパスワードを利用して認証を
+行います。
+
+  host     all    127.0.0.1     255.255.255.255   password /etc/passwd
+
+最初はファイル名が SYSTEM とかいうキーワードだったら、っていうのも考え
+たんですけど、なんとなくこの方式にしました。気に入らない人は適当にいじっ
+てください。
+
+install ：
+  (1) src/backend/libpq/pasword.c に添付の patch をあてて、PostgreSQL 
+      を作る
+  (2) 添付の checkPasswd.c をコンパイルして、setuid root した状態で、
+      /usr/local/libexec におく
+
+FreeBSD 2.2.5 でしか動作確認していません &amp;&amp; 「うごいた」だけなので、信
+頼性は ???? です。 (^^;;;;;
+
+パッチここから ---------------------------------------------------
+
+*** password.c.org	Fri Nov 28 22:01:02 1997
+--- password.c	Fri Nov 28 21:56:50 1997
+***************
+*** 9,14 ****
+--- 9,20 ----
+  #include &lt;crypt.h&gt;
+  #endif
+  
++ #include &lt;sys/wait.h&gt;
++ #include &lt;pwd.h&gt;
++ #ifndef AUTH_PROG
++ #define AUTH_PROG "/usr/local/libexec/checkPasswd"
++ #endif
++ 
+  int
+  verify_password(char *user, char *password, Port *port,
+  				char *database, char *DataDir)
+***************
+*** 25,30 ****
+--- 31,39 ----
+  			   *test_user,
+  			   *test_pw;
+  
++ 	FILE *ext_prog;
++ 	char cmdstring[256];
++ 
+  	find_hba_entry(DataDir, port-&gt;raddr.sin_addr, database,
+  				   &amp;host_ok, &amp;userauth, pw_file_name, true);
+  
+***************
+*** 54,59 ****
+--- 63,88 ----
+  		fputs(PQerrormsg, stderr);
+  		pqdebug("%s", PQerrormsg);
+  		return STATUS_ERROR;
++ 	}
++ 
++ 	/* use system passwd for authentication */
++ 	if (strcmp(pw_file_name, _PATH_PASSWD) == 0) {
++ 	    sprintf(cmdstring, "%s '%s'", AUTH_PROG, user);
++ 	    if ((ext_prog=popen(cmdstring, "w")) == (FILE *)NULL) {
++ 		sprintf(PQerrormsg,"verify_password: couldn't execute external program '%s'\n", AUTH_PROG);
++ 		fputs(PQerrormsg, stderr);
++ 		pqdebug("%s", PQerrormsg);
++ 		return STATUS_ERROR;
++ 	    }
++ 	    fprintf(ext_prog, "%s\n", password);
++ 	    if (pclose(ext_prog) == 0) {
++ 		/* it matched. */
++ 		return STATUS_OK;
++ 	    }
++ 	    sprintf(PQerrormsg, "verify_password: password mismatch for '%s'.\n", user);
++ 	    fputs(PQerrormsg, stderr);
++ 	    pqdebug("%s", PQerrormsg);
++ 	    return STATUS_ERROR;
+  	}
+  
+  	pw_file_fullname = (char *) malloc(strlen(DataDir) + strlen(pw_file_name) + 2);
+
+パッチここまで ---------------------------------------------------
+
+checkPasswd.c ----------------------------------------------------
+
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;pwd.h&gt;
+
+#define BUFSIZE 512
+
+
+int
+main(int argc, char *argv[]) {
+
+    struct passwd *pw;
+    char passwd[BUFSIZE];
+    char *end;
+    int length;
+
+    if (argc != 2) {
+        exit(1);
+    }
+
+    if ((pw = getpwnam(argv[1])) == NULL) exit(1);
+
+    if (fgets(passwd, BUFSIZE, stdin) == (char *)NULL) exit(1);
+    length = strlen(passwd);
+    if (passwd[length -1] == '\n') passwd[length -1] = '\0';
+
+    exit(strcmp(pw-&gt;pw_passwd,(char *)crypt(passwd,pw-&gt;pw_passwd)));
+}
+
+----------------------------------------------------------------
+--------------------------------------
+内田  仁  (Uchida, Hitoshi)
+〒224 横浜市 都筑区 茅ヶ崎南 4-5-14, E-Mail : gin@kohoku.jac-net.com
+PGP Key fingerprint : 87 F3 B2 6C C1 D8 E7 38 AB 0C A7 9C 66 CC DF F9
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00162.html">[pgsql-jp 3033] Re: About VB5.0J + PostgreSQL</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00164.html">[pgsql-jp 3035] perl Interface cannot install</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00166.html">[pgsql-jp 3037] Re: perl Interface cannot install</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00161.html">[pgsql-jp 3032] Re: Give me an advise about file construction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00163"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00163"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

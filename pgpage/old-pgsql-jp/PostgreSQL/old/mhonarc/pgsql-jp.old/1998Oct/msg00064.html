@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5581] stuck spinlock. Aborting. -->
+<!--X-From: SHIOZAKI Takehiko <takehi&#45;s@ascii.co.jp> -->
+<!--X-Date: Fri, 9 Oct 1998 19:25:08 +0900 (JST) -->
+<!--X-Message-Id: 199810091025.TAA18797@libpc01.pb.ascii.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5581] stuck spinlock. Aborting. </TITLE>
+<LINK REV="made" HREF="mailto:takehi-s@ascii.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00063.html">Date Prev</A>][<A HREF="msg00065.html">Date Next</A>][<A HREF="msg00065.html">Thread Prev</A>][<A HREF="msg00068.html">Thread Next</A>][<A HREF="index.html#00064">Date Index</A>][<A HREF="threads.html#00064">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5581] stuck spinlock. Aborting.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SHIOZAKI Takehiko &lt;<A HREF="mailto:takehi-s@ascii.co.jp">takehi-s@ascii.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 9 Oct 1998 19:25:08 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塩崎です。
+webロボットで激しく読み書きすると落ちる件ですが、少し問題を切り分けてみ
+ました。その結果、以下のことが分かりました。
+・ロボットを1つだけ動かす分には落ちたことがない。
+・ロボットを起動させるものの方が、backendとのやりとりの頻度は少ないもの
+の、先に落ちることが多い。
+・起動させるスクリプトを止めて、手で単にロボットを並列に起動させてもやは
+り落ちる。
+
+今回は、最後の例を捕まえましたので、報告します。
+# 2番目のも調べてますが、もう少しまとまってから報告します。
+どうやらspin lockの時間切れ(?)でpostmasterごと落ちているようですが、その
+引き金は、pid 21395のbackendが落ちたことでしょうか。
+postmasterをgdbから起動させて、落ちたところは以下のとおりです。
+
+========================================================================
+/usr/local/pgsql/bin/postmaster: CleanupProc: pid 21395 exited with status 11
+InitPostgres
+/usr/local/pgsql/bin/postmaster: CleanupProc: sending SIGUSR1 to process 21399
+/usr/local/pgsql/bin/postmaster: CleanupProc: sending SIGUSR1 to process 21397
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+
+FATAL: s_lock(09001065) at spin.c:125, stuck spinlock. Aborting.
+
+FATAL: s_lock(09001065) at spin.c:125, stuck spinlock. Aborting.
+
+Program received signal SIGABRT, Aborted.
+0x81f78b1 in kill ()
+(gdb) bt
+#0  0x81f78b1 in kill ()
+#1  0x81f7183 in abort ()
+#2  0xb9edb in s_lock_stuck (lock=0x9001065 "\001", file=0xbdd62 "spin.c", 
+    line=125) at s_lock.c:51
+#3  0xb9f40 in s_lock (lock=0x9001065 "\001", file=0xbdd62 "spin.c", line=125)
+    at s_lock.c:74
+#4  0xbde0d in SpinAcquire (lockid=7) at spin.c:125
+#5  0xc3f78 in ProcRemove (pid=21397) at proc.c:318
+#6  0xa96f4 in CleanupProc (pid=21395, exitstatus=11) at postmaster.c:1156
+#7  0xa9518 in reaper (postgres_signal_arg=20) at postmaster.c:1071
+#8  0xefbfdfdc in ?? ()
+#9  0xa868f in PostmasterMain (argc=5, argv=0xefbfd498) at postmaster.c:563
+#10 0x65937 in main (argc=5, argv=0xefbfd498) at main.c:93
+(gdb) 
+========================================================================
+
+環境は以下のとおりです。
+FreeBSDだから、spin lockはアセンブラじゃないんですよね。
+	FreeBSD 2.2.1-RELEASE
+	gcc version 2.7.2.1
+
+対象は、本家の
+	postgresql.snapshot.tar.gz . . .  [Oct  8 07:01]   4138k
+です。
+
+-- 
+ただし、私は耳鼻咽喉が弱いので、会議は禁煙にしてください。
+--
+塩崎 毅彦(SHIOZAKI Takehiko)	&lt;takehi-s@ascii.co.jp&gt;
+Technical Center,	ASCII CORPORATION
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00068" HREF="msg00068.html">[pgsql-jp 5585] Re: stuck spinlock. Aborting.</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00063.html">[pgsql-jp 5580] Re: snapshot install memo</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 5582] libpgtcl on v6.4b1</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00065.html">[pgsql-jp 5582] libpgtcl on v6.4b1</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00068.html">[pgsql-jp 5585] Re: stuck spinlock. Aborting.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00064"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00064"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

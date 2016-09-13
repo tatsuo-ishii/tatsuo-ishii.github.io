@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26289] Re: Status情報解析方法について -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Wed, 05 Jun 2002 18:28:03 +0900 (JST) -->
+<!--X-Message-Id: 20020605.182803.38715071.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: EF9E3162377DD311A1C80090274DD0D90A9C2980@noanet06.noanet.nttdata.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26289] Re: Status情報解析方法について </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00067.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00067.html">Thread Prev</A>][<A HREF="msg00069.html">Thread Next</A>][<A HREF="index.html#00068">Date Index</A>][<A HREF="threads.html#00068">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26289] Re: Status情報解析方法について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Wed, 05 Jun 2002 18:28:03 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00067.html">EF9E3162377DD311A1C80090274DD0D90A9C2980@noanet06.noanet.nttdata.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: okayasuk@nttdata.co.jp
+Subject: [pgsql-jp: 26288] Status情報解析方法について
+Date: Wed, 5 Jun 2002 13:18:35 +0900
+
+;;; ・やりたいこと
+;;; 　SQLの動作情報（処理時間の詳細）を取得したい。
+
+  詳細というのが具体的に分からないので、殆ど外していそうです。
+
+;;; 　具体的には、Statementを使用した場合とPreparedStatement
+;;;   を使用した場合のパフォーマンスの比較をするのが目的です。
+
+  ディスク I/O のパフォーマンスは別として、実行時間については、current から 
+psql の \timing コマンドのコードを 7.2 に持って来るか explain analyze を使うと
+いうのも手軽です。ただし、後者は単に実行するよりも時間がかかってしまうので、
+\timing の方がよいと考えています。
+
+    =# select version();
+				   version                               
+    ---------------------------------------------------------------------
+     PostgreSQL 7.2.1 on i386-unknown-freebsd4.5, compiled by GCC 2.95.3
+    (1 row)
+
+    =# \timing
+    Timing is on.
+    =# select count(*) from class1 where i &gt; 10000 and i &lt; 15000;
+     count 
+    -------
+      4999
+    (1 row)
+
+    Total time: 0.047s
+    =# explain analyze select count(*) from class1 where i &gt; 10000 and i &lt; 15000;
+    NOTICE:  QUERY PLAN:
+
+    Aggregate  (cost=101.93..101.93 rows=1 width=0) (actual time=81.71..81.71 rows=1 loops=1)
+      -&gt;  Index Scan using class1_pkey on class1  (cost=0.00..88.35 rows=5435 width=0) (actual time=0.06..55.60 rows=4999 loops=1)
+    Total runtime: 81.87 msec
+
+    EXPLAIN
+    Total time: 0.084s
+    =# 
+
+;;; ・設定
+;;; 　postgres.conf にて以下を設定。
+;;;   show_parser_stats = true
+;;;   show_planner_stats = true
+;;;   show_executor_stats = true
+;;;   debug_print_query = true
+;;; 
+;;; ・結果解析方法
+;;; ログには以下の出力が出るのですが、
+;;; 
+;;; （１）は処理時間なのでしょうか？
+;;; （２）は何ですか？CPU時間？
+;;; （３）Shared blocksはその名の通り共有バッファなのだと思いますが、
+
+  以下のコードで表示されている内容が上記に該当しています。
+
+    src/backend/tcop/postgres.c の ShowUsage() での getrusage()
+    src/backend/storage/buffer/bufmgr.c の ShowBufferUsage() 
+
+;;; 　 Local blocks　とは何でしょうか？
+
+  非共有の malloc() したバッファです。
+
+;;; 　 Direct blocks は多分ディスクI/Oなのでしょう。
+
+  コード上からは、使われていませんでした。
+
+  ディスク I/O については、以下のビューがあり、PostgreSQL 7.2.1
+Administrator's Guide の 10.2. Statistics Collector に説明があります。
+
+    pg_stat_activity         バックエンドごとの稼働情報。
+    pg_stat_all_indexes      全インデックスのアクセス統計情報。
+    pg_stat_all_tables       全テーブルのアクセス統計情報。
+    pg_stat_database         データベースごとのアクセス統計情報。
+    pg_stat_sys_indexes      システムインデックスのアクセス統計情報。
+    pg_stat_sys_tables       システムテーブルのアクセス統計情報。
+    pg_stat_user_indexes     ユーザインデックスのアクセス統計情報。
+    pg_stat_user_tables      ユーザテーブルのアクセス統計情報。
+    pg_statio_all_indexes    全インデックスのI/O統計情報。
+    pg_statio_all_sequences  全シーケンスのI/O統計情報。
+    pg_statio_all_tables     全テーブルのI/O統計情報。
+    pg_statio_sys_indexes    システムテーブルのI/O統計情報。
+    pg_statio_sys_sequences  システムシーケンスのI/O統計情報。
+    pg_statio_sys_tables     システムテーブルのI/O統計情報。
+    pg_statio_user_indexes   ユーザインデックスのI/O統計情報。
+    pg_statio_user_sequences ユーザシーケンスのI/O統計情報。
+    pg_statio_user_tables    ユーザテーブルのI/O統計情報。
+
+
+Kenji Sugita
+sugita@sra.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00067" HREF="msg00067.html">[pgsql-jp: 26288] Status情報解析方法について</A></STRONG>
+<UL><LI><EM>From:</EM> okayasuk@nttdata.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00067.html">[pgsql-jp: 26288] Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp: 26291] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00067.html">[pgsql-jp: 26288] Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00069.html">[pgsql-jp: 26290] Re: Status情報解析方法について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00068"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00068"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

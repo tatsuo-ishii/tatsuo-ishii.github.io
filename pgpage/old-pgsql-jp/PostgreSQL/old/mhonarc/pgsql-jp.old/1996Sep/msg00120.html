@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 750] Re: Large object -->
+<!--X-From: Tanaka Minoru <green@keiken.co.jp> -->
+<!--X-Date: Wed, 25 Sep 1996 22:08:24 +0900 -->
+<!--X-Message-Id: 9609251308.AA02976@onbashira -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199609240517.OAA04818@srashc.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 750] Re: Large object </TITLE>
+<LINK REV="made" HREF="mailto:green@keiken.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00118.html">Date Prev</A>][<A HREF="msg00119.html">Date Next</A>][<A HREF="msg00109.html">Thread Prev</A>][<A HREF="msg00152.html">Thread Next</A>][<A HREF="index.html#00120">Date Index</A>][<A HREF="threads.html#00120">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 750] Re: Large object</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tanaka Minoru &lt;<A HREF="mailto:green@keiken.co.jp">green@keiken.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 25 Sep 1996 22:08:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00109.html">199609240517.OAA04818@srashc.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+田仲＠ケイケンです。
+
+Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;さん：
+t-ishii&gt; 石井＠SRAです。
+t-ishii&gt; 
+t-ishii&gt; &gt; &gt;というわけで、正直なところ現在の large object の
+t-ishii&gt; &gt; &gt;実装は「使えないな」という印象を受けています。
+...
+t-ishii&gt; そこで私が今考えているのは、postgres のころはあって、
+t-ishii&gt; postgres95 で無くなった "Unix ファイルを使う large
+t-ishii&gt; object" の復活です。といっても、簡単で、
+t-ishii&gt; lo_import(), lo_export() と同じことを Unix ファイル
+t-ishii&gt; に対してやる関数を作るだけです。後は検索関数の中で、
+t-ishii&gt; 単に Unix ファイルを read すれば良いのです。ディス
+t-ishii&gt; ク容量がシビアな場合には、gzip で圧縮しておくのも手
+t-ishii&gt; ですね。
+
+なーるほど。これなら使えそうですね。期待してます。^_^)
+
+これだけじゃ、なんなんで empress という市販のRDBMSの似たよう
+なものの仕様を書いておきます。(つーか、当然、推測した仕様です)
+
+empress の場合、テーブル毎にひとつファイルがあり、そこに不定
+長の属性があるときは属性毎に「オーバーフローファイル」があり
+ます。不定長属性を定義するときにはパラメータとして、
+
+	selectで表示する時の1行のバイト数
+	メインファイルに格納するバイト数
+	オーバーフローファイルに格納する1レコードのバイト数
+	メインファイルから直接参照できるオーバーフローファイルのレコード数
+
+を指定します。(最後のやつは今ひとつ理解できてません)
+
+で、insertすると最初の部分がメインファイルに入ります。そして
+ハミ出た部分は固定長レコードのオーバーフローファイルに入りま
+す。データ長と開始レコードはメインファイル側に記録してあるよ
+うです。オーバーフローファイルでのデータの扱いですが、
+
+updateの場合
+	データ量が小さくなる時 --&gt; そのまま
+	データ量が大きくなる時 --&gt; ファイル末尾に移動
+deleteの場合
+	何もしない
+
+となるようです。更新が激しいと未使用レコードが増え、ファイル
+がどんどん大きくなります。ただし、ダミーの alter コマンドを
+発行すれば、オーバーフローファイルの再作成とデータ移動が行な
+われるので、圧縮？することができます。
+
+empress のは元々、バイナリの音声データを格納するために実装さ
+れたようです。めったに更新されない小さいデータがたくさんある
+時は、こういうやり方がいいのかもしれません。データ量が大きい
+時はどうなんでしょう？
+
+t-ishii&gt; # もう少し時間ができたら作ってみようかと思います。
+
+頑張ってください(c)金子茂  &lt;---うぅ、プロレス辞書
+
+＃ empressといえば桑村さんのお名前をempress.comのweb pageで見
+＃ かけたような。人違いでしたらごめんなさい。
+-
+田仲 稔 (Tanaka Minoru)  （株）ケイケンエンジニアリングシステム 諏訪支社
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00152" HREF="msg00152.html">[postgres95 784] Re: Large object</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00109" HREF="msg00109.html">[postgres95 739] Re: Large object</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00118.html">[postgres95 748] Re: pg95+MkLinux</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00119.html">[postgres95 749] Q: How to field connect ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00109.html">[postgres95 739] Re: Large object</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00152.html">[postgres95 784] Re: Large object</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00120"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00120"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

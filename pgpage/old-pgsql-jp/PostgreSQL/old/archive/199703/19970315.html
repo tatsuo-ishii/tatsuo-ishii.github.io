@@ -1,0 +1,375 @@
+<A NAME="5">
+<PRE><B>
+From: OTA Takeaki &lt;ota@cs.titech.ac.jp&gt;
+Date: Sat, 15 Mar 1997 05:40:51 JST
+Subject: [postgres95 1567] Re: bench
+Message-Id: &lt;199703142040.FAA02981@altair.cs.titech.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+太田です。
+
+&gt;きっと本質的な答えではないのですが、topの表示を見るとか、dmesgで起動時
+&gt;のログがあることを期待するとかいうのは駄目ですか？
+
+追加になるのですが、(これもきっと本質ではないのかもしれませんが)、
+devinfoなるコマンドがSparcには存在してるみたいですね。
+
+で、ちなみにどうなるかというと、
+
+% devinfo -v 
+Node 'SUNW,SPARCstation-10', unit #0 (no driver)
+        Node 'packages', unit #0 (no driver)
+        Node 'options', unit #0 (no driver)
+        Node 'aliases', unit #0 (no driver)
+        Node 'openprom', unit #0 (no driver)
+        Node 'iommu', unit #0
+        ...途中長いので省略...
+        Node 'memory', unit #0 (no driver)
+                  Register specifications:
+                    Bus Type=0x0, Address=0x0, Size=1000000
+                    Bus Type=0x0, Address=0x4000000, Size=1000000
+                    Bus Type=0x0, Address=0x8000000, Size=1000000
+                    Bus Type=0x0, Address=0xc000000, Size=1000000
+                    Bus Type=0x0, Address=0x1c000000, Size=4000000
+        Node 'virtual-memory', unit #0 (no driver)
+                  Register specifications:
+                    Bus Type=0x0, Address=0x0, Size=80000000
+                    Bus Type=0x0, Address=0x80000000, Size=80000000
+        ...以下省略...
+
+で、上の例で私が使ってるマシーンのmemoryは、Sizeの値を合計して8000000
+(つまり128M), virtual-memoryの方も同様にして256Mということが分かります。
+
+# もちろん、availなmemoryは、ここからOSさんの部分を引いてあげなければ
+# いけません。
+
+さきほど、神田さんがdmesgとtopでサイズが微妙に違うということでしたが、
+これはdmesgが起動直後の最小限のときの状態を、一方topはmulti modeに入っ
+た後の状態を示しているので、結局前者の方が多少サイズが大きくなってるの
+ではないでしょうか？
+
+というわけで、先程の神田さんのマシーンは物理的には96Mメモリを積んでい
+るということになると思います。
+
+以上です。
+--
+ota@cs.titech.ac.jp
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: &quot;神田大輔 [Daisuke Kanda]&quot; &lt;small@first.tsukuba.ac.jp&gt;
+Date: Sat, 15 Mar 1997 05:08:00 +0900
+Subject: [postgres95 1566] Re: bench
+Message-Id: &lt;19970315050800R.small@first.tsukuba.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+
+Takeakiさんの書かれた、
+	「[postgres95 1565] Re: bench」
+からの引用です。
+
+Takeaki&gt; 太田です。
+Takeaki&gt; 
+Takeaki&gt; &gt;&gt;&gt;&gt;&gt; &quot;神田&quot; == 神田大輔 [Daisuke Kanda] &lt;Daisuke&gt; writes:
+Takeaki&gt; Ishii&gt; &gt; 機種は S-4/20H、CPU が HyperSPARC。 メモリはいくつか忘れました。
+Takeaki&gt; Ishii&gt; 是非思い出してください:-)
+Takeaki&gt; 神田&gt;   メモリ調べるコマンドってありましたっけ？
+Takeaki&gt; 
+Takeaki&gt; きっと本質的な答えではないのですが、topの表示を見るとか、dmesgで起動時
+Takeaki&gt; のログがあることを期待するとかいうのは駄目ですか？
+
+dmesg:		mem = 98304K (0x6000000)
+dmesg:		avail mem = 88162304
+top:		Memory: 83M real, 1296K free, 94M swap, 158M free swap
+df /tmp:	ファイルシステム     Kバイト  使用済  使用可 使用率    
+df /tmp:	swap                  166976     400  166576     0%    /tmp
+
+  だそうです。どーも微妙に違うみたいですが＠ topを使って。
+	物理メモリ: 83M
+	仮想メモリ: 158M
+  かな？
+  CPU は hyperSPARC(100MHz)。キャッシュはちょっと分からない。
+  OS は Solaris2.4。
+
+  なお、前回 assert 有りと書きましたが、あれは間違いです(^^;
+  今回はちゃんと assert 有り(check OFF NO) にしました。
+  bench.out の最後の総計もつけときます。
+
+query  0:   0.001 real   0.000 user   0.000 sys
+query  1:   0.281 real   0.200 user   0.200 sys
+query  2:   3.169 real   0.610 user  -0.950 sys
+query  3:   0.231 real   0.120 user   0.120 sys
+query  4:   1.586 real   0.620 user   1.620 sys
+query  5:   0.221 real   0.180 user   0.180 sys
+query  6:   0.702 real   0.520 user   0.520 sys
+query  7:   0.041 real   0.010 user   0.010 sys
+query  8:   0.266 real   0.220 user  -0.800 sys
+query  9:   5.886 real   3.770 user   0.010 sys
+query 10:   5.239 real   3.440 user  -0.960 sys
+query 11:   2.943 real   2.350 user  -0.870 sys
+query 12:   6.483 real   4.060 user   1.060 sys
+query 13:   5.815 real   3.440 user  -0.920 sys
+query 14:   3.064 real   2.340 user  -0.820 sys
+query 15:   7.788 real   4.120 user   1.120 sys
+query 16:   4.927 real   3.530 user  -3.410 sys
+query 17:   8.926 real   2.890 user   0.890 sys
+query 18:   3.547 real   1.680 user  -3.680 sys
+query 19:   0.483 real   0.340 user   0.340 sys
+query 20:   0.001 real   0.000 user   0.000 sys
+query 21:   0.001 real   0.000 user   0.000 sys
+query 22:   0.001 real   0.000 user   0.000 sys
+query 23:   0.001 real   0.000 user   0.000 sys
+query 24:   0.001 real   0.000 user   0.000 sys
+query 25:   0.001 real   0.000 user   0.000 sys
+query 26:   0.001 real   0.000 user   0.000 sys
+query 27:   0.014 real   0.010 user   0.010 sys
+query 28:   0.057 real   0.050 user   0.050 sys
+query 29:   0.001 real   0.000 user   0.000 sys
+query 30:   0.011 real   0.020 user   0.020 sys
+query 31:   0.038 real   0.040 user   0.040 sys
+query 32:   0.040 real   0.020 user   0.020 sys
+total:     1:25.6 real  36.7   user   7.0   sys
+
+    筑波大学自然学類三年次神田大輔 
+	e-mail:	small@first.tsukuba.ac.jp
+	WWW:	http://www.first.tsukuba.ac.jp/~small
+	PGP fingerprint:09 35 5B 57 5B B7 C8 8B  9C 87 7C 57 8F 2F BE 8B
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: OTA Takeaki &lt;ota@cs.titech.ac.jp&gt;
+Date: Sat, 15 Mar 1997 03:56:21 JST
+Subject: [postgres95 1565] Re: bench
+Message-Id: &lt;199703141856.DAA02807@altair.cs.titech.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+太田です。
+
+&gt;&gt;&gt;&gt;&gt; &quot;神田&quot; == 神田大輔 [Daisuke Kanda] &lt;Daisuke&gt; writes:
+Ishii&gt; &gt; 機種は S-4/20H、CPU が HyperSPARC。 メモリはいくつか忘れました。
+Ishii&gt; 是非思い出してください:-)
+神田&gt;   メモリ調べるコマンドってありましたっけ？
+
+きっと本質的な答えではないのですが、topの表示を見るとか、dmesgで起動時
+のログがあることを期待するとかいうのは駄目ですか？
+
+# 僕もちゃんとした答えがしりたい。
+--
+ota@cs.titech.ac.jp
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: &quot;神田大輔 [Daisuke Kanda]&quot; &lt;small@first.tsukuba.ac.jp&gt;
+Date: Sat, 15 Mar 1997 03:34:36 +0900
+Subject: [postgres95 1564] Re: bench
+Message-Id: &lt;19970315033436Z.small@first.tsukuba.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+Ishiiさんの書かれた、
+	「[postgres95 1562] Re: bench」
+からの引用です。
+
+Ishii&gt; 石井＠自宅モードです。
+Ishii&gt; 
+Ishii&gt; At  9:44 AM 97.3.14 +0900, 神田大輔 [Daisuke Kanda] wrote:
+Ishii&gt; &gt;  おはようございます。神田＠筑波です。
+Ishii&gt; &gt;
+Ishii&gt; &gt;  Apache1.2b7 への入れ換えついでに Postgres95 から SQL6.0 に移行しました。
+Ishii&gt; &gt;  とりあえずベンチの結果を…。
+Ishii&gt; &gt;
+Ishii&gt; &gt;  よく分からないんですけど、runwisc.sh のエラー出力を perquery に渡せばい
+Ishii&gt; &gt;  いんですか？
+Ishii&gt; 
+Ishii&gt; www.sra.co.jp/people/t-ishii/postgres95/ の
+Ishii&gt; 「インストールのヒント」読んでくれてませんね:-)
+Ishii&gt; gmake bench.out.perquery で OK です。
+
+  MLページは見たのですけど、どーもキャッシュが効いていたらしく(なぜ？)、
+  「今月末に6.0がリリースされます！」 しか見れませんでした。
+  今キャッシュをクリアして、proxy はずして見たら更新されてました(^^;
+
+  jpパッチ &amp; Sol2.4パッチ当てたら make 一発で成功してしまいました。
+  あー、2日掛かったのに…(^^;;;
+
+Ishii&gt; うーん、私の所ではあっさりでしたが。
+Ishii&gt; ちょっと見させてもらいましたが、
+Ishii&gt; 
+Ishii&gt; o 「Makefile.global と Makefile.custom というのがあって、Makefile.global の方の
+Ishii&gt; 指定を優先するらしい。」
+Ishii&gt; というのは逆ですね。
+
+  ちょっと読み違えていました。
+  Makefile.global に、
+
+&gt; (Makefile.custom is included near the end of this file).  
+
+&gt; Sometimes, a variable gets set in Makefile.global after 
+&gt; Makefile.custom has been included, so you can't simply set that 
+&gt; variable in Makefile.custom.  
+
+&gt; In those cases, there is often another variable (like CUSTOM_COPT) 
+&gt; that you can set in Makefile.custom that influences the later setting 
+&gt; of the true variable of interest (like CFLAGS) by Makefile.global.
+
+  とあるのを、特に２つめの文のところ、
+  「Makefile.custom が読まれた後に Makefile.global での変数がセットされる」
+  と読んでしまいました。
+  「Makefile.custom を取り込んだ後 Makefile.global が実行される」
+  ですね。
+  となると、Makefile.global で include Makefile.custom の行の前の指定は
+ custom が優先、それ以外は global、ということですね。
+
+  さらにそれだけでは終わらずに、.global の最後の部分では、.custom で設定し
+てあったらそれに変えるというようなことをしている…。あぁややこしい(^^;
+
+  結局 .custom 優先ということになるみたい。
+  
+Ishii&gt; &gt;  機種は S-4/20H、CPU が HyperSPARC。 メモリはいくつか忘れました。
+Ishii&gt; 
+Ishii&gt; 是非思い出してください:-)
+
+  メモリ調べるコマンドってありましたっけ？
+
+    筑波大学自然学類三年次神田大輔 
+	e-mail:	small@first.tsukuba.ac.jp
+	WWW:	http://www.first.tsukuba.ac.jp/~small
+	PGP fingerprint:09 35 5B 57 5B B7 C8 8B  9C 87 7C 57 8F 2F BE 8B
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: caco@mxg.meshnet.or.jp (Chikako Ishii)
+Date: Sat, 15 Mar 1997 00:40:34 +0900
+Subject: [postgres95 1562] Re: bench
+Message-Id: &lt;199703141540.AAA12821@meshsv26.tk.mesh.ad.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠自宅モードです。
+
+At  9:44 AM 97.3.14 +0900, 神田大輔 [Daisuke Kanda] wrote:
+&gt;  おはようございます。神田＠筑波です。
+&gt;
+&gt;  Apache1.2b7 への入れ換えついでに Postgres95 から SQL6.0 に移行しました。
+&gt;  とりあえずベンチの結果を…。
+&gt;
+&gt;  よく分からないんですけど、runwisc.sh のエラー出力を perquery に渡せばい
+&gt;  いんですか？
+
+www.sra.co.jp/people/t-ishii/postgres95/ の
+「インストールのヒント」読んでくれてませんね:-)
+gmake bench.out.perquery で OK です。
+
+&gt;＃しかし今回はコンパイルにかなり苦労した。
+&gt;＃苦闘の記録 → http://www.first.tsukuba.ac.jp/docs/install/postgresql.html
+
+うーん、私の所ではあっさりでしたが。
+ちょっと見させてもらいましたが、
+
+o 「Makefile.global と Makefile.custom というのがあって、Makefile.global の方の
+指定を優先するらしい。」
+というのは逆ですね。
+
+o コンパイルとインストールを別々のアカウントで
+やっているようですが、インストール時のトラブルは
+たぶんこのせいです。
+
+&gt;  機種は S-4/20H、CPU が HyperSPARC。 メモリはいくつか忘れました。
+
+是非思い出してください:-)
+
+&gt;Kuwamura&gt;   たぶん、石井さんの assersion パッチ (vacuum.c) &gt;があたってないです
+&gt;ね。
+&gt;  そういえば昔そんなメールを読んだような(^^;
+&gt;  ごめんなさい、もう消してしまってないです。get してみて&gt;も、1300 番くらいま
+&gt;でしか取れないみたい。どなたか 1303 から 1521 まで送って頂&gt;けませんか？
+
+えーと、メールで取り寄せる方のアーカイブの話ですよね。
+済みません。今更新しました。
+
+ところで、Web にアクセスできるのなら、
+http://www.sra.co.jp/people/t-ishii/postgres95/pg95-arch.tar.gz を取った方が
+早いかもしれないですね。
+
+---
+石井千賀子（CHIKAKO  ISHII）
+caco@mxg.meshnet.or.jp
+
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: caco@mxg.meshnet.or.jp (Chikako Ishii)
+Date: Sat, 15 Mar 1997 00:40:40 +0900
+Subject: [postgres95 1563] Re: SunOS4.1.3 でインストールこけます。
+Message-Id: &lt;199703141540.AAA12833@meshsv26.tk.mesh.ad.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井＠自宅モードです。
+
+At  0:18 PM 97.3.14 +0900, Yoshiaki SONODA wrote:
+&gt;苑田です。
+&gt;
+&gt; おみつさん、石井さん、さっそくのフォローありがとうご
+&gt;ざました。実は先週の日曜日より体調を崩して入院してまして
+&gt;、返事が遅くなったことをお詫びします。
+&gt;＃今も病院です。
+
+いえ、わざわざ入院中のベッドの中からメールしていただき、
+恐縮です。
+
+&gt;というわけでせっかくわざわざパッチまで当てていただいた
+&gt;パッケージまで用意していただいたのですが、しばらく先に
+&gt;なりそうです。
+
+どうかゆっくり静養してください。
+
+&gt;&gt; いえ、おみつさんの言う通り、なんかソースが壊れているような気がしますね。
+&gt;
+&gt;gzip,tarいずれの実行中ともエラーは出なかったんですけど。
+&gt;＃それでも壊れてる可能性あります？
+
+いや、お話をうかがっていると、その可能性薄いですね。
+後は取ってきたのが 6.0 のβかなんかだったなんてことは
+...ないでしょうし。うーん、わからん。
+
+&gt;&gt; http://www.sra.co.jp/people/t-ishii/postgres95/
+&gt;&gt; から辿れますので、良かったら御利用下さい。これでもコンパイルできないの
+&gt;&gt; なら...分かりません:-)
+&gt;
+&gt;とりあえず退院できましたら、さっそく利用させていただこう
+&gt;と思います。ご親切にどうもありがとうございました。
+
+いえ、どうしたしまして。
+
+&gt;ちなみに先にトライしたときはreadlineがあったほうがいいのだろうと
+&gt;iijのftpサーバからGNUのreadlineファイルを取ってきました。
+&gt;historyというのはなかったのですが、どこにあるかご存知でしょうか。
+
+ちょっとすぐにはわかりません。月曜日にでも調べてみます。
+
+&gt;また作業後ご報告します。
+&gt;ありがとうございました。
+&gt;＃そのころはすでにv6.1になってたりして。。(^_^;;
+
+でも、6.1 は出るのが遅れそうな予感がします:-)
+---
+石井千賀子（CHIKAKO  ISHII）
+caco@mxg.meshnet.or.jp
+
+<HR>
+</PRE>

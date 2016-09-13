@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26807] Re: リストアでデータの復元が出来ない！ -->
+<!--X-From: "dodo_new" <dodo@o&#45;su.com.au> -->
+<!--X-Date: Wed, 24 Jul 2002 12:54:45 +1000 -->
+<!--X-Message-Id: 003c01c232bd$8bd4ebf0$8601a8c0@celeron -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: NGBBJLBHHMHCFMMFLMCNMEKACBAA.tetsuya@hokueisha.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26807] Re: リストアでデータの復元が出来ない！ </TITLE>
+<LINK REV="made" HREF="mailto:dodo@o-su.com.au">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00259.html">Date Prev</A>][<A HREF="msg00260.html">Date Next</A>][<A HREF="msg00255.html">Thread Prev</A>][<A HREF="msg00229.html">Thread Next</A>][<A HREF="index.html#00258">Date Index</A>][<A HREF="threads.html#00258">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26807] Re: リストアでデータの復元が出来ない！</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "dodo_new" &lt;<A HREF="mailto:dodo@o-su.com.au">dodo@o-su.com.au</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 24 Jul 2002 12:54:45 +1000</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00230.html">NGBBJLBHHMHCFMMFLMCNMEKACBAA.tetsuya@hokueisha.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+TCMS 百々です
+
+私は以前 7.0.3 から 7.2.1 に移行する際、状況は違うのですが
+悩んだ事があり、もしかすると関係あるかもと思いメールします。
+
+私も以前は pg_dumpall を利用して
+
+pg_dumpall  &gt; db.out
+
+として
+psql -d template1 &lt; db.out
+
+と復元しようとしたのですが、いつくかのカラムが正常に
+復元できず、困ったことになりました。
+
+結局、原因はinheritされたテーブルにalter table を使ってあとから
+カラム を追加した場合、バックアップデータでカラムが入れ替わる
+というものでした。
+
+例えば
+tbl_base が
+aaa text;
+bbb text
+ccc text
+
+となっているとして
+
+create table tbl_1(
+ddd text
+)inherits(tbl_base);
+
+を作ったとします。その後
+
+alter table tbl_1 add column eee text;
+
+とすると、 psql で \d tbl1 とした場合
+
+aaa text;
+bbb text
+ccc text
+ddd text;
+eee text;
+
+と表示されるのですが、バックアップデータの中の
+tbl_1のcreate文では、
+
+create table tbl_1(
+eee text,
+ddd text
+)inherits(tbl_base);
+
+となっており、ddd と eee が入れ替わっています。
+これでは copy では復元できないのは当たり前です。
+
+解決手段として、私は pg_dumpall ではなく pg_dump を
+使い -D を指定してバックアップし直しました。
+マニュアルにはこうあります
+
+-D, --attribute-inserts
+データを明示的にカラム名を付けた INSERT コマンドとしてダンプします。これはリストアをとても遅くしま
+す。
+
+高橋さんの場合、バックアップデータのいくつかのカラムが
+消えているそうなので、原因は違うと思いますが、もしinheritsや
+alter table を使用していたら、また別の原因も考えられます。
+
+一度、レファレンスマニュアルをご覧になってはいががでしょうか？
+
+<A HREF="http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/reference.html">http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/reference.html</A>
+
+↑のpg_dump pg_dumpall pg_restore の項目が参考になるかと思います。
+
+また、データが飛んでバックアップから復元、という状況でもないので
+一度、簡単なテーブルを作成してテストされる事をお勧めいたします。
+
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00230" HREF="msg00230.html">[pgsql-jp: 26779] リストアでデータの復元が出来ない！</A></STRONG>
+<UL><LI><EM>From:</EM> "Tetsuya Hokueisha" &lt;tetsuya@hokueisha.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00259.html">[pgsql-jp: 26808] Re: Null値と別名の扱い方について教えて下さい。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00260.html">[pgsql-jp: 26809] C言語関数について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00255.html">[pgsql-jp: 26804] Re: リストアでデータの復元が出来ない！</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00229.html">[pgsql-jp: 26778] Postgres上での文字化けについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00258"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00258"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9602] RE: はじめまして＆ODBCでのBLOBの問題 -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Thu, 22 Jul 1999 22:33:58 +0900 -->
+<!--X-Message-Id: NCBBKEPFCJBJDLLOGBDHMEEOCAAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 000d01bed405$bd5f0a80$860110ac@baba.mori.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9602] RE: はじめまして＆ODBCでのBLOBの問題 </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00404.html">Date Prev</A>][<A HREF="msg00406.html">Date Next</A>][<A HREF="msg00393.html">Thread Prev</A>][<A HREF="msg00410.html">Thread Next</A>][<A HREF="index.html#00405">Date Index</A>][<A HREF="threads.html#00405">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9602] RE: はじめまして＆ODBCでのBLOBの問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 22 Jul 1999 22:33:58 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt; 　初めまして、馬場と申します。
+
+  はじめまして。
+
+（引用省略）
+
+&gt; 話は変わりますが、勉強のつもりで、ODBC の BLOB の扱いについて
+&gt; 調べていましたところ、問題点が見つかりましたので、ご報告致します。
+&gt;
+&gt; -----------------------------------------------------------------------
+&gt;
+&gt;   現在、BLOB を ODBC で扱おうとすると、lo_open() 中の lo_lseek() で、
+&gt; エラーとなります。これは、非トランザクション中で、BLOB を扱った為に
+&gt; 起こっているように思われます。
+&gt; これを回避するには、以下の様なコードを追加すれば良いと思われます。
+&gt; （エラー処理は省いています）
+&gt;
+&gt;   lo_creat() または、lo_open() の直前
+&gt;
+&gt;     if( !CC_is_in_trans( stmt-&gt;hdbc ) ) {
+&gt;         CC_send_query( stmt-&gt;hdbc, "BEGIN", NULL);
+&gt;         CC_set_in_trans( stmt-&gt;hdbc ) ;
+&gt;     }
+&gt;
+&gt;   lo_close() の直後
+&gt;
+&gt;     if( CC_is_in_trans( stmt-&gt;hdbc ) &amp;&amp;
+is_in_autocommit( 
+&gt; stmt-&gt;hdbc ) )
+&gt; {
+&gt;         CC_send_query( stmt-&gt;hdbc, "COMMIT", NULL);
+&gt;         CC_set_no_trans( stmt-&gt;hdbc );
+&gt;     }
+&gt; 
+&gt; また、この他に、SQLFreeStmt() 時にエラーとなります。
+&gt; これは、execute.c の SQLPutData() 関数内で、
+&gt; 
+&gt;     current_param-&gt;EXEC_buffer = (char *) &amp;current_param-&gt;lobj_oid;
+&gt; 
+&gt; としているのが原因で、
+&gt; 
+&gt;     current_param-&gt;EXEC_buffer = malloc( sizeof( int ) );
+&gt;     *(int *)current_param-&gt;EXEC_buffer = current_param-&gt;lobj_oid;
+&gt; 
+&gt; のように直して、無事に動きました。
+
+  大変役立つご報告、ありがとうございます。
+
+  私はLongVarBinaryを使っていないので、PsqlODBC＋6.5でLongVarBinaryが使えない問題は後回し（悪く言えば避けて通過？）しておりました。すいません。
+  上記内容をPsqlODBCに組み込むには、あと、PostgreSQLサーバのバージョンをチェックするコードが必要かも？しれません（6.5未満でもトランザクションを使用してしまえばいいとは思いますが…）。
+
+  PsqlODBCのサポート本家（pgsql-interfacesメーリングリスト）の動きを見ているのですが、ラージオブジェクトがうまく動かない点に関しては、だれも何も言わないのです。どうしてでしょう。使ってないのでしょうか（かく言う私も…）。できればオリジナルで組み込んでほしいです。pgsql-interfacesに投稿してみませんか？。
+
+  そういえば、ラージオブジェクトの操作をトランザクション内で行わなければならないのは、6.5以降の正式な仕様になったのでしょうか？。知っている方、教えてください。
+
+&gt; では、今後ともよろしくお願い致します。
+
+  こちらこそ、よろしくお願いいたします。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00410" HREF="msg00410.html">[pgsql-jp 9607] Re: RE: はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00393" HREF="msg00393.html">[pgsql-jp 9590] はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+<UL><LI><EM>From:</EM> "BABA" &lt;baba@mori.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00404.html">[pgsql-jp 9601] postgresql.Driverがロードできません？？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00406.html">[pgsql-jp 9603] Re: postgresql.Driverがロードできません？？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00393.html">[pgsql-jp 9590] はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00410.html">[pgsql-jp 9607] Re: RE: はじめまして＆ODBCでのBLOBの問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00405"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00405"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

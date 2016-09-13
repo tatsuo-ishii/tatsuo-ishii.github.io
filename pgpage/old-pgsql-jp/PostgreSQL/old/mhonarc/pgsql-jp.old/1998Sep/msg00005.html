@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 5212] Re: backslash with escape sequence. -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Tue, 01 Sep 1998 13:28:04 +0900 -->
+<!--X-Message-Id: 199809010428.NAA24217@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 19980901035552N.ichikawa@is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 5212] Re: backslash with escape sequence. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00004.html">Date Prev</A>][<A HREF="msg00006.html">Date Next</A>][<A HREF="msg00002.html">Thread Prev</A>][<A HREF="msg00019.html">Thread Next</A>][<A HREF="index.html#00005">Date Index</A>][<A HREF="threads.html#00005">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 5212] Re: backslash with escape sequence.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 01 Sep 1998 13:28:04 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;市川＠お茶大です．
+
+&gt;  libpq がどうあるべきかはおいておくとしまして，結論から端的に言ってしまえば，
+&gt;
+&gt;	\ のここでの役割は，通常のリテラル中のものとは異なる
+&gt;
+&gt;となります．
+&gt;
+&gt;  呼び出し系列としては，
+&gt;
+&gt;    SendQuery [bin/psql/psql.c ]
+&gt;         -&gt; PQprint [interfaces/libpq/fe-exec.c]
+&gt;              -&gt; do_field [interfaces/libpq/fe-exec.c]
+&gt;
+&gt;となっていて，\ を \\ にしているのは，do_field 関数の仕事です．
+&gt;この関数の役割は，
+&gt;
+&gt;	タプルデータを，適当なフィールド区切りを入れて一行にまとめる
+&gt;
+&gt;ということなので，\ が余分に置かれるのはリテラルエスケープ全般では無くて，
+&gt;
+&gt;	1. フィールド区切り文字の前
+&gt;	2. \n の前
+&gt;	3. \ の前
+&gt;
+&gt;となっています．\ が \\ となるのは，(1) と (2) のケースを特殊扱い
+&gt;してしまったために，\ も特殊扱いしなくてはならないということです．
+&gt;
+&gt;  例としてやや人工的なものですが，
+&gt;
+&gt;    create table aaa (yomi ext, kanji text);
+&gt;    insert into aaa values ('case1', 'sed|grep');
+&gt;    insert into aaa values ('case2', 'two\nlines');
+&gt;    insert into aaa values ('case3', '\\latex);
+&gt;
+&gt;というようなもの考えます．ここで，| を区切りとして使ってやると，
+&gt;
+&gt;yomi |kanji
+&gt;-----+-----------
+&gt;case1|sed\|grep
+&gt;case2|two\
+&gt;lines
+&gt;case3|\\latex
+&gt;
+&gt;となり，| の前には \ が入ります．カンマ (,)  を区切りに使えば，今度は
+[略]
+
+同じデータで、libpgtcl だとどうなるかやってみました。
+
+% pg_connect test -host localhost -port 5432
+pgsql4
+% pg_exec pgsql4 "select * from aaa"
+pgsql4.0
+% pg_result pgsql4.0 -numTuples
+3
+% pg_result pgsql4.0 -getTuple 0
+case1 sed|grep
+% pg_result pgsql4.0 -getTuple 1
+case2 {two
+lines}
+% pg_result pgsql4.0 -getTuple 2
+case3 latex
+
+あれれ... latex の前の \ が消えてしまいました。バグですかね。
+
+次は Java です。example にある psql もどきでやってみました。
+
+% java example.psql jdbc:postgresql://srapc451:5432/test t-ishii ""
+PostgreSQL psql example v6.3 rev 1
+
+Connecting to Database URL = jdbc:postgresql://srapc451:5432/test
+Connected to PostgreSQL 6.3
+
+[1] select * from aaa;
+yomi	kanji
+case1	sed|grep
+case2	two
+lines
+case3	\latex
+
+こちらはOKですね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00019" HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡 裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 5209] Re: backslash with escape sequence.</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 5211] Re: psqlで漢字を含むSQLがファイルから実行できない</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00006.html">[pgsql-jp 5213] Re: psqlで漢字を含む  SQLがファイルから実行できない</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 5209] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00019.html">[pgsql-jp 5226] Re: backslash with escape sequence.</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00005"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00005"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

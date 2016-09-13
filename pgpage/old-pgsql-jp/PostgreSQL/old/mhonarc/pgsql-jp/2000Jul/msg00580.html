@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16347] libpqでmallocした時の問題 -->
+<!--X-From: Akihiro Tsukamoto <atsuka@be.mbn.or.jp> -->
+<!--X-Date: Fri, 28 Jul 2000 19:56:46 +0900 -->
+<!--X-Message-Id: 20000728195032.8C86.ATSUKA@be.mbn.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000728181825.8C85.ATSUKA@be.mbn.or.jp -->
+<!--X-Reference-Id: 20000728190101.36258016.1228030990@mailhost.cyheit.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16347] libpqでmallocした時の問題 </TITLE>
+<LINK REV="made" HREF="mailto:atsuka@be.mbn.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00579.html">Date Prev</A>][<A HREF="msg00581.html">Date Next</A>][<A HREF="msg00579.html">Thread Prev</A>][<A HREF="msg00583.html">Thread Next</A>][<A HREF="index.html#00580">Date Index</A>][<A HREF="threads.html#00580">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16347] libpqでmallocした時の問題</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Akihiro Tsukamoto &lt;<A HREF="mailto:atsuka@be.mbn.or.jp">atsuka@be.mbn.or.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 28 Jul 2000 19:56:46 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00578.html">20000728181825.8C85.ATSUKA@be.mbn.or.jp</A>&gt; &lt;<A HREF="msg00579.html">20000728190101.36258016.1228030990@mailhost.cyheit.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+塚本です。
+寺尾様、早速の解答、ありがとうございます。
+
+&gt; &gt;     strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+&gt; &gt;     res = PQexec(conn1, w_sql);
+&gt; &gt; 
+&gt; &gt;     PQclear(res);
+&gt; 
+&gt; 　ここでresをクリアしてしまうと、Fetchした結果が消えてしまう
+&gt; ので、このPQclear(res)を止めるだけで良いでしょう。
+&gt; 　resを開放するのは、Fetchした全データをresから取り出して、
+&gt; 別領域なりファイルに出力した後となりますね。
+
+私も最初はおっしゃるようにやっていたのですが、できない！！、ということで、
+ここに試しにPQclearを入れてみたしだいです。
+今、このPQclearを消して、再度実行してみたのですが、やっぱりだめでした
+・・・。
+
+一応gdbの解析結果を載せさせていただきます。（以下）
+-------------------------
+(gdb)
+33          strcpy(w_sql, "DECLARE select_work_tbl CURSOR FOR ");
+(gdb)
+34          strcat(w_sql, "SELECT * FROM work_tbl ");
+(gdb)
+36          res = PQexec(conn1, w_sql);
+(gdb)
+37          PQclear(res);
+(gdb)
+39          strcpy(w_sql, "FETCH ALL IN select_work_tbl");
+(gdb)
+40          res = PQexec(conn1, w_sql);
+(gdb)
+42          work_p = malloc(2048);
+(gdb) p (char *)PQgetvalue(res, 0, 0)
+$2 = 0x15040 "10"
+(gdb) n
+43          memset(work_p, 0x0, 2048);
+(gdb) p (char *)PQgetvalue(res, 0, 0)
+$3 = 0x0
+(gdb) p res
+$4 = (PGresult *) 0x15800
+(gdb) p work_p
+$5 = 0x15800 ""
+(gdb) n
+45          fp = fopen("./test.txt", "r");
+(gdb) p (char *)PQgetvalue(res, 0, 0)
+$6 = 0x0
+(gdb)
+---------------------------------------
+
+ここからresとwork_pのアドレスが同じでになっていて、memsetで消してしまっ
+た、と解釈したのですが、どうでしょうか？
+ 
+&gt; 　データを取り出すのは、シーラカンス本のサンプルが使えますか
+&gt; ら、判りますよね？
+はい、その辺は分かっているつもりです。
+
+よろしくお願いいたします。
+
+
+-------------------------------------------------------------
+塚本 明博
+atsuka@be.mbn.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00583" HREF="msg00583.html">[pgsql-jp 16350] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Kohzi Terao &lt;terao@cyheit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00578" HREF="msg00578.html">[pgsql-jp 16345] libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Akihiro Tsukamoto &lt;atsuka@be.mbn.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00579" HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+<UL><LI><EM>From:</EM> Kohzi Terao &lt;terao@cyheit.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00581.html">[pgsql-jp 16348] Re: 初心者向けＤＢ設計・ＳＱＬ 入門書</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00579.html">[pgsql-jp 16346] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00583.html">[pgsql-jp 16350] Re: libpqでmallocした時の問題</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00580"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00580"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

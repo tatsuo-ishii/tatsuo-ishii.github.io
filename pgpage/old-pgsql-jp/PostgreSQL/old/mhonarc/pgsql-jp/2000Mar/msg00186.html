@@ -1,0 +1,214 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13492] Re: backend terminated abnormally -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 14 Mar 2000 14:34:24 +0900 -->
+<!--X-Message-Id: 38CDCF60.AC77FF13@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 38CDB4CF.2BA2EE37@shonan.ne.jp -->
+<!--X-Reference-Id: 20000314131820E.t&#45;ishii@sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13492] Re: backend terminated abnormally </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00185.html">Date Prev</A>][<A HREF="msg00187.html">Date Next</A>][<A HREF="msg00184.html">Thread Prev</A>][<A HREF="msg00188.html">Thread Next</A>][<A HREF="index.html#00186">Date Index</A>][<A HREF="threads.html#00186">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13492] Re: backend terminated abnormally</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 14 Mar 2000 14:34:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00182.html">38CDB4CF.2BA2EE37@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00184.html">20000314131820E.t-ishii@sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+Tatsuo Ishii wrote:
+&gt; 
+&gt; 石井です。
+&gt; 
+&gt; &gt; &gt; そうあって欲しいものですが、この場合mallocに失敗していますから、エラー
+&gt; &gt; &gt; コードを返す処理自体が続行できない可能性があるのでfatal errorにしてい
+&gt; &gt; &gt; るのだと私は解釈しています。
+&gt; &gt; 。。。略。。。
+&gt; &gt; &gt; 7.0でもmallocに失敗したらfatal errorになるのは同様です。
+ 。。。略。。。
+
+&gt; たとえば、エラーコードを返すためには、クライアントと通信しないといけま
+&gt; せん。通信するためにはネットワーク用のライブラリを呼び出すわけですが、
+&gt; そこでもし内部でmallocをしていたら更に失敗する可能性がありますよね。
+
+エラ−コ−ドを返すのに必要なメモリ−以外を free してから、
+他のライブラリ−を使用するというわけにはいかないのでしょうね。
+# ソ−スコ−ドも見ずにかってなことを言ってもしょうがないとは
+# 思うのですが。
+
+&gt; # ちなみに、実際にはバックエンドはcrashしているわけではありません。
+&gt; # fatal error処理をしています。
+
+失礼しました。crash ではなくて、異常終了処理をしてるだけですね。
+# SUBJECT に backend terminated abnormaly と自分で書いたのに
+# うっかりしました。
+ただ、アプリで、backend の異常終了を検知できないというのは困り
+ます。
+
+
+&gt; 一番恐いのは、mallocに失敗したときにデータの不整合が起こる可能性です。
+&gt; つまり、commitでもabortでもないトランザクションができてしまうケースで、
+&gt; 現状のPostgreSQLはこのようなことが絶対起きないようにするためにかなり安
+&gt; 全サイドに振った実装していると言えると思うし、これはこれで一つの見識で
+&gt; はないでしょうか。
+
+勉強不足で理解できないのですが、トランザクション中の処理は、
+ROLL BACK か COMMIT の2者択一だと思っていたのですが、この場合
+は、更新済 commit 前のレコ−ドはどう処理されるのでしょうか？。
+
+Informix だと、多分、失敗したらエラ−コ−ドを返してアプリ(front end)
+で、ROLL BACK させる。ROLL BACK もできないような異常時(HDD エラ−
+等々)には、ＤＢシステムそのものを終了させて、次回ＤＢ起動時に整合
+チェックをするということになると思います。
+# 特定のHDD領域のハ−ドエラ−の時、そこだけ SKIP して処理を
+# 続けるというような機能も Informix にはあったと思います。
+
+
+ 
+&gt; &gt; 実際のＤＢの運用で、検索条件やＳＱＬ文を要素をユ−ザ−に入力
+&gt; &gt; /選択させて、ＳＱＬ文を合成してから検索するというのは、よく
+&gt; &gt; あるプログラムです。その時の、選択/入力 内容如何で、ＤＢが、
+&gt; &gt; エラ−コ−ドを返さすに終了してしまうのでは、実用上、致命的な
+&gt; &gt; 問題と考えます。
+
+ 
+&gt; そうならない方が良いと言う意見には賛成ですが、これがDBの絶対的な条件か
+&gt; と言うと、どうでしょう。たとえば、大規模なOLTPシステムでは、まずユーザ
+&gt; に自由にSQLを発行させるようなことはやらないと思います。エンドユーザが
+&gt; 自由にSELECT文を発行できるような環境を別に用意することが多いでしょう。
+
+
+大規模なOLTPなら同意見ですが、たかだか Web Page 1 ペ−ジに表示で
+きる程度の選択条件値の指定だけで、backend が異常終了することもあり
+えるというのは、やはり致命的な問題だと思います。
+
+
+元ネタは、PostgreSQL 独自機能ですが、たかが 10 個程度の OR 条件
+で異常終了しています。私の時の例は、うろ覚えですが、SQL92 仕様の
+200 個位の or と and の組合せで異常終了したように覚えています。
+
+内部で展開した時のリソ−ス量は、条件文の個数に直接関係しない
+というのはわかりますが、内部リソ−ス不足を、アプリから検知で
+きない以上、手がかりは、条件文の演算子と個数しかありません。
+
+
+&gt; &gt; 開発者は大変とは思いますが、粗い予防的チェックだけでもいいで
+&gt; &gt; すから、backend が crash する可能性のありそうなＳＱＬ文を事前
+&gt; &gt; チェックする機能だけでも、優先して、実装して欲しいと願います。
+&gt; 
+&gt; 事前チェックはちょっと無理ですが、メモリの消費量のリミットを与えること
+&gt; はできるかも。
+&gt; # pallocかMemoryContextAllocでカウントアップし、pfreeで
+&gt; # MemoryContextFreeでカウントダウンするとか。
+
+
+何か対策が欲しいです。
+
+
+現状だと、ＳＱＬ文を実行する前に、あぶなそうな場合だけ、適当に
+条件個数を数えて実行しないようにするというような、極めて、あいまいな
+勘だけに頼った、おかしな処理を、アプリに作り込みしなければならず、
+PostgreSQL で、アプリを開発しようと意欲に燃えている人にとって、
+不幸な状態だと思います。
+
+
+ 
+&gt; &gt; あと、SORT, JOIN, INSERT/UPDATE などで、DISK FULL になった時
+&gt; &gt; の処理も心配です。商用ＤＢだと、SORT WORK 用DISK領域を別に
+&gt; &gt; 指定したり、ファイルのサイズを固定したりして、SORT WORK 領域
+&gt; &gt; が溢れても、他のプロセスのＤＢデ−タ−領域拡張に影響を与えな
+&gt; &gt; いようになっている場合があると思います。
+&gt; 
+&gt; とりあえず7.0では、ディスクフルになってもおかしなことにならないように
+&gt; なったはずです。
+&gt; 
+&gt; 近藤さんの要件は、SORT用のワーク領域をユーザ毎、あるいは目的毎に用意す
+&gt; るところまでしないと駄目ですね。他にも、あるトランザクションがCPUを食
+&gt; い尽くさないようにするとか、管理すべき資源項目は沢山あるでしょうが、今
+&gt; 後の課題と言うところですね。
+
+旧版ですが、Informix ONLINE 4.2 の場合でも、SORT WORK などの
+一時ＤＢ領域は、全処理共通です。SORT/JOIN 他での HDD 消費量に
+もよりますが、一時処理用のHDD領域の溢れで、他の処理に影響がお
+よばなければ、十分だろうと思いますが、如何でしょう。
+
+誤ったSQL文や巨大な SELECT で、フロントエンド(psql 等)が、SWAP
+を食い潰すという問題もありましたね。
+
+-- 
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+        <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+PostgreSQL 汎用ＤＢ検索フリーソフト(2000-02-18 版)公開
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00189" HREF="msg00189.html">[pgsql-jp 13495] RE: backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00188" HREF="msg00188.html">[pgsql-jp 13494] Re: backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00182" HREF="msg00182.html">[pgsql-jp 13488] backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00184" HREF="msg00184.html">[pgsql-jp 13490] Re: backend terminated abnormally</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00185.html">[pgsql-jp 13491] Re: ファイルのコピー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00187.html">[pgsql-jp 13493] Re: webアクセスでドキュメントにデータが含まれていません</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00184.html">[pgsql-jp 13490] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00188.html">[pgsql-jp 13494] Re: backend terminated abnormally</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00186"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00186"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 13308] INSERT時刻のmillis       econdまでの自動入力 -->
+<!--X-From: daikin@hkr.ne.jp -->
+<!--X-Date: Wed, 01 Mar 2000 22:10:53 +0900 -->
+<!--X-Message-Id: 200003011521.AAA27424@sraigw.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 00d601bf7e77$512ee8e0$7c18b4cb@urawa.cabletv.ne.jp -->
+<!--X-Reference-Id: 38BB29B6.4875317A@shonan.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 13308] INSERT時刻のmillis       econdまでの自動入力 </TITLE>
+<LINK REV="made" HREF="mailto:daikin@hkr.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00027.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 13308] INSERT時刻のmillis       econdまでの自動入力</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:daikin@hkr.ne.jp">daikin@hkr.ne.jp</A></LI>
+<LI><em>Date</em>: Wed, 01 Mar 2000 22:10:53 +0900</LI>
+<LI><em>References</em>: &lt;00d601bf7e77$512ee8e0$7c18b4cb@urawa.cabletv.ne.jp&gt; &lt;38BB29B6.4875317A@shonan.ne.jp&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ひらめと申します。(dial up, FreeBSD 2.2.5, Postgres 6.5.3)
+millisecondの話なんですが、便乗質問させてください。
+
+元の方wrote:
+&gt; 何かしら millisecond まで自動的に入力する方法はないでしょうか？
+
+ソフト工房の近藤さんwrote:
+&gt;idatetime 型の列に、ミリ秒を直接入力してやれば、ちゃんと
+&gt;date_part で、表示されるのですが、  default  では、でき
+&gt;ないのでしょうか？。
+&gt;私は、PHP でプログラムしているので、プログラムで、ミリ秒
+&gt;まで直接 INSERT/UPDATE するようにコーディングしました。
+
+default句にplpgsqlで作った関数をかませて実験したのですが、
+なんとなくうまくいきそうな気配がしました。
+
+--こんな関数をつくり...--------------------------------------------------------
+drop function add_two();
+create function add_two () returns datetime as '
+    begin
+        return ''1987-12-31 23:58:59.123456'';
+    end;
+'language 'plpgsql'
+
+--こんなテーブルを作ってデフォルト句でいれるようにし、------------------------
+drop table pooh;
+create table pooh (
+    user_name   text , 
+    birth       datetime default add_two()
+);                                          
+
+--ためしにデータをいれてみて--------------------------------------------------
+insert into pooh values( 'test1' );
+insert into pooh values( 'test2' );
+
+--このような実行結果を得ました。----------------------------------------------
+test=&gt; select birth, 'SEC', date_part('millisecond', birth)   from pooh;
+birth                          |?column?|       date_part
+-------------------------------+--------+----------------
+Thu Dec 31 23:58:59.12 1987 JST|SEC     |123.455999999997
+Thu Dec 31 23:58:59.12 1987 JST|SEC     |123.455999999997
+
+
+add_twoというのをきちんとつくれば、うまくいくのかな？とおもったのですが、え？
+現在時刻のミリ秒？と考えこんでしまいました。
+
+そこで質問なのですが、
+
+1  pl/pgsqlをこんな使い方していいんでしょうか？
+   ちなみに関数をdrop,再作成後、テーブルを再作成しないでやるとエラーがでます。
+   関数をdrop,再作成後、テーブルを再作成するとうまくいくようです。
+
+2  ではmillisecondを取得する関数を作ろうと思ったのですが、どうやって取得するの
+   かわかりませんでした。FreeBSD 2.2.5を使っているのですが、現在のミリ秒まで取
+   得するにはどうしたらいいでしょうか？なにか方法があれば暗示していただけない
+   でしょうか？   
+
+3  実行結果が123.456ではなく、123.4559999...となってしまったのですが、datetime
+   型は８バイトの浮動小数点...(シーラカンス本 p.90)とあるんですが、このせいな
+   のでしょうか？(浮動小数点てのがそもそもわかってないのか...)
+
+ながくなってすいません。よろしくおねがいします。
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 13309] Re: INSERT時刻のmillisecondまでの自動入力</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 13307] can't running vacuum at 6.3.2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 13309] Re: INSERT時刻のmillisecondまでの自動入力</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 13316] Re: postmasterの起動時エラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 13309] Re: INSERT時刻のmillisecondまでの自動入力</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

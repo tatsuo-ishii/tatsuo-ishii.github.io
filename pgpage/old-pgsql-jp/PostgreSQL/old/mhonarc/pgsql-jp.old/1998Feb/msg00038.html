@@ -1,0 +1,157 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 3347] Re: About SQL query. -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 13 Feb 1998 17:30:14 +0900 -->
+<!--X-Message-Id: 199802130830.RAA27217@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199802130735.QAA14188@toshogtwy.internal.tosho.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 3347] Re: About SQL query. </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00037.html">Date Prev</A>][<A HREF="msg00039.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00036.html">Thread Next</A>][<A HREF="index.html#00038">Date Index</A>][<A HREF="threads.html#00038">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 3347] Re: About SQL query.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 13 Feb 1998 17:30:14 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;　図書印刷の舘野と申します。
+&gt;
+&gt;
+&gt;　いろいろとテストしていただきまして、ありがとうございます。
+
+いえ、どういたしまして。
+
+&gt;　こちらの環境で石井さんのテストしていただいたテーブル、索引、及びデータを
+&gt;作成しテストしてみました。
+&gt;
+&gt;&gt;create table indextest (id int4, sex text);
+&gt;&gt;create index idindex on indextest using btree(id);
+&gt;&gt;create index sexindex on indextest using btree(sex);
+&gt;&gt;
+&gt;&gt;データのほうは、以下の perl script で、100万件分用意しました。
+&gt;
+&gt;Table    = indextest
+&gt;+---------------+-----------+----------+
+&gt;|     Title     |   Field   |   Type   |
+&gt;+---------------+-----------+----------+
+&gt;| ＩＤ          | id        | int4     |
+&gt;| 性別          | sex       | text     |
+&gt;+---------------+-----------+----------+
+&gt;
+&gt;　一応vacuumまでしました。
+&gt;
+&gt;&gt;select * from indextest where id = 10000;
+&gt;&gt;select * from indextest where id = 10000 and sex = '男';
+&gt;
+&gt;　このテーブルに対して、各select問い合わせを行った結果は、
+&gt;
+&gt;  =&gt; select * from indextest where id = 10000;
+&gt;　　（結果）　検索時間は 1秒以内
+&gt;
+&gt;  =&gt; select * from indextest where id = 10000 and sex = '男';
+&gt;　　（結果）　検索時間は 1秒以内
+&gt;
+&gt;　ここまではよいのですが、
+&gt;
+&gt;  =&gt; select * from indextest where id &lt; 2 and sex = '男';
+&gt;　　（結果）　検索時間は25秒位
+&gt;
+&gt;　上記の問い合わせの場合、かなり検索時間がかかるのですが、これはこちらの環
+&gt;境（PostgreSQLシステム）に不具合があるのでしょうか。
+
+こちらでも試してみましたが、やはり同じようにかなり時間がかかりました。
+そこで、sex カラムの index を外したところ、なんと 1 秒以内に検索ができ
+るようになりました！
+
+もう一度 sex の index を構築し、index ファイルなどのアクセス時刻をチェッ
+クしてみると、上記問い合わせの場合、sex の index とテーブル本体しかア
+クセスされていないことが分かりました。ここから、私はオプティマイザの動
+作を次のように推測しました。
+
+	1. id の比較演算子が &lt; 、sex の比較演算子 が = なので、= の方
+	が絞り込率が高いと判断し、sex の index をまず検索する方針を立てた
+
+	2. sex index をチェックして '男' のレコードを見つけるが、btree
+	index であること、該当件数が 50万件もあることからアクセスにか
+	なり時間がかかった
+	# sexindex の大きさが 20MB もありました
+
+	3. テーブル本体から id を 50万回も取り出すことになり、ここでも
+	時間がかかった
+
+select * from indextest where id = 10000 and sex = '男';
+
+の場合は、id の演算子が = なので、まず idindex を見に行きますから、速
+かったわけですね。
+
+というわけで、この例に限って言えば、sex に index を付けることは有害無
+益だったようです。
+
+そういえば、Joe Celko の "SQL for smarties"(邦訳「プログラマのための
+SQL」)でもインデックスを付けるとかえって遅くなる例がのってましたが、結
+構ありがちな間違いなのかも知れませんね。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp 3346] Re: About SQL query.</A></STRONG>
+<UL><LI><EM>From:</EM> "TATENO user account." &lt;tateno@internal.tosho.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 3346] Re: About SQL query.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 3348] はじめまして落合と申します。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 3346] Re: About SQL query.</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 3345] Self Introduction</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00038"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00038"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

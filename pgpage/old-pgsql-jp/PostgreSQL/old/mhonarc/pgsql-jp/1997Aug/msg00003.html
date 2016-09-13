@@ -1,0 +1,153 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2277] Re: Pg_passwd.patch&#45;2 -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@hyalos.is.ocha.ac.jp> -->
+<!--X-Date: Fri, 01 Aug 1997 15:56:08 +0900 -->
+<!--X-Message-Id: 199708010656.PAA11431@hyalos.is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199708010546.OAA05854@hyalos.is.ocha.ac.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2277] Re: Pg_passwd.patch-2 </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00002.html">Date Prev</A>][<A HREF="msg00004.html">Date Next</A>][<A HREF="msg00002.html">Thread Prev</A>][<A HREF="msg00001.html">Thread Next</A>][<A HREF="index.html#00003">Date Index</A>][<A HREF="threads.html#00003">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2277] Re: Pg_passwd.patch-2</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@hyalos.is.ocha.ac.jp">ichikawa@hyalos.is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 01 Aug 1997 15:56:08 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00002.html">199708010546.OAA05854@hyalos.is.ocha.ac.jp</A>&gt; </LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+自己フォローです．先ほど，psql.c のパッチを流しましたが，
+これは 6.1.1 には対応していませんのでおりをみて作り直します．
+すいません．また作り直します．
+
+-----
+Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+E-mail: ichikawa@is.ocha.ac.jp
+
+
+In message &lt;<A HREF="msg00002.html">199708010546.OAA05854@hyalos.is.ocha.ac.jp</A>&gt;, Yoshihiko ICHIKAWA wri
+tes:
+&gt; 
+&gt; 市川＠お茶大です．
+&gt; 
+&gt; 以前に PostgreSQL で flat password を使うための方法を流し
+&gt; ましたが，\connect コマンドの使用でトラブルが発生するという
+&gt; 連絡がありました．具体的には password authentication を使う
+&gt; 環境で(つまり -u コマンドで起動して) \connect を使うと
+&gt; core をはいてしまいました．
+&gt; 
+&gt; とりあえず fix しておきましたのでお使いになられるかたは
+&gt; ご参考に願います．これが正しい振る舞いかどうかは疑問ですが，
+&gt; 少なくとも core をはくよりは安心して使えると思います．
+&gt; 
+&gt; まだ password 関係も含めて psql の仕様自身は不安定なようで，
+&gt; もうちょっとインターフェースが整理されてくれば改善される
+&gt; のだろうと期待しています．
+&gt; 
+&gt; ----
+&gt; Yoshihiko Ichikawa, Dept of Info Sci, Fac of Sci, Ochanomizu University
+&gt; Phone:  +81-3-5978-5708 (Dial-in) / +81-3-5978-5704 (Library of Department)
+&gt; Fax:    +81-3-5978-5898 (Faculty) / +81-3-5878-5705 (Library of Department)
+&gt; E-mail: ichikawa@is.ocha.ac.jp
+&gt; 
+&gt; ====%&lt; ------------------------------------------------------------
+&gt; diff -r -C 2 ../6.1.orig/src/bin/psql/psql.c src/bin/psql/psql.c
+&gt; *** ../6.1.orig/src/bin/psql/psql.c	Wed Jun 11 13:01:23 1997
+&gt; --- src/bin/psql/psql.c	Mon Jul 28 15:28:11 1997
+&gt; ***************
+&gt; *** 886,891 ****
+&gt;   	    	free(old_userenv);
+&gt;   	}
+&gt; ! 	settings-&gt;db = PQsetdb(PQhost(olddb), PQport(olddb),
+&gt;   			       NULL, NULL, new_dbname);
+&gt;   	if (!new_user)
+&gt;   	    printf("connecting to new database: %s\n", new_dbname);
+&gt; --- 886,906 ----
+&gt;   	    	free(old_userenv);
+&gt;   	}
+&gt; ! 	if(settings-&gt;getPassword) {
+&gt; ! 	    char username[9];
+&gt; ! 	    char password[9];
+&gt; ! 	    char *connect_string;
+&gt; ! 
+&gt; ! 	    prompt_for_password(username, password);
+&gt; ! 
+&gt; ! 	    /* now use PQconnectdb so we can pass these options */
+&gt; ! 	    connect_string = make_connect_string(PQhost(olddb), PQport(olddb),
+&gt; ! 					new_dbname, username, password);
+&gt; ! 	    settings-&gt;db = PQconnectdb(connect_string);
+&gt; ! 	    free(connect_string);
+&gt; ! 	    new_user = strdup(username);
+&gt; ! 	} else {
+&gt; ! 	    settings-&gt;db = PQsetdb(PQhost(olddb), PQport(olddb),
+&gt;   			       NULL, NULL, new_dbname);
+&gt; + 	}
+&gt;   	if (!new_user)
+&gt;   	    printf("connecting to new database: %s\n", new_dbname);
+&gt; 
+&gt; 
+&gt; 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00002" HREF="msg00002.html">[pgsql-jp 2276] Pg_passwd.patch-2</A></STRONG>
+<UL><LI><EM>From:</EM> Yoshihiko ICHIKAWA &lt;ichikawa@hyalos.is.ocha.ac.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 2276] Pg_passwd.patch-2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00004.html">[pgsql-jp 2278] Re: Question.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00002.html">[pgsql-jp 2276] Pg_passwd.patch-2</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00001.html">[pgsql-jp 2275] [Q]About inherits</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00003"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00003"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

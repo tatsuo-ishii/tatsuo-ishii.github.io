@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6721] Re: LOW LEVEL LOCKINGとは？ -->
+<!--X-From: Kohei OKUMURA <kohei@mediatelier.fr> -->
+<!--X-Date: Wed, 20 Jan 1999 22:09:20 +0100 -->
+<!--X-Message-Id: 199901202207.XAA07316@ns1.mediatelier.fr -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901201430.XAA00432@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6721] Re: LOW LEVEL LOCKINGとは？ </TITLE>
+<LINK REV="made" HREF="mailto:kohei@mediatelier.fr">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00307.html">Date Prev</A>][<A HREF="msg00309.html">Date Next</A>][<A HREF="msg00305.html">Thread Prev</A>][<A HREF="msg00309.html">Thread Next</A>][<A HREF="index.html#00308">Date Index</A>][<A HREF="threads.html#00308">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6721] Re: LOW LEVEL LOCKINGとは？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Kohei OKUMURA &lt;<A HREF="mailto:kohei@mediatelier.fr">kohei@mediatelier.fr</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 20 Jan 1999 22:09:20 +0100</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00305.html">199901201430.XAA00432@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おそらく初めての投稿だと思います。まだ足を突っ込み始めたばかりですが、
+よろしくお願いします。
+
+非常に興味のある話題なので、もう少し教えてください。
+ROW-LEVEL-LOCKINGとLOW-LEVEL-LOCKING (MVCC)の違いはなんとなく理解
+できましたが、さらにそれぞれの特徴を比較して教
+えていただけるとありがたいのですが・・・。
+www.postgresql.orgの最初のページを読むと、6.5はROW-LEVEL-LOCKINGも出来ると書
+いてありますね・・・。併用できるということですか・・・？　よけい分
+からなくなってきた・・・。
+
+
+
+よろしくお願いします。
+
+
+reply to "[pgsql-jp 6718] Re: LOW LEVEL LOCKINGとは？ " (Tatsuo Ishii) on 20
+/Jan/99 15:30:28:
+
+&gt; 石井です。
+&gt; 
+&gt; &gt; 相場＠ＩＳＯＬです。
+&gt; &gt; 
+&gt; &gt; そうですよね。LOW LEVEL に関してはなんとなくそう思っていました。でも 6.5
+&gt; &gt; での新(予定)機能が "LOW-LEVEL LOCKING" と書かれていたので（ちょっと正確
+&gt; &gt; ではないかも）考え込んでしまったのでした。なぜ「待望」の機能なのだろう
+&gt; 
+&gt; まず、私は LLL(Low-Level Locking) ということばを本家のMLの議論で知りま
+&gt; した。LLL が学術的に確立された用語かどうかは知りませんが、彼らは明らか
+&gt; に Row-Level Locking とは区別しています。私の解釈では、LLL は 
+&gt; Row-Level Lock や Page-Level Locking も含んだ、ようするに Table-Level
+&gt; Locking よりも粒度の細かいロック一般を指しているのだろうと思います。で
+&gt; すから、LLL によって複数のトランザクションが並行して走る可能性が増えま
+&gt; す。これが嬉しい理由です。
+&gt; 
+&gt; では、実際には 6.5 の LLL はどのようなものになるのでしょう。私は最初は
+&gt; 極単純に Row-Level か Page-Level のロックを行うんだろう、位の認識しか
+&gt; なかったのですが、どうも違うようです。
+&gt; 
+&gt; 6.5 では MVCC (Multi-Versioning Concurrency Control(?))を使います。こ
+&gt; れは DELETE や UPDATE で行を更新しても、以前の行の内容が保存されるシス
+&gt; テムです。これと各行が持つトランザクションIDを併用することにより、並行
+&gt; して走るトランザクションがお互いに干渉することがなくなります。これは、
+&gt; 基本的にはロックが不要であることを意味します。実際、6.5 では、違う行を
+&gt; アクセスする限り、テーブル全体にロックを掛けることなしに、複数のトラン
+&gt; ザクションが同じテーブルを同時に更新することができます(今は、どちらか
+&gt; のトランザクションが commit するまで待たされる)。
+&gt; 
+&gt; 6.5 のもう一つのロックは、バッファからの読み書きです。PostgreSQL では、
+&gt; 効率を上げるためにバックエンドプロセス間で共有されるバッファを使います。
+&gt; テーブルやインデックスを読み時は、まずそのテーブル全体に shared lockを
+&gt; かけ、1 ページ読みだしてバッファに格納したらすぐにロックを解除します。
+&gt; これはテーブル全体をロックしますが、トランザクションの終了を待たずにロッ
+&gt; クを解除するので short-term locking と呼ばれています。これに対して、通
+&gt; 常の 2 phase lock では、一度かけたロックは commit/abort まで解除されま
+&gt; せんので、long-term locking ということになります。
+&gt; 
+&gt; とりあえず6.5のトランザクション管理について、私が理解しているのはこの
+&gt; 位です。引続き勉強しなくては。
+&gt; 
+&gt; # もっと分かっている人の突っ込み希望
+&gt; ---
+&gt; Tatsuo Ishii
+&gt; 
+
+--
+//////  Kohei OKUMURA (Art Director, Multimedia Creative Director)
+//////  kohei@mediatelier.fr
+//////  MediAtelier s.a.r.l.
+//////  6, rue Beauregard 75002 Paris
+//////  tel: +33 (1) 55.34.38.44
+//////  fax: +33 (1) 55.34.38.46
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00309" HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> "Hiroshi Inoue" &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00305" HREF="msg00305.html">[pgsql-jp 6718] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00307.html">[pgsql-jp 6720] Re: アーカイブのCRCエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00305.html">[pgsql-jp 6718] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00309.html">[pgsql-jp 6722] Re: LOW LEVEL LOCKINGとは？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00308"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00308"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

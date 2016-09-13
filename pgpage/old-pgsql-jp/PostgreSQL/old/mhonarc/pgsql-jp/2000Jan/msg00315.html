@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12771] Re: limit and offset -->
+<!--X-From: "杉原　俊介" <sugihara@central&#45;lib.pref.osaka.jp> -->
+<!--X-Date: Sat, 22 Jan 2000 16:58:13 +0900 -->
+<!--X-Message-Id: 006401bf64ae$70d8b280$c4aca3d2@centrallib.pref.osaka.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200001220403.NAA08053@tkf.att.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12771] Re: limit and offset </TITLE>
+<LINK REV="made" HREF="mailto:sugihara@central-lib.pref.osaka.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00314.html">Date Prev</A>][<A HREF="msg00316.html">Date Next</A>][<A HREF="msg00312.html">Thread Prev</A>][<A HREF="msg00343.html">Thread Next</A>][<A HREF="index.html#00315">Date Index</A>][<A HREF="threads.html#00315">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12771] Re: limit and offset</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "杉原　俊介" &lt;<A HREF="mailto:sugihara@central-lib.pref.osaka.jp">sugihara@central-lib.pref.osaka.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 22 Jan 2000 16:58:13 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00312.html">200001220403.NAA08053@tkf.att.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは
+
+杉原＠大阪府立中央図書館と申します。
+
+&gt; 「あるテーブルの中からランダムにx件選択して別テーブルに格納する」
+&gt; という処理をしようと思ったのですが、つまづいています。
+&gt; 自分なりに調べてみたのですが、うまくいかないため、お知恵をお借りできれ
+&gt; ばと思い投稿いたしました。
+&gt;
+&gt; 環境
+&gt; Vine1.1
+&gt; postgresql6.5.2
+&gt; php3.0.12jp-beta4
+&gt;
+&gt; データが入っているテーブルhogeから格納先をhoge_tmp、とし、
+&gt; for( $i=0 ; $i&lt;x ; $i+){
+&gt; $rtn = pg_exec($database,"select * from hoge");
+&gt; $n = pgnumrows($rtn);
+&gt; $offset = floor(mt_rand(0,$n));
+&gt; pg_exec($database,"insert into hoge_tmp select * from hoge limit 1
+&gt; offset $offset");
+&gt; }
+&gt; とすると、hogeに格納されているデータすべてがhoge_tmpに格納されてしまい
+&gt; ます。
+
+うちの環境
+redhat 5.2
+postgresSQL6.5.2
+で
+insert into テーブル2  select * from テーブル1 limit 1;
+をpsqlで試してみましたが、馬場さんのおっしゃるようにテーブル１の内容が全件
+テーブル２にコーピーされました。
+どうも、insert --- into   select のlimitは利かないようですね？
+ＴＯＤＯにはなっかたようですが、バグなのかなぁ？？？
+
+すみません、あまりお力になれなくて (^^;
+
+&gt;
+&gt; 代わりにselect * into hoge_tmpとやってしまうとループの2回目以降で
+&gt; "database already exist"となってエラーとなります。
+
+select * into hoge_tmp は、hoge_tmpが存在しいるとダメです。
+#これは、仕様がそうなっているようです。
+select * into ではlimitはちゃんと働くようですが・・・
+
+#本題からは、かなりそれてしまいますが、
+テーブルからテストテーブルを取り出すためには馬場さんが考えておられるような
+機能（「あるテーブルの中からランダムにx件選択して別テーブルに格納する」）
+は欲しいですよね？
+
+テストテーブルを作成するには色々な方法があると思いますが、
+テーブル全件のほぼ1/nのテーブルを作成する簡単な方法の１つで、
+
+select * into hoge_tmp from hoge where (oid::int8 - (oid::int8/n)::int8 *
+n ) = 0;
+
+なんてのは、どうでしょうか？
+これは、ランダムになっていないのでテストテーブルとしてはイマイチですし、
+テーブルによってはoidに規則性があって全然意味がない場合もありますが(^^;;
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+大阪府立中央図書館　司書部企画協力課　杉原　俊介
+〒577-0011 大阪府東大阪市荒本北５７−３番地
+tel:06-6745-0170(代表)　　fax:06-6745-0262
+<A HREF="Mailto:sugihara@central-lib.pref.osaka.jp">Mailto:sugihara@central-lib.pref.osaka.jp</A>
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00343" HREF="msg00343.html">[pgsql-jp 12799] Re: limit and offset</A></STRONG>
+<UL><LI><EM>From:</EM> "T.B" &lt;b-taka@tkf.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00312" HREF="msg00312.html">[pgsql-jp 12768] limit and offset</A></STRONG>
+<UL><LI><EM>From:</EM> "T.B" &lt;b-taka@tkf.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00314.html">[pgsql-jp 12770] Re: 6.5.3 on FreeBSD 3.3-RELEASE</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 12772] Re: [pgsql-jp 12769] Re: はじめまして。　　</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00312.html">[pgsql-jp 12768] limit and offset</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00343.html">[pgsql-jp 12799] Re: limit and offset</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00315"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00315"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

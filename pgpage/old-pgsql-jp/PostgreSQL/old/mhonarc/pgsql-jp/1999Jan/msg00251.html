@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6664] v6.4.2での配列の利用 -->
+<!--X-From: Takeshi Yamada <ken@tydfam.machida.tokyo.jp> -->
+<!--X-Date: Sun, 17 Jan 1999 11:57:30 +0900 -->
+<!--X-Message-Id: 19990117115730U.ken@ns1.tydfam.machida.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199901162353.IAA00459@ext16.sra.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6664] v6.4.2での配列の利用 </TITLE>
+<LINK REV="made" HREF="mailto:ken@tydfam.machida.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00250.html">Date Prev</A>][<A HREF="msg00252.html">Date Next</A>][<A HREF="msg00250.html">Thread Prev</A>][<A HREF="msg00252.html">Thread Next</A>][<A HREF="index.html#00251">Date Index</A>][<A HREF="threads.html#00251">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6664] v6.4.2での配列の利用</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takeshi Yamada &lt;<A HREF="mailto:ken@tydfam.machida.tokyo.jp">ken@tydfam.machida.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 17 Jan 1999 11:57:30 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00250.html">199901162353.IAA00459@ext16.sra.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  山田＠町田市です。
+
+  １月７日を心待ちにして、仕事の途中でタクシー飛ばして書泉グランデで
+石井さんのシーラカンス本を購入、読ませて頂いているうちに、どうもすっ
+きりしなかった仕事用のDBは配列を利用する事ですっきり解決出来ることに
+気が付き、早速実験して見ました。うまくいっていますのでその御報告。
+
+目的：
+  営業支援用のデータとして、毎月の商品別県別流通別の売上DBを管理する。
+  (性質上、トランズアクションはない。また、毎月全県のデータが必ず、
+   入力されている。)
+
+色々な試みと問題点：
+ (説明の為、データ型入れていません、また実際は漢字は使っていません。念の為)
+
+ 1) create 営業情報 (製品コード、年月、県コード、流通コード、販売量)
+
+    といった構造だと、全県の入力が行われたことを確認する手立てが必要なのと、
+    実際に実験して見るとデータ数がふくれ上がる為に実用的なスピードが出ない。
+    簡単に１０万件を越える事がわかり、やめました。
+
+ 2) create 営業情報 (製品コード、年月、流通コード、北海道、、、、、沖縄)
+
+    これは、RDB の構造として邪道ですね。
+    スマートでないけど、データアクセスの回数が減るのでスピードは問題ない。
+
+ 3) create 営業情報 (製品コード、年月、流通コード、販売量[48])
+
+    これだと、RDB としての規則を守っているし、論理的にもすっきりしており、
+    スピードも出る。また、個々の県の入力忘れに気を使わなくて良い。
+
+    但し、
+     select 販売量[1] + 販売量[2] + 販売量[3] from 営業情報;
+    は
+     select 営業情報.販売量[1] + 営業情報.販売量[2] 
+                          + 営業情報.販売量[3] from 営業情報;
+    とする必要がある。
+    また、
+     select sum(営業情報.販売量[1]) from 営業情報;
+            ^^^^
+    の様な関数の利用ができない。
+
+    実際やって見て、この関数が利用できないのは、致命的だったのですが、
+    いろいろ思考錯誤の上 function を利用すれば出来ることが分かりました。
+
+    例：
+      create function get_北海道 (営業情報)
+      returns float8 as '
+      select $1.販売量[1]'
+      language 'sql';
+
+      select sum(get_北海道(営業情報)) from 営業情報
+      where 製品コード = 'xxx' and 
+      年月 between 'yyyymm1' and 'yyyymm2';
+
+      で出来ました。
+
+    また、create function の中で
+      create function get_東北 (営業情報)
+      returns float8 as '
+      select $1.販売量[2]+$1.販売量[3]+$1.販売量[4]+$1.販売量[5]....'
+      language 'sql';
+
+    とするとうまくゆかず、
+      create function get_東北 (営業情報)
+      returns float8 as '
+      select $1.販売量[2] + $1.販売量[3] + 
+      $1.販売量[4] + $1.販売量[5]....'
+      language 'sql';
+ 
+    のように、+ の前後にスペースが必要でしたが、これは parser のバグ？
+
+
+  最後に、当り前の話だとは思いますが、MS-Access では配列を含んだテーブル
+はリンクできませんね。なにか方法はありませんでしょうか？ User interface
+としての access は会社では便利なのですが、、、。
+
+  以上、皆さんご存知かも知れませんが、、、。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00256" HREF="msg00256.html">[pgsql-jp 6669] Re: v6.4.2 での配列の利用</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00252" HREF="msg00252.html">[pgsql-jp 6665] Re: v6.4.2 での配列の利用</A></STRONG>
+<UL><LI><EM>From:</EM> Kazuo Moriwaka &lt;kankun@osa.att.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00250" HREF="msg00250.html">[pgsql-jp 6663] Re: Perl-I/Fでの起動オプションの設定方法について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 6663] Re: Perl-I/Fでの起動オプションの設定方法について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00252.html">[pgsql-jp 6665] Re: v6.4.2 での配列の利用</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00250.html">[pgsql-jp 6663] Re: Perl-I/Fでの起動オプションの設定方法について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00252.html">[pgsql-jp 6665] Re: v6.4.2 での配列の利用</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00251"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00251"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

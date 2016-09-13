@@ -1,0 +1,226 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8763] PostgreSQL 6.5beta2 on alpha -->
+<!--X-From: CHOI Kyong&#45;Rok <rok@itc.keio.ac.jp> -->
+<!--X-Date: Thu, 10 Jun 1999 10:26:30 +0900 -->
+<!--X-Message-Id: 19990610102630V.rok@itc.keio.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8763] PostgreSQL 6.5beta2 on alpha </TITLE>
+<LINK REV="made" HREF="mailto:rok@itc.keio.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00196.html">Date Prev</A>][<A HREF="msg00199.html">Date Next</A>][<A HREF="msg00479.html">Thread Prev</A>][<A HREF="msg00189.html">Thread Next</A>][<A HREF="index.html#00197">Date Index</A>][<A HREF="threads.html#00197">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8763] PostgreSQL 6.5beta2 on alpha</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: CHOI Kyong-Rok &lt;<A HREF="mailto:rok@itc.keio.ac.jp">rok@itc.keio.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 10 Jun 1999 10:26:30 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちわ.
+
+PostgreSQL v6.5beta2 を Digital Ultimate Workstation (Alpha
+21164/533MHz x 2)にインストールしてみました. 
+
+configure は
+
+./configure --with-CC=cc --without-CXX --with-template=alpha_cc --with-mb=EUC_JP
+
+のようにしました.
+
+regression test は以下のようになりました. 
+
+boolean ..  ok
+char ..  ok
+name ..  ok
+varchar ..  ok
+text ..  ok
+strings ..  ok
+int2 ..  failed
+int4 ..  failed
+int8 ..  ok
+oid ..  ok
+float4 ..  ok
+float8 ..  failed
+numerology ..  ok
+point ..  ok
+lseg ..  ok
+box ..  ok
+path ..  ok
+polygon ..  ok
+circle ..  ok
+geometry ..  failed
+timespan ..  ok
+datetime ..  ok
+reltime ..  ok
+abstime ..  failed
+tinterval ..  failed
+horology ..  failed
+inet ..  ok
+comments ..  ok
+oidjoins ..  ok
+type_sanity ..  ok
+opr_sanity ..  ok
+create_function_1 ..  ok
+create_type ..  ok
+create_table ..  ok
+create_function_2 ..  ok
+constraints ..  ok
+triggers ..  ok
+copy ..  ok
+create_misc ..  ok
+create_aggregate ..  ok
+create_operator ..  ok
+create_view ..  ok
+create_index ..  ok
+sanity_check ..  ok
+errors ..  ok
+select ..  ok
+select_into ..  ok
+select_distinct ..  ok
+select_distinct_on ..  ok
+select_implicit ..  ok
+select_having ..  ok
+subselect ..  ok
+union ..  ok
+case ..  ok
+join ..  ok
+aggregates ..  ok
+transactions ..  ok
+random ..  ok
+portals ..  ok
+misc ..  ok
+arrays ..  ok
+btree_index ..  ok
+hash_index ..  ok
+select_views ..  ok
+alter_table ..  ok
+portals_p2 ..  ok
+rules ..  failed
+limit ..  ok
+plpgsql ..  ok
+temp ..  ok
+euc_jp ..  ok
+
+
+int2, int4, float8 に関しては, エラーメッセージの違い, geometry 
+は丸め誤差？が理由のようです.
+
+abstime, tinterval, horology は, 結果の一部で timezone が PST で
+はなくて PDT になってしまっています. たとえば,
+
+--- results/abstime.out Thu Jun 10 09:52:57 1999
+***************
+*** 22,28 ****
+       |current                     
+       |infinity                    
+       |-infinity                   
+!      |Sat May 10 23:59:12 1947 PST
+       |invalid                     
+  (8 rows)
+  
+--- 22,28 ----
+       |current                     
+       |infinity                    
+       |-infinity                   
+!      |Sat May 10 23:59:12 1947 PDT
+       |invalid                     
+  (8 rows)
+
+とか, 
+
+*** expected/tinterval.out      Thu Oct 29 13:29:12 1998
+--- results/tinterval.out       Thu Jun 10 09:52:59 1999
+***************
+*** 19,25 ****
+  five|f1 
+     
+  ----+---------------------------------------------------------------
+      |["-infinity" "infinity"] 
+     
+!     |["Sat May 10 23:59:12 1947 PST" "Sun Jan 14 03:14:21 1973 PST"]
+      |["Sun Sep 04 23:59:12 1983 PDT" "Tue Oct 04 23:59:12 1983 PDT"]
+      |["epoch" "Mon May 01 00:30:30 1995 PDT"] 
+      |["Thu Feb 15 12:15:03 1990 PST" "current"] 
+     
+--- 19,25 ----
+  five|f1 
+     
+  ----+---------------------------------------------------------------
+      |["-infinity" "infinity"] 
+     
+!     |["Sat May 10 23:59:12 1947 PDT" "Sun Jan 14 03:14:21 1973 PST"]
+      |["Sun Sep 04 23:59:12 1983 PDT" "Tue Oct 04 23:59:12 1983 PDT"]
+      |["epoch" "Mon May 01 00:30:30 1995 PDT"] 
+      |["Thu Feb 15 12:15:03 1990 PST" "current"] 
+     
+みたいに. 
+
+rules については
+
+--- 267,273 ----
+  (8 rows)
+  
+  QUERY: update rtest_v1 set a = rtest_t3.a + 20 where b = rtest_t3.b;
+! pqReadData() -- backend closed the channel unexpectedly.
+!       This probably means the backend terminated abnormally
+!       before or while processing the request.
+! We have lost the connection to the backend, so further
+processing is impossibl
+
+のようになってしまって, うまく動いていないようです :-( 
+
+--------------------------------------------------------------
+慶應義塾大学インフォメーションテクノロジーセンター
+崔梗ろく/さいきょうろく/CHOI KyongRok : rok@itc.keio.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00196.html">[pgsql-jp 8762] 32ビット版ODBC</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00199.html">[pgsql-jp 8765] Re: ecpgのバグ？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00479.html">[pgsql-jp 9045] Re: PostgreSQL CDROM</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 8755] pg_dumpのつくるviewのschema</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00197"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00197"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

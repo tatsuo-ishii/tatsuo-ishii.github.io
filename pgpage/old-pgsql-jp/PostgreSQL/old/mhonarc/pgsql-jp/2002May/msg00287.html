@@ -1,0 +1,168 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26052] Re: データ形式についての質問です -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Tue, 21 May 2002 07:38:15 +0900 -->
+<!--X-Message-Id: 3CE97AD7.AA34473D@shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OJEEKIJNKMMGJJOEDNICAEPEDDAA.tanaka&#45;tec@masecon.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26052] Re: データ形式についての質問です </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00286.html">Date Prev</A>][<A HREF="msg00288.html">Date Next</A>][<A HREF="msg00314.html">Thread Prev</A>][<A HREF="msg00253.html">Thread Next</A>][<A HREF="index.html#00287">Date Index</A>][<A HREF="threads.html#00287">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26052] Re: データ形式についての質問です</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 21 May 2002 07:38:15 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00271.html">OJEEKIJNKMMGJJOEDNICAEPEDDAA.tanaka-tec@masecon.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+KiyohitoTanaka wrote:
+&gt; 
+&gt; 田中@MCと申します。
+&gt; 
+&gt; テーブルを作る際のデータ形式ですが、テキストの場合、
+&gt; 解説書によってchar形式を使って説明しているのものと
+&gt; varchar形式を使って説明しているものがあります。
+&gt; 
+&gt; 実際に構築を経験された方々の意見としてはどちらが
+&gt; 適当なのでしょうか？
+&gt; もし、助言がございましたらよろしくお願いします。
+
+
+(1) コードなど他の表との JOIN KEY (結合キー) となる
+    (可能性のある)項目は、CHAR にして固定長とする。
+
+(2) それ以外の項目は、 TEXT 型。
+
+
+例えば、昔から屋上屋をかさねて、桁数のそろわない文字
+コードがあったりしても、CHAR 型なら、短いコードを
+INSERT/UPDATE した場合は、必ず後に空白が補われます。
+間違って、DB 定義の固定長より長い文字を入れようと
+すると、長過ぎる分がカットされるか、エラーになります。
+桁数の決まっている文字型のコードには便利です。
+
+VARCHAR の場合、DB により、後ろの空白は、カットされ
+たり、指定したとおりの空白が入ったりと動作が異なる
+ようです。  ≫ 詳しい方よろしく。
+
+(注)新しい Version の PostgreSQL では、CHAR/VARCHA
+    は、バイト数でなく文字数です。注意しましょう。
+    また長過ぎる文字を入れようとするとエラーになり
+    ます。以前のversionのように、長過ぎる分を自動
+    的にカットしてくれません。
+
+昔の DB で、正数で 10 桁以上が使えなかった場合は、
+JANコードなどでも CHAR(13) (記憶違いならごめんなさい)
+などと、文字型にしましたが、PostgreSQL なら、1,000
+桁( 千桁 )の十進数まで使えるので、長い数字コードでも
+CHAR 型にはしません。
+
+ブロックコード(数桁ずつ桁別に意味ありのコード)のばあい、
+CHAR 型にして substr で、分解すると便利な場合がある
+かもしれませんが、検索の最適化処理などを考えると、
+int か numeric にして、アプリケーションで、桁別に
+分解した方がいいと考えます。
+
+
+
+&gt; 
+&gt; 例としては社員マスタテーブルで、項目は
+&gt; 
+id(5桁数字)  int4    ##10桁以上なら numeric(N)
+氏名         text
+住所         text
+    目的によりますが、住所ラベル印字の改行に便利なように
+    住所1,住所2,住所3 などと複数項目にしたり、改行の手がかり
+    になるように整形したりします(勿論アプリで)。
+    会社名、所属名や、マンション など長い文字の場合、
+    変な位置で改行されて印字された住所ラベルなどは、
+    みっともないので。
+郵便番号    CHAR(7) または  CHAR(8)
+ふりがな     text
+所属         text
+生年月日     date
+更新日       timestamp
+
+&gt; 
+&gt; という設定でお話いただければ幸いです。
+
+
+===========================================================
+5/29 - 5/31 東京ビックサイト Linux World Expo/Tokyo 2002 
+.org Pavilion  に、JPUG  出展。
+
+<A HREF="http://www.postgresql.jp/misc/event/LW2002/index.html">http://www.postgresql.jp/misc/event/LW2002/index.html</A>
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房   近藤直文        Email:  nkon@shonan.ne.jp 
+<A HREF="http://www.SOFTKOUBOU.co.jp/">http://www.SOFTKOUBOU.co.jp/</A>      <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp: 26036] データ形式についての質問です</A></STRONG>
+<UL><LI><EM>From:</EM> "KiyohitoTanaka" &lt;tanaka-tec@masecon.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00286.html">[pgsql-jp: 26051] Re: データ形式についての質問です</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00288.html">[pgsql-jp: 26053] Re: データ形式についての質問です</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00314.html">[pgsql-jp: 26079] Re: データ形式についての質問です</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00253.html">[pgsql-jp: 26018] psqlのreadlineが使えません</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00287"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00287"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

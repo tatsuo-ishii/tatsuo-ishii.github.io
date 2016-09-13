@@ -1,0 +1,137 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22156] 関係ない2行のUPDATEがロック待ちする -->
+<!--X-From: "Masao Kumagishi" <kumagishi@jfc&#45;net.co.jp> -->
+<!--X-Date: Mon, 2 Jul 2001 20:24:19 +0900 -->
+<!--X-Message-Id: 018a01c102e9$8dbe9ec0$6700a8c0@newcomunet.ocn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22156] 関係ない2行のUPDATEがロック待ちする </TITLE>
+<LINK REV="made" HREF="mailto:kumagishi@jfc-net.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00023.html">Date Prev</A>][<A HREF="msg00025.html">Date Next</A>][<A HREF="msg00040.html">Thread Prev</A>][<A HREF="msg00023.html">Thread Next</A>][<A HREF="index.html#00024">Date Index</A>][<A HREF="threads.html#00024">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22156] 関係ない2行のUPDATEがロック待ちする</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Masao Kumagishi" &lt;<A HREF="mailto:kumagishi@jfc-net.co.jp">kumagishi@jfc-net.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 2 Jul 2001 20:24:19 +0900</LI>
+<LI><em>Organization</em>: JFC</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+熊岸です。
+ロックについての質問（要望?）です。
+
+次のようなテーブルがあるとします。
+
+CREATE TABLE users(
+    id             int4,
+    name        text,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE orders(
+    order_id    int4,
+    user_id     int4
+                  REFERENCES users,
+    amount     int4,
+    delivary    bool,
+    PRIMARY KEY (order_id)
+);
+
+test=&gt; SELECT * FROM users;
+ id |  name
+----+--------
+  1 | Sato
+  2 | Suzuki
+  3 | Tanaka
+(3 rows)
+
+test=&gt; SELECT * FROM orders;
+ order_id | user_id | amount | delivary
+----------+---------+--------+----------
+        1 |       1 |     10 | t
+        2 |       2 |     10 | t
+        3 |       3 |     15 | t
+        4 |       1 |      5 | t
+(4 rows)
+
+ここで、別々のトランザクションから、order_id=1と4の行をUPDATEしようとすると、
+後からUPDATEをかけた方がロック待ち状態になります。
+
+（セッション１）
+test=&gt; BEGIN;
+BEGIN
+test=&gt; UPDATE orders SET delivery = 't' WHERE order_id = 1;
+UPDATE 1
+
+（セッション２）
+test=&gt; BEGIN;
+BEGIN
+test=&gt; UPDATE orders SET delivery = 't' WHERE order_id = 4;
+UPDATE 1                    &lt;=====ここでロック待ちになる
+
+これは、両方のuser_idが等しく、user_idは'users'テーブルを参照しているために
+両方のトランザクションがそのuser_id=1の行をロックしに行っているためだと思われます。
+
+しかし、このような場合、'users'テーブルを更新することはないのだから、両方とも
+ブロックしないで実行できてほしいのですが、そういうことは無理なのでしょうか？
+
+確かに、user_id=1の行に何らかのロックをかけておかないと、
+その行がDELETEされてしまったりしては困るのですが・・・。
+#「自分は変更しないけれど他人には変更してほしくない」というようなロックの仕方
+#（共有ロックとでもいうべきか）ができればいいんですがね？
+
+---
+熊岸 正夫
+kumagishi@jfc-net.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 22155] Re: rpm の功罪(長文)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00025.html">[pgsql-jp 22157] ユーザ登録で質問です。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 22172] Re: ユーザ登録で質問です。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 22155] Re: rpm の功罪(長文)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00024"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00024"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

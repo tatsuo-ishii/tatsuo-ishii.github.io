@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24356] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？ -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Tue, 08 Jan 2002 01:57:41 +0900 -->
+<!--X-Message-Id: 3C39D3851EA.8A64KITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: JO20020107225250.35633167@neo.famille.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24356] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？ </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00018.html">Date Prev</A>][<A HREF="msg00020.html">Date Next</A>][<A HREF="msg00018.html">Thread Prev</A>][<A HREF="msg00020.html">Thread Next</A>][<A HREF="index.html#00019">Date Index</A>][<A HREF="threads.html#00019">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24356] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 08 Jan 2002 01:57:41 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00016.html">JO20020107225250.35633167@neo.famille.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠逃避モードです。
+
+&gt; 別の発想でも構いません(というか、私がおかしいのかも)ので、ヒントがあれ
+&gt; ば御教授頂けないでしょうか。
+
+別の発想です。
+トリガを利用して、新しい値と古い値の差分を、別テーブル(テーブルB)の該当カ
+ラムに加算することにより、時刻を抜き出すことなく実現可能です。
+
+t1=テーブルA、t2=テーブルB です。差分を求めるのに、date 型同士の減算では
+int4 で(日数が)出てしまうので、timestamp でキャストして interval 型を出す
+ようにしています。日数の問題だけならば、sabun を int4 にしたところでさし
+て問題もなくいけるとは思いますが、一応安全のために、interval 型でやってみ
+ました。
+
+--ここから(仕込み)
+create table t1(id int2,primary key(id),hiduke date);
+create table t2(id int2,primary key(id),hiduke_jikoku timestamp);
+
+-- トリガ用関数作成(PL/pgSQL)
+create function fChangeDate() returns opaque as
+'
+ DECLARE sabun interval;
+ BEGIN
+  IF NEW.hiduke != OLD.hiduke THEN
+   -- 新しい値から古い値の差分を求める
+   select NEW.hiduke::timestamp - OLD.hiduke::timestamp into sabun;
+   -- t2 の該当カラム(hiduke_jikoku)に差分をプラス
+   update t2 set hiduke_jikoku = hiduke_jikoku + sabun where id = NEW.id;
+  END IF;
+  return NEW;
+ END;
+'
+language 'plpgsql';
+
+create trigger t1_upd_hiduke
+ after UPDATE on t1 for each row
+ execute procedure fChangeDate();
+
+insert into t1 values (1,'2002/01/01');
+insert into t2 values (1,'2002/01/01 00:01:02');
+insert into t1 values (2,'2002/01/02');
+insert into t2 values (2,'2002/01/01 03:04:05');
+
+--ここまで(仕込み)
+
+--ここから(テスト)
+update t1 set hiduke='2002/02/01' where id=1;
+select * from t1;
+select * from t2;
+--ここまで(テスト)
+
+お掃除用
+drop table t1;
+drop table t2;
+drop function fChangeDate();
+
+では。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00020" HREF="msg00020.html">[pgsql-jp 24357] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？</A></STRONG>
+<UL><LI><EM>From:</EM> Jun Kitamura &lt;kitamura@assiette.net&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00016" HREF="msg00016.html">[pgsql-jp 24353] TIMESTAMP 型をTIME型に変換できるでしょうか？</A></STRONG>
+<UL><LI><EM>From:</EM> mizoguchi_reo &lt;r-mi2002@neo.famille.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 24355] Re: TIMESTAMP 型をTIME型に変換できるでしょうか？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 24357] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00018.html">[pgsql-jp 24355] Re: TIMESTAMP 型をTIME型に変換できるでしょうか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00020.html">[pgsql-jp 24357] Re: TIMESTAMP  型をTIME型に変換できるでしょうか？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00019"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00019"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

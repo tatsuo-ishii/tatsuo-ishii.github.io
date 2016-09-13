@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 19884] Re: sum every 3hours using SQL -->
+<!--X-From: Yoshihiko Ichikawa <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Tue, 13 Feb 2001 19:00:27 +0900 -->
+<!--X-Message-Id: 20010213190027K.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20010213035451.3851.qmail@ghe059.ssd.sony.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 19884] Re: sum every 3hours using SQL </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00129.html">Date Prev</A>][<A HREF="msg00130.html">Date Next</A>][<A HREF="msg00126.html">Thread Prev</A>][<A HREF="msg00130.html">Thread Next</A>][<A HREF="index.html#00128">Date Index</A>][<A HREF="threads.html#00128">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 19884] Re: sum every 3hours using SQL</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko Ichikawa &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 13 Feb 2001 19:00:27 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00116.html">20010213035451.3851.qmail@ghe059.ssd.sony.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+市川＠お茶大です．
+
+On 13 Feb 2001 12:54:51 +0900, b-taka@ssd.sony.co.jp wrote:
+&gt; 高橋と申します。
+&gt; 
+&gt; アクセスログの集計を行ないたいのですが
+&gt; SQLで次のような検索をすることは可能でしょうか。
+&gt; 
+&gt;          time          | access_cnt | authuser_cnt
+&gt; ------------------------+------------+--------------
+&gt;  2001-02-05 00:00:00+09 |       2399 |            1
+&gt;  2001-02-05 01:00:00+09 |       1515 |            1
+&gt;  2001-02-05 02:00:00+09 |        930 |            1
+&gt;  2001-02-05 03:00:00+09 |        708 |            1
+&gt;  2001-02-05 04:00:00+09 |        331 |            0
+&gt;  2001-02-05 05:00:00+09 |        289 |            1
+&gt;  2001-02-05 06:00:00+09 |        329 |            0
+&gt;  2001-02-05 07:00:00+09 |        370 |            1
+&gt;  2001-02-05 08:00:00+09 |        465 |            0
+&gt; 	:
+&gt; 	:
+&gt; 
+&gt; １時間毎の集計がされた上記のようなテーブルに対して
+&gt; 要求に応じて２時間毎、３時間毎といった単位で集計をとりたいと考えています。
+&gt; １時間であれば
+&gt; select sum(access_cnt),sum(authuser_cnt) from log group by time;
+&gt; 
+&gt; という形で（この場合sumの意味はありませんが）出すことができますが、
+&gt; ２時間、３時間という単位で集計して
+&gt; 一度にSQL文で結果を得る方法はあるでしょうか。
+
+速度は出ないかもしれませんが，
+
+create function f2(datetime) returns datetime as '
+select case
+  when time($1) &lt; \'02:00:00\' then datetime(date($1), \'00:00:00\'::time)
+  when time($1) &lt; \'04:00:00\' then datetime(date($1), \'02:00:00\'::time)
+  when time($1) &lt; \'06:00:00\' then datetime(date($1), \'04:00:00\'::time)
+  when time($1) &lt; \'08:00:00\' then datetime(date($1), \'06:00:00\'::time)
+  when time($1) &lt; \'10:00:00\' then datetime(date($1), \'08:00:00\'::time)
+  when time($1) &lt; \'12:00:00\' then datetime(date($1), \'10:00:00\'::time)
+  when time($1) &lt; \'14:00:00\' then datetime(date($1), \'12:00:00\'::time)
+  when time($1) &lt; \'16:00:00\' then datetime(date($1), \'14:00:00\'::time)
+  when time($1) &lt; \'18:00:00\' then datetime(date($1), \'16:00:00\'::time)
+  when time($1) &lt; \'20:00:00\' then datetime(date($1), \'18:00:00\'::time)
+  when time($1) &lt; \'22:00:00\' then datetime(date($1), \'20:00:00\'::time)
+  else                              datetime(date($1), \'22:00:00\'::time) 
+  end
+' language 'sql';
+
+とした上で，
+
+create view log_2 as
+select f2(time) as t2, access_cnt, authuser_cnt
+from log;
+
+としてすれば通常の group by と sum で合計が取れますね．3時間単位なども同様です．
+
+# 関数の引数を一般化すると，同じ関数が 2時間単位とか3時間単位とかでも使えますが，
+# それはちょっと書くのが面倒なんで ... (^^;
+
+------
+市川哲彦
+お茶の水女子大学 理学部 情報科学科
+Phone: 03-5978-5708; Fax:   03-5978-5705
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00116" HREF="msg00116.html">[pgsql-jp 19872] sum every 3hours using SQL</A></STRONG>
+<UL><LI><EM>From:</EM> b-taka@ssd.sony.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00129.html">[pgsql-jp 19885] RE: SJIS &lt;-&gt; UNICODE</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 19886] Re: sum every 3hours using SQL</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 19881] Re: PostgreSQL でのSQLの書き方</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 19886] Re: sum every 3hours using SQL</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00128"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00128"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

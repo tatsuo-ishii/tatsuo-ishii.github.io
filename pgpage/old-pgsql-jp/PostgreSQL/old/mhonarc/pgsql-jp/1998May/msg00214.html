@@ -1,0 +1,167 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4152] Re: [Q]二重登録防止の手段について -->
+<!--X-From: Yoshihiko ICHIKAWA <ichikawa@is.ocha.ac.jp> -->
+<!--X-Date: Thu, 21 May 1998 14:32:24 +0900 -->
+<!--X-Message-Id: 19980521143224P.ichikawa@is.ocha.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199805210235.LAA09712@Qman.shikoku.nttcom.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4152] Re: [Q]二重登録防止の手段について </TITLE>
+<LINK REV="made" HREF="mailto:ichikawa@is.ocha.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00213.html">Date Prev</A>][<A HREF="msg00215.html">Date Next</A>][<A HREF="msg00210.html">Thread Prev</A>][<A HREF="msg00213.html">Thread Next</A>][<A HREF="index.html#00214">Date Index</A>][<A HREF="threads.html#00214">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4152] Re: [Q]二重登録防止の手段について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yoshihiko ICHIKAWA &lt;<A HREF="mailto:ichikawa@is.ocha.ac.jp">ichikawa@is.ocha.ac.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 21 May 1998 14:32:24 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00210.html">199805210235.LAA09712@Qman.shikoku.nttcom.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+&gt; sira&gt; ■Ｌｏｃｋしない場合 
+&gt; sira&gt; 
+&gt; sira&gt;       一人目のトランザクション          二人目のトランザクション         
+&gt; sira&gt; 
+&gt; sira&gt;  (1)	BEGIN                             BEGIN 
+&gt; sira&gt;  
+&gt; sira&gt;  (2)	************                      *************
+&gt; sira&gt;  
+&gt; sira&gt;  (3)	select ........                   select ........
+&gt; sira&gt; 
+&gt; sira&gt;  (4) 	INSERT or UPDATE                  INSERT or UPDATE
+&gt; sira&gt; 
+&gt; sira&gt;  (5)	END                               END
+&gt; sira&gt; 
+&gt; sira&gt; Ｑ．上記の場合は、二人目は、(4)で順番待ちに入るのでしょうか？
+&gt; sira&gt; 
+
+分かる範囲で．．．
+
+これは双方が待ちに入ります．lock mechanism が multi-granularity locking
+をしているのかどうかまでは詳しく調べていないので，なんとも言えない
+のですが，使った感じでは，table-level の S (Shared) と X (eXclusive) に
+基本的な lock elevation を組み合わせて使っているようです．
+TODO には `row or page level locking' が入ってますから，今後を期待
+しましょう．
+
+  上記の例では (4) の INSERT/UPDATE を実行した段階で，双方が待ちに入り，
+deadlock 状態になります．`sql-op' =&gt; `lock-op' という具合いで書きますと，
+こんな感じになります:
+
+	T1				T2
+	--------------------------	--------------------------
+1	select =&gt; 1ock(T1, S, x)
+2					select =&gt; lock(T2, S, x)
+3	update =&gt; upgrade(T1, X, x)	
+4					update =&gt; upgrade(T2, X, x).
+
+(3) と (4) でそれぞれ WFG (wait-for graph) が { T1 --&gt;T2, T2--&gt;T1 }
+となり，典型的な deadlock 状態になります．実際二つの psql を起動して
+テストをすると
+	
+Ex1
+	T1				T2
+	---------------------------	-----------------------------
+1	create table x (x int4)
+2	begin transaction
+3					begin transaction
+4	select * from x
+5					select * from x
+6	insert into x values (10)
+7					insert into x values(20)
+					--- Dead lock abort ----
+8	end transaction,
+
+となります．(7) のところでは，psql への NOTICE として
+
+NOTICE:  Deadlock detected -- See the lock(l) manual page for a possible cause.
+ERROR:  WaitOnLock: error on wakeup - Aborting this transaction
+
+というようなメッセージがでます．deadlock detection は，少し時間をおいて
+から強制 abort をかけているようです．一度 abort がかかると，end を
+して終了しないと以降の作業はできなくなります．
+
+  少し変えた例として
+
+Ex2
+	T1				T2
+	---------------------------	-----------------------------
+1	create table x (x int4)
+2	begin transaction
+3					begin transaction
+4	select * from x
+5					select * from x
+6	insert into x values (10),
+
+とだけやりますと，やはり (6) の段階で exclusive lock の取得に
+行くので，WFG では {T1--&gt;T2} となります．この段階で，T2 が
+終わらなければ，T1 は延々と待ち続けることになります．
+もしかすると適当なタイミングで time out にしているのかもしれません．
+
+  SI や XI なども一応 lock の variation として入ってはいますので，
+もしかしたらもっと複雑な multi-granurality アルゴリズムを使っているかも
+知れません．一度，きちんと整理しておく必要がありそうです．
+
+----
+お茶の水女子大学理学部情報科学科
+市川 哲彦
+Phone: 03-5978-5708 (ダイアルイン)
+Fax:   03-5978-5705 (学科図書室) / 5898 (理学部)
+E-mail: ichikawa@is.ocha.ac.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00210" HREF="msg00210.html">[pgsql-jp 4148] Re: [Q] 二重登録防止の手段について</A></STRONG>
+<UL><LI><EM>From:</EM> Kouji Shirakawa &lt;sira@Qman.shikoku.nttcom.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00213.html">[pgsql-jp 4151] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00215.html">[pgsql-jp 4153] PHP/FI日本語パッチ</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00210.html">[pgsql-jp 4148] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00213.html">[pgsql-jp 4151] Re: [Q] 二重登録防止の手段について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00214"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00214"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

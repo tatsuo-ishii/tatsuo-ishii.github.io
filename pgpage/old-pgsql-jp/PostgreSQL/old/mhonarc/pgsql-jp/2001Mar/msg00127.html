@@ -1,0 +1,141 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20261] Re: テキストファイルCOPY実行時のエラー -->
+<!--X-From: 松嶋<mats@itboost.co.jp> -->
+<!--X-Date: Wed, 07 Mar 2001 20:03:54 +0900 -->
+<!--X-Message-Id: 20010307200354X.wiUG@itboost.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 002301c0a6ef$ce2994c0$5db9a5cb@sugnm1.kt.home.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20261] Re: テキストファイルCOPY実行時のエラー </TITLE>
+<LINK REV="made" HREF="mailto:mats@itboost.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00126.html">Date Prev</A>][<A HREF="msg00128.html">Date Next</A>][<A HREF="msg00125.html">Thread Prev</A>][<A HREF="msg00130.html">Thread Next</A>][<A HREF="index.html#00127">Date Index</A>][<A HREF="threads.html#00127">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20261] Re: テキストファイルCOPY実行時のエラー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: 松嶋&lt;<A HREF="mailto:mats@itboost.co.jp">mats@itboost.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 07 Mar 2001 20:03:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00125.html">002301c0a6ef$ce2994c0$5db9a5cb@sugnm1.kt.home.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+松嶋です。
+
+| てっきりEUCだと思っていたのですがCopyする際、EUCだと文字化け
+| して話にならないので、S-JISでやってます。
+
+PostgreSQL 7.0.3 では、psql から
+  \l    （エルです）
+でデータベースの文字コードが確認できます。
+6.5.2 にも（違うコマンド文字かもしれませんが）あったと
+おもいます。\h で確認してみてください。
+
+原因として、Shift-JIS の 0x5c（ASCII で言う 「\」） を
+含む文字（「表」など）が考えられます。
+
+当方、EUC のデータベースですが、下記のようになります。
+
+------------------------------------------------------
+COPY する元データ（-&gt;は、タブに読み替えてください）
+hoge-&gt;foo\-&gt;bar
+aaa\-&gt;bbb-&gt;ccc
+
+mats=# create table hoge ( a text, b text, c text);
+CREATE
+mats=# copy hoge from '/my/data/file';
+COPY
+mats=# select * from hoge;
+    a    |    b    | c
+---------+---------+---
+ hoge    | foo  bar |
+ aaa    bbb | ccc     |
+------------------------------------------------------
+
+というように、「\タブ」という記述は、区切りではなく、
+タブそのものとして判断されます。
+
+「表」という文字は、0x95 0x5c の 2 バイトで構成されますが、
+例えば、ある文字データの最後に「表」という漢字があった
+場合には、その次のタブは区切りではなく、タブそのものと
+判断されそうな感じです。
+
+こういう状態が含まれている行がエラーになっているのでは
+ないでしょうか？
+
+| 今仕様中の特定のDBに、漢字コードを指定する事は可能なのですか？
+| ISPの準備した管理画面もPostgreSQLを使用しているらしく
+| 下手にさわれません。以前いきなりinitして管理画面が消えた事も
+| ありまして．．．
+
+少なくとも createdb の時には文字コードが指定できたはずです。
+マニュアル、その他をご覧下さい。
+
+少し急いで書いたので、雑文失礼いたしました。
+-- 
+<A HREF="http://www.itboost.co.jp/">http://www.itboost.co.jp/</A>
+  PHP, Perl, PostgreSQL, Apache, Java 他、いろいろあります。
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+株式会社 IT Boost／アイティーブースト
+松嶋 祥文
+mats@itboost.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00130" HREF="msg00130.html">[pgsql-jp 20264] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> 松嶋&lt;mats@itboost.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00125" HREF="msg00125.html">[pgsql-jp 20259] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+<UL><LI><EM>From:</EM> "Teruyuki Wakamatsu" &lt;terupost@mxa.mesh.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00126.html">[pgsql-jp 20260] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00128.html">[pgsql-jp 20262] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00125.html">[pgsql-jp 20259] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00130.html">[pgsql-jp 20264] Re: テキストファイルCOPY実行時のエラー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00127"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00127"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

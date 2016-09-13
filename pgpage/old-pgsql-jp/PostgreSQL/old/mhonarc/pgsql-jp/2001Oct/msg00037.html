@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23292] Re: 「階層問い合せ（Connect By 句）」は？ -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 03 Oct 2001 10:09:58 +0900 -->
+<!--X-Message-Id: 20011003100958B.t&#45;ishii@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23292] Re: 「階層問い合せ（Connect By 句）」は？ </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00036.html">Date Prev</A>][<A HREF="msg00038.html">Date Next</A>][<A HREF="msg00023.html">Thread Prev</A>][<A HREF="msg00086.html">Thread Next</A>][<A HREF="index.html#00037">Date Index</A>][<A HREF="threads.html#00037">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23292] Re: 「階層問い合せ（Connect By 句）」は？</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 03 Oct 2001 10:09:58 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00012.html">F1AF4AA92A61D5118EE100105A069AD02CBDFA@mailtokyo.bell24.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です．
+
+&gt; Oracleでは
+&gt; 
+&gt; 　select 社員番号, 社員名, 上司の社員番号, 職種, 入社日
+&gt; 　 from 人事表
+&gt; 　 start with 社員番号='xxxx'
+&gt; 　 connect by prior 社員番号=上司の社員番号
+&gt; 　 order by 入社日
+&gt; 
+&gt; のSQLで社員番号xxxxの部下を再起的に検索することができま
+&gt; した。
+[略]
+&gt; 　皆様にお伺いしたいのですが、Oracleで言うところの「階層
+&gt; 問い合せ」はPostgreSQLではどのように実現できるでしょうか？
+&gt; 
+&gt; 環境は以下のとおりです
+&gt; 　Linux2.4.7-2.14
+&gt; 　PostgreSQL 7.1.2
+&gt; 　php4.0.6
+&gt; 正攻法、邪道、問いませんので、よろしくお願いします。
+
+Oracleとまったく同じにはなりませんが，データが木構造を持っている場合，
+再帰呼び出しを使った関数で似たようなことができると思います．実行例を示
+します．
+
+test=# select id,pid,list_children(id) from t1;
+ id | pid | list_children 
+----+-----+---------------
+  0 |     | 0,1,2,4,5,3,6
+  1 |   0 | 1,2,4,5,3,6
+  2 |   1 | 2,4,5
+  3 |   1 | 3,6
+  4 |   2 | 4
+  5 |   2 | 5
+  6 |   3 | 6
+(7 rows)
+
+*ただし*，fuction manager のバグにより，この関数は 7.1.x では今のとこ
+ろ動きません．7.0か開発中のcurrentならOKなんですが...
+
+drop table t1;
+create table t1(id int primary key, pid int);
+insert into t1 values(0,null);
+insert into t1 values(1,0);
+insert into t1 values(2,1);
+insert into t1 values(3,1);
+insert into t1 values(4,2);
+insert into t1 values(5,2);
+insert into t1 values(6,3);
+
+drop function list_children(int);
+create function list_children(int) returns text as '
+declare
+	rtn text;
+	rec record;
+	myid int;
+begin
+	rtn := cast($1 as text);
+	for rec in select * from t1 where pid = $1 loop
+	  myid := rec.id;
+	  rtn := rtn || '','' || list_children(myid);
+	end loop;
+	return rtn;
+end;
+' language 'plpgsql';
+select *,list_children(id) from t1;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00012" HREF="msg00012.html">[pgsql-jp 23267] 「階層問い合せ（Connect By 句）」は？</A></STRONG>
+<UL><LI><EM>From:</EM> yosidam@bell24.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 23291] Re: function 内でのtemp使用について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00038.html">[pgsql-jp 23293] libpq を用いたidentでの認証について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00023.html">[pgsql-jp 23278] Re: 「階層問い合せ（Co	nnect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 23342] Re: 「階層問い合せ（Co	nnect By 	句）」は？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00037"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00037"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16064] Re: Re: 効率の良いselect文 -->
+<!--X-From: HIROSHI OOTA <oota@LSi.nec.co.jp> -->
+<!--X-Date: Thu, 13 Jul 2000 00:29:29 +0900 -->
+<!--X-Message-Id: cwem4zfjty.wl@sdlpc374.ulsys.lsi.nec.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: OFE5BE4B00.FB068A21&#45;ON49256919.003D83CE@nomura&#45;nms.co.jp -->
+<!--X-Reference-Id: 007c01bfeb99$1f6b1ba0$470ca8c0@argotechnos.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16064] Re: Re: 効率の良いselect文 </TITLE>
+<LINK REV="made" HREF="mailto:oota@LSi.nec.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00296.html">Date Prev</A>][<A HREF="msg00299.html">Date Next</A>][<A HREF="msg00285.html">Thread Prev</A>][<A HREF="msg00262.html">Thread Next</A>][<A HREF="index.html#00297">Date Index</A>][<A HREF="threads.html#00297">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16064] Re: Re: 効率の良いselect文</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: HIROSHI OOTA &lt;<A HREF="mailto:oota@LSi.nec.co.jp">oota@LSi.nec.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 13 Jul 2000 00:29:29 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00263.html">OFE5BE4B00.FB068A21-ON49256919.003D83CE@nomura-nms.co.jp</A>&gt;&lt;<A HREF="msg00282.html">007c01bfeb99$1f6b1ba0$470ca8c0@argotechnos.co.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: Wanderlust/2.2.9 (Gonna Make You Sweat) SEMI/1.13.7 (Awazu) FLIM/1.13.2 (Kasanui) Emacs/20.6 (i386-unknown-freebsdelf4.0) MULE/4.0 (HANANOEN)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは
+At Wed, 12 Jul 2000 09:35:47 +0900,
+坂本　直樹 &lt;n_sakamo@argotechnos.co.jp&gt; wrote:
+;; 説明が不十分で申し訳ないのですが、私の欲しいデータは以下のような括弧の
+;; 中のデータです。
+;; 
+;; 親１（９）
+;;  親１の子供１（０）
+;;  親１の子供２（０）
+;;  親１の子供３（５）
+;;   親１子供３の孫１（０）
+;;   親１子供３の孫２（２）
+;;    親１子供３孫２のひ孫１（０）
+;;    親１子供３孫２のひ孫２（０）
+;;   親１子供３の孫３（０）
+;;  親１の子供４（０）
+
+serial |  text
+-------+--------
+    id |   tid  
+こういうテーブルで
+
+親無し
+insert into tab (tid) values('');
+親あり
+insert into tab (tid)
+ values((select tid || id::text || '.' from table where id = 親のid));
+
+ id |  tid   
+----+--------
+  1 | 
+  2 | 1.
+  3 | 1.
+  4 | 1.
+  5 | 1.4.
+  6 | 1.4.
+  7 | 1.4.6.
+  8 | 1.4.6.
+  9 | 1.4.
+ 10 | 1.
+のようにして
+
+create function nChildren(int) returns int as
+  'select count(*) from tab where tid like
+   (select tid || id::text || ''.%'' from tab where id = $1)'
+   language 'sql';
+
+select id, nChildren(id) from tab;
+ id | nchildren 
+----+-----------
+  1 |         9
+  2 |         0
+  3 |         0
+  4 |         5
+  5 |         0
+  6 |         2
+  7 |         0
+  8 |         0
+  9 |         0
+ 10 |         0
+ではどうでしょうか?
+
+ツリーが深くなるとタプルサイズ制限に引っかかる &amp;&amp;
+親が複数だともう一捻り(で済むだろうか?)必要でしょうけど。
+--
+
+				HIROSHI OOTA
+				oota@LSi.nec.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00263" HREF="msg00263.html">[pgsql-jp 16030] Re: 効率の良いselect 文</A></STRONG>
+<UL><LI><EM>From:</EM> j-kitamura@nomura-nms.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00282" HREF="msg00282.html">[pgsql-jp 16049] Re:Re: 効率の良いselect文</A></STRONG>
+<UL><LI><EM>From:</EM> "坂本　直樹" &lt;n_sakamo@argotechnos.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00296.html">[pgsql-jp 16063] Re: [pgsql-jp 160 58] カラム数について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00299.html">[pgsql-jp 16066] Re: カラム数について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00285.html">[pgsql-jp 16052] Re: Re:効率の良いselect文</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00262.html">[pgsql-jp 16029] Re: 効率の良いselect 文</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00297"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00297"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

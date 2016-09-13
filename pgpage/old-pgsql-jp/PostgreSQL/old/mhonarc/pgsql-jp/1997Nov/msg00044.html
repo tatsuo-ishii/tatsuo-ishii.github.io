@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2915] Re: update from MS&#45;Access -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Thu, 06 Nov 1997 12:16:18 +0900 -->
+<!--X-Message-Id: 199711060316.MAA26055@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199711051758.CAA18103@matsu.interwiz.koganei.tokyo.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2915] Re: update from MS-Access </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00043.html">Date Prev</A>][<A HREF="msg00045.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00048.html">Thread Next</A>][<A HREF="index.html#00044">Date Index</A>][<A HREF="threads.html#00044">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2915] Re: update from MS-Access</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 06 Nov 1997 12:16:18 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。早速の回答、ありがとうございます。
+
+&gt;片岡＠インターウィズです。
+
+&gt;●まず最初のご質問
+&gt;
+&gt;&gt; 1. どうしてこのようなSQL文が生成されるのか？
+&gt;
+&gt;MS-Access が（おそらく）処理速度の向上のために、1度の ODBC 呼び出しで
+&gt;複数のレコードを読み出そうとするためです。
+&gt;
+&gt;例えば、1レコードを確定するために3個のフィールドの AND が必要だったと
+&gt;した場合、かつ、一度の ODBC 呼び出しで10レコードを読み出そうとした場合、
+&gt;MS-Access は、
+&gt;
+&gt;	SELECT ....
+&gt;	 WHERE field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+&gt;	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+&gt;	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx'
+&gt;		:
+&gt;		:
+&gt;	    OR field1 = 'xxx' AND field2 = 'xxx' AND field3 = 'xxx';
+&gt;
+&gt;という SQL 文を送りつけてきます。
+
+なるほど、これであの妙なSQL文を発行する理由が分かりました。
+
+&gt;●次に２番ですが
+&gt;
+&gt;&gt; 2. これは PostgreSQL または PostODBC 固有の問題か？
+&gt;
+&gt;上記のように、MS-Access が考えていることは決しておかしなことではないよ
+&gt;うに思います。多くの場合においては効率的なんだろうと思います。PostODBC 
+&gt;は MS-Access から受け取った SQL 文を大体そのまま PostgreSQL に渡します。
+&gt;これって、PostgreSQL の固有の問題と考えていいのでしょうか。
+
+そうですね。どんな SQL 文でも、文法的に間違ってなければ受け付けなけれ
+ばいけませんから。
+
+&gt;●最後に３番
+&gt;
+&gt;&gt; 3. 将来 PostgreSQL が複合 primary key をサポートすれば解決する問題なの
+&gt;&gt;    か？
+&gt;
+&gt;要するに、一度にできるだけ多くのレコードを読み出そうとして作成された 
+&gt;SQL 文が問題なく動作すればいいのだと思います。将来 PostgreSQL が複合 
+&gt;primary key をサポートした場合に、MS-Access がより単純な SQL 文を生成
+&gt;してくれればいいのですが、これにはおそらく PostODBC の対応が必要でしょ
+&gt;う。PostODBC 日本語版の場合、処理しようとしているテーブルに UNIQUE
+&gt;INDEX があればそれを利用するように ODBC アプリケーションにアドバイスす
+&gt;るように改良してあります。これを primary key にまで適応すればいいのだ
+&gt;とは思っています。
+
+ここらへんがよくわからなかったのですが、複合primary key がサポートされ
+たとしても、SQL 文は単純にならないのではないでしょうか？
+
+&gt;もう一つの方法としては、PostODBC が、oid を有効に利用するように ODBC 
+&gt;アプリケーションにアドバイスできれば非常にすっきりします。すごくすっき
+&gt;りするのですが、よい実装方法が見つかっていません。というか現在の 
+&gt;PostODBC 日本語版でもレコードの識別に oid が使えることを ODBC アプリケー
+&gt;ションにアドバイスできる様になっているのですが、なぜか使ってくれないの
+&gt;です（レコードの識別にもっとも良いフィールドをアドバイスする ODBC API 
+&gt;を実装してあるのですが、少なくとも MS-Access は呼んでくれない）。
+&gt;
+&gt;# こう書いているうちにひらめいてしまいました。oid をテーブルの UNIQUE
+&gt;# INDEX だと、ODBC アプリケーションに偽って教えてしまえばいいかもしれま
+&gt;# せん。これって、PostgreSQL としては何も問題ないですよね？
+
+問題無いと思います。
+
+&gt;# oid を使った検索ってインデックスより速いの・遅いの・同じなの？
+
+ちょっと調べてみました。(6.2.1)
+
+1. 明示的に指示しなければ、oid 用の index は作られない
+2. したがって、この場合は oid を使った検索は決して速くはない
+3. 明示的に指示すれば、oid 用の index を作ることができ、あたり前だがこ
+   の場合の検索速度は通常のインデックスの検索と同等のスピードである
+
+ということのようです。
+
+&gt;でも、PostgreSQL がダンマリになってしまわないのが一番うれしいです。
+
+でも、
+
+&gt;例えば、1レコードを確定するために3個のフィールドの AND が必要だったと
+&gt;した場合、かつ、一度の ODBC 呼び出しで10レコードを読み出そうとした場合、
+
+こういうことだと、結局
+
+(レコードを確定するのに必要なフィールド数)*読み出したいレコード数
+
+分の AND とか OR ができてしまうんですよね。つまり、レコードを確定する
+のに必要なフィールドが仮に 1 だとしても、30 レコードを呼び出そうとする
+と、30 個の OR ができてしまうわけで、やっぱり PostgreSQL はメモリを使
+い切ることになるような気がします。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00048" HREF="msg00048.html">[pgsql-jp 2919] Re: update from MS-Access</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp 2908] Re: update from MS-Access</A></STRONG>
+<UL><LI><EM>From:</EM> kataoka@interwiz.koganei.tokyo.jp (片岡裕生)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 2914] SQLを勉強するのに手頃な本</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00045.html">[pgsql-jp 2916] Re: SQLを勉強するのに手頃な本</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 2908] Re: update from MS-Access</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00048.html">[pgsql-jp 2919] Re: update from MS-Access</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00044"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00044"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

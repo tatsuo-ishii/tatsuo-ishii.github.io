@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7137] Re: semget failed (No space left on device)が出る -->
+<!--X-From: Takuya Abe <abet@tk.airnet.ne.jp> -->
+<!--X-Date: Thu, 18 Feb 1999 19:34:49 +0900 -->
+<!--X-Message-Id: v0401015cb2f19d1be08c@tk.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199902180320.MAA08190@ganymede.sunny.co.jp -->
+<!--X-Reference-Id: v04010501b2f0824cd809@tk.airnet.ne.jp -->
+<!--X-Reference-Id: v04010171b2f1418d6b29@tk.airnet.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7137] Re: semget failed (No space left on device)が出る </TITLE>
+<LINK REV="made" HREF="mailto:abet@tk.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00261.html">Date Prev</A>][<A HREF="msg00263.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00269.html">Thread Next</A>][<A HREF="index.html#00262">Date Index</A>][<A HREF="threads.html#00262">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7137] Re: semget failed (No space left on device)が出る</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Takuya Abe &lt;<A HREF="mailto:abet@tk.airnet.ne.jp">abet@tk.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 18 Feb 1999 19:34:49 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00241.html">199902180320.MAA08190@ganymede.sunny.co.jp</A>&gt; Your message of"Wed, 17 Feb 1999 23:36:09 +0900" &lt;<A HREF="msg00235.html">v04010501b2f0824cd809@tk.airnet.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　阿部＠ネクストです。自己フォローとちょっとまとめ。
+
+At 1:05 PM +0900 99.2.18, Takuya Abe wrote:
+&gt; 　阿部＠ネクストです。
+&gt; 
+&gt; &gt; &gt; IpcSemaphoreCreate: semget failed (No space left on device)
+&gt; &gt; 
+&gt; &gt; 落ちる時に出るメッセージはこれですよね？これを出しているのは、石井さん
+&gt; &gt; が作ってくださったpostgresql-6.4.2-patched-990217.tar.gzのソースでは、
+&gt; &gt; backend/storage/ipc/ipc.cの351行付近、
+&gt; &gt;
+&gt; &gt;（中略）
+&gt; &gt; このへんがクサいわけです。
+&gt; 
+&gt; 　ソースを眺めていただけるなんて・・・嬉しいです(;_;)。なんとなく
+&gt; ですが、仕組みが分かったような気がします。谷山さんに感謝です。
+&gt;  
+&gt; &gt; というわけで、ざっとソースを眺めた感じでは、options MAXSHMPGSを増やす
+&gt; &gt; のではなく(いや…増やしてもいいんでしょうけど)、options SEMMNIかSEMMNS
+&gt; &gt; を増やさないと、問題は解決しないんじゃないかと思います。
+&gt; 
+&gt; 　今日の朝、SEMMNSとSEMOPNを61から101に、SEMNMUを31から61に、
+&gt; SHMALLとMAXSHMPGSを1025から5001に増やしてみました（増やしすぎ？）。
+&gt; 今のところ問題のエラーは起こっていません。SEMMNIも増やしてみた方が
+&gt; いいでしょうか。
+
+　このメールを書いている間にエラーが起きていました(^^;)。それで、
+SEMMNIを11から51に増やしたらエラーが出なくなりました。が、
+以前出ていたbackendのdiscardingなんとかというエラーが出ました。
+その後、limit openfiles 30としたら、嘘のようにエラーが出なくなり
+ました(^_^)/。他にもいろいろ変えたような気がしますが、もうどこを
+どういじったのか自分でも分からなくなっています(^^;)。とりあえず
+一番効果があったのはkernelの再構築だったようです。
+
+　なお、maxusersは200にしてあります。また、
+
+options CHILD_MAX=1024
+options OPEN_MAX=1024
+
+としてあります。これは以前file system fullのエラーが大量に出たので
+こうしてありました。一応今のところ分かっていることを書きます。
+多くのデータを多数の同時アクセスユーザーで利用する場合、
+FreeBSD2.2.7R（PentiumII400MHz,メモリ320MB）では以下のようにします。
+
+（１）カーネルの再構築
+options		CHILD_MAX=1024	# 増やした
+options		OPEN_MAX=1024	# 増やした
+maxusers	200		# 増やした
+# Semaphore
+options		SEMMAP=31
+options		SEMMNI=51	# 増やした
+options		SEMMNS=101	# 増やした
+options		SEMMNU=61
+options		SEMMSL=61
+options		SEMOPM=101	# 増やした
+options		SEMUME=11
+options		SHMALL=5001	# 増やした
+options		"SHMMAX=(SHMMAXPGS*PAGE_SIZE+1)"
+options		SHMMAXPGS=5001	# 増やした
+options		SHMMIN=2
+options		SHMMNI=33
+options		SHMSEG=9
+
+（２）postmasterの起動
+unlimit;limit openfiles 30;postmaster -D/usr/local/pgsql/data -S -i -B 300 -o "-B 300 -S 10000"
+
+　実は今うまく動いているのはぬか喜びで、もっと調節が必要かもしれません(^^;)。
+ついでに、無駄な部分が多くありそうです。メモリが多いので今は大幅に
+数字をとっていますが。
+
+　それから、石井さんが教えてくれた、
+
+&gt;よく「8KBの壁」と言われるように、PostgreSQL では、タプルサイズなどは 
+&gt;8KB が限界ですが、実はこれを32KBまで拡張することが出来ます。方法は簡単
+&gt;で、include/config.h の
+&gt;#define BLCKSZ	8192
+&gt;を
+&gt;#define BLCKSZ	32768
+&gt;にするだけです。
+
+これをやればもっといいかもしれません。確かにselect count(*)等が
+速くなったような気がします。
+
+　ここ2日ですごく進歩したような気がします。皆さんのおかげです。
+
+------------------------------
+阿部拓也(Takuya Abe)
+[WebPage] 準備中
+ [E-Mail] abet@tk.airnet.ne.jp
+------------------------------
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00269" HREF="msg00269.html">[pgsql-jp 7144] Re: semget failed (No space left on device) が出る</A></STRONG>
+<UL><LI><EM>From:</EM> takehi-s@ascii.co.jp (SHIOZAKI Takehiko)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00241" HREF="msg00241.html">[pgsql-jp 7116] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> TANIYAMA Hideki &lt;yoko@sunny.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00235" HREF="msg00235.html">[pgsql-jp 7110] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00245" HREF="msg00245.html">[pgsql-jp 7120] Re: semget failed (No space left on device)が出る</A></STRONG>
+<UL><LI><EM>From:</EM> Takuya Abe &lt;abet@tk.airnet.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00261.html">[pgsql-jp 7136] RE: creating over 2GB table</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00263.html">[pgsql-jp 7138] Re: 質問：\copy my_table from \my_file_jp について</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 7135] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00269.html">[pgsql-jp 7144] Re: semget failed (No space left on device) が出る</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00262"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00262"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

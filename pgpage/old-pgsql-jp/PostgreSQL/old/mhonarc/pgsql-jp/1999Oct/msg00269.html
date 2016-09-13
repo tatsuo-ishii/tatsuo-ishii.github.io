@@ -1,0 +1,207 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 11244] union in view -->
+<!--X-From: Yasushi Numaguchi <numaguti@roland.co.jp> -->
+<!--X-Date: Wed, 20 Oct 99 12:53:19 JST -->
+<!--X-Message-Id: 9910200353.AA01632@prsrv.roland.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 11244] union in view </TITLE>
+<LINK REV="made" HREF="mailto:numaguti@roland.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00275.html">Date Prev</A>][<A HREF="msg00276.html">Date Next</A>][<A HREF="msg00348.html">Thread Prev</A>][<A HREF="msg00271.html">Thread Next</A>][<A HREF="index.html#00269">Date Index</A>][<A HREF="threads.html#00269">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 11244] union in view</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasushi Numaguchi &lt;<A HREF="mailto:numaguti@roland.co.jp">numaguti@roland.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 20 Oct 99 12:53:19 JST</LI>
+<LI><em>Cc</em>: <A HREF="mailto:numaguti@roland.co.jp">numaguti@roland.co.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+--
+--
+はじめまして
+沼口@rolandと申します。
+
+
+------
+  posrgreSQL は 6.4.2 のリリースされた頃から シーラカンス本 やＳＱＬ
+言語の解説書等を読みながら勉強しています。
+  perl 言語のインターフェイスを介して postgreSQL を利用しています。
+  このメーリングリストの過去ログは、しばしば検索対象とさせていただい
+ております。
+  	posrgreSQL は 6.5.1 
+	 Turbolinux 3.0 (カーネル 2.0.35)
+	バイブルのシーラカンス本はとても役立っています。(もうボロボロ)
+
+		------------------------------以上 自己紹介----
+
+
+
+
+== 本題 ==
+  以下の様な分割されたテーブル群から、目標となる様な 表(日程表)を
+うまく取り出す方法はないものでしょうか? うまい方法があればご教授
+お願いします。  私の稚拙なテーブル構成を作り変えても構いません。
+
+  
+  スケジュール(日程)の管理表です。
+	各個人の日程表として 各個人の日程に加えて 別表となっている
+	"規定ステップ" を割り込ませて表示したいのです。規定ステップは 
+	だれの個人表についても同じ内容が割り込む様にしたいのです。
+	規定ステップにも日付があり、この日付は個人によって自由に設定さ
+	れる値です。
+	
+
+
+-------欲しい出力------
+		id は表示不要 
+		id は 9000 以上が個人用id それ未満が規定ステップ用id
+		day でソートする(day は実際には date 型を使用)
+
+		
+      日程表（for A さん）
+
+
+	   イベント名   備考	
+(id) |day | ev_name  | remark
+-----+----+----------+-------
+1    |10/1| 規定1    |実行済1
+9001 |10/2|Ａさん1   |実行済9001    
+9002 |10/3|Ａさん2   |実行済9002	
+3    |10/4| 規定3    |実行済3 
+2    |10/5| 規定2    |未了2
+9003 |10/6|Ａさん3   |未了9003 
+
+
+
+
+-------データテーブル群-----
+
+具体日程表(for Aさん)...同様の表が人数分ある
+ TABLE: gutai_A
+id   | day | remark
+-----+-----+-------
+1    |10/1 | 実行済1
+2    |10/5 | 未了2
+3    |10/4 | 実行済3
+9001 |10/2 | 実行済9001
+9002 |10/3 | 実行済9002
+9003 |10/6 | 未了9003
+
+
+
+
+規定ステップ表		個人ステップ表(for Aさん) ...同様の表が人数分ある
+ TABLE: kitei		  TABLE: kojin_A
+id|ev_name		id   |ev-name
+--+-------		-----+-------
+1 |規定1		9001 |Ａさん1
+2 |規定2		9002 |Ａさん2
+3 |規定3		9003 |Ａさん3
+
+
+
+---- SQL 文 -----
+
+ 以下のSQLをビューにして 
+        select * from kitei
+	union 
+	select * from kojin_A
+
+  そのビューと gutai_A を結合して、日付でソートすれば所望の結果が
+ 得られると思いこんでいました。(そのつもりでテーブルを作成しました)
+ 実際には view 内に union が入っているので実行不能です。
+
+
+(別の方針で...)以下の様なSQLは動きます。
+
+ select gutai_A.id, day, ev_name, remark 
+	from kitei,gutai_A
+	where kitei.id = gutai_A.id
+ union
+ select gutai_A.id, day, ev_name, remark 
+	from kojin_A,gutai_A
+	where kojin_A.id = gutai_A.id
+
+上記SQLでは 今一歩で、ここで得られた結果をdayでソートをしたもの
+を所望しています。
+
+
+やはり (上記した View に代えて)一時表なるものを作る必要があるので
+しょうか？
+
+ 一時表というコトバは知っていますが 
+	普通の createtable で作る表と何か違うのか？
+	どのようにすれば生成されるのか?
+	同時に別ユーザが一時表を生成してしまう事は気にしなくてもよいのか？
+	(一時表を Lock するとしたらいつなのか？)
+	どのようにすれば 一時表を削除できるのか？ (Lock とのタイミング関係は？)
+
+	...の如く判らない点が多数あって躊躇しています。
+
+
+または、一時表を持ち出すまでもなく、テーブルの作り方を変える事でうまく実現でき
+ますでしょうか？   (規定ステップ表さえ別表になっていればそれでよいです)
+
+--
+　　　Roland Corp.				numaguti@roland.co.jp
+ プロジェクト業務部	Preproduction Review 担当   沼口　泰史
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00417" HREF="msg00417.html">[pgsql-jp 11393] union in view</A></STRONG>
+<UL><LI><EM>From:</EM> Yasushi Numaguchi &lt;numaguti@roland.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp 11246] Re:union in view</A></STRONG>
+<UL><LI><EM>From:</EM> 杉原　俊介&lt;sugihara@central-lib.pref.osaka.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00275.html">[pgsql-jp 11250] regress test failed Redhat-5.2</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00276.html">[pgsql-jp 11251] 6.5.2 でのインデックス付き検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00348.html">[pgsql-jp 11324] Re: libphp3.soメッセージ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 11246] Re:union in view</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00269"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00269"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

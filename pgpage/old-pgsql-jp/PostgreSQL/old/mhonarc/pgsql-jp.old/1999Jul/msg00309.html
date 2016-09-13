@@ -1,0 +1,146 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9506] "postgres is dead" の問題について -->
+<!--X-From: Tomoko Yoshida <toko@da.airnet.ne.jp> -->
+<!--X-Date: Sun, 18 Jul 1999 01:34:16 +0900 -->
+<!--X-Message-Id: 3790B0881E7.3341TOKO@mail.da.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9506] "postgres is dead" の問題について </TITLE>
+<LINK REV="made" HREF="mailto:toko@da.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00308.html">Date Prev</A>][<A HREF="msg00311.html">Date Next</A>][<A HREF="msg00324.html">Thread Prev</A>][<A HREF="msg00322.html">Thread Next</A>][<A HREF="index.html#00309">Date Index</A>][<A HREF="threads.html#00309">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9506] "postgres is dead" の問題について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tomoko Yoshida &lt;<A HREF="mailto:toko@da.airnet.ne.jp">toko@da.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Sun, 18 Jul 1999 01:34:16 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんばんは。吉田と申します。
+いつもこのＭＬにはお世話になっております。
+早速ですが、皆さんのお知恵をお借りしたく質問させて下さい。
+既に議論されているかもしれませんが、時間がなく
+まだ過去の記事全体に目を通しておりません。
+
+6.4.2 + Perl + Apache で会員のデータ管理、会員からのアクセス管理を
+行うサイトを構築しました。OSはFreeBSD2.2.8です。
+入念なテストをしたのですが、最大でも26人までの同時アクセステストまでしか
+行っておりませんでした。実際に運営に入ったとたん、
+Postmaster が落ちて、再起動してもまた落ちて、という現象になりました。
+
+いくつか原因となることが考えられるのですが、
+どう対処し、再発しない確認を実運営前にどうテストすればよいか、
+ということでとても困っております。
+メールが長くなりますが、アドバイスを頂けませんでしょうか。
+
+以下に、現象の詳細を記述します。
+Apache のログには以下のような記録が多発しておりました。
+
+NOTICE:  Deadlock detected -- See the lock(l) manual page for a possible cause.
+NOTICE:  EndTransactionBlock and not inprogress/abort state
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupte
+d shared memory.
+        I have rolled back the current transaction and am going to terminate your database system co
+nnection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  ShmemAlloc: out of memory
+
+これらの NOTICE が入れ違いにまたは連即して大量にはかれていました。
+
+また、system log には以下のように記述されていました。
+MMM DD HH:MM:SS Hostname /kernel: pid 242 (postgres), uid 1010: exited on signal 6 (core dumped)
+
+この現象は運営していた約3時間の間に繰り返し続きました。
+その3時間の間に、会員アクセス管理のperl cgiにあったアクセスは、
+15000を超えております。
+
+Deadlock がそもそもの起因と思われたので、過去記事を検索すると
+
+「ところで、6.4 では、クライアント側から問い合わせをキャンセルする機能が
+追加されるようです。これは、TCP/IP の OOB(out bound data)を使うもので、
+プロトコルも若干変わるようです。
+
+途中略
+
+トランザクションの整合性は保たれるでしょうが、簡単に deadlock を引き起
+こしかねません。たとえば、
+	接続No.1: select * from mytable;
+			→キャンセル
+	接続No.2: insert into mytable ....
+			→ここで deadlock
+とか。」
+
+という記事がありました。まさに、同じことを会員アクセス管理で行っています。
+これが起因と考えて間違いないでしょうか？
+6.5にアップグレードすれば解消されるようなことでしょうか？
+それとも、カーネルのoption の指定や、PostgreSQLのコンパイルの際に、
+特別な指定が必要でしょうか？
+
+対処した後に、大量アクセスのチェックしたいのですが、
+皆さんはどのようになさっているのでしょうか
+協力者を得て、同時にアクセスするにも、人数の限界があり、
+実際のアクセス数を再現するにはどうしたら良いのか、
+いい方法はないでしょうか。
+
+長くなって申し訳ありません。よろしくお願いいたします。
+----------------------------
+Tomoko Yoshida
+Email:   toko@da.airnet.ne.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00322" HREF="msg00322.html">[pgsql-jp 9519] Re: "postgres is dead" の問題について</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00308.html">[pgsql-jp 9505] Re: ★機能比較★　O racle等既 存DB MSとの比較</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00311.html">[pgsql-jp 9508] Re: ★機能比較★　O racle等既 存DB MSとの比較</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp 9521] Re: 自己紹介＆Debianパッケージの6.5について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00322.html">[pgsql-jp 9519] Re: "postgres is dead" の問題について</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00309"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00309"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

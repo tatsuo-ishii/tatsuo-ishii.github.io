@@ -1,0 +1,236 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23635] Re: Apache::DBI とApache::Session::postgres -->
+<!--X-From: "dodo" <dodo@o&#45;su.com.au> -->
+<!--X-Date: Thu, 8 Nov 2001 19:51:17 +1100 -->
+<!--X-Message-Id: 018b01c16832$88a43180$7401a8c0@osu.com.au -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 00df01c1674a$5adda300$7401a8c0@osu.com.au -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23635] Re: Apache::DBI とApache::Session::postgres </TITLE>
+<LINK REV="made" HREF="mailto:dodo@o-su.com.au">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00053.html">Date Prev</A>][<A HREF="msg00054.html">Date Next</A>][<A HREF="msg00037.html">Thread Prev</A>][<A HREF="msg00027.html">Thread Next</A>][<A HREF="index.html#00052">Date Index</A>][<A HREF="threads.html#00052">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23635] Re: Apache::DBI とApache::Session::postgres</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "dodo" &lt;<A HREF="mailto:dodo@o-su.com.au">dodo@o-su.com.au</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 8 Nov 2001 19:51:17 +1100</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00037.html">00df01c1674a$5adda300$7401a8c0@osu.com.au</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+TCMS 百々です。
+ 
+perl@freeml.com　の方で議論があったのですが、
+こちらにも過去に投稿したので、現在の状況を報告します。
+
+この報告に使われているベンチマーク結果は現在もう一度
+やり直しております。
+また、
+CREATE TABLE sessions (
+           id char(32) not null primary key,
+           a_session text
+        );
+の　id char(32) が char(64)になっていた点、スクリプトの不備など
+はもう一度見直して、再報告いたします。
+-----------------------------------------------------
+
+===＜　現在の問題点　＞=====
+mod_perl + Apache::DBIを利用しても、速くならない。（正確に言うと３％程は
+速くなっている。）
+ベンチマークした結果も変わっていないし、ブラウザからアクセスした体感でも
+「変わってない」と感じる。
+
+環境
+apache1.3.14 + mod_perl-1.24-01 + ApacheDBI-0.88 + postgres7.0.3
+
+====＜調査の経緯＞====
+■１、まずは、mod_perl、Apache::DBIの有効無効のチェックをする
+mod_perl の有効無効のチェックは
+exists $ENV{"MOD_PERL"}
+を見ている。
+
+Apache::DBIの有効無効のチェックは
+ps aux コマンドで確かめた際、postgres が多数常駐している事で確かめた。
+
+※ご指摘があり、Apache::DBIの確認は
+　　$Apache::DBI::DEBUG = 2;
+　　を使用したほうが良いとのこと
+
+よって、mod_perl + Apache::DBIは両方とも動いていると考えている。
+
+■２、ベンチマークはApacheBenchを利用した
+データベースの速度そのものを計るxpgbenchもあるが、今回は
+perlからApache::DBIを利用した上での測定が必要なためApacheBenchを
+使用した。
+
+■３、速くなるスクリプトと遅くなるスクリプトがある事が判明
+ ===  速くなるスクリプト ===
+・for next を１０００回ループさせるだけのスクリプトは速くなる
+　★ベンチマーク結果
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/test.cgi　を１０回行った平均">http://localhost/cgi-bin/test.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 8.45
+　　mod_perl + Apache::DBI導入後　request per second 66.25
+
+　よって、mod_perlは動いていると考えられる。
+
+・$dbh = DBI-&gt;connect　してすぐに disconnectするだけのスクリプトは速くなる
+　★ベンチマーク結果
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/test.cgi　を１０回行った平均">http://localhost/cgi-bin/test.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 12.87
+　　mod_perl + Apache::DBI導入後　request per second 52.27
+
+
+　よって、Apache::DBIは動いていると考えられる
+
+===  速度が変わらないスクリプト ===
+セッション情報を格納するため、Apache::Session::Porstgresを利用し、
+それを管理するためのクラス（仮にtest_session.pm）を使うと速度
+が変わらない（ベンチマーク結果が変わらない）
+
+　このベンチマークは現在サーバーで運営中のスクリプトを利用しています。
+　異常に遅いのは、おそらくsessionへの接続を２回行っているためです。
+　★ベンチマーク結果
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/session_test.cgi　を１０回行った平均">http://localhost/cgi-bin/session_test.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 1.86
+　　mod_perl + Apache::DBI導入後　request per second 1.91
+
+
+■４、Apache::Session::PorstgresはApache::DBIを利用しても早くならないのかと
+　　　思い、テストしてみる。
+-----------------------------------
+(session_test2.cgi)
+#!/usr/bin/perl -w
+use strict;
+use Apache::Session::Postgres;
+
+  my $self = { session =&gt; {} };
+
+  tie %{$self-&gt;{session}, 'Apache::Session::Postgres', $session_id,
+   {
+      DataSource =&gt; 'dbi:Pg:dbname=AUS',
+      UserName   =&gt; 'postgres',
+      Password   =&gt; '',
+      Commit     =&gt; 1
+   };
+
+  untie %{$self-&gt;{session};
+
+1;
+-------------------------------------
+★ベンチマーク結果
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/session_test2.cgi　を１０回行った平均">http://localhost/cgi-bin/session_test2.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 4.86
+　　mod_perl + Apache::DBI導入後　request per second 22.91
+
+なんと、見事に速くなっている。
+つまり、「インスタンスデータにtieするとApache::DBIは効かない」のであろうか？
+
+川合様が試していだだけたのだが、
+&gt;私のほうで確認したところやっぱり速くなりました。（下記スクリプト）
+&gt;Requests per secondでいうと、使わないと 17,8 、使うと 47, 48。
+という訳で、やはり速くなるとのこと。
+
+■ここで完全に行き詰まる。しかし、ちょっと気になる点が一つ。
+
+DBI-&gt;connect と Apache::Session::Postgres の結果が違いすぎる。
+
+DBI-&gt;connect 
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/test.cgi　を１０回行った平均">http://localhost/cgi-bin/test.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 12.87
+　　mod_perl + Apache::DBI導入後　request per second 52.27
+
+Apache::Session::Postgres 
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/session_test.cgi　を１０回行った平均">http://localhost/cgi-bin/session_test.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 4.86
+　　mod_perl + Apache::DBI導入後　request per second 22.91
+
+
+Apache::Session::Postgres は接続が遅いのであろうか？
+そこで、
+----------------------------------
+（session_test3.cgi）
+tie %{$self-&gt;{session}, 'Apache::Session::Postgres', $session_id,
+   {略 };
+untie %{$self-&gt;{session};
+tie %{$self-&gt;{session}, 'Apache::Session::Postgres', $session_id,
+   {略 };
+untie %{$self-&gt;{session};
+----------------------------------
+このように、tie untie を２回繰り返すスクリプトでテストした。
+
+★ベンチマーク結果
+    ab -c 10 -n 100 <A HREF="http://localhost/cgi-bin/session_test3.cgi　を１０回行った平均">http://localhost/cgi-bin/session_test3.cgi　を１０回行った平均</A>
+　　mod_perl + Apache::DBI導入前　request per second 2.07
+　　mod_perl + Apache::DBI導入後　request per second 3.45
+
+実行してみて驚いた。ものすごく遅い。しかも、導入後は２倍も速くなっていない。
+
+現在サーバーで利用しているスクリプトを見てみると、確かに２回接続している
+スクリプトがある。原因はここにあるのかもしれない。
+
+しかし、根本の原因が分かっていないため、解決には至っていない。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+とうのが現状です。
+現在、最初に書いた
+メーリングリスト（perl@freeml.com）
+でご指摘いただいた点をもう一度見直している最中です。
+
+結果をまとめ次第、ご報告します。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp 23620] Apache::DBI とApache::Session::postgres</A></STRONG>
+<UL><LI><EM>From:</EM> "dodo" &lt;dodo@o-su.com.au&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00053.html">[pgsql-jp 23636] Re: geometric problem</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 23637] Re: geometric problem</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 23620] Apache::DBI とApache::Session::postgres</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00027.html">[pgsql-jp 23610] pgsql-jp full text search</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00052"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00052"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

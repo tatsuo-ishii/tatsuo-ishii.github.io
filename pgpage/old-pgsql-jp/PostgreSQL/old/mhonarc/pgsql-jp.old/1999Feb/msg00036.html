@@ -1,0 +1,191 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 6909] Re:SQL操作 -->
+<!--X-From: Adachi Kenichi <ad_ke_o@defiant.mid.fujitsu.co.jp> -->
+<!--X-Date: Tue, 02 Feb 1999 17:40:41 +0900 -->
+<!--X-Message-Id: 36B6BA09.BAF60C45@defiant.mid.fujitsu.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 6909] Re:SQL操作 </TITLE>
+<LINK REV="made" HREF="mailto:ad_ke_o@defiant.mid.fujitsu.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00035.html">Date Prev</A>][<A HREF="msg00037.html">Date Next</A>][<A HREF="msg00039.html">Thread Prev</A>][<A HREF="msg00037.html">Thread Next</A>][<A HREF="index.html#00036">Date Index</A>][<A HREF="threads.html#00036">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 6909] Re:SQL操作</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Adachi Kenichi &lt;<A HREF="mailto:ad_ke_o@defiant.mid.fujitsu.co.jp">ad_ke_o@defiant.mid.fujitsu.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 02 Feb 1999 17:40:41 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは。
+安達＠てテクノアスカです。
+
+SQL一般のお話しで皆さんを煩わしていますが、お許しください。
+
+hiroshi ozawa wrote:
+
+レイアウトＡ[suki]
+namae  |artist   
+-------+---------
+hiroshi|spitz    
+hiroshi|gray     
+hiroshi|oasys    
+takeshi|earosmith
+takeshi|gray     
+kumi   |oasys    
+kumi   |spitz    
+
+レイアウトＢ[kuni]
+artist   |kokuseki
+---------+--------
+spitz    |nihon   
+gray     |nihon   
+oasys    |uk      
+earosmith|us      
+
+&gt;ここでこの二つのレイアウトの中で、
+&gt;（日本のアーティストをすべて好きな人）を抽出するには、
+&gt;（レイアウトＡ）と（レイアウトＢの国籍が日本であるアーティストの射影）
+&gt;を割り算すれば求まります。
+&gt;つまり、（レイアウトＢの国籍が日本であるアーティストの射影）はスピッツとグ
+&gt;レイです。
+&gt;割り算はこの（スピッツとグレイ）を元にレイアウトＡと比較して（スピッツとグ
+&gt;レイ）の両方
+&gt;とも網羅する値が解ですので、この場合答えは（ひろし）と言う事になります。
+
+この説明はとてもスッキリします。そこでくだんの本に従って、割算を'where
+exists'で定義し
+PostgreSQL6.4.2で次のように計算してみました。
+
+=&gt; select S.namae from suki S where exists (select R.artist from kuni R
+where R.kokuseki='nihon');
+
+ところが、この解は
+namae  
+-------
+hiroshi
+hiroshi
+hiroshi
+takeshi
+takeshi
+kumi   
+kumi   
+(7 rows)
+となります。すると、
+
+Tatsuo Ishii wrote:
+&gt;これに対して、どうして divison が
+&gt;
+&gt;&gt;    SELECT R.商品番号 FROM 東京在庫 R WHERE EXISTS (SELECT S.商品番号
+&gt;&gt;FROM 大阪在庫 S)
+&gt;
+&gt;こう定義されるか分かりません。
+
+の指摘のように、割算の定義を'where exists'でしていることが怪しくなりま
+す。
+
+実際、&lt;<A HREF="http://www.dis.uniroma1.it/DBUI/DBslides/Mod2L1-2/tsld015.htm">http://www.dis.uniroma1.it/DBUI/DBslides/Mod2L1-2/tsld015.htm</A>&gt;や
+&lt;<A HREF="http://cis.csuohio.edu/~matos/notes/cis-611/ClassNotes/05-Algebra2SQL.html">http://cis.csuohio.edu/~matos/notes/cis-611/ClassNotes/05-Algebra2SQL.html</A>&gt;
+に
+見られる割算のSQL例の定義は上とは違います(定義の中に差の計算が含まれてい
+るので
+PostgrSQL6.4.2では確認できないのが残念)。
+
+一応、この点について出版社にメールで聞いてみます。
+お騒がせしました。
+
+なお、&lt;<A HREF="http://www.dis.uniroma1.it/DBUI/DBslides/Mod2L1-2/tsld012.htm">http://www.dis.uniroma1.it/DBUI/DBslides/Mod2L1-2/tsld012.htm</A>&gt;
+に、'where exists'
+を使った以下のような例題がありましたが、やっぱりここでやっていることは割
+算ではなく、
+単にwhere句のなかにSQL文を指定できますよ、という実例のようです。
+
+２つのテーブル、
+[sailors]
+sid|sname 
+---+------
+ 22|dustin
+ 31|lubber
+ 58|rusty 
+
+[reserves]
+sid|bid
+---+---
+ 22|101
+ 58|103
+
+に対し、
+=&gt;select S.sname from sailors S where exists (select * from reserves R
+where R.bid=103 and S.sid=R.sid);
+
+sname
+-----
+rusty
+(1 row)
+
+また、次のSQL文も上と等価で、
+=&gt;SELECT S.sname FROM Sailors S WHERE S.sid IN (SELECT R.sid FROM
+Reserves R WHERE R.bid=103);
+
+sname
+-----
+rusty
+(1 row)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00038" HREF="msg00038.html">[pgsql-jp 6911] Re: SQL操作</A></STRONG>
+<UL><LI><EM>From:</EM> Shoichi Kosuge &lt;s-kosuge@str.hitachi.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00037" HREF="msg00037.html">[pgsql-jp 6910] Re: SQL操作</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00035.html">[pgsql-jp 6908] Re: JServSSIの導入方法について教えてください。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 6910] Re: SQL操作</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 6912] RE:SQL操作</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00037.html">[pgsql-jp 6910] Re: SQL操作</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00036"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00036"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

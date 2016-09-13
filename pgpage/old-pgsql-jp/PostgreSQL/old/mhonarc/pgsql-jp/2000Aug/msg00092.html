@@ -1,0 +1,162 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16477] Re: 画像の取り扱い方 -->
+<!--X-From: "Hiroki Kataoka" <kataoka@interwiz.koganei.tokyo.jp> -->
+<!--X-Date: Fri, 4 Aug 2000 13:14:18 +0900 -->
+<!--X-Message-Id: NDBBIKCHILNJOAAPDPKMMEKBCBAA.kataoka@interwiz.koganei.tokyo.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 398A2570316.ADAFOKIMOTO@fm303 -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16477] Re: 画像の取り扱い方 </TITLE>
+<LINK REV="made" HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00091.html">Date Prev</A>][<A HREF="msg00093.html">Date Next</A>][<A HREF="msg00089.html">Thread Prev</A>][<A HREF="msg00097.html">Thread Next</A>][<A HREF="index.html#00092">Date Index</A>][<A HREF="threads.html#00092">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16477] Re: 画像の取り扱い方</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Hiroki Kataoka" &lt;<A HREF="mailto:kataoka@interwiz.koganei.tokyo.jp">kataoka@interwiz.koganei.tokyo.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 4 Aug 2000 13:14:18 +0900</LI>
+<LI><em>Importance</em>: Normal</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+片岡＠インターウィズです。
+
+&gt; 沖本＠ブレーンです。
+&gt; 度々画像についての質問をしております。
+&gt; 今回はテーブルの構成をこのようにしました
+&gt; CREATE TABLE 画像 (
+&gt; GazouID INT,
+&gt; Picture OID);
+&gt; レコードを複数INSERTした後にACCESS2000に
+&gt; リンクテーブルを作成し画像をVBAにて取り出して
+&gt; 表示させようと思っています。
+&gt; ADO接続をして以下のようなSQLを投げて画像のバイナリ情報は
+&gt; 取れたのですがそれをどうやって表示すればいいのかわかりません。
+
+  MS-Accessの場合、画像を簡単に表示できるのはOLE型の時だけです。でもOLE型を
+使ってしまうと、MS−Accessの世界に閉じてしまいます。
+
+  MS-Accessで画像のバイナリデータをいかにして表示するかは、VBで画像ビュアー
+を作成するような物ですから、多分一言では説明できないと思います。
+  たぶん一番簡単なのは、画像のバイナリデータを一時ファイルに保存して、直接イ
+メージファイルが開けるコントロールからその一時ファイルを開く、という方法。こ
+れならレンダラを自分で書く必要がありませんから。でも、美しくないかな（笑）。
+
+  まあ、何にしても画像の表示方法そのものはPostgreSQLの話ではないのでこの辺
+で。
+
+&gt; Private Sub Form_Load()
+&gt;     Dim Cn As New ADODB.Connection
+&gt;     Dim Fld As ADODB.Field
+&gt;     Dim W_RS As New ADODB.Recordset
+&gt;     Dim W_SQL As String
+&gt;     Dim buff_arr(1 To 100) As Variant
+&gt;     Dim cnt As Integer
+&gt;
+&gt; Set Cn = New ADODB.Connection
+&gt;     Cn.ConnectionString = "driver=PostgreSQL;" &amp; _
+&gt;         "server=fm203.jp;uid=brain;pwd=brain;database=brain"
+&gt;     Cn.ConnectionTimeout = 30
+&gt;     Cn.Open
+&gt;
+&gt;     cnt = 1
+&gt;     W_SQL = " select lo(image) from gazo_oid;"
+&gt;     Set W_RS = Cn.Execute(W_SQL)
+&gt;     Do Until W_RS.EOF
+&gt;         For Each Fld In W_RS.Fields
+&gt;             buff_arr(cnt) = Fld.Value
+&gt;             cnt = cnt + 1
+&gt;         Next
+&gt;         W_RS.MoveNext
+&gt;     Loop
+&gt;
+&gt; 出力結果の一部
+&gt; buff_arr(1)				Variant/Byte(0 to 100340)
+&gt; buff_arr(1)(0)		71		Byte
+&gt; buff_arr(1)(1)		73		Byte
+&gt; buff_arr(1)(2)		70		Byte
+&gt; buff_arr(1)(3)		56		Byte
+&gt; buff_arr(1)(4)		57		Byte
+&gt;
+&gt; しかもこの方法だと100340をいっぺんに取ってくるので
+&gt; メモリを食ってしまって困ってます。1024バイトくらいづつ
+&gt; とりたいと思ってるのですが・・・。
+&gt; どなたかこのバイト列の表示方法と1024バイトづつ取って来る
+&gt; 方法をご存知の方（・・・いないかなぁ・・・過去ログにも
+&gt; あまりラージオブジェクトについて悩んでる人いないみただし・・・）
+&gt; いらっしゃいましたら宜しくご指導の程お願いします。
+
+  任意のバイト単位で取ってくる方法は多分ありません。
+  少なくともPostgreSQL ODBC Driverのlo型の機能を利用している限りは。
+  どうしてもというのであれば、libpqのラージオブジェクト関連のAPIを直接使うし
+かないですね。VBAから使えるかは…、使えそうな気がしますが、真偽のほどはわか
+りません。
+
+# このヘッダは…GIFの様ですが、出来ればGIFのレンダラは書きたくないですよね。
+色々あるから。
+
+=============================================================
+インターウィズ  E-Mail: staff@interwiz.koganei.tokyo.jp
+                WWW   : <A HREF="http://www.interwiz.koganei.tokyo.jp/">http://www.interwiz.koganei.tokyo.jp/</A>
+片岡　裕生      E-Mail: kataoka@interwiz.koganei.tokyo.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00097" HREF="msg00097.html">[pgsql-jp 16482] Re: 画像の取り扱い方</A></STRONG>
+<UL><LI><EM>From:</EM> 沖本 剛 &lt;okimoto@brain-tokyo.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 16471] 画像の取り扱い方</A></STRONG>
+<UL><LI><EM>From:</EM> 沖本 剛 &lt;okimoto@brain-tokyo.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00091.html">[pgsql-jp 16476] Re: 「NOTICE:BeginTransactionBlock and not in defaultstate」の表示を止めたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00093.html">[pgsql-jp 16478] Re: 「NOTICE:  BeginTransactionBlock and not in default state」の表示を止めたい</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00089.html">[pgsql-jp 16474] Re: 画像の取り扱い方</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00097.html">[pgsql-jp 16482] Re: 画像の取り扱い方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00092"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00092"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

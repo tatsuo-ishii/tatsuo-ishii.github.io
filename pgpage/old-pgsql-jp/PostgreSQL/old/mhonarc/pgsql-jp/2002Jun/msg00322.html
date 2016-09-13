@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 26535] % で始まる文字のLIKE 検索 -->
+<!--X-From: Hajime Lucky Okada <paraiso@luckyo.8m.com> -->
+<!--X-Date: Sat, 29 Jun 2002 17:08:20 +0900 -->
+<!--X-Message-Id: 3D1D6AF4.5040101@luckyo.8m.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 26535] % で始まる文字のLIKE 検索 </TITLE>
+<LINK REV="made" HREF="mailto:paraiso@luckyo.8m.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00313.html">Date Prev</A>][<A HREF="msg00314.html">Date Next</A>][<A HREF="msg00324.html">Thread Prev</A>][<A HREF="msg00314.html">Thread Next</A>][<A HREF="index.html#00322">Date Index</A>][<A HREF="threads.html#00322">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 26535] % で始まる文字のLIKE 検索</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Hajime Lucky Okada &lt;<A HREF="mailto:paraiso@luckyo.8m.com">paraiso@luckyo.8m.com</A>&gt;</LI>
+<LI><em>Date</em>: Sat, 29 Jun 2002 17:08:20 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (Windows; U; Windows NT 5.0; ja-JP; rv:1.0rc2) Gecko/20020512 Netscape/7.0b1</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岡田と申します。　お世話になっております。
+
+さて、半角 % で始まる（を含んだ）テキストの LIKE 検索で、
+私の理解が間違っているのか期待している結果を返してくれません。
+ご教授頂けますでしょうか。
+
+以下、サンプル・テストを示します。
+
+mountdb=# create table aaa (id int, content text);
+CREATE
+mountdb=# insert into aaa values ('1', 'ぽよよん');
+INSERT 158202 1
+mountdb=# insert into aaa values ('2', '%test');
+INSERT 158203 1
+mountdb=# insert into aaa values ('3', 'どかーん');
+INSERT 158204 1
+mountdb=#
+mountdb=#
+mountdb=# select * from aaa;
+ id | content
+----+----------
+  1 | ぽよよん
+  2 | %test
+  3 | どかーん
+(3 rows)
+
+３件ほどテストデータを入れます。  
+この中で、content 文字列が '%' で始まるレコードを検索したいとします。
+'%' の後ろの文字列は記憶にありません。  
+
+そこで、、、「4.5.1. LIKE述語を使用したパターンマッチング」
+<A HREF="http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/functions-matching.html">http://osb.sra.co.jp/PostgreSQL/Manual/PostgreSQL-7.1-ja/functions-matching.html</A>
+に基づき、「アンダースコアやパーセント記号そのものをパターンマッチさせたい場合は
+patternの文字1字づつエスケープ文字で 指定する必要があります。」ということで、
+'%' 自身を表すため \ でエスケープさせ '\%'、不定文字列を表すため '%' を付加して
+検索してみます。
+
+mountdb=# select * from aaa where content like '\%%';
+ id | content
+----+----------
+  1 | ぽよよん
+  2 | %test
+  3 | どかーん
+(3 rows)
+
+するとこの様に全部選択されてしまいます。試しの '%%%' も、同じ結果。
+
+おっと偶然、% の次の文字 t を思い出したとして、
+
+mountdb=# select * from aaa where content like '\%t%';
+ id | content
+----+---------
+  2 | %test
+(1 row)
+
+とすれば、期待値が出てきました。
+
+
+
+ちなみに、正規表現 '^%' を使えば、
+
+mountdb=# select * from aaa where content ~ '^%';
+ id | content
+----+---------
+  2 | %test
+(1 row)
+
+と、期待値が返ってきます。
+
+
+他との兼ね合いで LIKE 表現を使いたいのですが、
+先頭文字% だけの記憶で LIKE 検索は出来ないのでしょぅか？
+
+
+環境：
+Postgres 7.2.1
+Solaris 2.5
+
+以上、宜しくお願い致します。
+
+岡田はじめ
+
+
+
+
+
+
+
+
+
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00327" HREF="msg00327.html">[pgsql-jp: 26547] Re: % で始まる文字のLIKE検索</A></STRONG>
+<UL><LI><EM>From:</EM> Hajime Lucky Okada &lt;luckyo@tpk.toppan.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00329" HREF="msg00329.html">[pgsql-jp: 26539] Re: % で始まる文字のLIKE検索</A></STRONG>
+<UL><LI><EM>From:</EM> ISHIDA Akio &lt;iakio@pjam.jpweb.net&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00316" HREF="msg00316.html">[pgsql-jp: 26538] Re: % で始まる文字のLIKE検索</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00315" HREF="msg00315.html">[pgsql-jp: 26537] Re: % で始まる文字のLIKE検索</A></STRONG>
+<UL><LI><EM>From:</EM> Satoshi Nagayasu &lt;snaga@oak.forus.or.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00314" HREF="msg00314.html">[pgsql-jp: 26536] Re: % で始まる文字のLIKE検索</A></STRONG>
+<UL><LI><EM>From:</EM> Shigeki Mimura &lt;mimu@telepass.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00313.html">[pgsql-jp: 26534] Re: ログ収集にかんして</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00314.html">[pgsql-jp: 26536] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00324.html">[pgsql-jp: 26542] リストアについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00314.html">[pgsql-jp: 26536] Re: % で始まる文字のLIKE検索</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00322"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00322"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

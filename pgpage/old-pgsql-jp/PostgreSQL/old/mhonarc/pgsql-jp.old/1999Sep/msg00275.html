@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 10777] MS&#45;Access97のVBAからPostgreSQLの制御 -->
+<!--X-From: lpk_kanto_yoshikawa@mba.nifty.ne.jp -->
+<!--X-Date: Sat, 18 Sep 1999 19:35:35 +0900 -->
+<!--X-Message-Id: 37E36AF7.4994D9CD@mba.nifty.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 10777] MS-Access97のVBAからPostgreSQLの制御 </TITLE>
+<LINK REV="made" HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00274.html">Date Prev</A>][<A HREF="msg00278.html">Date Next</A>][<A HREF="msg00281.html">Thread Prev</A>][<A HREF="msg00270.html">Thread Next</A>][<A HREF="index.html#00275">Date Index</A>][<A HREF="threads.html#00275">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 10777] MS-Access97のVBAからPostgreSQLの制御</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:lpk_kanto_yoshikawa@mba.nifty.ne.jp">lpk_kanto_yoshikawa@mba.nifty.ne.jp</A></LI>
+<LI><em>Date</em>: Sat, 18 Sep 1999 19:35:35 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+　今日は質問ではなく、AccessのVBAからSQLを制御する手法で、私が実際
+に行っている方法をご紹介してみたいと思います。
+
+　須貝さまの発言、10765がきっかけなのですが、何かのご参考になれば
+幸いです。また、検証の意味で、こうした制御に詳しい方の批評を頂けま
+したら修正していきたいと思います。
+
+○ODBCDirect用のWorkspace
+
+≫Public WsODBC As Workspace      ''ODBCワークスペース
+≫Public Conect As Connection     ''ODBC_Connection
+≫Public qdfTemp As QueryDef      ''QueryDef
+
+　上記内容のモジュールを用意します。私は[ODBC変数]という名前にして
+あります。
+
+≫''ODBCDirectの設定
+≫
+≫    Set WsODBC = CreateWorkspace("ODBCWorkspace", "", "",
+≫dbUseODBC)
+≫    
+≫    Set Conect = WsODBC.OpenConnection("Connect", _
+≫        dbDriverNoPrompt, , _
+≫        "ODBC;DSN=denwatai;DATABASE=denwatai;UID=postgres;
+≫PWD=password")
+
+　要するにパブリック変数の設定をしているだけです(^^;)
+
+　次に実際に実行する変数に、
+
+≫''ODBCDirectの設定
+≫
+≫    Set WsODBC = CreateWorkspace("ODBCWorkspace", "", "",
+≫dbUseODBC)
+≫    
+≫    Set Conect = WsODBC.OpenConnection("Connect", _
+≫        dbDriverNoPrompt, , _
+≫        "ODBC;DSN=databese;DATABASE=denwa;UID=postgres;
+≫PWD=password")
+
+　を記述します。
+　ここでは仮に、DNS名をdatabese、データーベース名をdenwa、パスワー
+ドをpasswordにしてあります。
+　この記述をすると、Conectをオブジェクトに指定してSQLを実行する
+と、PostgreSQLにそのまま流れます。
+　ここで試用するdenwaテーブルは
+
+   user_id   |   tel_no   
+-------------+----------------
+        1    | 0312345678
+        2    | 0398765432
+
+ であるとします。
+
+　そこでqdfTempにSQL文を与え、
+
+≫''トランザクションの開始を宣言
+≫    Set qdfTemp = Conect.CreateQueryDef("", "begin;")
+≫    qdfTemp.Execute
+≫
+≫''使用するテーブルのロック処理
+≫    Set qdfTemp = Conect.CreateQueryDef("", "lock user_tel;")
+≫    qdfTemp.Execute
+
+　でテーブル user_telはロックされます。
+　私の環境では、2台のクライアントが接続されていますが、上記の構文
+のみを実行すると、end;がありませんので、もう一台のクライアントから
+の参照は不可能になります。
+
+　また、RecordsetでもConectをオブジェクトに指定している限り結果は
+同じで、
+≫    Set UTelN_RS = Conect.OpenRecordset("SELECT
+≫Max(user_tel.user_id) AS Max_id FROM user_tel;", dbOpenSnapshot)
+
+　でuser_idの最大値を得ることが出来ます。
+
+　このテーブルだと、2になるでしょう。
+
+　次に登録作業ですが、顧客Data入力Foramに３つのテキストボックスを
+設定して、市外局番、市内局番、番号と名前を付けます。
+　そこに値を入れて次のようなモジュールを実行します。
+
+≫    UserNo = [UTelN_RS]![Max_id] + 1
+≫
+≫''user_telテーブルへの新規登録
+≫'''電話番号が空欄の場合
+≫    If IsNull(Forms!顧客Data入力Foram![市外局番] &amp; Forms!顧客
+≫Data入力Foram![市内局番] &amp; Forms!顧客Data入力Foram![番号]) Then
+≫    '''SQLの設定
+≫        SQL_St01 = "INSERT INTO " &amp; """user_tel""" &amp; " "
+≫        SQL_St01 = SQL_St01 &amp; "VALUES(" &amp; UserNo &amp; ","
+≫        SQL_St01 = SQL_St01 &amp; "'"
+≫        SQL_St01 = SQL_St01 &amp; "TEL not Found"
+≫        SQL_St01 = SQL_St01 &amp; "'" &amp; ");"
+≫            
+≫
+≫'''電話番号が空欄でない場合
+≫    Else
+≫    
+≫    '''SQLの設定
+≫        SQL_St01 = "INSERT INTO " &amp; """user_tel""" &amp; " "
+≫        SQL_St01 = SQL_St01 &amp; "VALUES(" &amp; UserNo &amp; ","
+≫        SQL_St01 = SQL_St01 &amp; "'"
+≫        SQL_St01 = SQL_St01 &amp; Forms!顧客Data入力Foram![市外局番]
+≫        SQL_St01 = SQL_St01 &amp; Forms!顧客Data入力Foram![市内局番]
+≫        SQL_St01 = SQL_St01 &amp; Forms!顧客Data入力Foram![番号]
+≫        SQL_St01 = SQL_St01 &amp; "'" &amp; ");"
+≫Debug.Print SQL_St01
+≫
+≫    End If
+≫
+≫''user_telテーブル書き込みのQueryDef
+≫        Set qdfTemp = Conect.CreateQueryDef("", SQL_St01)
+≫        qdfTemp.Execute
+≫
+≫''トランザクションの終了を宣言
+≫    Set qdfTemp = Conect.CreateQueryDef("", "end;")
+≫    qdfTemp.Execute
+
+　試しにこのモジュールを2台同時に稼働させたところ、ちゃんとIDは別
+になって登録されました。
+
+≫    Set qdfTemp = Conect.CreateQueryDef("", "begin;")
+≫    qdfTemp.Execute
+
+　の部分をコメントにすると、参照が重複してエラーになる事がありまし
+たので、やはりこの形式でSQLを送出する事により、排他制御がかかって
+いるものと思われます。
+
+　特徴としてはINSERT INTO " &amp; """user_tel"""の部分ですが、何故かテ
+ーブル名やフィールド名は、"""でくくってやらないと上手く動作しませ
+んので、この様な制御になっています。
+
+　MS-AccessからPostgreSQLを使う上で、参考になれば幸いです。
+
+
+--
+
+株式会社　エルピーカンシサービス
+SE: 吉川　一浩
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00274.html">[pgsql-jp 10776] Re: NULLと文字列との結合が出来ない?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 10780] RE: データのインポートについて</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00281.html">[pgsql-jp 10783] RE: データのインポートについて</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 10772] RE: はじめましてDelphi 用のコンポーネントを公開しました</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00275"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00275"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

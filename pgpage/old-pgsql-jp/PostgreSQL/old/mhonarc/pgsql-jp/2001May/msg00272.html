@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 21226] 64&#45;bit PostgreSQL -->
+<!--X-From: Tsuyoshi SASAMOTO <sasamoto@e&#45;vision.co.jp> -->
+<!--X-Date: Wed, 16 May 2001 08:22:37 +0900 (JST) -->
+<!--X-Message-Id: 200105152322.IAA11298@mailhost.e&#45;vision.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 21226] 64-bit PostgreSQL </TITLE>
+<LINK REV="made" HREF="mailto:sasamoto@e-vision.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00271.html">Date Prev</A>][<A HREF="msg00273.html">Date Next</A>][<A HREF="msg00316.html">Thread Prev</A>][<A HREF="msg00245.html">Thread Next</A>][<A HREF="index.html#00272">Date Index</A>][<A HREF="threads.html#00272">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 21226] 64-bit PostgreSQL</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tsuyoshi SASAMOTO &lt;<A HREF="mailto:sasamoto@e-vision.co.jp">sasamoto@e-vision.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 16 May 2001 08:22:37 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+Solaris8(SPARC)上で，64bitバイナリを吐くgcc-2.95.3を作ったので，
+いくつかプログラムをコンパイルしてみましたが，PostgreSQL7.1.1も
+やってみました．
+
+-O2でコンパイルしましたが，regression testも一応通ったので，
+ちゃんと使えるようです．-Oなしじゃないとまともに動かない
+プログラムもあった中では，なかなか上出来です^^
+
+ただ，１ヶ所
+
+*** ./expected/triggers.out     Sun Jan 16 04:18:23 2000
+--- ./results/triggers.out      Wed May 16 07:09:01 2001
+***************
+*** 75,91 ****
+  insert into fkeys values (60, '6', 4);
+  ERROR:  check_fkeys_pkey2_exist: tuple references non-existing key in fkeys2
+  delete from pkeys where pkey1 = 30 and pkey2 = '3';
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+  ERROR:  check_fkeys2_fkey_restrict: tuple referenced in fkeys
+  delete from pkeys where pkey1 = 40 and pkey2 = '4';
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys2 are deleted
+  update pkeys set pkey1 = 7, pkey2 = '70' where pkey1 = 50 and pkey2 = '5';
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+  ERROR:  check_fkeys2_fkey_restrict: tuple referenced in fkeys
+  update pkeys set pkey1 = 7, pkey2 = '70' where pkey1 = 10 and pkey2 = '1';
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys are deleted
+- NOTICE:  check_pkeys_fkey_cascade: 1 tuple(s) of fkeys2 are deleted
+  DROP TABLE pkeys;
+  DROP TABLE fkeys;
+  DROP TABLE fkeys2;
+--- 75,85 ----
+
+======================================================================
+
+というのがありましたが，これは大した問題ではないですよね？
+
+あと，configure時に，「64bitだから」ということで
+"--host=sparcv9-sun-solaris2.8"と指定したんですが
+（64bitのgccを作る時はこうしたんで），これだと
+src/test/regress/resultmapでうまくマッチしなかったんですが，
+これはこういう指定をした私が悪いんですね^^;
+
+で，pgbenchを走らせて比べてみましたが（このマシン自体が
+古くて遅いので，数値自体も低めですが^^;）
+--[32bit]-------------------------------------------------------------
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 64.928867(including connections establishing)
+tps = 70.232166(excluding connections establishing)
+--[64bit]-------------------------------------------------------------
+transaction type: TPC-B (sort of)
+scaling factor: 1
+number of clients: 1
+number of transactions per client: 100
+number of transactions actually processed: 100/100
+tps = 61.529223(including connections establishing)
+tps = 66.642809(excluding connections establishing)
+----------------------------------------------------------------------
+ほとんど変わらないというか，むしろ32bitの方がちょっと速いですね(笑)
+まぁ，もともと64bitにするとメリットがある処理をあまりしていないとか，
+gcc自体の64bitサポートがまだちゃんとしてないとか，そういうあたり
+なんでしょうかね．
+
+ところで，src/Makefile.shlibの中の
+    ifeq ($(PORTNAME), solaris)
+のところで
+    LINK.shared           = $(COMPILER) -G
+というのがありますが，これは，Solaris ldとGNU ldの場合で
+区別しないと（GNU ldの場合 -shared），64bitの場合は
+何かおかしなことになってちゃんと動かないようです．
+
+
+あと，その他64bitのgccを使って気付いた点で，PostgreSQLとは
+あまり関係ないネタはfj.sys.sunの方にポストしておいたので
+（ただ，投稿者の名前は同じですが，e-mailが違います），
+興味あればそちらも見てみて下さい．
+
+
+Tsuyoshi SASAMOTO
+sasamoto@e-vision.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00271.html">[pgsql-jp 21225] Re: ODBC Driver 日本語版（2001/04/06版）改め2001/05/08版</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00273.html">[pgsql-jp 21227] Re: date 型に３ヶ月足してupdate</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00316.html">[pgsql-jp 21270] Re: PostgreSQL 7.1 &amp; JDK1.1.8環境でのJDBCドライバのビルド</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00245.html">[pgsql-jp 21199] unsubscribe</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00272"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00272"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

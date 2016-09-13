@@ -1,0 +1,210 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 9631] Re: pgbash -->
+<!--X-From: KUBO Takehiro <kubo&#45;t@cx.airnet.ne.jp> -->
+<!--X-Date: 24 Jul 1999 16:40:03 +0900 -->
+<!--X-Message-Id: 199907240742.QAA18220@mail.cx.airnet.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 37969D382D0.125CSAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199907222144.GAA23942@mail.cx.airnet.ne.jp -->
+<!--X-Reference-Id: 379829E43B6.39D8SAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 9631] Re: pgbash </TITLE>
+<LINK REV="made" HREF="mailto:kubo-t@cx.airnet.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00433.html">Date Prev</A>][<A HREF="msg00435.html">Date Next</A>][<A HREF="msg00421.html">Thread Prev</A>][<A HREF="msg00435.html">Thread Next</A>][<A HREF="index.html#00434">Date Index</A>][<A HREF="threads.html#00434">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 9631] Re: pgbash</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: KUBO Takehiro &lt;<A HREF="mailto:kubo-t@cx.airnet.ne.jp">kubo-t@cx.airnet.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: 24 Jul 1999 16:40:03 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00392.html">37969D382D0.125CSAKAIDA@mail.psn.ne.jp</A>&gt;&lt;<A HREF="msg00409.html">199907222144.GAA23942@mail.cx.airnet.ne.jp</A>&gt;&lt;<A HREF="msg00421.html">379829E43B6.39D8SAKAIDA@mail.psn.ne.jp</A>&gt;</LI>
+<LI><em>User-Agent</em>: SEMI/1.8.6 (Fukuoka) FLIM/1.9.2 (Shin-Tanabe) Emacs/20.2 MULE/3.0 (MOMIJINOGA)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+久保＠伊勢原市(引越し予定)です。
+
+SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt; writes:
+
+&gt; 　今までわかったようで実はわかっていなかったのですが、pgbashの
+&gt; 実現方式には次の２つがあるのですね。
+&gt; 
+&gt; 　a) 直接SQLの機能を、bash組込みコマンド(exec_sql)で実現する。
+&gt; 　　(会話モード重視型)
+(snip)
+&gt;   b) libpq インターフェイスを、bash組みコマンド(PQsetdb, PQstatus,
+&gt;      PQexec, PQresultStatus, PQclear, ...) にする。
+&gt;    （プログラミング重視型）
+(snip)
+&gt; 　それぞれ一長一短がありますが、はて、どちらが良いのでしょう？
+
+うーん、わたしなんかだとどちらでもそれなりに使えるので、「どっちでも良
+いや」となってしまう。
+他の人の意見を聞きたいなあ。
+
+&gt; 　直接SQL(exec_sql)の場合は、psql の不要な部分をばっさり削って、
+&gt; psql を exe_sql に仕立てるような感じになりますので、APIを改めて
+&gt; 設計する必要は無いと思っていました。
+&gt; 
+&gt; # psqlは、libpqを使用して libpq の上位ルーチンを作成しています。
+&gt; 
+&gt; 　しかし、psql の上位ルーチンのまとめ方が悪いと、そのまま使用で
+&gt; きないこともあり、ある程度は新規の API を検討する必要はあるかも
+&gt; しれません。
+
+psql(というか、PostgreSQL)はあまり使ってないのですが、fetch 関係は
+psqlにありませんよね。
+
+SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt; writes:
+
+&gt;   なるほど、わかりました。そうすると、
+&gt; 
+&gt; 　exec_sql "declare cur cursor for select r1, r2 from test .."
+&gt; 　exec_sql "fetch in cur into :ROW1, :ROW2"
+&gt; 
+&gt;   として、$ROW1,$ROW2シェル変数に値をセットすることが可能という
+&gt; ことですね。
+
+ううむ、
+    exec_sql declare cur cursor for "select r1, r2 from test .."
+    exec_sql fetch in cur into :ROW1 :ROW2
+という構文にして、select 結果に対してカーソルをエミュレートするなら楽
+にできそうですけど、
+    exec_sql "declare cur cursor for select r1, r2 from test .."
+    exec_sql "fetch in cur into :ROW1, :ROW2"
+は pgbash 側で構文解析して、backend に送信するデータを工夫しないといけ
+ないだろうな。
+
+&gt; 　埋め込みSQL の文法を、そのまま直接SQL で使用でき、しかも、シ
+&gt; ェル変数を利用できるということになりますね。すばらしい！
+
+ほんとにそのまま使用するには、けっこう難しいのでは、
+# 作り込めば可能とは思いますが。
+
+一応私は、
+&gt; &gt; けどまあ、libpq の API ではなく、埋め込み SQL の EXEC SQL の API を参
+&gt; &gt; 考にするってんなら、それでも良いでしょうね。
+「参考」と逃げてます。(^^;)
+
+&gt; 　直接SQLのSELECTと、埋め込みSQLのカーソル操作に相当する処理に
+&gt; ついて少し考えをまとめたいと思います。ご意見がありましたらお願
+&gt; いします。
+&gt; 
+&gt; １．直接SQLのSELECTに相当する処理
+&gt; 
+&gt; 　文法： exec_sql "select * from test"
+&gt;   処理： 結果をそのまま標準出力に出す
+&gt; 
+&gt; ２．埋め込みSQLのカーソル操作に相当する処理
+&gt; 
+&gt; 　文法： exec_sql "declare cur cursor for select r1,r2 from .."
+&gt;          exec_sql "fetch in cur into :ROW1, :ROW2"
+&gt;   処理： 結果をシェル変数に出す。
+&gt; 
+&gt; 
+&gt; # 標準SQLのカーソル操作では、open cur, close cur が必要ですが、
+&gt;   PostgreSQL の Backendには、この考えがないようです。ちょっと
+&gt; 　不思議な感じがするのですが..とりあえず、ここでは、open cur,
+&gt; 　close cur は省いておきます。
+
+内部構造に入ってきますが、
+struct pg_cursor {
+   char *tag;
+   char *sql;
+   PGresult *result;
+   int tuple_index;
+   struct pg_cursor *next;
+}
+という構造体でカーソルを管理して、
+    exec_sql declare cur cursor for "select r1, r2 from test .."
+で、pg_cursor 構造体を確保し、"cur" というタグ名と select 文を登録して、
+    exec_sql open cur
+で、タグ名 "cur" をもとに select 文を発行して、結果を result に入れて、
+    exec_sql fetch in cur into :ROW1 :ROW2
+で、result から一行とりだして、ROW1, ROW2 に入れて、
+    exec_sql close cur
+で、libpq の PQclear(result) で result の内容をクリア。
+# pg_cursor 構造体のクリアは考えないどこ。
+
+あとついでに、
+    exec_sql declare cur cursor for \
+        "select r1, r2 from test where col = :COL"
+とすると、exec_sql open cur を実行したときの shell 変数 COL の値で
+:COL を置換するとか.....。
+
+カーソルエミュレーションではなく、native のカーソルを使えばどうなるの
+かなあ。.....うーん、わからない。m(__)m
+# PostgreSQL native のカーソル操作は、シーラカンス本 p180 に書いてある
+# ことしか知りません。(^^;)
+
+では、再見
+-- 
+神奈川県伊勢原市在住
+久保 健洋
+kubo-t@cx.airnet.ne.jp
+<A HREF="http://terry.nikkeibp.co.jp/~kubo/">http://terry.nikkeibp.co.jp/~kubo/</A>
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00435" HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00392" HREF="msg00392.html">[pgsql-jp 9589] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00409" HREF="msg00409.html">[pgsql-jp 9606] Re: pqbash</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;kubo-t@cx.airnet.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00421" HREF="msg00421.html">[pgsql-jp 9618] Re: pgbash</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00433.html">[pgsql-jp 9630] Re: postgresql.Driverがロードできません？？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00421.html">[pgsql-jp 9618] Re: pgbash</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00435.html">[pgsql-jp 9632] Re: pgbash</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00434"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00434"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

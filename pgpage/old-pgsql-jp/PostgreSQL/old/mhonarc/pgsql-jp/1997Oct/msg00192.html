@@ -1,0 +1,166 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2778] Re: Re: PHP/FIで出力できない -->
+<!--X-From: t&#45;ishii@sra.co.jp -->
+<!--X-Date: Fri, 24 Oct 1997 17:58:23 +0900 -->
+<!--X-Message-Id: 199710240858.RAA16687@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199710240806.RAA01110@zalem -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2778] Re: Re: PHP/FIで出力できない </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00191.html">Date Prev</A>][<A HREF="msg00193.html">Date Next</A>][<A HREF="msg00189.html">Thread Prev</A>][<A HREF="msg00194.html">Thread Next</A>][<A HREF="index.html#00192">Date Index</A>][<A HREF="threads.html#00192">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2778] Re: Re: PHP/FIで出力できない</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A></LI>
+<LI><em>Date</em>: Fri, 24 Oct 1997 17:58:23 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;（株）システムエンジニアリングの菅村です。
+&gt;--------------------------------------------------
+&gt;あたりでした。
+&gt;
+&gt;[Fri Oct 24 15:37:45 1997] httpd: caught SIGSEGV, attempting to dump core
+&gt;in /us
+&gt;r/local/etc/apache
+&gt;
+&gt;FreeBSD 2.2.1 + Apache 1.2.4 + PHP/FI 2.0b12 + PostgreSQL 6.2 です。
+&gt;
+&gt;行ったこと
+&gt;1.PostgreSQLのコンパイル
+&gt;    README付属通りコンパイルしました（patch 6.2jpPL1.patch）
+&gt;    日本語テストもＯＫでした。
+&gt;2.PHP/FIのコンパイル
+&gt;    Apacheモジュールでコンパイルしました（patch kanji2.0b12.patch）
+&gt;3.Apacheのコンパイル
+&gt;    実はここで引っかかりました。
+&gt;    参考にしたのは
+&gt;<A HREF="http://www.first.tsukuba.ac.jp/docs/install/apache/php-2.0b11jp4.htmlです。">http://www.first.tsukuba.ac.jp/docs/install/apache/php-2.0b11jp4.htmlです。</A>
+&gt;    Configuration の設定で READMEには
+&gt;    EXTRA_LIB = -L. -lphp -lgdbm -L/usr/local/pgsql/lib -lpq -lregex -lm
+&gt;と書いていますが、
+&gt;    -lgdbmでエラーになります。悩んでいると
+&gt;PHP/FIコンパイルの最後にEXTRA_LIBのパラメータが
+&gt;    書いてあったのでその通りにしました。
+&gt;    EXTRA_LIB = -L. -lphp -L/usr/local/pgsql/lib -lpq -lm 
+&gt;    これでコンパイルしたらうまくいきました。
+&gt;
+&gt;4.Apacheの起動
+&gt;conf関係はＦｒｅｅＢＳＤインストール時にＨＴＴＰＤをインストールしたのでそ
+&gt;のまま使っています。
+&gt;/usr/local/etc/apache/httpd -d /usr/local/etc/apache
+&gt;confは/usr/local/etc/apache/confにあります。
+&gt;
+&gt;以上です。
+&gt;やっぱりＡｐａｃｈｅのオプションの間違いでしょうか？
+
+こちらの FreeBSD では、以下がインストールのポイントでした。(apache は 
+/usr/local/etc/httpd 以下にインストールしてます)
+
+ちなみに、FreeBSD 2.2.1R+Apache-1.2.4+PHP/FI 2.0b12 です。
+あ、それと以下の日本語パッチその他が PHP/FI にあたっています。
+(ftp.sra.co.jp/pub/cmd/postgres/php-hi より入手可能)
+
+kanji2.0b12.patch.gz
+php-2.0b12-kanji-fix.patch
+php-2.0b12-kanji-fix2.patch
+
+o あらかじめ gdbm-1.7.3 (or higher)をインストールしておくこと
+
+o PHP/FI のインストール
+
+./install の実行で、
+
+Do you have Postgres installed in this system? [Yn] y
+Top of your Postgres install tree? [/usr/local/pgsql] 
+Would you like to compile PHP/FI as an Apache module? [yN] y
+Additional directories to search for .h files []: /usr/local/include
+Additional directories to search for library files []: /usr/local/lib
+Do you want to use multi-byte extension for regex library? [y/N]y
+
+と答える。
+
+cp -r jp.regex /usr/local/etc/httpd/src
+
+をする。
+
+o apache のインストール
+
+Configuration の設定
+
+EXTRA_CFLAGS= -I./jp.regex -DSERVER_SUBVERSION=\"PHP/FI-2.0b12\"
+EXTRA_LIBS= -L. -lphp -L/usr/local/lib -lgdbm -L/usr/local/pgsql/lib -lpq -L./jp.regex -lregex -lm
+
+Rule WANTHSREGEX=default
+          ↓
+Rule WANTHSREGEX=no
+
+Module php_module   mod_php.o を追加
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00194" HREF="msg00194.html">[pgsql-jp 2780] wierd REMOTE_USER output (Re: PHP/FIで出力できない)</A></STRONG>
+<UL><LI><EM>From:</EM> NISHIO Shuichi &lt;nishio@caleche.kecl.ntt.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00189" HREF="msg00189.html">[pgsql-jp 2775] Re: PHP/FIで出力できない</A></STRONG>
+<UL><LI><EM>From:</EM> "Satoru Sugamura" &lt;satoru@senet.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 2777] Re: [Q]:How to install pgtksh</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00193.html">[pgsql-jp 2779] Re: [Q]:How to install pgtksh</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00189.html">[pgsql-jp 2775] Re: PHP/FIで出力できない</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 2780] wierd REMOTE_USER output (Re: PHP/FIで出力できない)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00192"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00192"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

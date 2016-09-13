@@ -1,0 +1,125 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7532] ecpgの実数定数処理のバグ修正 -->
+<!--X-From: SAKAIDA <sakaida@psn.ne.jp> -->
+<!--X-Date: Mon, 15 Mar 1999 16:22:04 +0900 -->
+<!--X-Message-Id: 36ECB51C230.F0D9SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903150127.KAA06072@libpc01.pb.ascii.co.jp -->
+<!--X-Reference-Id: 36EC97B11C2.F0D8SAKAIDA@mail.psn.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7532] ecpgの実数定数処理のバグ修正 </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00284.html">Date Prev</A>][<A HREF="msg00286.html">Date Next</A>][<A HREF="msg00278.html">Thread Prev</A>][<A HREF="msg00236.html">Thread Next</A>][<A HREF="index.html#00285">Date Index</A>][<A HREF="threads.html#00285">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7532] ecpgの実数定数処理のバグ修正</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 15 Mar 1999 16:22:04 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00259.html">199903150127.KAA06072@libpc01.pb.ascii.co.jp</A>&gt; &lt;<A HREF="msg00271.html">36EC97B11C2.F0D8SAKAIDA@mail.psn.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+&gt;  プリコンパイラー(ecpg)の倍精度定数の取り扱い方がおかしいよ
+&gt;  うです。
+&gt;
+&gt; 　ホスト変数(begin - end decalre section間の変数)だけではなく、
+&gt; 　普通の変数に倍精度定数を代入するときまでチェックして parse
+&gt;   errorとなります。
+&gt; 
+&gt; 　double  dval;
+&gt;   dval = 1.1234567890123456; &lt;-- parse error at end of input
+&gt;
+
+　少数点以下が 10桁を越す実数定数を記述したときに起こる ecpg
+のバグでした。
+
+　"src/interfaces/ecpg/preproc/pgc.l"の470行あたり
+( &lt;C&gt; {Integer} {...} の次　)に次の文章を入れるとOKになります。
+
+------------------------------------------------------
+&lt;C&gt;{real} {
+      char* endptr;
+
+      errno = 0;
+      yylval.dval = strtod((char *)yytext,&amp;endptr);
+      if (*endptr != '\0' || errno == ERANGE)
+          yyerror("ERROR: Bad float input");
+      return FCONST;
+      }
+-------------------------------------------------------
+
+  C文法中の(本来の)実数定数の定義が抜けていました。
+
+
+# 少数点以下が10桁以内のときは、従来の ecpgでも OKです。
+  &lt;C&gt;{integer}/{space}*-{number} {..}によって、偶然うまく
+　さばいていたようです。
+
+# 先ほど、parse error といいましたが、cc側のメッセージを
+　見てました。ecpg側は "WARNING: Integer input is out of 
+  range; promoted to float"でした。
+
+--
+Personal Software, Inc.
+境田雅明( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00259" HREF="msg00259.html">[pgsql-jp 7506] Re: true NUMERIC type って何でしょう？</A></STRONG>
+<UL><LI><EM>From:</EM> takehi-s@ascii.co.jp (SHIOZAKI Takehiko)</LI></UL></LI>
+<LI><STRONG><A NAME="00271" HREF="msg00271.html">[pgsql-jp 7518] Re: true NUMERIC type って何でしょう？</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00284.html">[pgsql-jp 7531] Re:新旧郵便番号検索画面から　select.php3 が動きません。</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00286.html">[pgsql-jp 7533] Re: PostgreSQL 使用事例</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00278.html">[pgsql-jp 7525] float8 on FreeBSD (Re: true NUMERIC type って何でしょう？ )</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00236.html">[pgsql-jp 7483] RE:Re: Re: BOX型データに含まれるpointの探し方</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00285"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00285"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

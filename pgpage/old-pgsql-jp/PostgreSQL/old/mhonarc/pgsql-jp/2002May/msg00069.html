@@ -1,0 +1,140 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 25834] Re: コンカレントバキュームについて -->
+<!--X-From: Jun Kitamura <kitamura@zoozee.jp> -->
+<!--X-Date: Mon, 06 May 2002 01:35:39 +0900 -->
+<!--X-Message-Id: 3CD55F5B32.BC53KITAMURA@mail.ayu.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 200205051134.AA01344@libretto.niji&#45;net.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 25834] Re: コンカレントバキュームについて </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@zoozee.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00068.html">Date Prev</A>][<A HREF="msg00070.html">Date Next</A>][<A HREF="msg00076.html">Thread Prev</A>][<A HREF="msg00074.html">Thread Next</A>][<A HREF="index.html#00069">Date Index</A>][<A HREF="threads.html#00069">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 25834] Re: コンカレントバキュームについて</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@zoozee.jp">kitamura@zoozee.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 06 May 2002 01:35:39 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00066.html">200205051134.AA01344@libretto.niji-net.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠zoozee です。
+
+&gt;   [pgsql-jp: 25827] にも書いたとおり、昨日InterBaseのポーティングを
+&gt; された小山海平さんとお話をしていた時に、「PostgreSQLのコンカレント
+&gt; バキュームってどういう方法で実現されているのでしょうね？」という話
+&gt; になりました。
+&gt; 
+&gt; 　「データベースが稼動中の状態で、コンカレントバキュームを行うとル
+&gt; ープしてしまうのではないかと」いう話でしたが、私はPostgreSQLの内部
+&gt; 構造を良く知らないので答えられませんでした^^;;
+&gt; 
+&gt;   私も興味を持ったので、じっくりしらべてみたいと思うのですが、どこ
+&gt; かに良い資料は無いでしょうか？
+&gt; 
+&gt; 　当然、PostgreSQL7.2の英文ドキュメントをじっくり読むのが一番良い
+&gt; とはわかっているのですが^^;
+
+PostgreSQL 7.2.1 Administrator's Guide の 8.2. Routine Vacuuming がそれで
+すね。
+
+VACUUM 中でも SELECT,UPDATE等が可能ということから、MVCC の恩恵を受けてい
+ると想像できるのですが、トランザクションID(XID)の食いつぶしにどう対処した
+か、が問題ですね。(どう対処するか、じゃないところが情けないですが・・・)
+(PostgreSQL のトランザクション処理では、現在のトランザクションID(XID)より
+低い XID 値を持つ行(古い行)は可視、高い値(新しい行(別トランザクションで更
+新/削除中など))は不可視なので、最大値になった後 0に戻ってしまい(食いつぶ
+し)、ほとんど全ての行が不可視になってしまう。旧来の VACUUM ではテーブルに
+ロックをかけて XID を整理していた(と思う))。
+
+新しく、特殊な XID(BootstrapXID=1と FrozenXID=2)を導入し、対処しているよ
+うです。VACUUM が実行されると現在の XID より 1 billion (10億(*))以前のも
+のは、 XIDが 2 (FrozenXID)になります。
+そのため、XID が食いつぶされても(たぶん) 3 から始まって、FrozenXID(=2) と
+BootstrapXID(=1) は 可視 なのです。
+((*)英国では billion は 兆 ということですが、1兆ってのは無いですよね)。
+
+明示的に XID を FrozenXID(=2) にする(現在のトランザクションより前のトラン
+ザクションを XID=2 にする)ためには、 VACUUM FREEZE を行なえとありますが、
+一日一回 VACUUM すれば問題無いような。
+
+今まで VACUUM を領域開放に使っていたとしたならば、VACUUM FULL をする必要
+があるのですが、どうせまた UPDATE や DELETE なので領域が広がるので意味な
+いですね。
+今度の VACUUM は、使われなくなった領域を再利用するのでテーブルのサイズが
+適切な大きさに保たれるようです。(もちろん利用内容によりますが)。
+
+# 先日重い腰を上げて 7.2 を入れたのですがまだ検証段階です。
+# かなり便利になっているのですが、以前と挙動が違う部分もあり・・・。
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00330" HREF="msg00330.html">[pgsql-jp: 26095] Re: コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> sugita@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00074" HREF="msg00074.html">[pgsql-jp: 25839] Re: コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> Ryuichiro Munechika &lt;munetika@niji-net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00066" HREF="msg00066.html">[pgsql-jp: 25831] コンカレントバキュームについて</A></STRONG>
+<UL><LI><EM>From:</EM> Ryuichiro Munechika &lt;munetika@niji-net.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00068.html">[pgsql-jp: 25833] Nomura</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00070.html">[pgsql-jp: 25835] Re: ７．２でＪＤＢＣのコンパイルができません。</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00076.html">[pgsql-jp: 25841] Re: Nomura</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00074.html">[pgsql-jp: 25839] Re: コンカレントバキュームについて</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00069"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00069"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

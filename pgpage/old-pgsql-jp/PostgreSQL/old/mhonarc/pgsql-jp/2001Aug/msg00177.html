@@ -1,0 +1,182 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 22840] Re: bytea 	型の列をソートするには -->
+<!--X-From: WADA Hiroyuki <wada@komine&#45;ag.co.jp> -->
+<!--X-Date: Tue, 21 Aug 2001 17:16:54 +0900 -->
+<!--X-Message-Id: 3B8218F6.88BB76D2@komine&#45;ag.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 3B814C42.143AB7D4@shonan.ne.jp -->
+<!--X-Reference-Id: 3B81BF68.E9C28A95@tpf.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 22840] Re: bytea 	型の列をソートするには </TITLE>
+<LINK REV="made" HREF="mailto:wada@komine-ag.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00176.html">Date Prev</A>][<A HREF="msg00178.html">Date Next</A>][<A HREF="msg00173.html">Thread Prev</A>][<A HREF="msg00180.html">Thread Next</A>][<A HREF="index.html#00177">Date Index</A>][<A HREF="threads.html#00177">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 22840] Re: bytea 	型の列をソートするには</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: WADA Hiroyuki &lt;<A HREF="mailto:wada@komine-ag.co.jp">wada@komine-ag.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 21 Aug 2001 17:16:54 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00135.html">3B814C42.143AB7D4@shonan.ne.jp</A>&gt; &lt;<A HREF="msg00173.html">3B81BF68.E9C28A95@tpf.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+和田@pgsql修行中です。
+
+Hiroshi Inoue wrote:
+&gt; 
+&gt; 井上です。
+&gt; 
+&gt; Naofumi Kondoh wrote:
+&gt; &gt;
+&gt; &gt; ソフト工房の近藤です。
+&gt; &gt;
+&gt; &gt; bytea 型の列をソートするにはどのようにすれば
+&gt; &gt; よいかお教えください。
+&gt; &gt;
+&gt; &gt; 下記のように ORDER BY に指定するとエラーになるし、
+&gt; &gt; text, bit などに CAST もできません。hexa か、octal
+&gt; &gt; に変換してくれるような関数でもあればいいのですが、
+&gt; &gt; 見つかりませんでした。
+&gt; &gt;
+&gt; 
+&gt; 残念ながらないのではないかと思います。
+
+byteatostr という関数を作った例がここにありました。
+<A HREF="http://faqchest.dynhost.com/prgm/pgsql-l/pgsql-00/pgsql-0008/">http://faqchest.dynhost.com/prgm/pgsql-l/pgsql-00/pgsql-0008/</A>
+pgsql-000809/pgsql00081515_22370.html
+関数の拡張というのを初めてやってみたのですが、あんまり簡単で
+びっくり。
+
+&gt; たとえパッチがうまくあたったとしても多分initdbが
+&gt; 必要でしょうし。
+
+関数の追加だとそのままでOKのようです（？）
+「version-1の呼び出し規約」を使うように書き直してみました。
+（一応簡単な動作確認はしましたがあんまり信用しないでね。
+Cに強い人、ちゃんとしたの作って...）
+
+手順を書いときます。
+
+to_text.c を作る。（作業簡略化のためpostgres.hのところに置いた。）
+
+#include "postgres.h"
+#include &lt;string.h&gt;
+#include "fmgr.h"
+
+PG_FUNCTION_INFO_V1(to_text);
+
+Datum
+to_text(PG_FUNCTION_ARGS)
+{
+        bytea   *ba = PG_GETARG_BYTEA_P(0);
+        text    *t;
+        bytea   *buf;
+        bytea   *buf2;
+        int     i,j;
+        char    c;
+        int     ln = VARSIZE(ba) - VARHDRSZ;
+        buf = (bytea *) palloc(VARHDRSZ + ln + 3);
+        VARATT_SIZEP(buf) = VARHDRSZ + ln + 3;
+        for(i=0, j=0; i &lt; ln; i++){
+                c = DatumGetChar(VARDATA(ba)[i]);
+                if (c &gt;= 0 &amp;&amp; c &lt; 32){
+                        VARDATA(buf)[j++] = '\\';
+                        VARDATA(buf)[j++] = ((c &gt;&gt; 6) + '0');
+                        VARDATA(buf)[j++] = (((c &gt;&gt; 3) &amp; 0007) + '0');
+                        VARDATA(buf)[j++] = ((c &amp; 0007) + '0');
+                } else {
+                        VARDATA(buf)[j++] = c;
+                }
+                if (j &gt; VARATT_SIZEP(buf) - VARHDRSZ - 4){
+                        int ln2 = VARATT_SIZEP(buf) * 2;
+                        buf2 = (bytea *) palloc(ln2);
+                        VARATT_SIZEP(buf2) = ln2;
+                        memcpy(VARDATA(buf2), VARDATA(buf), j);
+                        bzero(VARDATA(buf2) + j, ln2 - VARHDRSZ - j);
+                        pfree(buf);
+                        buf = buf2;
+                }
+        }
+        t = (text *) palloc(VARHDRSZ + j);
+        memcpy(VARDATA(t), VARDATA(buf), j);
+        VARATT_SIZEP(t) = VARHDRSZ + j;
+        PG_RETURN_TEXT_P(t);
+}
+
+コンパイルする。（FreeBSDの場合）
+gcc -fpic -c to_text.c
+gcc -shared -o to_text.so to_text.o
+
+できたものを適当なところに配置する。
+cp to_text.so /usr/local/pgsql/lib
+
+関数の作成。
+create function to_text(bytea) returns text
+as '/usr/local/pgsql/lib/to_text.so' language 'c'
+with (isStrict);
+
+使う。
+select to_text(ba1) from testbytea order by to_text;
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00180" HREF="msg00180.html">[pgsql-jp 22843] Re: bytea 	型の列をソートするには</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00135" HREF="msg00135.html">[pgsql-jp 22798] bytea 型の列をソートするには</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00173" HREF="msg00173.html">[pgsql-jp 22836] Re: bytea 	型の列をソートするには</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroshi Inoue &lt;Inoue@tpf.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00176.html">[pgsql-jp 22839] Re: データのバックアップについて</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00178.html">[pgsql-jp 22841] Re: 全角スペース入りのデータ検索</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00173.html">[pgsql-jp 22836] Re: bytea 	型の列をソートするには</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00180.html">[pgsql-jp 22843] Re: bytea 	型の列をソートするには</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00177"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00177"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,147 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27145] Re: 見積り表領域と -->
+<!--X-From: sugita@sra.co.jp -->
+<!--X-Date: Sun, 25 Aug 2002 16:25:27 +0900 (JST) -->
+<!--X-Message-Id: 20020825.162527.74723653.sugita@sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 67143d686c3e48e5c8$NiftyInterway@nifty.ne.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27145] Re: 見積り表領域と </TITLE>
+<LINK REV="made" HREF="mailto:sugita@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00276.html">Date Prev</A>][<A HREF="msg00278.html">Date Next</A>][<A HREF="msg00276.html">Thread Prev</A>][<A HREF="msg00273.html">Thread Next</A>][<A HREF="index.html#00277">Date Index</A>][<A HREF="threads.html#00277">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27145] Re: 見積り表領域と</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:sugita@sra.co.jp">sugita@sra.co.jp</A></LI>
+<LI><em>Date</em>: Sun, 25 Aug 2002 16:25:27 +0900 (JST)</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00276.html">67143d686c3e48e5c8$NiftyInterway@nifty.ne.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+  杉田です。
+
+From: "sasaki" &lt;GSP05271@nifty.com&gt;
+Date: Sun, 25 Aug 2002 14:33:50 +0900 (JST)
+
+;;; &gt;   スキーマ、データの概要、件数、サイズを具体的に教えてもらえますか?
+
+  実際の計算結果、oid からのファイルの同定結果、ファイルのサイズもあると、あい
+まいさが減ります。
+
+;;; 件数：200
+
+  件数が少ないので、ぎりぎりでページヘッダでの誤差が出ています。それと、レコー
+ド長の求め方が違っています。
+
+;;; テーブル内容：
+;;; 　　　コード　　char(6)   プライマリーキー
+;;; 　　　名前      char(64)　ユニークキー
+;;; 　　　時間     timestamp
+;;; ----------------------------
+;;;   レコード長：  78 byte
+;;; 
+;;; 表領域の計算式　：
+;;; 　(1)ブロックあたりのレコード長：　8192/（各行のヘッダのバイト数(32)+フィール
+;;; ド数32で、NULL値がある場合のNULLビットマスク(4)   +レコード長(78)+ページ上のタ
+;;; ップルへのポインタ(4)）
+
+  レコードのデータ部分は、6 + 64 + 8 = 78 でなく、次のようになります。
+
+      (4 + 6 + 2)  : フィールド長 + データ部長 + アラインメント
+      +
+      (4 + 64 + 0) : フィールド長 + データ部長 + アラインメント
+      +
+      8            : データ長
+
+NULL 値がないようにデータを入れると、1 レコード辺り必要なのは、32 + 88 + 4 =
+124。ページヘッダを 20 として、(8192 - 20) /124 = 65 (切捨て)。ブロック数 
+200/65 は、切り上げで、4。従って、ファイルサイズは、8192*4 = 32768 となり実際
+のファイルサイズと一致します。
+
+;;;  （２）使用ブロック数：件数(200)/(1)の値
+;;;  （３）容量：（２）＊ブロックサイズ(8192)
+;;;
+;;; インデックスの計算式：
+;;; 　（１）オーバーヘッド(12) + キーの長さ(6+64)
+
+  単インデックスが 2 つなので、インデックスファイルは 2 つになります。インデッ
+クスタプルの長さは、それぞれ、20 と 76 です。
+
+;;;   （２）8192/(1)の値
+;;; 　（３）使用ブロック数：件数(200)/(2)の値
+;;; 　（４）容量：（3）＊ブロックサイズ(8192)
+
+  インデックスファイルの 1 レコード目は、メタデータで、B 木のルート位置・レベ
+ルが入っています。200 件なので、B 木の索引部の誤差はありませんが、メタデータで
+誤差が出るでしょう。
+
+  あの見積もりは、データ件数が 10 万〜と多いときに、無視できるような要素は考え
+ていません。データ件数が少ないときには、より正確に見積もることになります。
+
+
+Kenji Sugita
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00276" HREF="msg00276.html">[pgsql-jp: 27144] Re: 見積り表領域と</A></STRONG>
+<UL><LI><EM>From:</EM> "sasaki" &lt;GSP05271@nifty.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00276.html">[pgsql-jp: 27144] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00278.html">[pgsql-jp: 27146] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00276.html">[pgsql-jp: 27144] Re: 見積り表領域と</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00273.html">[pgsql-jp: 27141] 見積り表領域と実際作成された領域サイズが違う</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00277"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00277"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

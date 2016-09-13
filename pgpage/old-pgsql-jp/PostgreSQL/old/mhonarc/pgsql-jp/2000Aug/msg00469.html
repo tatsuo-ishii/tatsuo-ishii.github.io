@@ -1,0 +1,149 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 16855] Re: [pgsql&#45;jp 16847] Re: [pgsql&#45;jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎 -->
+<!--X-From: "Yoshio Tokuda"<actords@zaqcad091da.zaq.ne.jp> -->
+<!--X-Date: Tue, 22 Aug 2000 20:21:38 +0900 (JST) -->
+<!--X-Message-Id: 20000822202138.1C271298@zaqcad091da.zaq.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20000822164413.19622861@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: 014801c00c11$9f93e120$7563bed2@hari.to -->
+<!--X-Reference-Id: 20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp -->
+<!--X-Reference-Id: OE25mz6UuEhjJ8uT6Ss000002ea@hotmail.com -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 16855] Re: [pgsql-jp 16847] Re: [pgsql-jp 16834] 7.0.2のinsert </TITLE>
+<LINK REV="made" HREF="mailto:actords@zaqcad091da.zaq.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00468.html">Date Prev</A>][<A HREF="msg00470.html">Date Next</A>][<A HREF="msg00486.html">Thread Prev</A>][<A HREF="msg00471.html">Thread Next</A>][<A HREF="index.html#00469">Date Index</A>][<A HREF="threads.html#00469">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 16855] Re: [pgsql-jp 16847] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: "Yoshio Tokuda"&lt;<A HREF="mailto:actords@zaqcad091da.zaq.ne.jp">actords@zaqcad091da.zaq.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 22 Aug 2000 20:21:38 +0900 (JST)</LI>
+<LI><em>Organization</em>: Merry Machanization Japan Corp.</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00448.html">20000822164413.19622861@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00449.html">014801c00c11$9f93e120$7563bed2@hari.to</A>&gt;&lt;<A HREF="msg00454.html">20000822183437.1ABD5597@zaqcad091da.zaq.ne.jp</A>&gt;&lt;<A HREF="msg00461.html">OE25mz6UuEhjJ8uT6Ss000002ea@hotmail.com</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+岩崎さん、レス(Response)に感謝致します。
+
+&gt;いつも黙ってお世話になってます。岩崎と申します。
+&gt;私レベルでわかったことが1点。
+&gt;
+&gt;
+&gt;&gt; ■ それでは実際に CREATEDB からの手順をダンプしてみますね
+&gt;&gt; (ログインユーザーはPostgreSQLのスーパーユーザーでしました)
+&gt;&gt; 
+&gt;&gt; $ createdb junk
+&gt;&gt; CREATEDATABASE
+&gt;&gt; $ psql junk
+&gt;&gt; Welcom メッセージは表記省略します
+&gt;&gt; 
+&gt;&gt; junk=# create table junk (a int,b text,c date);
+&gt;&gt; CREATE
+&gt;&gt; junk=# insert into junk values(123,'Abc','now');
+&gt;&gt; INSERT 2147488330 1
+&gt;&gt; junk=# select oid,* from junk;
+&gt;&gt;     oid     |  a  |  b  |     c
+&gt;&gt; ------------+-----+-----+------------
+&gt;&gt; -2147478966 | 123 | Abc | 2000-08-22
+&gt;&gt; (1 row)
+&gt;&gt; 
+&gt;
+&gt;2147488330 と -2147478966 は、どちらも0x8000124aですよね。
+&gt;つまり、内部のoidには0x8000124aが入っており、
+&gt;表示のときにsignd表示されているのでは？？
+&gt;これはPostgreSQLの抽出処理の問題ではないでしょうか?
+&gt;
+&gt;&gt; 
+&gt;&gt; また
+&gt;&gt; junk=# select oid,* from junk where oid = 2147488330;
+&gt;&gt; ERROR:  dtoi4: integer out of range
+&gt;&gt; 
+&gt;
+&gt;なるほど。oidを表示するときはdtoi4()と言う処理を通るのかな?
+&gt;このあたりが匂いませんか?
+なんとか、どなたか dtoi4() あたりのERRORにしてしまわない
+パッチをちょちょうと作っていただけないものでしょうか？
+それとも、オフィシャル（？）な認定とかのプロセスが
+必要なのかな〜
+
+やっぱり SELECT のERRORを回避できれば、安易ではありますが
+ベターかも知れません。
+小生は体力仕事で SELECT の WHERE で OID を指定する際に
+負の数値を「’」シングルクオーテイションで囲まないと
+検索してくれないので、全てのソースに「’」を追加しましたが、
+これから同じような人の為に、「’」無しでも、検索するように
+改訂できないものでしょうか？
+（って一人でこんな事を言っても仕方がないのでしょうか）
+
+つまり
+select * from junk where oid = 2147488330;
+でも
+select * from junk where oid = -2147478966;
+でもエラー無しで同一のターゲットを射止めるような
+SELECTになればハッピーじゃないですか。ね〜
+
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+     Yoshio Tokuda
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00448" HREF="msg00448.html">[pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00449" HREF="msg00449.html">[pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Nobuyuki Harikawa" &lt;hari@hari.to&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00454" HREF="msg00454.html">[pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "Yoshio Tokuda"&lt;actords@zaqcad091da.zaq.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00461" HREF="msg00461.html">[pgsql-jp 16847] Re: [pgsql-jp 16834] 7.0.2のinse	rt直後のpg_getlastoid()で正	数になってしまう謎</A></STRONG>
+<UL><LI><EM>From:</EM> "iwa" &lt;d_iwa@hotmail.com&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00468.html">[pgsql-jp 16854] Re: ラージオブジェクトを使いたい</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00470.html">[pgsql-jp 16856] Re: [pgsql-jp 16849] Re: 7.0.2のinsert 直後のpg_getlastoid() で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00486.html">[pgsql-jp 16872] Re: 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00471.html">[pgsql-jp 16857] Re: [pgsql-jp 16840] Re: [pgsql-jp 16835] Re: [pgsql-jp 16834] 7.0.2のinsert直後のpg_getlastoid()で正数になってしまう謎</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00469"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00469"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

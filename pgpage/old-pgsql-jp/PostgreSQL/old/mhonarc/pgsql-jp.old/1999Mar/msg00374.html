@@ -1,0 +1,371 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 7621] Postmaster DOWN -->
+<!--X-From: uchida@yrd.suzuki.co.jp -->
+<!--X-Date: Thu, 18 Mar 1999 22:03:40 +0900 -->
+<!--X-Message-Id: 19990318220340M.gin@kohoku.jac&#45;net.com -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 7621] Postmaster DOWN </TITLE>
+<LINK REV="made" HREF="mailto:uchida@yrd.suzuki.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00363.html">Date Prev</A>][<A HREF="msg00364.html">Date Next</A>][<A HREF="msg00365.html">Thread Prev</A>][<A HREF="msg00413.html">Thread Next</A>][<A HREF="index.html#00374">Date Index</A>][<A HREF="threads.html#00374">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 7621] Postmaster DOWN</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:uchida@yrd.suzuki.co.jp">uchida@yrd.suzuki.co.jp</A></LI>
+<LI><em>Date</em>: Thu, 18 Mar 1999 22:03:40 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+
+内田です。
+
+990308 の Postmaster が落ちる件の続報です。postmaster の debuglog の停
+止直前の部分もちょっと長いですが添付します。
+
+990217 はまったく落ちないので、990308 に戻して試してみたところ、前とは
+違う状況で(postmaster の zombie が大量に残る)状況で止まってしまいます。
+
+  #ps ax|grep post|grep -v grep
+  
+   9132  ?  S    2:09 (postmaster)
+  26237  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26238  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26248  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26265  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26274  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26344  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26371  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  26995  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  27147  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  27148  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  27149  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+  27150  ?  Z    0:00 (postmaster &lt;zombie&gt;)
+
+  #ipcs -m
+  ------ Shared Memory Segments --------
+  key        shmid     owner     perms     bytes     nattch    status      
+  0x00000000 9731      www       600       92164     101       dest        
+  0x0052e392 13575     postgres  700       24588     1                     
+  0x0052e389 13576     postgres  600       869818    1                     
+  0x0052e38f 13577     postgres  600       96420     1 
+  
+
+いちおうマシンリソースとの兼ね合いから、バックエンドの最大接続数は 32 
+に変更してあります。また、Postmaster の起動は以下の手順です。
+
+  #!/bin/bash
+  ulimit -n 20
+  su - postgres -c 'exec postmaster -d 1 -i -o -F &gt;&gt; /usr/local/pgsql/postmaster.log 2&gt;&amp;1'
+  
+
+ただ、ulimit -n 20 を指定しているにも関わらず、httpd の error_log に以
+下のようなメッセージが出ているので、ファイルテーブルを使い果たしている
+ようです。httpd の MaxClient が 100 なのが多すぎるのかなぁ。
+
+  httpd: [Thu Mar 18 17:07:40 1999] [error] [client 210.163.100.225] (23)File table overflow: file permissions deny server access: /
+  usr/local/apache/htdocs/stingray/allcinema/image/bgleft.jpg
+  httpd: [Thu Mar 18 17:07:40 1999] [error] [client 210.163.100.225] (23)File table overflow: file permissions deny server access: /
+  usr/local/apache/htdocs/stingray/allcinema/image/allsfx_ad.gif
+  httpd: [Thu Mar 18 17:07:42 1999] [crit] [client 210.163.100.225] (23)File table overflow: /usr/local/apache/htdocs/.htaccess pcfg
+  _openfile: unable to check htaccess file, ensure it is readable
+  httpd: [Thu Mar 18 17:07:42 1999] [crit] [client 210.163.100.225] (23)File table overflow: /usr/local/apache/htdocs/.htaccess pcfg
+  _openfile: unable to check htaccess file, ensure it is readable
+  
+</PRE>
+<PRE>
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+exit(0)
+ProcessUtility
+ProcessUtility
+ProcessUtility
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+FindExec: found "/usr/local/pgsql/bin/postgres" using argv[0]
+postmaster: BackendStartup: pid 27010 user www db stingr socket 14
+InitPostgres
+started: host=localhost user=www database=stingr
+started: host=localhost user=www database=stingr
+started: host=localhost user=www database=stingr
+InitPostgres
+InitPostgres
+InitPostgres
+postmaster: reaping dead processes...
+postmaster: CleanupProc: pid 26924 exited with status 0
+started: host=localhost user=www database=stingr
+InitPostgres
+CommitTransactionCommand
+postmaster: CleanupProc: pid 26917 exited with status 0
+postmaster: CleanupProc: pid 26413 exited with status 134
+postmaster: CleanupProc: sending SIGUSR1 to process 27010
+postmaster: CleanupProc: sending SIGUSR1 to process 27009
+postmaster: CleanupProc: sending SIGUSR1 to process 27008
+postmaster: CleanupProc: sending SIGUSR1 to process 27007
+postmaster: CleanupProc: sending SIGUSR1 to process 27006
+postmaster: CleanupProc: sending SIGUSR1 to process 26999
+postmaster: CleanupProc: sending SIGUSR1 to process 26998
+postmaster: CleanupProc: sending SIGUSR1 to process 26997
+postmaster: CleanupProc: sending SIGUSR1 to process 26996
+postmaster: CleanupProc: sending SIGUSR1 to process 26995
+postmaster: CleanupProc: sending SIGUSR1 to process 26994
+postmaster: CleanupProc: sending SIGUSR1 to process 26993
+postmaster: CleanupProc: sending SIGUSR1 to process 26992
+postmaster: CleanupProc: sending SIGUSR1 to process 26958
+postmaster: CleanupProc: sending SIGUSR1 to process 26957
+postmaster: CleanupProc: sending SIGUSR1 to process 26953
+postmaster: CleanupProc: sending SIGUSR1 to process 26952
+postmaster: CleanupProc: sending SIGUSR1 to process 26951
+postmaster: CleanupProc: sending SIGUSR1 to process 26950
+postmaster: CleanupProc: sending SIGUSR1 to process 26943
+postmaster: CleanupProc: sending SIGUSR1 to process 26942
+postmaster: CleanupProc: sending SIGUSR1 to process 26918
+postmaster: CleanupProc: sending SIGUSR1 to process 26916
+postmaster: CleanupProc: sending SIGUSR1 to process 26909
+postmaster: CleanupProc: sending SIGUSR1 to process 26908
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+postmaster: CleanupProc: sending SIGUSR1 to process 26887
+postmaster: CleanupProc: sending SIGUSR1 to process 26857
+postmaster: CleanupProc: sending SIGUSR1 to process 26855
+postmaster: CleanupProc: sending SIGUSR1 to process 26854
+postmaster: CleanupProc: sending SIGUSR1 to process 26837
+postmaster: CleanupProc: reinitializing shared memory and semaphores
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+shmem_exit(0) [#0]
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+postmaster: CleanupProc: pid 27006 exited with status 0
+postmaster: CleanupProc: pid 26999 exited with status 0
+postmaster: CleanupProc: pid 26998 exited with status 0
+postmaster: CleanupProc: pid 26997 exited with status 0
+postmaster: CleanupProc: pid 26996 exited with status 0
+postmaster: CleanupProc: pid 26994 exited with status 0
+postmaster: CleanupProc: pid 26993 exited with status 0
+postmaster: CleanupProc: pid 26992 exited with status 0
+postmaster: CleanupProc: pid 26958 exited with status 0
+postmaster: CleanupProc: pid 26953 exited with status 0
+postmaster: CleanupProc: pid 26952 exited with status 0
+postmaster: CleanupProc: pid 26951 exited with status 0
+postmaster: CleanupProc: pid 26950 exited with status 0
+postmaster: CleanupProc: pid 26942 exited with status 0
+postmaster: CleanupProc: pid 26855 exited with status 0
+postmaster: CleanupProc: pid 26837 exited with status 0
+postmaster: CleanupProc: pid 26412 exited with status 134
+postmaster: CleanupProc: pid 26377 exited with status 134
+postmaster: CleanupProc: pid 26373 exited with status 134
+postmaster: CleanupProc: pid 26370 exited with status 134
+postmaster: CleanupProc: pid 26361 exited with status 134
+postmaster: CleanupProc: pid 26359 exited with status 134
+postmaster: CleanupProc: pid 26341 exited with status 134
+postmaster: CleanupProc: pid 26303 exited with status 134
+postmaster: CleanupProc: pid 26943 exited with status 0
+postmaster: CleanupProc: pid 26908 exited with status 0
+postmaster: CleanupProc: pid 26887 exited with status 0
+postmaster: CleanupProc: pid 26857 exited with status 0
+postmaster: CleanupProc: pid 26289 exited with status 134
+postmaster: CleanupProc: pid 26286 exited with status 134
+postmaster: reaping dead processes...
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+postmaster: BackendStartup: pid 27147 user www db stingr socket 10
+postmaster: reaping dead processes...
+postmaster: CleanupProc: pid 27010 exited with status 0
+postmaster: CleanupProc: pid 27009 exited with status 0
+postmaster: CleanupProc: pid 27007 exited with status 0
+postmaster: CleanupProc: pid 26957 exited with status 0
+postmaster: CleanupProc: pid 26854 exited with status 0
+CommitTransactionCommand
+CommitTransactionCommand
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+NOTICE:  Message from PostgreSQL backend:
+        The Postmaster has informed me that some other backend died abnormally and possibly corrupted shared memory.
+        I have rolled back the current transaction and am going to terminate your database system connection and exit.
+        Please reconnect to the database system and repeat your query.
+CommitTransactionCommand
+CommitTransactionCommand
+postmaster: reaping dead processes...
+postmaster: CleanupProc: pid 27008 exited with status 0
+postmaster: CleanupProc: pid 26918 exited with status 0
+postmaster: CleanupProc: pid 26916 exited with status 0
+postmaster: CleanupProc: pid 26909 exited with status 0
+postmaster: BackendStartup: pid 27148 user www db stingr socket 5
+postmaster: BackendStartup: pid 27149 user www db stingr socket 7
+postmaster: BackendStartup: pid 27150 user www db stingray socket 6
+ERROR:  postmaster: StreamConnection: accept: Invalid argument
+pmdie 3
+SignalChildren: sending signal 15 to process 27150
+SignalChildren: sending signal 15 to process 27149
+SignalChildren: sending signal 15 to process 27148
+SignalChildren: sending signal 15 to process 27147
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+proc_exit(0) [#0]
+shmem_exit(0) [#0]
+exit(0)
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00413" HREF="msg00413.html">[pgsql-jp 7660] Re: Postmaster DOWN</A></STRONG>
+<UL><LI><EM>From:</EM> uchida@yrd.suzuki.co.jp (Uchida Hitoshi)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00363.html">[pgsql-jp 7610] Linux WORLD の記事</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00364.html">[pgsql-jp 7611] Re: Q) date</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00365.html">[pgsql-jp 7612] Re: Q) date</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00413.html">[pgsql-jp 7660] Re: Postmaster DOWN</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00374"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00374"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

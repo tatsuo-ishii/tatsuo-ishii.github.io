@@ -1,0 +1,619 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 24181] PostgreSQL Session Save Handler Module. -->
+<!--X-From: Yasuo Ohgaki <yohgaki@yahoo.co.jp> -->
+<!--X-Date: Wed, 19 Dec 2001 01:01:54 +0900 -->
+<!--X-Message-Id: 3C1F6872.4020207@yahoo.co.jp -->
+<!--X-ContentType: multipart/mixed -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 24181] PostgreSQL Session Save Handler Module. </TITLE>
+<LINK REV="made" HREF="mailto:yohgaki@yahoo.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00288.html">Date Prev</A>][<A HREF="msg00290.html">Date Next</A>][<A HREF="msg00290.html">Thread Prev</A>][<A HREF="msg00288.html">Thread Next</A>][<A HREF="index.html#00289">Date Index</A>][<A HREF="threads.html#00289">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 24181] PostgreSQL Session Save Handler Module.</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Yasuo Ohgaki &lt;<A HREF="mailto:yohgaki@yahoo.co.jp">yohgaki@yahoo.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 19 Dec 2001 01:01:54 +0900</LI>
+<LI><em>User-Agent</em>: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:0.9.6+) Gecko/20011211</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+大垣です。
+
+PHP4.2.0-dev (CVS version)用のPostgreSQL Session Moduleを作りました。
+今はプリミティブな状態ですが、GCをResource Shutdownに移動するなどすると
+に非常にロードの高いWebサイトではGC時のページ表示の遅れなどが解消できます。
+(これはそのうち変更するつもりです)
+
+ベンチマークはとっていませんが、Zend.comに置いてあるPHPスクリプトとして
+書いたPosrgreSQL Session Handlerと比べると早いはずです。(これも私が書い
+たものですが、、)
+
+まだ、あまりテストしていません。興味のある方は人柱になっていただけると助か
+ります。特にビルド(configure)の問題があるかも知れません。
+
+# そのうち、PHP4のCVSにコミットするつもりなので、次の4.2.0リリースでは
+# 普通に使えるようになると思います。
+
+機能的な面でのフィードバック/リクエストも歓迎します。
+
+今の所考えているのは
+1) GC実行のページ表示遅れの解消
+3) 代替PostgreSQLサーバーの指定(いくつでも指定可)
+4) セッション名のDBへの保存
+
+リクエストがあれば、テーブルがDBに存在しない場合、テーブル作成の自動実行
+なども付け加えます。
+
+英文ですが、README.MOD_PGSQLに簡単な説明が書いてあります。
+もし、試してみてバグを見付けた場合はご連絡いただけると助かります。
+
+# ./buildconfしないと有効になりません。念のため。
+
+-- 
+Yasuo Ohgaki
+yohgaki@dd.iij4u.or.jp
+</PRE>
+<PRE>
+/* 
+   +----------------------------------------------------------------------+
+   | PHP Version 4                                                        |
+   +----------------------------------------------------------------------+
+   | Copyright (c) 1997-2002 The PHP Group                                |
+   +----------------------------------------------------------------------+
+   | This source file is subject to version 2.02 of the PHP license,      |
+   | that is bundled with this package in the file LICENSE, and is        |
+   | available at through the world-wide-web at                           |
+   | <A HREF="http://www.php.net/license/2_02.txt">http://www.php.net/license/2_02.txt</A>.                                 |
+   | If you did not receive a copy of the PHP license and are unable to   |
+   | obtain it through the world-wide-web, please send a note to          |
+   | license@php.net so we can mail you a copy immediately.               |
+   +----------------------------------------------------------------------+
+   | Authors: Yasuo Ohgaki &lt;yohgaki@php.net&gt;                              |
+   +----------------------------------------------------------------------+
+ */
+
+/* $Id: mod_pgsql.c,v 1.20 2001/12/11 15:30:21 sebastian Exp $ */
+
+#include &lt;time.h&gt;
+#include "config.h"
+#include "php.h"
+#include "php_session.h"
+#include "mod_pgsql.h"
+
+#ifdef HAVE_LIBPQ
+
+ps_module ps_mod_pgsql = {
+	PS_MOD(pgsql)
+};
+
+#ifdef ZTS
+int ps_pgsql_globals_id;
+#else
+php_ps_pgsql_globals ps_pgsql_globals;
+#endif
+
+
+#define PS_PGSQL_DATA ps_pgsql *data = PS_GET_MOD_DATA()
+#define QUERY_BUF_SIZE 512
+
+static char* dummy = "dummy"; /* mod_data cannot be null. Just a dummy */
+
+PHP_MINIT_FUNCTION(ps_pgsql)
+{
+#ifdef ZTS
+	php_ps_pgsql_globals *ps_pgsql_globals;
+
+	ts_allocate_id(&amp;ps_pgsql_globals_id, sizeof(php_ps_pgsql_globals), NULL, NULL);
+	ps_pgsql_globals = ts_resource(ps_pgsql_globals_id);
+#endif
+
+	PS_PGSQL(pgsql_link) = PQconnectdb(PS(save_path));
+	if (!PS_PGSQL(pgsql_link) || PQstatus(PS_PGSQL(pgsql_link)) != CONNECTION_OK) {
+		PQfinish(PS_PGSQL(pgsql_link));
+	}
+	php_session_register_module(&amp;ps_mod_pgsql);
+	return SUCCESS;
+}
+
+PHP_MSHUTDOWN_FUNCTION(ps_pgsql)
+{
+/*  	PGresult *pg_result; */
+	int ret = SUCCESS;
+
+	/* link is closed at shutdown */
+	if (PS_PGSQL(pgsql_link) &amp;&amp; PQstatus(PS_PGSQL(pgsql_link)) == CONNECTION_OK) {
+		PQfinish(PS_PGSQL(pgsql_link));
+		PS_PGSQL(pgsql_link) = NULL;
+		ret = SUCCESS;
+	}
+	return ret;
+}
+
+PHP_RSHUTDOWN_FUNCTION(ps_pgsql)
+{
+	PGresult *pg_result;
+	int ret = SUCCESS;
+
+	/* clean up link just in case */
+	if (PS_PGSQL(pgsql_link)) {
+		pg_result = PQexec(PS_PGSQL(pgsql_link), "BEGIN;END;");
+		if (!pg_result || PQresultStatus(pg_result) != PGRES_COMMAND_OK) {
+			ret = FAILURE;
+		}
+	}
+	return ret;
+}
+
+
+static int ps_pgsql_valid_str(const char *key)
+{
+	size_t len;
+	const char *p;
+	char c;
+	int ret = 1;
+
+	for (p = key; (c = *p); p++) {
+		/* valid characters are a..z,A..Z,0..9,_ */
+		if (!((c &gt;= 'a' &amp;&amp; c &lt;= 'z') ||
+			  (c &gt;= 'A' &amp;&amp; c &lt;= 'Z') ||
+			  (c &gt;= '0' &amp;&amp; c &lt;= '9') ||
+			  (c == '_'))) {
+			ret = 0;
+			break;
+		}
+	}
+	len = p - key;
+	if (len != 32)
+		ret = 0;
+	return ret;
+}
+
+PS_OPEN_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	int ret = SUCCESS;
+
+	*mod_data = (void *) dummy; /* mod_data cannot be NULL */
+	if (!session_name &amp;&amp; !ps_pgsql_valid_str(session_name)) {
+		ret = FAILURE;
+	}
+	if (PQstatus(PS_PGSQL(pgsql_link)) != CONNECTION_OK) {
+		/* link is bad... Try again */
+		PQreset(PS_PGSQL(pgsql_link));
+		if (PQstatus(PS_PGSQL(pgsql_link)) != CONNECTION_OK) {
+			PQfinish((PS_PGSQL(pgsql_link)));
+			ret = FAILURE;
+		}
+	}
+	else {
+		pg_result = PQexec(PS_PGSQL(pgsql_link), "BEGIN;");
+		if (PQresultStatus(pg_result) != PGRES_COMMAND_OK) {
+			ret = FAILURE;
+		}
+		PQclear(pg_result);
+	}
+	return ret;
+}
+
+PS_CLOSE_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	int ret = SUCCESS;
+
+	PS_SET_MOD_DATA(NULL); /* It's safe to assign NULL */
+	if (PQstatus(PS_PGSQL(pgsql_link)) != CONNECTION_OK) {
+		ret = FAILURE;
+	}
+	else {
+		pg_result = PQexec(PS_PGSQL(pgsql_link), "END;");
+		if (PQresultStatus(pg_result) != PGRES_COMMAND_OK) {
+			ret = FAILURE;
+		}
+		PQclear(pg_result);
+	}
+	return SUCCESS;
+}
+
+PS_READ_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	char query[QUERY_BUF_SIZE+1];
+	char *query_tpl = "SELECT sess_data FROM php_session WHERE sess_modified &gt; %d and sess_id = '%s';";
+	int ret = FAILURE;
+	ExecStatusType status;
+
+	PS_PGSQL(sess_new) = 0;
+	*vallen = 0;
+	if (ps_pgsql_valid_str(key)) {
+		snprintf(query, QUERY_BUF_SIZE, query_tpl, time(NULL) - PS(gc_maxlifetime), key);
+		/* FIXME: Following line is *NOT* safe, args should be escaped! in previous line */
+		pg_result = PQexec(PS_PGSQL(pgsql_link), query);
+		status = PQresultStatus(pg_result);
+		if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
+			if (PQntuples(pg_result) == 0) {
+				PS_PGSQL(sess_new) = 1;
+			}
+			else {
+				/* PQgetvalue reuturns "" for NULL */
+				*val = PQgetvalue(pg_result, 0, 0);
+				if (*val) {
+					*vallen = strlen(*val);
+					*val = safe_estrndup(*val, *vallen);
+				}
+			}
+			ret = SUCCESS;
+		}
+		else {
+			php_error(E_WARNING,"Session pgsql query filed: %s", PQerrorMessage(PS_PGSQL(pgsql_link)));
+			ret = FAILURE;
+		}
+		PQclear(pg_result);	
+	}
+	if (*vallen == 0) {
+		*val = safe_estrndup("",0);
+	}
+	return ret;
+}
+
+PS_WRITE_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	size_t query_len;
+	char *query;
+	char *query_insert =
+	   "INSERT INTO php_session (sess_id, sess_created, sess_modified, sess_data) "
+	   "VALUES ('%s', %d, %d, '%s');";
+	char *query_update =
+	   "UPDATE php_session SET sess_data = '%s', sess_modified = %d "
+	   "WHERE sess_id = '%s';";
+	int ret = FAILURE;
+	
+	if (PS_PGSQL(sess_new)) {
+		/* INSERT */
+		query_len = strlen(query_insert)+vallen+strlen(key)+100;
+		query = emalloc(query_len+1);
+		sprintf(query, query_insert, key, time(NULL), time(NULL), val);
+		pg_result = PQexec(PS_PGSQL(pgsql_link), query);
+		if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
+			ret = SUCCESS;
+		}
+	}
+	else {
+		/* UPDATE */
+		query_len = strlen(query_update)+strlen(key)+vallen+100;
+		query = emalloc(query_len+1);
+		sprintf(query, query_update, val, time(NULL), key);
+		pg_result = PQexec(PS_PGSQL(pgsql_link), query);
+		if (PQresultStatus(pg_result) == PGRES_COMMAND_OK) {
+			ret = SUCCESS;
+		}
+	}
+	PQclear(pg_result);
+	efree(query);
+	return ret;
+}
+
+PS_DESTROY_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	size_t query_len;
+	char *query;
+	char *query_update = "DELETE FROM php_session WHERE sess_id = '%s';";
+	int ret = FAILURE;
+
+	if (ps_pgsql_valid_str(key)) {
+		query_len = strlen(query_update)+strlen(key);
+		query = (char *)emalloc(query_len+1);
+		snprintf(query, query_len, key);
+		pg_result = PQexec(PS_PGSQL(pgsql_link), query);
+		if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
+			ret = SUCCESS;
+		}
+		PQclear(pg_result);
+		efree(query);
+	}
+	return ret;
+}
+
+PS_GC_FUNC(pgsql)
+{
+	PGresult *pg_result;
+	char query[QUERY_BUF_SIZE+1];
+	char *query_update = "DELETE FROM php_session WHERE sess_modified &lt; %d";
+	int ret = FAILURE;
+
+	sprintf(query, query_update, time(NULL) - maxlifetime);
+	pg_result = PQexec(PS_PGSQL(pgsql_link), query);
+	if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
+		*nrdels = atoi(PQcmdTuples(pg_result));
+		ret = SUCCESS;
+	}
+	PQclear(pg_result);
+	return ret;
+}
+
+zend_module_entry php_session_pgsql_module = {
+	STANDARD_MODULE_HEADER,
+	"session pgsql",
+	NULL,
+	PHP_MINIT(ps_pgsql), PHP_MSHUTDOWN(ps_pgsql),
+	NULL, PHP_RSHUTDOWN(ps_pgsql),
+	NULL,
+    NO_VERSION_YET,
+	STANDARD_MODULE_PROPERTIES
+};
+
+
+#endif
+
+/*
+ * Local variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * End:
+ * vim600: sw=4 ts=4 fdm=marker
+ * vim&lt;600: sw=4 ts=4
+ */
+</PRE>
+<PRE>
+/* 
+   +----------------------------------------------------------------------+
+   | PHP Version 4                                                        |
+   +----------------------------------------------------------------------+
+   | Copyright (c) 1997-2002 The PHP Group                                |
+   +----------------------------------------------------------------------+
+   | This source file is subject to version 2.02 of the PHP license,      |
+   | that is bundled with this package in the file LICENSE, and is        |
+   | available at through the world-wide-web at                           |
+   | <A HREF="http://www.php.net/license/2_02.txt">http://www.php.net/license/2_02.txt</A>.                                 |
+   | If you did not receive a copy of the PHP license and are unable to   |
+   | obtain it through the world-wide-web, please send a note to          |
+   | license@php.net so we can mail you a copy immediately.               |
+   +----------------------------------------------------------------------+
+   | Authors: yohgaki@php.net                                             |
+   +----------------------------------------------------------------------+
+ */
+
+#ifndef MOD_PGSQL_H
+#define MOD_PGSQL_H
+
+#include "config.h"
+#include "php_session.h"
+
+#ifdef HAVE_LIBPQ
+#include &lt;libpq-fe.h&gt;
+
+extern ps_module ps_mod_pgsql;
+#define ps_pgsql_ptr &amp;ps_mod_pgsql
+
+extern zend_module_entry php_session_pgsql_module;
+#define phpext_ps_pgsql_ptr &amp;php_session_pgsql_module
+
+PS_FUNCS(pgsql);
+
+typedef struct _php_ps_pgsql_globals {
+	PGconn *pgsql_link;
+	int sess_new;
+} php_ps_pgsql_globals; 
+
+#ifdef ZTS
+extern int ps_pgsql_globals_id;
+#else
+extern php_ps_pgsql_globals ps_pgsql_globals;
+#endif
+
+#ifdef ZTS
+#define PS_PGSQL(v) TSRMG(ps_pgsql_globals_id, php_ps_pgsql_globals *, v)
+#else
+#define PS_PGSQL(v) (ps_pgsql_globals.v)
+#endif
+
+#endif
+
+#else
+
+#define ps_pgsql_ptr NULL
+#define phpext_ps_pgsql_ptr NULL
+
+#endif
+
+</PRE>
+<PRE>
+Index: Makefile.in
+===================================================================
+RCS file: /repository/php4/ext/session/Makefile.in,v
+retrieving revision 1.7
+diff -u -r1.7 Makefile.in
+--- Makefile.in	2 May 2000 04:01:15 -0000	1.7
++++ Makefile.in	18 Dec 2001 15:30:46 -0000
+@@ -1,6 +1,6 @@
+ 
+ LTLIBRARY_NAME    = libsession.la
+-LTLIBRARY_SOURCES = session.c mod_files.c mod_mm.c mod_user.c
++LTLIBRARY_SOURCES = session.c mod_files.c mod_mm.c mod_user.c mod_pgsql.c
+ LTLIBRARY_SHARED_NAME = session.la
+ LTLIBRARY_SHARED_LIBADD = $(SESSION_SHARED_LIBADD)
+ 
+Index: config.m4
+===================================================================
+RCS file: /repository/php4/ext/session/config.m4,v
+retrieving revision 1.16
+diff -u -r1.16 config.m4
+--- config.m4	30 Nov 2001 18:59:56 -0000	1.16
++++ config.m4	18 Dec 2001 15:30:46 -0000
+@@ -8,6 +8,9 @@
+ PHP_ARG_WITH(mm,for mm support,
+ [  --with-mm[=DIR]         Include mm support for session storage])
+ 
++PHP_ARG_WITH(pgsql,for pgsql sesssion support,
++[  --with-session-pgsql[=DIR] Include pgsql support for session storage])
++
+ if test "$PHP_MM" != "no"; then
+   for i in /usr/local /usr $PHP_MM; do
+     if test -f "$i/include/mm.h"; then
+@@ -23,6 +26,29 @@
+   PHP_ADD_INCLUDE($MM_DIR/include)
+   AC_DEFINE(HAVE_LIBMM, 1, [Whether you have libmm])
+   PHP_MODULE_PTR(phpext_ps_mm_ptr)
++fi
++
++if test "$PHP_SESSION_PGSQL" != "no"; then
++  if test -n "$PHP_SESSON_PGSQL"; then
++    if test -f "$PHP_SESSION_PGSQL/include/libpq-fe.h"; then
++      SESSION_PGSQL_DIR=$i
++    fi
++  else
++    for i in /usr/local/pgsql ; do
++      if test -f "$i/include/libpq-fe.h"; then
++        SESSION_PGSQL_DIR=$i
++      fi
++    done
++  fi
++
++  if test -z "$SESSION_PGSQL_DIR" ; then
++    AC_MSG_ERROR(cannot find PosrgreSQL(libpq) library)
++  fi
++  
++  PHP_ADD_LIBRARY_WITH_PATH(pq, $SESSION_PGSQL_DIR/lib, SESSION_SHARED_LIBADD)
++  PHP_ADD_INCLUDE($SESSION_PGSQL_DIR/include)
++  AC_DEFINE(HAVE_LIBPQ, 1, [Whether you have libpq])
++  PHP_MODULE_PTR(phpext_ps_pgsql_ptr)
+ fi
+ 
+ if test "$PHP_SESSION" != "no"; then
+Index: session.c
+===================================================================
+RCS file: /repository/php4/ext/session/session.c,v
+retrieving revision 1.267
+diff -u -r1.267 session.c
+--- session.c	11 Dec 2001 15:30:21 -0000	1.267
++++ session.c	18 Dec 2001 15:30:47 -0000
+@@ -47,6 +47,7 @@
+ 
+ #include "ext/standard/php_smart_str.h"
+ 
++#include "mod_pgsql.h"
+ #include "mod_files.h"
+ #include "mod_user.h"
+ 
+@@ -172,7 +173,8 @@
+ 
+ static ps_module *ps_modules[MAX_MODULES + 1] = {
+ 	ps_files_ptr,
+-	ps_user_ptr
++	ps_user_ptr,
++	ps_pgsql_ptr
+ };
+ 
+ int php_session_register_serializer(const char *name, 
+</PRE>
+<PRE>
+README.MOD_PGSQL
+
+*WARNING*
+This session save handler is EXPERIMENTAL.
+
+mod_pgsql is a session save handler module. It provides session strage
+with PostgreSQL database. This module is written by yohgaki@php.net. 
+Please report problems to <A HREF="http://bugs.php.net/">http://bugs.php.net/</A> or php-dev@lists.php.net.
+
+Session Table Definition
+
+CREATE TABLE php_session (
+  sess_id        char(32) PRIMARY KEY,
+  sess_name      char(32),        -- Not used for now.
+  sess_created   integer,         -- UNIX time
+  sess_modified  integer,         -- UNIX time
+  sess_data      text,            -- Max 1GB for 7.1, about 8KB for 7.0 or lower.
+  sess_reserved1 integer,
+  sess_reserved2 integer,
+  sess_reserved3 integer,
+  sess_reserved4 integer,
+  sess_reserved5 integer,
+  sess_reserved6 integer,
+  sess_reserved7 integer,
+  sess_reserved8 integer
+);
+
+User may *append* additional fields, sess_reserved* fields are place
+holder for additional feture. Since mod_pgsql accesses field using
+field index, user must use this field order.
+
+How to use
+
+To compile PHP with mod_pgsql, you need "--with-session-pgsql[=DIR]"
+when you configure PHP. [=DIR] is installation path for
+PostgreSQL. You don't have to compile PHP with PostgreSQL module, but
+your system must have libpq and headers installed.
+
+Following php.ini directives has special meanings for mod_pgsql
+
+session.save_handler : "pgsql" for mod_pgsql session.
+session.save_path    : Valid PostgreSQL database connection string. 
+
+How it works
+
+It uses libpq which is written in C. It also uses aync query for
+garbage collection. Therefore, user will not experience deley even if
+barbage collection is performed. This module is much more efficient
+than user handlers written in PHP.
+
+How to customize
+
+Since mod_pgsql uses PostgreSQL database. User can add more fields to
+session database and create session access functions as user
+want. Keep in mind that user is not supposed to order of standard
+fields. User fields are must be defined after mod_pgsql fields.
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 24180] pg_dump での復元エラー？</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 24182] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00290.html">[pgsql-jp 24182] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00288.html">[pgsql-jp 24180] pg_dump での復元エラー？</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00289"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00289"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

@@ -1,0 +1,154 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2824] converter: text &#45;> int -->
+<!--X-From: omata@na.rim.or.jp (Ken&#45;ichi Omata) -->
+<!--X-Date: Thu, 30 Oct 1997 08:54:38 +0900 (JST) -->
+<!--X-Message-Id: 199710292354.IAA02168@mail.na.rim.or.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2824] converter: text -&gt; int </TITLE>
+<LINK REV="made" HREF="mailto:omata@na.rim.or.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00237.html">Date Prev</A>][<A HREF="msg00239.html">Date Next</A>][<A HREF="msg00239.html">Thread Prev</A>][<A HREF="msg00242.html">Thread Next</A>][<A HREF="index.html#00238">Date Index</A>][<A HREF="threads.html#00238">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2824] converter: text -&gt; int</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:omata@na.rim.or.jp">omata@na.rim.or.jp</A> (Ken-ichi Omata)</LI>
+<LI><em>Date</em>: Thu, 30 Oct 1997 08:54:38 +0900 (JST)</LI>
+<LI><em>Organization</em>: Rim-Net Nagoya, Japan</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+text 形を int4 とかに変換したく、次のようにしたところ
+ウマクいきました。
+
+けど、
+src/backend/utils/adt/numutils.c にある pg_atoi() を使っており、
+こんなことをしていいものか、不安になってメールしました。
+Cでわざわざ作らなくても、もっと簡単な方法があるんでしょうか？
+
+また、たとえば
+    SELECT int( text_field ) FROM aTable;
+のようなカンジで、int のコンストラクタのようなものに text を引数と
+しても呼べるようにすることは不可能なのでしょうか？
+CREATE TYPE の input は、一つしか指定できないから、やっぱり無理な
+のかなあ？
+
+＃ PostgreSQL おもしろいですね。ハマリそうです。
+
+以下、ソースを添付します。
+
+____________________ text2int.c ____________________
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+#include &lt;postgres.h&gt;
+#ifdef DEBUG_TEST
+#   include "utils/elog.h"
+#endif
+
+extern int text2int(const text* src, int size, int escape);
+extern int32 pg_atoi(char* s, int size, int c);
+
+/**
+ * @param org		input text
+ * @param size		return type: sizeof(int32), sizeof(int16), sizeof(int8)
+ * @param escape	this escape code let normal return,
+ *			though it reach non degital code which specified this.
+ * @return		converted integer value
+ */
+int text2int(const text* org, int size, int escape)
+{
+    /** for append null charactor */
+    char* str = palloc(VARSIZE(org) - VARHDRSZ + 1);
+
+    strncpy(str, VARDATA(org), VARSIZE(org) - VARHDRSZ);
+    *(str + VARSIZE(org) - VARHDRSZ) = '\0';
+
+#ifdef DEBUG_TEST
+    elog(DEBUG, "pg_atoi(\"%s\", %d, %d)", str, size, escape);
+#endif
+
+    return pg_atoi(str, size, escape);
+}
+#ifdef DEBUG_TEST
+void main(int argc, char* argv[]) {
+    printf("%d\n", text2int("1234a67", 4, 'a'));
+}
+#endif
+
+____________________ Makefile ____________________
+SRCDIR= /usr/local/pgsql/SRC/src
+include $(SRCDIR)/Makefile.global
+CFLAGS+=  -I$(LIBPQDIR)
+LDFLAGS+= -L$(LIBPQDIR) -lpq
+.DEFAULT all:
+all: text2int.so
+
+____________________ text2int.sql ____________________
+CREATE FUNCTION text2int(text, int4, int4)
+    RETURNS int4
+    AS '/usr/local/pgsql/lib/local/text2int.so'
+    LANGUAGE 'c';
+
+SELECT text2int('123', 2, 0);
+SELECT text2int('1234a5', 4, 97);	-- 'a' == 97
+   ;                                   - -- --- --- have a break
+ 0_'
+(V
+[]2   小俣 賢一 omata@na.rim.or.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00242" HREF="msg00242.html">[pgsql-jp 2828] Re: converter: text -&gt; int</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00237.html">[pgsql-jp 2823] Re: MOVE &amp; FETCH, PostgresPerl.</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00239.html">[pgsql-jp 2825] How to debug ?</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00239.html">[pgsql-jp 2825] How to debug ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00242.html">[pgsql-jp 2828] Re: converter: text -&gt; int</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00238"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00238"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

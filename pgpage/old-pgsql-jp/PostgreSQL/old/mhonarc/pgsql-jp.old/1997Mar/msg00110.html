@@ -1,0 +1,132 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1607] Monthly average on SQL ? -->
+<!--X-From: Mitsuhiro Maeda <mitsu@tramp.co.jp> -->
+<!--X-Date: Fri, 21 Mar 1997 19:04:03 +0900 -->
+<!--X-Message-Id: 199703211004.TAA02822@log.tramp.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1607] Monthly average on SQL ? </TITLE>
+<LINK REV="made" HREF="mailto:mitsu@tramp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00111.html">Date Prev</A>][<A HREF="msg00112.html">Date Next</A>][<A HREF="msg00113.html">Thread Prev</A>][<A HREF="msg00111.html">Thread Next</A>][<A HREF="index.html#00110">Date Index</A>][<A HREF="threads.html#00110">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1607] Monthly average on SQL ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Mitsuhiro Maeda &lt;<A HREF="mailto:mitsu@tramp.co.jp">mitsu@tramp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 Mar 1997 19:04:03 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+おみつ@Tramp です。
+SQL の質問です。
+
+日別データの月間平均値をとる SQL 文はあるのでしょうか?
+
+# 不勉強と言われそうですが... ;P
+
+
+私のところでは、日々のデータ(日付と数値がほとんど)を
+PostgreSQLに読み込んでいろいろといじくっていまして、
+ほとんどの処理はフロントエンド(主にPHP/FI、時々libpq)で行なっています。
+
+単純化して、毎日の為替レート(円/ドル)の
+
+	create table data ( DATE date, YEN_BOX float8 );
+
+というような表をつくり、毎日この表に為替データを入力して、
+いま月間の平均値の推移を導出しようとしていると思って下さい。
+
+せっかくRDBMSを使っているのですから、なんとなくバックエンド側
+で対処出来そうに思うのですが...
+
+
+次のようなことをやってみました。
+
+1. 月・年を返す関数 month()・year() を定義して、
+
+	SELECT month(DATE), year(DATE), avg(YEN_BOX)
+	  FROM data
+	GROUP BY 1,2;
+
+2. 新しい型「Month」('mm-yyyy'の形式をとる)を作り、
+   それらに付随した関数(入出力関数 Month_in(opaque), Month_out(opaque)、
+   比較演算子 '&gt;','&lt;',etc.、変換関数 date_to_Month(date))を定義して、
+
+	SELECT date_to_Month(DATE), avg(YEN_BOX) 
+	  FROM data
+	  GROUP BY 1;
+
+このどちらも、PostgreSQL では
+	WARN:parser: can only specify attribute in group by
+として蹴られてしまいます。
+
+3. そこで、一時的に表を作って、そこに月別データに変換した射影を保存し、
+   そこから GROUP BY を実行して、
+
+	SELECT date_to_Month(DATE) as MONTH, YEN_BOX
+	  INTO TABLE tmp
+	  FROM data;
+	SELECT MONTH, avg(YEN_BOX) 
+	  FROM tmp
+	  GROUP BY 1;
+	DROP TABLE tmp;
+	
+当たり前ですけど、一応望む形になりました :-)
+
+ですが、これではフロントエンドで強引に処理しているのと変わらない気がしまして、
+(あと、フロントエンドで処理した方が速かったりして ... ;)
+何か他のよいアイデアがないものかということで、ご教授下さい。
+
+
+== おみつ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00111.html">[postgres95 1608] Hajime mashite</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00112.html">[postgres95 1609] 自己紹介と質問</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00113.html">[postgres95 1610] Re: 自己紹介と質問</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00111.html">[postgres95 1608] Hajime mashite</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00110"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00110"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

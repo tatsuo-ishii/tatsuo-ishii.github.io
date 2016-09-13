@@ -1,0 +1,148 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 2874] Re: NATIONAL CHARACTER and COLLATION -->
+<!--X-From: hyoshiok@jp.oracle.com -->
+<!--X-Date: Fri, 31 Oct 1997 10:41:05 &#45;0800 -->
+<!--X-Message-Id: 199710311841.KAA15065@dlsun329.oracle.com -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 2874] Re: NATIONAL CHARACTER and COLLATION </TITLE>
+<LINK REV="made" HREF="mailto:hyoshiok@jp.oracle.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00282.html">Date Prev</A>][Date Next][Thread Prev][<A HREF="msg00282.html">Thread Next</A>][<A HREF="index.html#00284">Date Index</A>][<A HREF="threads.html#00284">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 2874] Re: NATIONAL CHARACTER and COLLATION</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+<LI><em>Date</em>: Fri, 31 Oct 1997 10:41:05 -0800</LI>
+<LI><em>CC</em>: <A HREF="mailto:hyoshiok@jp.oracle.com">hyoshiok@jp.oracle.com</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+よしおかです。
+
+石井さん：
+&gt;そう言えば、以前よしおかさんが
+&gt;
+&gt;CREATE TABLE foo(
+&gt;  c1 CHAR(10) CHARACTER SET ISO8859P1,
+&gt;  c2 CHAR(10) CHARACTER SET JISX0208,
+&gt;  c3 CHAR(10) CHARACTER SET UNICODE);
+&gt;);
+&gt;
+&gt;という例をあげてましたが、実は
+&gt;
+&gt;CREATE TABLE foo(
+&gt;  c1 CHAR(10) CHARACTER SET ISO8859P1 ENCODING UTF-7,
+&gt;  c2 CHAR(10) CHARACTER SET JISX0208 ENCODING EUC,
+&gt;  c3 CHAR(10) CHARACTER SET UNICODE ENCODING UTF-8);
+&gt;);
+&gt;
+&gt;のように、encoding を指定してあげないと実際には意味がないような気がし
+&gt;てます。まあ、encoding は実装依存で、それぞれの CHARACTER SET に対して
+&gt;一種類しかサポートしない、したがって省略できる、というのもあると思いま
+&gt;すが。
+
+SQL-92のcharacter setというのは、
+  その名前
+  character repertoire
+  form-of-use
+  collation
+からなっていて、character repertoireというのが、どの文字が含まれている
+かとかの情報で、form-of-useはいわゆるエンコーディングですね。
+
+ISO8859P1なんていうのは、character repertoireとform-of-useが固定と考え
+てもいいわけですが、JISX0208とかUNICODEなんかはいろいろform-of-useがあ
+るので、例えばeuc-jpをcharacter repertoireはjisx0201/jisx0208/jisx0212
+のユニオンをとったもので、form-of-useを1/2/3バイトのマルチバイト形式に
+したものだとかいう風に実装定義してしまえば、まあ、使えるわけです。この
+character set nameというのに標準がないので、実装Ａと実装Ｂが同じ名前を
+使っていても異なるcharacter setである可能性も、逆に違った名前で同じ
+character set示す場合もあるあるわけです。これはアプリケーションのポー
+タビリティをそこなうので、標準化する必要があると思ってます。
+
+あと余談ですが、SQL-92では実装定義と実装依存を厳密に区別していて、
+
+         m) implementation-defined: Possibly differing between SQL-
+            implementations, but specified by the implementor for each
+            particular SQL-implementation.
+
+         n) implementation-dependent: Possibly differing between SQL-
+            implementations, but not specified by this International
+            Standard and not required to be specified by the implementor
+            for any particular SQL-implementations.
+
+となってます。character setの定義はimplementation-defined(実装定義)で
+す。
+
+&gt;そういえば、再びこのテーブルで、
+&gt;
+&gt;select * from foo where c2 = c3;
+&gt;
+&gt;とやったらどうなるっていうのも謎ですね。
+
+ある文字列が比較可能かというのは、同じrepertoireである必要があります。
+c2/c3が違うrepertoireなので比較可能ではないと思います。
+
+あと市川さんのご指摘の、
+&gt;        CONVERT ( S.CITY USING EBCDIC_TO_ASCII)
+&gt;となっています．EUC/SJIS の違いなどは，丁度 EBCDIC/ASCII の違いに
+&gt;似た同一文字群の別コードと言えるのですが (ちょっといいすぎですが...)
+&gt;そうなると，JP_EUC のような character set と，JP_SJIS のような
+&gt;character set がつくられるのでしょうか．それとも，JAPANESE という単一の
+&gt;character set に対して，DEFAULT COLLATE が EUC で，SJIS 変換用の
+&gt;COLLATE もあり，という具合いになるのでしょうか．この解釈次第で，
+&gt;いくらでも variationが発生すると思いますが．
+
+なんですが、CONVERTはform-of-useの変換なので、euc&lt;-&gt;sjisとかの変換に使
+えて、TRANSLATEは文字の変換、例えば、ssをβみたいななにですね。
+でもってここではCOLLATEというのはまったく独立の話なので関係ないです。
+
+いづれにせよ、ここのあたりはちょっと直交性にかけるので、なんらかの形で
+クリーンアップする必要があるんじゃないでしょうか？
+
+よ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00282.html">[pgsql-jp 2868] Thanks (how to copy)</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00282.html">[pgsql-jp 2868] Thanks (how to copy)</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00284"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00284"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

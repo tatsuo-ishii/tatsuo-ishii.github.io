@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8707] PostgreSQL vs Informix&#45;SE for Linux -->
+<!--X-From: Naofumi Kondoh <nkon@shonan.ne.jp> -->
+<!--X-Date: Mon, 07 Jun 1999 10:19:09 +0900 -->
+<!--X-Message-Id: 375B1E0D26C.B8DDNKON@mail.shonan.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8707] PostgreSQL vs Informix-SE for Linux </TITLE>
+<LINK REV="made" HREF="mailto:nkon@shonan.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00140.html">Date Prev</A>][<A HREF="msg00144.html">Date Next</A>][<A HREF="msg00150.html">Thread Prev</A>][<A HREF="msg00292.html">Thread Next</A>][<A HREF="index.html#00141">Date Index</A>][<A HREF="threads.html#00141">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8707] PostgreSQL vs Informix-SE for Linux</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Naofumi Kondoh &lt;<A HREF="mailto:nkon@shonan.ne.jp">nkon@shonan.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Mon, 07 Jun 1999 10:19:09 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+ソフト工房の近藤です。
+
+次のような表に乱数で作った百万件のデーターを入れて
+PostgreSQL と Informix-SE for Linux で速度を比較し
+てみました。各２〜３回実行して、実行時間に大差がな
+いのを確認しました。
+
+PostgreSQLは、今日はじめて使ったところで、シーラカ
+ンス本も半分しか読んでいない初心者です。何かおかし
+な点や、必要なデーターがあれば御指摘下さい。
+Informix は、経験13年。
+
+環境:Turbo Linux 3.0 std
+
+    PostgreSQL 多分 Version 6.3.2
+    Turbo Linux 添付のもので、version や patchの
+    状況を調べる方法が分かりません。PG_VERSIONは
+    6.3 とだけ入ってました。
+
+    INFORMIX-SE for Linux Version 7.24.UC5  
+
+    DOS/V自作機 PentiumII 266 MHz 主記憶 384MB
+    ROOT,PROGRAMは、IDE HDD. DB は、SCSI HDD
+    (Synchronous at 10.0 Mbyte/sec). 
+
+create table 売上百万表 (
+    店舗	char(6),
+    商品	char(6),
+    年		smallint,
+    月		smallint,
+    日		smallint,
+    時刻	smallint,
+    年代	smallint,
+    売上額	money(9,0)	-- Informix の時。
+);
+    PostgreSQL では、 
+    (*a),(*b)では、売上額 float8
+    (*c)     では、売上額 decimal(9,0)
+    としました。
+    INDEX は、作っていません。
+
+
+1。Copy/Load 時間(tsv/csv ファイルから)
+
+   Informix-SE PostgreSQL(*a)    (*b)      (*c)
+   2分43秒       約1時間	51分       約2分
+
+   PostgreSQL  *a,*b -Fなし  *c -F付.(詳細末尾)
+   -F の威力はすごいですね。
+
+
+2。select 年,月, count(*), sum(売上額) from 売上百万表
+       group by 年, 月  order by 年, 月;
+         Informix-SE  PostgreSQL(*a)   (*b)      (*c)
+    real    0m46.591s  3m19.013s    2m48.492s  2m37.020s
+    user    0m0.040s   0m0.030s     0m0.010s   0m0.020s
+    sys     0m0.060s   0m0.020s     0m0.010s   0m0.000s
+
+    大分差が付きました。
+    PostgreSQLは、postmaster の起動オプション以外には
+    チューニング個所はないように理解しているのですが、
+    何か勘違いしているでしょうか?。
+
+
+3。SELECT COUNT(*) FROM 売上百万表;
+
+	    Informix-SE  PostgreSQL(*b)   (*c)
+    reasl    0m0.222s    0m18.251s       0m16.958s
+
+   Informix は、表の件数を管理表に持っているので、
+   WHERE 条件がなければ件数とは無関係に即座に出力
+   されます。
+
+   ORDER BY と WHERE のない SELECT * FROM も、
+   Informix では即座に出力開始されます。(これは、
+   デバッグやセミナー、デモ等でとても便利です)。
+
+(参考)
+Informix-SE の計測は、次の通り。
+date; time isql  &lt; uri2a.sql &gt; t.lst ; date;
+
+PostgreSQL の計測は、次の通り。
+date; time psql idb &lt; uri2b.sql &gt; t.lst ; date;
+
+postmaster 起動は、次の通り。
+(*a,*b)   su postgres -c \
+   '/usr/bin/postmaster -S -D/ii/db/pg -B 256 '
+
+(*c)      su postgres -c  \
+   '/usr/bin/postmaster -S -D/ii/db/pg -B 1024\
+       -o "-S 32000 -F"'
+
+(*a),(*b)では、売上額 float8
+(*c)     では、売上額 decimal(9,0)
+
+Informix は、SOCKET を使用。PIPE にするともう少し早
+くなります。
+
+PostgreSQL は、初心者ですので今後ともよろしく御願い
+します。
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+ (株)ソフト工房 近藤直文 Email:  nkon@shonan.ne.jp 
+          <A HREF="http://www.shonan.ne.jp/~nkon/">http://www.shonan.ne.jp/~nkon/</A>
+Informix ML と PHP ＤＢ画面試作品ソース公開中
+_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00292" HREF="msg00292.html">[pgsql-jp 8858] Re: PostgreSQL vs Informix-SE for Linux</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00140.html">[pgsql-jp 8706] Re: SoftwareDesign６月号[pgimage]での質問</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00144.html">[pgsql-jp 8710] そうか！それでAccessなんだ！</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00150.html">[pgsql-jp 8716] Re: すみません。何処に出てくるのでしょうか？</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00292.html">[pgsql-jp 8858] Re: PostgreSQL vs Informix-SE for Linux</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00141"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00141"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

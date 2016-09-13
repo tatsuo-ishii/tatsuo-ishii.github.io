@@ -1,0 +1,114 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20538] Re: pg_dump ¤È datetime·¿¤ÎÀºÅÙ	(J -->
+<!--X-From: yukinopo@livedoor.com -->
+<!--X-Date: Wed, 28 Mar 2001 20:35:58 +0900 (JST) -->
+<!--X-Message-Id: 200103281135.f2SBZwB95672@smtp.OpenBit.NET -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20538] Re: pg_dump ¤È datetime·¿¤ÎÀºÅÙ	(J </TITLE>
+<LINK REV="made" HREF="mailto:yukinopo@livedoor.com">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00401.html">Date Prev</A>][<A HREF="msg00402.html">Date Next</A>][<A HREF="msg00409.html">Thread Prev</A>][<A HREF="msg00401.html">Thread Next</A>][<A HREF="index.html#00403">Date Index</A>][<A HREF="threads.html#00403">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20538] Re: pg_dump ¤È datetime·¿¤ÎÀºÅÙ	(J</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:yukinopo@livedoor.com">yukinopo@livedoor.com</A></LI>
+<LI><em>Date</em>: Wed, 28 Mar 2001 20:35:58 +0900 (JST)</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+±ö¸«¤È¿½¤·¤Þ¤¹¡£
+
+&gt; ¤Á¤ã¤ó¤ÈÄÉ¤¤¤«¤±¤Æ¤¤¤Ê¤¤¤Ç¤¹¤¬¡¢src/backend/utils/adt/datetime.c ¤ÎÃæ¤Î 
+&gt; EncodeDateTime() ¤¢¤¿¤ê¤Ç¤·¤ç¤¦¤«¡£
+
+EncodeDateTime()¤ò¸«¤Æ¤ß¤Þ¤·¤¿¡£
+
+# datetime.c:2058 (DateStyle ISO¤ÎÊÕ¤ê)¤òÈ´¿è¡£
+
+...
+    sprintf(str, "%04d-%02d-%02d %02d:%02d:",
+        tm-&gt;tm_year, tm-&gt;tm_mon, tm-&gt;tm_mday, tm-&gt;tm_hour, tm-&gt;tm_min);
+    sprintf((str + 17), ((fsec != 0) ? "%05.2f" : "%02.0f"), sec);
+...
+
+yyyy-mm-dd hh:mm: ¤ÎÉôÊ¬¤òºî¤Ã¤Æ¤«¤é¡¢ss.ss¤òÄÉ²Ã¤·¤Æ¤¤¤Þ¤¹¡£
+¤½¤ÎÉ½¼¨¤ÎºÝ¤Ë¡¢sprintf¤¬ 10e-3 [s]¤Î°Ì¤ò»Í¼Î¸ÞÆþ¤·¤Æ¤¤¤Þ¤¹¡£
+»Í¼Î¸ÞÆþ¤ò¹Ô¤Ê¤Ã¤Æ¤¤¤ë¤Î¤Ïsprintf ¤ÎÃæ¤Ê¤Î¤Ç¡¢¥×¥í¥°¥é¥à¤Î
+ÃÎ¤Ã¤¿¤È¤³¤í¤Ç¤ÏÌµ¤¤¤è¤¦¤Ç¤¹¡£
+¤Þ¤¿¡¢¾å¤Î°Ì¤«¤éÉ½¼¨¤·¤Æ¤¤¤ë¤Î¤Ç¡¢²¼¤Ç¾¡¼ê¤ËÀÚ¤ê¾å¤²¤é¤ì¤¿¤â¤Î¤ò
+¸å»ÏËö¤¹¤ë¤Î¤ÏÂçÊÑ¤½¤¦¤Ç¤¹¡£
+
+sprintf¤ËÅÏ¤ëÁ°¤Ë¡¢10e-3 [s] °Ê²¼¤òÀÚ¤ê¼Î¤Æ¤ëÍÍ¤Ë¤¹¤ì¤Ð¡¢59.995¡Á999ÉÃ¤¬60
+ÉÃ¤Ë²½¤±¤ë¤³¤È¤Ï¤Ê¤¯¤Ê¤ê¤Þ¤¹¡£
+(¤¬¡¢¸Â¤ê¤Ê¤¯60ÉÃ¤Ë¶á¤¯¤Æ¤â59ÉÃ¤Î¤Þ¤Þ¤Ç¤¹)
+
+¤½¤ì¤«¡¢É½¼¨¤ÎÁ°¤Ë date_trunc('msec',sec)¤òÄÌ¤»¤Ð¡¢·«¤ê¾å¤¬¤Ã¤¿
+É½¼¨¤Ë¤Ê¤ë¤è¤¦¤Ç¤¹¡£
+
+# »þ´Ö¤Î½èÍý¤Î¾ì¹ç¤Ï¡¢Ã¼¿ô¤òÀÚ¤ê¼Î¤Æ¤ë¤Î¤¬ÂÅÅö¤Ê½èÍý¤À¤È»×¤¤¤Þ¤¹¤¬¡£
+## Îã¤¨¤Ð¡¢·î¼¡¤Î´ü´Ö½èÍý¤·¤¿ÌÀºÙ¥ì¥Ý¡¼¥È¤Ë¡¢Íâ·î1Æü¤Î¤â¤Î¤¬
+## É½¼¨¤µ¤ì¤Æ¤¤¤Æ¡¢¤ª¤«¤·¤Ê»ö¤Ë¤Ê¤ê¤Þ¤¹¤«¤é¡£
+
+## ¤½¤¦¤¤¤¦°ÕÌ£¤Ç¤Ï¡¢date_truncate ¼«ÂÎ¤Î½èÍý¤â¤ª¤«¤·¤¤¤Ç¤¹¤Í¡£
+
+¤Þ¤¿¡¢°ìÄÌ¤êÄ¯¤á¤Æ¤ß¤Þ¤·¤¿¤¬[usec]¤Þ¤ÇÉ½¼¨¤¹¤ë¤è¤¦¤Ê
+É½¼¨·Á¼°¤¬¸«Åö¤¿¤é¤Ê¤«¤Ã¤¿¤Î¤Ç¡¢ÄÌ¾ï¤Îdump¤Ç¤Ï
+ÀºÅÙ¤¬Íî¤Á¤ë¤Î¤ÏÈò¤±¤é¤ì¤Ê¤¤ÍÍ¤Ç¡£
+
+# dumpÍÑ¤Ë%02.6f¤°¤é¤¤¤òÉ½¼¨¤¹¤ëDateStyle¤òºî¤Ã¤¿¤é¤¤¤¤¤Î¤«¤Ê¡©
+
+
+___________________________________________________ 
+100% FREE INTERNET ACCESS! <A HREF="http://www.livedoor.com/">http://www.livedoor.com/</A> 
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00401.html">[pgsql-jp 20536] Re: Ver 6.5.3 ÆüËÜ¸ì¤Î¸¡º÷¤¬Àµ¤·¤¯¤Ç¤­¤Þ¤»¤ó</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00402.html">[pgsql-jp 20537] Re: Ver 6.5.3 ÆüËÜ¸ì¤Î¸¡º÷¤¬Àµ¤·¤¯¤Ç¤­¤Þ¤»¤ó</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00409.html">[pgsql-jp 20544] Re: select ¤ÇÊ£¿ô¤Î¥ì¥³¡¼¥É¤Î¥«¥é¥à¤ò1¹Ô¤ËÉ½¼¨¤·¤¿¤¤</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00401.html">[pgsql-jp 20536] Re: Ver 6.5.3 ÆüËÜ¸ì¤Î¸¡º÷¤¬Àµ¤·¤¯¤Ç¤­¤Þ¤»¤ó</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00403"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00403"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

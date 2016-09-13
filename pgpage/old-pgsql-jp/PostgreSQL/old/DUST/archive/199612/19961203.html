@@ -1,0 +1,355 @@
+<A NAME="5">
+<PRE><B>
+From: Mitsuhiro Maeda &lt;mitsu@tramp.co.jp&gt;
+Date: Tue, 03 Dec 1996 18:50:36 +0900
+Subject: [postgres95 1099] create oprator
+Message-Id: &lt;199612030950.SAA07601@log.tramp.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+みなさまこんにちは。おみつ@Tramp です。
+表題にある通り、「create operator」について質問させて下さい。
+
+今回、「'text' =* 'Text' -&gt; TRUE」という形の演算子(大小文字の区別なし)
+を定義しようと思いまして、varlena.c を少しいじって texticeq 
+という関数を用意して登録してみました。
+
+ここでついでに 「text !=* text 」も登録しようと思い、
+マニュアルに「negator を書けばいいよ」とあったので、
+# 私の読み間違いでしょうか ... ;-)
+下の #1 のようにとりあえずやってみました。
+
+ところがどうも「!=*」の方の動きがおかしいので、
+pg_operator を覗いてみますと、「=*」「!=*」ともに oprcode
+( 多分実際の演算をするものだと思われますが... )が
+同じ関数になっているのです。
+
+結局 texticne という関数を用意し、登録し直したのですが、
+なんとなく pg_operator の中にある項目が他の演算子と違うし、
+# 他の演算子は「入れ子」状態にちゃんとなってます :-)
+create operator で negator の項目があるのも不可思議
+ということで、質問させて頂きました。
+
+どなたかうまく(ユーザー定義)演算子をうまく登録できた方は
+いらっしゃいますか? あと、違うバージョンではうまくいってる
+というご報告でもHappy です :-)
+
+
+私の動作環境は、
+postgres95-1.06 + pg95-1.06-jp.patch 
+  on linux-1.2.13 + JE 0.9.7
+となってます。
+# 1.09 に移行しようかと思ってるのですが、
+# とりあえず不自由なく動いてますし、
+# モチベーションが落ちてます...  ;-)
+
+P.S.
+  長文失礼
+
+== おみつ
+
+
+======================================================================
+#1 SQL
+----------------------------------------------------------------------
+test1=&gt; load '/fenet/src/functions/text_functions.so';
+LOAD
+test1=&gt; create function texticeq(text,text)
+test1=&gt; returns bool
+test1=&gt; as '/fenet/src/functions/text_functions.so'
+test1=&gt; language 'c';
+CREATE
+test1=&gt; create operator =* ( 
+test1=&gt; leftarg=text,
+test1=&gt; rightarg=text,
+test1=&gt; procedure=texticeq,
+test1=&gt; commutator= =*,
+test1=&gt; negator= !=*
+test1=&gt; );
+CREATE
+======================================================================
+
+======================================================================
+#2 select oid,pg_operator.* from pg_operator;
+----------------------------------------------------------------------
+    oid|oprname|oprowner|oprprec|oprkind|oprisleft|oprcanhash|oprleft
+|oprright|oprresult| oprcom|oprnegate|oprlsortop|oprrsortop|oprcode  
+      |oprrest |oprjoin     
+(中略)
+   1232|~*     |     601|      0|b      |t        |f         |   1043
+|      25|       16|      0|     1233|         0|         0|texticreg
+exeq  |eqsel   |eqjoinsel   
+   1233|!~*    |     601|      0|b      |t        |f         |   1043
+|      25|       16|      0|     1232|         0|         0|texticreg
+exne  |neqsel  |neqjoinsel  
+2426117|=*     |     501|      0|b      |t        |f         |     25
+|      25|       16|2426117|  2426116|         0|         0|texticeq 
+      |-       |-           
+#      ^^       ^^
+#     この辺はよくわからない
+2426116|!=*    |     501|      0|b      |t        |f         |     25
+|      25|       16|2426117|  2426117|         0|         0|texticeq 
+#                                                           ^^^^^^^^   
+#                                                             (?_?)
+      |-       |-           
+(中略)
+----------------------------------------------------------------------
+
+======================================================================
+
+======================================================================
+text_functions.c
+----------------------------------------------------------------------
+#include &lt;ctype.h&gt; /* for toupper */
+                   /* string.h:strcasecmp はいまいち動作不審 */
+#include &quot;postgres.h&quot;
+#include &quot;utils/palloc.h&quot;
+/* copied from varlena.c */
+int32
+texticeq(struct varlena *arg1, struct varlena *arg2)
+{
+  register int len;
+  register char *a1p, *a2p;
+
+  if(arg1 == NULL || arg2 == NULL)
+    return((int32)NULL);
+  if((len=arg1-&gt;vl_len) != arg2-&gt;vl_len)
+    return((int32) 0);
+  a1p=arg1-&gt;vl_dat;
+  a2p=arg2-&gt;vl_dat;
+
+  len -= sizeof(int32);
+  while(len-- != 0)
+    if( toupper((int) *a1p++) != toupper((int) *a2p++) )
+      return((int32) 0);
+  return((int32) 1);
+}
+
+/* これを !=* に登録 */
+int32
+texticne(struct varlena *arg1, struct varlena *arg2)
+{
+  return((int32) !texticeq(arg1,arg2));
+}
+======================================================================
+<HR>
+</PRE>
+<A NAME="4">
+<PRE><B>
+From: Yusaku Nakata &lt;93i24@is.kochi-u.ac.jp&gt;
+Date: Tue, 3 Dec 1996 15:18:41 +0900 (JST)
+Subject: [postgres95 1098] [Q]:About rule system
+Message-Id: &lt;199612030618.PAA28869@aries.is.kochi-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+中田＠高知大学です。
+
+ルールについての質問なのですが、以下のような場合はうまくルールが動いて
+くれているみたいなのですが…
+---------------------------------------------------------------------
+nakata=&gt; create table test (f1 int);
+CREATE
+nakata=&gt; create table log (f2 int);
+CREATE
+nakata=&gt; create rule new_test as on insert to test
+nakata=&gt; do instead insert into log (f2) values(new.f1);
+INSERT 32973
+nakata=&gt; insert into test values ('10');
+INSERT 32976
+nakata=&gt; select * from test;
+f1  
+--- 
+
+Query returned 0 rows.
+nakata=&gt; select * from log;
+f2  
+--- 
+10  
+
+Query returned 1 row.
+---------------------------------------------------------------------
+
+いろいろ試してみましたが、他の場合だとルールがうまく動いてくれません。
+
+---------------------------------------------------------------------
+nakata=&gt; create table emp (name char(10), salary int);
+CREATE
+nakata=&gt; insert into emp values ('Mike', 50000);
+INSERT 33052
+nakata=&gt; insert into emp values ('Jane', 30000);
+INSERT 33053
+nakata=&gt; create rule new_up as
+nakata=&gt; on update to emp.salary where current.name = 'Mike'
+nakata=&gt; do update emp set salary = new.salary where name = 'Jane';
+INSERT 33054
+nakata=&gt; update emp set salary = 52500 where name = 'Mike';
+NOTICE:copyObject: don't know how to copy 1955160
+NOTICE:copyObject: don't know how to copy 707
+NOTICE:copyObject: don't know how to copy 1955160
+NOTICE:copyObject: don't know how to copy 1565680
+PQexec() -- No response from backend
+---------------------------------------------------------------------
+例えばこの場合だと、NOTICE 以下のメッセージが出たあと、どんなSQL文も
+受け付けてくれなくなります。FAQではルールはほとんどダメと書いてありま
+したが…　
+
+ルールについて何か情報をお持ちの方、是非教えてください。
+（長いメールですみません。）
+
+--------------------------------------------------------------------------
+中田 優作  Yusaku Nakata        	            
+高知大学理学部情報科学科　　　　　　　　　　  
+小西研究室所属　４回生　　　　               
+&lt;E-mail&gt; 93i24@is.kochi-u.ac.jp                 
+&lt; URL &gt;  http://www.is.kochi-u.ac.jp/~93i24/
+-------------------------------------------------------------------------- 
+
+
+
+<HR>
+</PRE>
+<A NAME="3">
+<PRE><B>
+From: KASUKAWA Takeya &lt;kasukawa@ics.es.osaka-u.ac.jp&gt;
+Date: Tue, 03 Dec 1996 14:45:17 +0900
+Subject: [postgres95 1097] Re: self-introduction 
+Message-Id: &lt;199612030545.OAA23217@excalibur.ics.es.osaka-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+粕川＠阪大です。
+
+&gt; あ、そういう意味ではなく、backend の postgres プロセスがコアを吐いてい
+&gt; るのでは、という意味です。うろ覚えですが、
+&gt; POSTGRESDIR/data/base/データベース名 の下にコアができるはずです。
+
+ありました。見逃がしていたようです。ごめんなさい。
+調べてみることにします。
+
+＃てっきり postmaster を起動した場所か，postgres のバイナリがある場所
+  か，postgres の top-level ディレクトリにあるものだと思っていました。
+
+-- 
+Kasukawa, T
+<HR>
+</PRE>
+<A NAME="2">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Tue, 03 Dec 1996 10:22:27 +0900
+Subject: [postgres95 1096] Re: self-introduction 
+Message-Id: &lt;199612030122.KAA20489@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;こんばんわ，粕川＠阪大です。
+&gt;
+&gt;&gt; 良く分かりませんが、とりあえず core を吐いているようなので、どこで落ち
+&gt;&gt; ているかを debugger で調べてみてはいかがでしょう。
+&gt;
+&gt;coredumpsize は無制限なのですが，core が見付かりませんでした。
+&gt;（core云々のメッセージを吐くのは libpq/fe-exec.c だと思うのですが，該
+&gt;当部分のコメントを見ると，必ずしも core を吐いているとは限らないとも取
+&gt;れます。）
+
+あ、そういう意味ではなく、backend の postgres プロセスがコアを吐いてい
+るのでは、という意味です。うろ覚えですが、
+POSTGRESDIR/data/base/データベース名 の下にコアができるはずです。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="1">
+<PRE><B>
+From: Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;
+Date: Tue, 03 Dec 1996 10:13:43 +0900
+Subject: [postgres95 1095] Re: About VIEW 
+Message-Id: &lt;199612030113.KAA19785@srashc.sra.co.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+石井です。
+
+&gt;鈴木＠千葉大学です。
+&gt;
+&gt;ビューについての質問なのですが、デフォルトではpostgres以外のオーナー
+&gt;（例えばyasu）で CREATE VIEW はできないのでしょうか？
+&gt;
+&gt;あるテーブルに対して（このテーブルのあるデータベースのオーナーはyasu）
+&gt;
+&gt;CREATE VIEW Temp AS SELECT T.no FROM Test T WHERE T.no &gt; 10
+&gt;
+&gt;などとビューを定義しようとしたところ、
+&gt;
+&gt;WARN:pg_rewrite Either no such class or insufficient privilege
+&gt;
+&gt;とでてできませんでした。privilegeの問題なのかと思い、試しにユーザpostgresで
+&gt;同じデータベース上でビューの定義を行なったところできたので、ユーザyasuに
+&gt;ビューを定義する権限がないものと思われますが、権限を変更するにはどのように
+&gt;すればよいのでしょうか？
+
+postgres95 では view も rule system によって実現されているので、それを
+管理する &quot;pg_rewrite&quot; というテーブルに書き込めないのが原因です。
+
+	grant insert on pg_rewrite to yasu;
+
+もしくは、全ユーザに許可したければ
+
+	grant insert on pg_rewrite to public;
+
+で view が作れるようになります。ただ、これだと pg_rewrite テーブルに、
+どんなレコードでも insert できるようになってしまいますが、ちょっと他の
+解決方法が私には分かりません。
+
+# grant rule でできそうなきがしますが、良く分かりません。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+<HR>
+</PRE>
+<A NAME="0">
+<PRE><B>
+From: yasu@hike.te.chiba-u.ac.jp (Yasunobu Suzuki)
+Date: Tue, 3 Dec 1996 05:37:44 +0900
+Subject: [postgres95 1094] About VIEW
+Message-Id: &lt;199612022037.FAA12025@hike3.hike.te.chiba-u.ac.jp&gt;
+</A>
+</B></PRE>
+<PRE>
+
+鈴木＠千葉大学です。
+
+ビューについての質問なのですが、デフォルトではpostgres以外のオーナー
+（例えばyasu）で CREATE VIEW はできないのでしょうか？
+
+あるテーブルに対して（このテーブルのあるデータベースのオーナーはyasu）
+
+CREATE VIEW Temp AS SELECT T.no FROM Test T WHERE T.no &gt; 10
+
+などとビューを定義しようとしたところ、
+
+WARN:pg_rewrite Either no such class or insufficient privilege
+
+とでてできませんでした。privilegeの問題なのかと思い、試しにユーザpostgresで
+同じデータベース上でビューの定義を行なったところできたので、ユーザyasuに
+ビューを定義する権限がないものと思われますが、権限を変更するにはどのように
+すればよいのでしょうか？
+
+よろしくお願い致します。
+
+|    千葉大学 工学研究科 電気電子工学専攻 |
+|     電子システム講座 計算機工学分野(10) |
+|           鈴木 康修 ( Suzuki Yasunobu ) |
+|       e-mail:yasu@hike.te.chiba-u.ac.jp |
+|   http://w3.hike.te.chiba-u.ac.jp/~yasu/|
+<HR>
+</PRE>

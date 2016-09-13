@@ -1,0 +1,165 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp: 27335] Re: Cのfunction について -->
+<!--X-From: Satoshi Nagayasu <snaga@snaga.org> -->
+<!--X-Date: Thu, 5 Sep 2002 19:33:06 +0900 -->
+<!--X-Message-Id: 20020905193306.6cc8632f.snaga@snaga.org -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 001501c254c1$4cc44e30$3201a8c0@dimension -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp: 27335] Re: Cのfunction について </TITLE>
+<LINK REV="made" HREF="mailto:snaga@snaga.org">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00107.html">Date Prev</A>][<A HREF="msg00109.html">Date Next</A>][<A HREF="msg00107.html">Thread Prev</A>][<A HREF="msg00100.html">Thread Next</A>][<A HREF="index.html#00108">Date Index</A>][<A HREF="threads.html#00108">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp: 27335] Re: Cのfunction について</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Satoshi Nagayasu &lt;<A HREF="mailto:snaga@snaga.org">snaga@snaga.org</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 5 Sep 2002 19:33:06 +0900</LI>
+<LI><em>Delivered-To</em>: pgsql-jp@ml.postgresql.jp</LI>
+<LI><em>List-Archive</em>: &lt;http://ml.postgresql.jp/pipermail/pgsql-jp/&gt;</LI>
+<LI><em>List-Help</em>: &lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=help&gt;</LI>
+<LI><em>List-Id</em>: PostgreSQL Japanese Mailing List &lt;pgsql-jp.ml.postgresql.jp&gt;</LI>
+<LI><em>List-Post</em>: &lt;mailto:pgsql-jp@ml.postgresql.jp&gt;</LI>
+<LI><em>List-Subscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=subscribe&gt;</LI>
+<LI><em>List-Unsubscribe</em>: &lt;http://ml.postgresql.jp/mailman/listinfo/pgsql-jp&gt;,&lt;mailto:pgsql-jp-request@ml.postgresql.jp?subject=unsubscribe&gt;</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00106.html">001501c254c1$4cc44e30$3201a8c0@dimension</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+永安です。
+
+関数をCで書く場合、単に共有ライブラリにすればいいというものではありません。
+version()関数の場合、以下のようになっています。
+
+src/backend/utils/adt/version.c
+----------------------------------------
+#include "postgres.h"
+#include "utils/builtins.h"
+
+Datum
+pgsql_version(PG_FUNCTION_ARGS)
+{
+	int			n = strlen(PG_VERSION_STR);
+	text	   *ret = (text *) palloc(n + VARHDRSZ);
+
+	VARATT_SIZEP(ret) = n + VARHDRSZ;
+	memcpy(VARDATA(ret), PG_VERSION_STR, n);
+
+	PG_RETURN_TEXT_P(ret);
+}
+---------------------------------------
+
+contrib/ の中にも多くの関数がありますので、
+それらも参考にしてみてください。
+
+あと、「エラーになります」ではなくエラーの内容を書きましょう。
+でないと、推測にもとづく不確実な返答しかできなくなります。
+
+
+"Shigeru Matsumoto" &lt;matsu@awh.co.jp&gt; wrote:
+&gt; This is a multi-part message in MIME format.
+&gt; 
+&gt; ------=_NextPart_000_0011_01C2550C.B7132950
+&gt; Content-Type: text/plain;
+&gt; 	charset="iso-2022-jp"
+&gt; Content-Transfer-Encoding: 7bit
+&gt; 
+&gt; こんばんわ、matsuと申します。
+&gt; 
+&gt; redhat7.2
+&gt; postgresql-7.2.1
+&gt; 
+&gt; 以下のようなC関数を作成し、test.soを作成しました。
+&gt; 
+&gt; -------- test.c ----------
+&gt; #include &lt;stdio.h&gt;
+&gt; #include &lt;string.h&gt;
+&gt; 
+&gt; #include "postgres.h"
+&gt; 
+&gt; char* test(int2 i) {
+&gt;    char* h = "----";
+&gt;    static char s[40];
+&gt; 
+&gt;    sprintf(s, "%d", i);
+&gt;    strcat(s, h);
+&gt; 
+&gt;    return(s);
+&gt; }
+&gt; windowsのC++環境では、test(2)の結果が「2----」となりました。
+&gt; 
+&gt; $ cc -fpic -c -I /usr/local/src/postgresql-7.2.1/src/inclide -I /usr/include
+&gt; test.c
+&gt; $ cc -shared -o test.so test.o
+&gt; 
+&gt; hoge=# create function test(int2) return char as'/xxxx/test.so' language
+&gt; 'c';
+&gt; hoge=# select test(t.field1) from t where t.id = 100;
+&gt; 
+&gt; だと、エラーになります。
+&gt; 解決策を教えて頂けないでしょうか。
+&gt; 
+&gt; よろしくお願いします。
+&gt; 
+&gt; 
+&gt; 
+
+-- 
+NAGAYASU Satoshi &lt;snaga@snaga.org&gt;
+
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00106" HREF="msg00106.html">[pgsql-jp: 27333] Cのfunctionについて</A></STRONG>
+<UL><LI><EM>From:</EM> "Shigeru Matsumoto" &lt;matsu@awh.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00107.html">[pgsql-jp: 27334] Re: Cのfunction について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00109.html">[pgsql-jp: 27336] 四国でオフ会しませんか？</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00107.html">[pgsql-jp: 27334] Re: Cのfunction について</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00100.html">[pgsql-jp: 27327] PostgreSQL 7.3 beta1</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00108"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00108"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

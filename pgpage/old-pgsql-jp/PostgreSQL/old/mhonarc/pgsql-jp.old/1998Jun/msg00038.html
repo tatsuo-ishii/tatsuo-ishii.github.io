@@ -1,0 +1,151 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 4308] Re: EUC? -->
+<!--X-From: KUBO Takehiro <takehiro.kubo@ais.amadagp.co.jp> -->
+<!--X-Date: 02 Jun 1998 23:57:19 +0900 -->
+<!--X-Message-Id: wkaf7vq2b4.fsf@mail01.int.amada.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199806020937.SAA23525@rs.digital&#45;magic.co.jp -->
+<!--X-Reference-Id: 199806020945.SAA13491@srapc451.sra.co.jp -->
+<!--X-Reference-Id: 199806021035.TAA23872@rs.digital&#45;magic.co.jp -->
+<!--X-Reference-Id: wkn2bwng8k.fsf@mail01.int.amada.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 4308] Re: EUC? </TITLE>
+<LINK REV="made" HREF="mailto:takehiro.kubo@ais.amadagp.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00040.html">Date Prev</A>][<A HREF="msg00041.html">Date Next</A>][<A HREF="msg00036.html">Thread Prev</A>][<A HREF="msg00043.html">Thread Next</A>][<A HREF="index.html#00038">Date Index</A>][<A HREF="threads.html#00038">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 4308] Re: EUC?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: KUBO Takehiro &lt;<A HREF="mailto:takehiro.kubo@ais.amadagp.co.jp">takehiro.kubo@ais.amadagp.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: 02 Jun 1998 23:57:19 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00027.html">199806020937.SAA23525@rs.digital-magic.co.jp</A>&gt;&lt;<A HREF="msg00029.html">199806020945.SAA13491@srapc451.sra.co.jp</A>&gt;&lt;<A HREF="msg00031.html">199806021035.TAA23872@rs.digital-magic.co.jp</A>&gt;&lt;<A HREF="msg00036.html">wkn2bwng8k.fsf@mail01.int.amada.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+久保％「中禅寺湖（栃木県）」って文字列にひきずられて脊髄フォローしてしまった＠伊勢原市です。
+＃結構好きなのです。＞ 中禅寺湖
+
+KUBO Takehiro &lt;takehiro.kubo@ais.amadagp.co.jp&gt; writes:
+
+&gt; Masashi Yamasaki &lt;yamasaki@mars.dti.ne.jp&gt; writes:
+&gt; 
+&gt; &gt; ほかの日本語、たとえば「日」であるとかは問題無く検索できるのです。
+&gt; &gt; また、「%米%」でクエリーを出すと「桂銀淑特集」がひっかかったり
+&gt; &gt; しています(^^;
+&gt; 
+&gt; はずしているかもしれませんが、EUCの文字列を16進dumpすると、
+&gt; 
+&gt; 米
+&gt; cac6
+&gt; 
+&gt; 中   禅   寺   湖   （   栃   木   県   ）
+&gt; c3e6 c1b5 bbfb b8d0 a1ca c6ca ccda b8a9 a1cb
+&gt;                       ~米~~ 
+&gt; 
+&gt; 桂   銀   淑   特   集
+&gt; b7cb b6e4 bdca c6c3 bdb8
+&gt;             ~米~~ 
+&gt; 
+&gt; がひっかかっているではないかと。
+
+ソースを見る気力ないので想像ですけど、
+
+[pgsql-jp 4200] Re: MB patch BETA2 の石井さんのメール
+|                   MB 対応の regexp では、正規表現をコンパイルす
+| る際 pg_wchar に マルチバイト文字の1文字を切り出して格納しますが、
+
+から推察するに、「マルチバイト文字の1文字」ではなくて、
+(a). 1バイト1文字として正規表現にかけている。
+(b). 対象文字列のマルチバイトの文字切り出しがおかしい。
+     たとえば、「桂銀淑特集」が「b7cb b6e4 bdca c6c3 bdb8」とならず、
+     「b7 cbb6 e4bd cac6 c3bd b8」となっている。
+のどちらかではないでしょうか。
+
+正規表現 ~ '[住]' (16進数で"bdbb")で検索して、「中禅寺湖（栃木県）」
+「桂銀淑特集」の両方が select されたら、(a)で、MB patch の当て間違い。
+
+like '%特%' で検索して、「桂銀淑特集」が select されなかったら、(b)
+で MB patch のバグではないでしょうか。
+
+今 思い付いた。
+正規表現と like 演算子で1文字の切り出しロジックが違うなら、
+(c). like 演算子のバグ
+という可能性もありますね。
+
+もしも、正規表現 ~ '米' で「中禅寺湖（栃木県）」「桂銀淑特集」が両方と
+も select されなかったら、(c) でしょう。
+
+＃ところで、PostgreSQL で正規表現つかったことないのですが、
+＃ <A HREF="http://pg.cni.co.jp/Doc/user/c05.htm">http://pg.cni.co.jp/Doc/user/c05.htm</A> の
+＃     'thomas' ~ '*.thomas*.'
+＃って正しいのですか？
+＃ '.*' なら良く使うけど、正規表現の先頭に'*.'って普通使わないですよね。
+＃それとも私の正規表現の解釈がちがっている？
+
+では、再見
+--
+神奈川県伊勢原市在住
+久保 健洋
+takehiro.kubo@ais.amadagp.co.jp
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00027" HREF="msg00027.html">[pgsql-jp 4297] Re: EUC?</A></STRONG>
+<UL><LI><EM>From:</EM> Masashi Yamasaki &lt;yamasaki@mars.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00029" HREF="msg00029.html">[pgsql-jp 4299] Re: EUC?</A></STRONG>
+<UL><LI><EM>From:</EM> t-ishii@sra.co.jp</LI></UL></LI>
+<LI><STRONG><A NAME="00031" HREF="msg00031.html">[pgsql-jp 4301] Re: EUC?</A></STRONG>
+<UL><LI><EM>From:</EM> Masashi Yamasaki &lt;yamasaki@mars.dti.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00036" HREF="msg00036.html">[pgsql-jp 4306] Re: EUC?</A></STRONG>
+<UL><LI><EM>From:</EM> KUBO Takehiro &lt;takehiro.kubo@ais.amadagp.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00040.html">[pgsql-jp 4310] RE: 大量のデータ登録</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00041.html">[pgsql-jp 4311] i cannot install postgresql-6.3.2 correctly on my linux box.</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00036.html">[pgsql-jp 4306] Re: EUC?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00043.html">[pgsql-jp 4313] Re: EUC?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00038"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00038"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

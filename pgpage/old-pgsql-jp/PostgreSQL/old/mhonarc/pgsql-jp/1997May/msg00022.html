@@ -1,0 +1,178 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [postgres95 1769] Re: [Q] Can I get Row Count ? -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Wed, 07 May 1997 16:29:33 +0900 -->
+<!--X-Message-Id: 199705070729.QAA08050@srashd.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199705070626.PAA03755@Io.unoke.pfu.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[postgres95 1769] Re: [Q] Can I get Row Count ? </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00021.html">Date Prev</A>][<A HREF="msg00023.html">Date Next</A>][<A HREF="msg00021.html">Thread Prev</A>][<A HREF="msg00017.html">Thread Next</A>][<A HREF="index.html#00022">Date Index</A>][<A HREF="threads.html#00022">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[postgres95 1769] Re: [Q] Can I get Row Count ?</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Wed, 07 May 1997 16:29:33 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。
+
+&gt;&gt; &gt;例えば、ODBCのSQLRowCount()のような感じのインタフェースは
+&gt;&gt; &gt;ないのかなぁ？ということです。
+&gt;&gt; これって何を返すんですか？
+&gt;
+&gt;SQL Server付属マニュアルから引用：
+&gt;
+&gt;  The SQLRowCount function returns the number of rows that are
+&gt;  affected by an UPDATE, INTERT, or DELETE statement or ...
+&gt;
+&gt;ということで、「最後に」更新されたrowの番号をとって来るというも
+&gt;のと理解しています。（間違っていたりして）
+
+うーん、どっちかというと、「UPDATE, INSERT, DELETE などによって影響を
+受けた行の数を返す」と読めますが。
+      ~~~~~~
+&gt;&gt; というわけで、松元さんのやりたいことが今一つ分からないのですが...
+&gt;
+&gt;すんません。
+
+いいえ、どういたしまして。
+
+&gt;&gt; o ある時点を基準にして、それ以降に変更のあったレコードを知りたいのなら、
+&gt;&gt; 日付で検索すればよいでしょう。
+&gt;
+&gt;これはちょっとちがうんです。
+
+なるほど。
+
+&gt;&gt; o 最後に insert で挿入されたレコードを取ってきたいのなら、
+&gt;&gt; 	test=&gt; insert into t1 values(0,'dummy');
+&gt;&gt; 	INSERT 159360
+&gt;&gt; のように、INSERT の後の数字が oid になっていますので、
+&gt;&gt; select * from t1 where oid = 159360;
+&gt;&gt; で該当レコードを持ってこれます。C 関数では、PQoidStatus() で同じ事がで
+&gt;&gt; きます。
+&gt;
+&gt;なるほど、最終に更新されたtuppleのoidがかえって来るんですね？
+&gt;（間違ってますか？）
+
+はい、合ってます。ただし、UPDATE で更新された tupple の oid は返りませ
+ん。返るのは INSERT だけです。これは、UPDATE が書き換える tupple の数
+が 1 とは限らないからでしょう。
+
+&gt;つまり、新規にクラスを作成し、インスタンスを生成する毎にそのイ
+&gt;ンスタンスに０から始まる（もしくは１から始まる）番号のようなも
+&gt;のを順次割り当てたとして、更新があった際にその番号をとってきた
+&gt;いというようなことなのですが。。。
+&gt;
+&gt;気持は伝わったでしょうか。
+
+つまり、こういうことでしょうか。
+
+1. あるクラスでは、インスタンス生成時に 0 or 1 から始まるユニークな番
+号を割り当てている。
+
+2. そのクラスに INSERT/UPDATE でインスタンスの追加/変更が行われる。
+
+3. 2 の事象が発生する度に、該当インスタンスが持っている 1 で割り当てた
+番号を報告させたい。
+
+これは、rule system を使えば可能です。taiba@ca2.so-net.or.jp さんの例
+を使わせて頂くと、
+	create table t1( key  int4 , data1 varchar  );
+	insert into t1 values (0,'dummy');
+
+で監視したいクラスを作った後、update されたインスタンスの key を取って
+おくクラス "log" を作ります。
+	create table log(key int4);
+
+ルールはこんな感じです。
+	create rule r1 
+	as on update to t1 do insert into log values(current.key);
+
+で、実際にインスタンスを作った後、
+	insert into t1 values (max(key)+1,'hogehoge1');
+	insert into t1 values (max(key)+1,'hogehoge2');
+
+UPDATE をかけて見ると、
+	update t1 set data1='hogehoge3' where data1='hogehoge2';
+
+log にインスタンスが追加されているのが分かります。
+
+	select * from log;
+
+ところが、この調子で insert に関するルールを作れば良いかと思ったのです
+が、
+
+test=&gt; create rule r2 as on insert to t1 do insert into log values(new.key);
+CREATE
+test=&gt; insert into t1 values(max(key)+1,'areare2');
+NOTICE:copyObject: don't know how to copy 1684108385
+NOTICE:copyObject: don't know how to copy 1684108385
+DEBUG:CreateOperationTag: unknown operation type 822083584
+WARN:ExecCheckPerms: bogus operation 822083584
+WARN:ExecCheckPerms: bogus operation 822083584
+
+のようにエラーになってしまいました。
+---
+t-ishii@sra.co.jp	石井達夫
+（株）ＳＲＡ
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00015" HREF="msg00015.html">[postgres95 1762] Re: [Q] Can I get Row Count ?</A></STRONG>
+<UL><LI><EM>From:</EM> Eiji-usagi-MATSUmoto &lt;ematsu@pfu.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00021.html">[postgres95 1768] Re: [Q] Can I get Row Count ?</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00023.html">[postgres95 1770] Re: [Q] about Kanji</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00021.html">[postgres95 1768] Re: [Q] Can I get Row Count ?</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00017.html">[postgres95 1764] Re: [Q] Can I get Row Count ?</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00022"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00022"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

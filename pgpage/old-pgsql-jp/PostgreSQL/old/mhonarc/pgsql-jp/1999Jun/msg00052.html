@@ -1,0 +1,175 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8618] Re: joinの際pgReadDataでError -->
+<!--X-From: SAKAIDA　Masaaki <sakaida@psn.ne.jp> -->
+<!--X-Date: Thu, 03 Jun 1999 14:13:54 +0900 -->
+<!--X-Message-Id: 37560F12118.7E80SAKAIDA@mail.psn.ne.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 374E2CFF6E.6EE3SAKAIDA@mail.psn.ne.jp -->
+<!--X-Reference-Id: 199906030026.JAA01367@joker.osk.toppan.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8618] Re: joinの際pgReadDataでError </TITLE>
+<LINK REV="made" HREF="mailto:sakaida@psn.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00051.html">Date Prev</A>][<A HREF="msg00054.html">Date Next</A>][<A HREF="msg00039.html">Thread Prev</A>][<A HREF="msg00086.html">Thread Next</A>][<A HREF="index.html#00052">Date Index</A>][<A HREF="threads.html#00052">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8618] Re: joinの際pgReadDataでError</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: SAKAIDA　Masaaki &lt;<A HREF="mailto:sakaida@psn.ne.jp">sakaida@psn.ne.jp</A>&gt;</LI>
+<LI><em>Date</em>: Thu, 03 Jun 1999 14:13:54 +0900</LI>
+<LI><em>References</em>: &lt;374E2CFF6E.6EE3SAKAIDA@mail.psn.ne.jp&gt; &lt;<A HREF="msg00039.html">199906030026.JAA01367@joker.osk.toppan.co.jp</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+境田です。
+
+On Thu, 03 Jun 1999 09:26:49 +0900
+松嶋 祥文 &lt;mats@osk.toppan.co.jp&gt; さん wrote:
+&gt; 先日質問させて頂いた松嶋です。
+&gt; 
+&gt; 問題のテーブルを COPY で吐き出し、DROP TABLE と DROP SEQUENCEで削除し、
+&gt; CREATE TABLE, COPYを実行したのですが、状況は同じでした。
+&gt; で、COPYでデータを戻すのをあきらめ、すべて INSERT で追加していった
+&gt; ところ、原因は結局よくわからなかったのですが、
+&gt; とりあえず問題は発生しなくなりました。
+&gt; 
+&gt; そういうもんなんでしょうか？
+&gt;
+
+　"pqReadData() -- backend closed the channel unexpectedly."
+のエラーが発生するという件ですね。
+
+  この件は、石井さんから回答がありましたが、まず最新のパッチ
+を当てた方がいいようです。マシンの資源（メモリ、ディスク残容
+量）なども関係するようですから、その辺の確認もしてみてくださ
+い。
+
+&gt; 根拠は全くないですが、問題のテーブルには SERIAL 型の項目があり、
+&gt; その関連で何か不整合が起きてしまっていたんじゃないかと思っています。
+&gt; 
+
+　今回の"pqReadData()"のエラーと関係あるかどうかは判断できま
+せんが、SERIAL型は少し問題ありますね。
+
+　postgresql-snapshot(5/21)の psqlでテストしてみましたが..
+
+admin=&gt;create table test ( n serial, moji char(4) ) ; 
+admin=&gt; \d
+Database    = admin
+ +------------------+----------------------------------+----------+
+ |  Owner           |             Relation             |   Type   |
+ +------------------+----------------------------------+----------+
+ | admin            | test                             | table    |
+ | admin            | test_n_key                       | index    |
+ | admin            | test_n_seq                       | sequence |
+ +------------------+----------------------------------+----------+
+admin=&gt; copy test from stdin;
+&gt;&gt; 1    aaa
+&gt;&gt; 2    bbb
+&gt;&gt; \.
+admin=&gt; select * from test;
+n|moji
+-+----------
+1|aaa
+2|bbb
+(2 rows)
+
+admin=&gt; select * from test_n_seq;
+sequence_name|last_value|increment_by| max_value|min_value|
+-------------+----------+------------+----------+---------+---
+test_n_seq   |         1|           1|2147483647|        1|
+(1 row)
+
+admin=&gt; insert into test(moji) values('ccc');
+ERROR:  Cannot insert a duplicate key into a unique index
+
+admin=&gt; insert into test values( 3, 'ccc' ) ;
+INSERT 18979 1
+admin=&gt; select * from test_n_seq;
+sequence_name|last_value|increment_by| max_value|min_value|
+-------------+----------+------------+----------+---------+---
+test_n_seq   |         1|           1|2147483647|        1|
+(1 row)
+
+
+  つまり、serial型に copy および insert で値を直接代入すると、
+SERIAL番号の最終値(last_value)が更新されてないために、新しく
+insert してSERIAL型の自動カウントアップを利用しようとしても、
+古い番号でカウントアップされエラーを起こします。
+
+  もう少し正確にいいますと、COPY文による代入はデータの最終行の
+一つ前の値がSERIAL型のlast_valueとして登録されます。
+
+　copy test from stdin;
+　1    aaa
+　2    bbb
+　3    ccc
+　4    ddd
+　\.
+　
+  この場合、last_value=3 になっています。
+
+# これはバグでしょうね？
+
+--
+SAKAIDA Masaaki( sakaida@psn.ne.jp )
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00086" HREF="msg00086.html">[pgsql-jp 8647] Re: joinの際pgReadDataでError</A></STRONG>
+<UL><LI><EM>From:</EM> SAKAIDA　Masaaki &lt;sakaida@psn.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00039" HREF="msg00039.html">[pgsql-jp 8605] Re: joinの際pgReadDataでError</A></STRONG>
+<UL><LI><EM>From:</EM> 松嶋 祥文&lt;mats@osk.toppan.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00051.html">[pgsql-jp 8617] (No Subject in original)</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00054.html">[pgsql-jp 8620] Re: psqlで大量のデータが表示できま せん</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00039.html">[pgsql-jp 8605] Re: joinの際pgReadDataでError</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00086.html">[pgsql-jp 8647] Re: joinの際pgReadDataでError</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00052"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00052"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

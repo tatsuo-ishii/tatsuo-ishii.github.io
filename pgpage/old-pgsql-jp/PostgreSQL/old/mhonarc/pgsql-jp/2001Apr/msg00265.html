@@ -1,0 +1,180 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 20840] Re: 継承関係のテーブルのプライマリキー -->
+<!--X-From: Jun Kitamura <kitamura@assiette.net> -->
+<!--X-Date: Tue, 24 Apr 2001 02:22:23 +0900 -->
+<!--X-Message-Id: 3AE464CF1EA.07C7KITAMURA@mail.assiette.net -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 003301c0cc08$a63798c0$0201a8c0@sigon -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 20840] Re: 継承関係のテーブルのプライマリキー </TITLE>
+<LINK REV="made" HREF="mailto:kitamura@assiette.net">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00264.html">Date Prev</A>][<A HREF="msg00266.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00266.html">Thread Next</A>][<A HREF="index.html#00265">Date Index</A>][<A HREF="threads.html#00265">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 20840] Re: 継承関係のテーブルのプライマリキー</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Jun Kitamura &lt;<A HREF="mailto:kitamura@assiette.net">kitamura@assiette.net</A>&gt;</LI>
+<LI><em>Date</em>: Tue, 24 Apr 2001 02:22:23 +0900</LI>
+<LI><em>References</em>: &lt;<A HREF="msg00260.html">003301c0cc08$a63798c0$0201a8c0@sigon</A>&gt;</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+北村＠アシェットです。
+
+&gt; INHERITS の話がでたので便乗で質問させてください。
+&gt; 以下のようなテーブルがあったとして
+(略)
+&gt; 社員番号を社員から派生する表すべてでユーニークにしたいのですが
+&gt; そういう方法はないのでしょうか？
+
+元となるテーブルでシーケンスを使えばユニークになりますよ。
+serial で実験。
+create table t1(c1 serial,primary key(c1), c2 text);
+create table t2(c3 text) inherits (t1);
+insert into t1 (c2) values ('a');
+insert into t2 (c2,c3) values ('b','b');
+
+test=# select * from t1;
+ c1 | c2
+----+----
+  1 | a
+(1 row)
+
+test=# select * from t2;
+ c1 | c2 | c3
+----+----+----
+  2 | b  | b
+(1 row)
+
+test=# select * from t1*;
+ c1 | c2
+----+----
+  1 | a
+  2 | b
+(2 rows)
+
+c1 は、複数テーブルにまたがって連番がとられます。当然ユニークです。
+
+&gt; たとえば表”プログラマ”で該当データをみつけたら
+&gt; もうほかのテーブルはスキャンしてほしくないのです.
+&gt; 過去ログを見ると連番を使ってユーニークにする方法があったのですが、explain の
+&gt; 出力結果を見るとやはりスキャンしているようにみえるのですが
+&gt; explain の見方がよくわかってないのでまちがってたら、すいません
+
+表”プログラマ”は、今回の実験例では t2 にあたるテーブルです。このテーブ
+ルをインデックスがある (と思い込んでいる) c1 で検索してもインデックスは使
+われません。
+なぜなら、t2 にはインデックスが無いからです。作ってやれば(コストに見合え
+ば)使われます。20行くらい追加しただけでは、順次スキャンのが速いと判断され
+てしまいます。また、vacuum analyze をするとインデックスが使われたりします。
+
+
+test=# \d t2
+                            Table "t2"
+ Attribute |  Type   |                  Modifier
+-----------+---------+---------------------------------------------
+ c1        | integer | not null default nextval('t1_c1_seq'::text)
+ c2        | text    |
+ c3        | text    |
+
+insert into t2 (c2,c3) values ('c','c');
+insert into t2 (c2,c3) values ('d','d');
+insert into t2 (c2,c3) values ('e','e');
+(略)
+insert into t2 (c2,c3) values ('z','z');
+(×4回くらい)
+test=# explain
+test-# select * from t2 where c1 = 25;
+NOTICE:  QUERY PLAN:
+
+Seq Scan on t2  (cost=0.00..2.21 rows=1 width=28)
+
+EXPLAIN
+
+-- t2 に インデックス作成(インデックス名: t2_c1)
+test=# create index t2_c1 on t2(c1);
+CREATE
+-- t2 の選択プラン
+test=# explain
+test-# select * from t2 where c1 = 25;
+NOTICE:  QUERY PLAN:
+
+Index Scan using t2_c1 on t2  (cost=0.00..2.01 rows=1 width=28)
+
+EXPLAIN
+
+-- t1* の選択プラン
+test=# explain
+test-# select * from t1* where c1 = 25;
+NOTICE:  QUERY PLAN:
+
+Append  (cost=0.00..3.03 rows=2 width=16)
+    -&gt;  Seq Scan on t1  (cost=0.00..1.01 rows=1 width=16)
+    -&gt;  Index Scan using t2_c1 on t2 t1  (cost=0.00..2.01 rows=1 width=16)
+
+EXPLAIN
+
+t1 が順次スキャン(Seq Scan)なのは、1行しかないからだと思われます。
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00279" HREF="msg00279.html">[pgsql-jp 20854] Re: 継承関係のテーブルのプライマリキー</A></STRONG>
+<UL><LI><EM>From:</EM> Naofumi Kondoh &lt;nkon@shonan.ne.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00266" HREF="msg00266.html">[pgsql-jp 20841] Re: 継承関係のテーブルのプライマリキー</A></STRONG>
+<UL><LI><EM>From:</EM> "Terada Jiro" &lt;me415460@members.interq.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00260" HREF="msg00260.html">[pgsql-jp 20835] 継承関係のテーブルのプライマリキー</A></STRONG>
+<UL><LI><EM>From:</EM> "寺田　仁郎" &lt;me415460@members.interq.or.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00264.html">[pgsql-jp 20839] plpgsql でのSELECTの検索速度について</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 20841] Re: 継承関係のテーブルのプライマリキー</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 20835] 継承関係のテーブルのプライマリキー</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00266.html">[pgsql-jp 20841] Re: 継承関係のテーブルのプライマリキー</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00265"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00265"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

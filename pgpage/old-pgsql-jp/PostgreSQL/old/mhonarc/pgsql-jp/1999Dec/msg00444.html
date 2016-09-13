@@ -1,0 +1,161 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 12439] ResultSetMetaData.isNullable() on JDBC Driver -->
+<!--X-From: kaigai@jks.is.tsukuba.ac.jp (Kouhei KAIGAI) -->
+<!--X-Date: Wed, 29 Dec 1999 20:22:49 +0900 (JST) -->
+<!--X-Message-Id: 199912291122.UAA05517@jks.is.tsukuba.ac.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 12439] ResultSetMetaData.isNullable() on JDBC Driver </TITLE>
+<LINK REV="made" HREF="mailto:kaigai@jks.is.tsukuba.ac.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00443.html">Date Prev</A>][<A HREF="msg00445.html">Date Next</A>][<A HREF="msg00456.html">Thread Prev</A>][<A HREF="msg00445.html">Thread Next</A>][<A HREF="index.html#00444">Date Index</A>][<A HREF="threads.html#00444">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 12439] ResultSetMetaData.isNullable() on JDBC Driver</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:kaigai@jks.is.tsukuba.ac.jp">kaigai@jks.is.tsukuba.ac.jp</A> (Kouhei KAIGAI)</LI>
+<LI><em>Date</em>: Wed, 29 Dec 1999 20:22:49 +0900 (JST)</LI>
+<LI><em>Cc</em>: <A HREF="mailto:kaigai@jks.is.tsukuba.ac.jp">kaigai@jks.is.tsukuba.ac.jp</A></LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+こんにちは、海外＠筑波大です。
+
+今私が作成しているプログラムの中で、
+JDBC経由でPostgreSQLサーバーに接続し、
+ある特定のテーブルにあるカラムの一覧と、
+その属性(非NULLカラムであるとか、Primary Keyであるとか)を
+取得したいとき、あまり洗練された方法とは思えませんが
+私は下のようにしています。
+
+String table_name; // ← テーブル名が入っているとする。
+Statement st; // ← 適切なStatementオブジェクトへの参照であるとする。
+ResultSet rt = st.execute("select * from "+table_name+";");
+ResultSetMetaData rsmd = rs.getMetaData();
+for(j=1;j&lt;=rsmd.getColumnCount();j++){
+  String output = rsmd.getColumnName(j);
+  if( rsmd.isNullable(j)==ResultSetMetaData.columnNoNulls )
+    output += "(Not NULL)";
+  System.out.println( output );
+}
+
+見ての通り、とりあえず全カラムを返すよう問い合わせをし、
+その各カラムについての属性を得るという方法です(力技だ....)。
+
+で、ここで問題となるのが ResultSetMetaData オブジェクトのメソッド
+isNullable() です。
+このメソッド、本来ならばカラムがNULL値を許すかどうかを教えてくれる
+はずなのですが、PostgreSQL付属のJDBCドライバのソース(ResultSetMetaData.java)を
+見てみると、
+
+  /**
+   * Can you put a NULL in this column?  I think this is always
+   * true in 6.1's case.  It would only be false if the field had
+   * been defined NOT NULL (system catalogs could be queried?)
+   *
+   * @param column the first column is 1, the second is 2...
+   * @return one of the columnNullable values
+   * @exception SQLException if a database access error occurs
+   */
+  public int isNullable(int column) throws SQLException
+  {
+    return columnNullable;      // We can always put NULL in
+  }                                ^^^^^^^^^^^^^^^^^^^^^^^^^(ぐは
+
+のようになっていて、ちょっと用を為しておりません。
+
+# It would only be false if the field had been defined NOT NULL.
+# なんて言ったってねぇ..... (--;;
+
+で、その周辺のソースプログラムを眺めてみたところ、
+どうやら ResultSetMetaData オブジェクトにカラムの属性情報が
+渡っていないようでした。(正確にはResultSetMetaDataクラスのメンバである
+Fieldクラスにカラム属性を意味すると思われる変数がない。)
+
+で、問題の原点はどこかと探ってみたところ、
+・ResultSetMetaDataはResultSetクラスのメソッドで生成される
+
+→ResultSetクラスはStatementクラスのメソッドで生成される
+
+→ResultSetオブジェクトを返すStatement.executeSQL()は、
+  ConnectionクラスのExecSQL()メソッドを呼んでいるだけ。
+
+→ConnectionクラスのExecSQL()メソッドを改造し、Fieldクラスに付加情報を
+  持たせればisNullable()メソッドの帰り値を有効なものにしうる。
+
+と、いう結論にいたりました。
+
+しかしながら、ExecSQL()メソッドの中で行われている
+JDBCドライバ〜PostgreSQLサーバーのバイトストリーム単位の通信について、
+そのプロトコルやどういったデータ構造をしているのかという資料が見当たら
+ないので、改造しようにもとんと困っておる次第です。
+
+で、質問なのですが、この部分の通信規約のドキュメントというものは
+存在するのでしょうか？存在するならば所在を教えて頂けないでしょうか？
+世紀末で多忙なところ要点のわかりにくいメールで申し訳ありません。
+
+それでは、よろしくお願いします。
+
+
+
+♪ ───────────────────────────♪
+  (((   ☆ "政治とは社会的諸価値の権威的配分である" ★   │
+＜◎ )      筑波大学情報学類参年  海外 浩平              │
+ (   ) ( E-mail : kaigai@jks.is.tsukuba.ac.jp )          │
+  m^m  ( URL : <A HREF="http://www.jks.is.tsukuba.ac.jp/~kaigai/">http://www.jks.is.tsukuba.ac.jp/~kaigai/</A> )｜
+(_____)─────────────────────────♪
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00445" HREF="msg00445.html">[pgsql-jp 12440] Re: ResultSetMetaData.isNullable() on JDBC Driver</A></STRONG>
+<UL><LI><EM>From:</EM> kaigai@jks.is.tsukuba.ac.jp (Kouhei KAIGAI)</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00443.html">[pgsql-jp 12438] Re: pgbash-2.0 released</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00445.html">[pgsql-jp 12440] Re: ResultSetMetaData.isNullable() on JDBC Driver</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00456.html">[pgsql-jp 12451] Re: はじめまして。</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00445.html">[pgsql-jp 12440] Re: ResultSetMetaData.isNullable() on JDBC Driver</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00444"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00444"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

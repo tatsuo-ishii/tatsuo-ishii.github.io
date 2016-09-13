@@ -1,0 +1,144 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 23541] Re: Q) Bench marking -->
+<!--X-From: nork@cityfujisawa.ne.jp (Norikatsu Shigemura) -->
+<!--X-Date: Wed, 24 Oct 2001 00:14:15 +0900 -->
+<!--X-Message-Id: 011024001415.M0191416@pelsia.netmove.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 20011023.164641.466691546.sugimura@infoscience.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 23541] Re: Q) Bench marking </TITLE>
+<LINK REV="made" HREF="mailto:nork@cityfujisawa.ne.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00270.html">Date Prev</A>][<A HREF="msg00272.html">Date Next</A>][<A HREF="msg00260.html">Thread Prev</A>][<A HREF="msg00272.html">Thread Next</A>][<A HREF="index.html#00271">Date Index</A>][<A HREF="threads.html#00271">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 23541] Re: Q) Bench marking</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: <A HREF="mailto:nork@cityfujisawa.ne.jp">nork@cityfujisawa.ne.jp</A> (Norikatsu Shigemura)</LI>
+<LI><em>Date</em>: Wed, 24 Oct 2001 00:14:15 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+重村法克です。
+
+2001/10/23 16:46 にSUGIMURA Takashi 杉村 貴士さんは書きました.
+&gt;&gt; &gt; 	のディスクです。ディスクの差が如実にでているような…。杉村さんのと
+&gt;&gt; &gt; 	このディスクはいかがですか?
+&gt;&gt; うちのは Maxtor 33073U4 という 30GB のもので、
+&gt;&gt; もとは UltraATA/66 なんですが /33 で使っています。
+
+	ディスクに関して相関はなさそうですね。やはりパラメータですか…。
+	ということでパラメータを色々変えてテストしてみました。
+
+	まず, FreeBSD では fsync と open_sync の 2 つが使える。ディフォ
+	ルトで, wal_sync_method = fsync, fsync = true である。
+
+	とりあえず, sort_mem, shared_buffers, fsync, wal_sync_method に
+	着目してパラメータを変化してみました。今回テストを行ったマシン
+	は DUAL PentiumIII with i840 です。意外なことにメモリは沢山あっ
+	ても(与えても)パフォーマンスにつながらないという…。ベストと思
+	わしきパラメータが見つかりますが, pgbench に特化したパラメータ
+	のような気がして, 実務でどれだけ有効かわかりません。パラメータ
+	の根拠がわかれば応用が効きそうですが…。とりあえず分かった事は
+	wal_sync_method = fsync, fsync = false が一番！と:-)。
+
+# うう, かなり悪いパラメータで運用していたのか…....
+
+                                       sort_mem =  4096, shared_buffers = 16384
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  | 31.535833, 31.803730   | 21.231552, 21.355252
+fsync(false) | 62.005939, 63.032228   | 62.388062, 63.436863
+
+                                       sort_mem =  4096, shared_buffers =  8192
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  | 39.963417, 40.316106   | 23.859185, 23.982443
+fsync(false) | 73.160181, 74.325211   | 56.987858, 57.688134
+
+                                       sort_mem =  4096, shared_buffers =  4096
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  | 41.078103, 41.401829   | 25.138148, 25.260000
+fsync(false) | 61.971519, 62.703247   | 64.478991, 65.266185
+
+                                       sort_mem =  4096, shared_buffers =  2048
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  | 45.222728, 45.590098   | 24.743122, 24.852306
+fsync(false) | 65.159590, 65.913571   | 64.989135, 65.737457
+
+
+                                       sort_mem =  2048, shared_buffers =  8192
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  | 46.619041, 47.097172   |                     
+fsync(false) | 68.010891, 69.016220   |                     
+
+                                       sort_mem = 16384, shared_buffers =  8192
+             | wal_sync_method(fsync) | wal_sync_method(open_sync)
+-------------+------------------------+-----------------------------
+fsync(true)  |                        |                     
+fsync(false) | 59.356534, 60.123894   |                     
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00274" HREF="msg00274.html">[pgsql-jp 23544] Re: Q) Bench marking</A></STRONG>
+<UL><LI><EM>From:</EM> Tatsuo Ishii &lt;t-ishii@sra.co.jp&gt;</LI></UL></LI>
+<LI><STRONG><A NAME="00272" HREF="msg00272.html">[pgsql-jp 23542] Re:  Q) Bench marking</A></STRONG>
+<UL><LI><EM>From:</EM> Hiroki Takada &lt;takada@rh.xdsl.ne.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<UL><LI><STRONG>References</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00260" HREF="msg00260.html">[pgsql-jp 23530] Re: Q) Bench marking</A></STRONG>
+<UL><LI><EM>From:</EM> SUGIMURA Takashi 杉村 貴士&lt;sugimura@infoscience.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00270.html">[pgsql-jp 23540] Re: Postgre とPDAリンクに関して</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 23542] Re:  Q) Bench marking</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00260.html">[pgsql-jp 23530] Re: Q) Bench marking</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00272.html">[pgsql-jp 23542] Re:  Q) Bench marking</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00271"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00271"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>

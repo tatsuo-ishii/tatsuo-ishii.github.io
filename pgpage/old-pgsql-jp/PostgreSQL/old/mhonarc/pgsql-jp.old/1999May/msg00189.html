@@ -1,0 +1,221 @@
+<!-- MHonArc v2.1.0 -->
+<!--X-Subject: [pgsql&#45;jp 8462] Re: patch for NetBSD/macppc -->
+<!--X-From: Tatsuo Ishii <t&#45;ishii@sra.co.jp> -->
+<!--X-Date: Fri, 21 May 1999 14:21:51 +0900 -->
+<!--X-Message-Id: 199905210521.OAA11805@srapc451.sra.co.jp -->
+<!--X-ContentType: text/plain -->
+<!--X-Reference-Id: 199903050418.NAA08798@jack.kinotrope.co.jp -->
+<!--X-Head-End-->
+<HTML>
+<HEAD>
+<TITLE>[pgsql-jp 8462] Re: patch for NetBSD/macppc </TITLE>
+<LINK REV="made" HREF="mailto:t-ishii@sra.co.jp">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+<!--X-Body-Begin-->
+<!--X-User-Header-->
+<!--X-User-Header-End-->
+<!--X-TopPNI-->
+<HR>
+[<A HREF="msg00188.html">Date Prev</A>][<A HREF="msg00190.html">Date Next</A>][<A HREF="msg00194.html">Thread Prev</A>][<A HREF="msg00191.html">Thread Next</A>][<A HREF="index.html#00189">Date Index</A>][<A HREF="threads.html#00189">Thread Index</A>]
+<!--X-TopPNI-End-->
+<!--X-MsgBody-->
+<!--X-Subject-Header-Begin-->
+<H1>[pgsql-jp 8462] Re: patch for NetBSD/macppc</H1>
+<HR>
+<!--X-Subject-Header-End-->
+<UL>
+<LI><em>From</em>: Tatsuo Ishii &lt;<A HREF="mailto:t-ishii@sra.co.jp">t-ishii@sra.co.jp</A>&gt;</LI>
+<LI><em>Date</em>: Fri, 21 May 1999 14:21:51 +0900</LI>
+</UL>
+<!--X-Head-Body-Sep-Begin-->
+<HR>
+<!--X-Head-Body-Sep-End-->
+<!--X-Body-of-Message-->
+<PRE>
+石井です。古い話題なので、恐縮ですが全文引用しておきます([pgsql-jp
+7316]です)。
+
+&gt;青木@kinotropeです。
+&gt;
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; Tue, 16 Feb 1999 13:22:16 +0900,
+&gt;	"TA" == Toshimi Aoki wrote:
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; Tue, 16 Feb 1999 12:08:00 +0900,
+&gt;	"TI" == Tatsuo Ishii wrote:
+&gt;TI&gt;&gt; えーと、NetBSD/macppc の方は一段落でしょうか？
+&gt;TA&gt; 最適化する(-Oや-O2)とinitdbで
+&gt;TA&gt;
+&gt;TA&gt; Creating view pg_rules
+&gt;TA&gt;
+&gt;TA&gt; で終わってしまい(ここまで表示される)ちゃんと作成されません。
+&gt;
+&gt;ちょっと調べてみました。
+&gt;
+&gt;下記 int2eq() で arg1: -2, arg2: 65534 で呼び出された場合、本来であれ 
+&gt;ば 1 が返るはずですが、0を返してしまう。(int16 は signed short だから  
+&gt;65534 は -2 になるはず)
+&gt;
+&gt;bool
+&gt;int2eq(int16 arg1, int16 arg2)
+&gt;{
+&gt;    return arg1 == arg2;
+&gt;}
+&gt;
+&gt;
+&gt;gcc -O -S では下記のように出力されます、が、PPCのアセンブラを知らない 
+&gt;ので本当のところは分かりません。
+&gt;int2eq:
+&gt;        xor 3,3,4
+&gt;        subfic 0,3,0
+&gt;        adde 3,0,3
+&gt;        blr
+&gt;
+&gt;
+&gt;そもそも -2 ではなく 65534 を渡す方が悪いと思って、コードを追っかけて 
+&gt;みると、 get_atttype() の UInt16GetDatum() で変更されていました。
+&gt;
+&gt;Oid
+&gt;get_atttype(Oid relid, AttrNumber attnum)
+&gt;{
+&gt;    Form_pg_attribute att_tup =
+&gt;           (Form_pg_attribute)palloc(sizeof(*att_tup));
+&gt;
+&gt;    if (SearchSysCacheStruct(ATTNUM, (char *) att_tup,
+&gt;                             ObjectIdGetDatum(relid),
+&gt;                             UInt16GetDatum(attnum),
+&gt;                             0, 0))
+&gt;        return att_tup-&gt;atttypid;
+&gt;    else
+&gt;        return (Oid) NULL;
+&gt;}
+&gt;
+&gt;
+&gt;これってコンパイラの方で対処すべき問題なんでしょうか。
+
+これに対して linuxppc をやっている方から以下のようなメールが本家に寄せ
+られています。うーむ、NetBSD だけかと思っていたら、人事ではなくなくま
+した:-)今や egcs が gcc に代わって標準になりましたから、修正箇所はたく
+さんあるのですが、頑張ってパッチを作るしか無い？
+
+P.S.	他の RISC 系の石は大丈夫なんでしょうか？
+---
+t-ishii@sra.co.jp	石井達夫
+
+Date: Fri, 14 May 1999 16:49:44 -0300 (ADT)
+From: The Hermit Hacker &lt;scrappy@hub.org&gt;
+To: pgsql-hackers@postgreSQL.org
+cc: Jack Howarth &lt;howarth@nitro.med.uc.edu&gt;
+Subject: [HACKERS] postgresql bug report (fwd)
+Message-ID: &lt;Pine.BSF.4.05.9905141649150.47191-100000@thelab.hub.org&gt;
+MIME-Version: 1.0
+Content-Type: TEXT/PLAIN; charset=US-ASCII
+Sender: owner-pgsql-hackers@postgreSQL.org
+Precedence: bulk
+
+
+Marc G. Fournier                   ICQ#7615664               IRC Nick: Scrappy
+Systems Administrator @ hub.org 
+primary: scrappy@hub.org           secondary: scrappy@{freebsd|postgresql}.org 
+
+---------- Forwarded message ----------
+Date: Fri, 14 May 1999 14:50:58 -0400
+From: Jack Howarth &lt;howarth@nitro.med.uc.edu&gt;
+To: scrappy@hub.org
+Subject: postgresql bug report
+
+Marc,
+      In porting the RedHat 6.0 srpm set for a linuxppc release we
+believe a bug has been identified in
+the postgresql source for 6.5-0.beta1. Our development tools are as
+follows...
+
+glibc 2.1.1 pre 2
+linux 2.2.6
+egcs 1.1.2
+the latest binutils snapshot
+
+The bug that we see is that when egcs compiles postgresql at -O1 or
+higher (-O0 is fine),
+postgresql creates incorrectly formed databases such that when the user
+does a destroydb
+the database can not be destroyed. Franz Sirl has identified the problem
+as follows...
+
+    it seems that this problem is a type casting/promotion bug in the
+source. The
+    routine _bt_checkkeys() in backend/access/nbtree/nbtutils.c calls
+int2eq() in
+    backend/utils/adt/int.c via a function pointer
+*fmgr_faddr(&amp;key[0].sk_func). As
+    the type information for int2eq is lost via the function pointer,
+the compiler
+    passes 2 ints, but int2eq expects 2 (preformatted in a 32bit reg)
+int16's.
+    This particular bug goes away, if I for example change int2eq to:
+
+    bool
+    int2eq(int32 arg1, int32 arg2)
+    {
+            return (int16)arg1 == (int16)arg2;
+    }
+
+    This moves away the type casting/promotion "work" from caller to the
+callee and
+    is probably the right thing to do for functions used via function
+pointers.
+
+...because of the large number of changes required to do this, Franz
+thought we should
+pass this on to the postgresql maintainers for correction. Please feel
+free to contact
+Franz Sirl (Franz.Sirl-kernel@lauterbach.com) if you have any questions
+on this bug
+report.
+
+--
+------------------------------------------------------------------------------
+Jack W. Howarth, Ph.D.                                     231 Bethesda Avenue
+NMR Facility Director                              Cincinnati, Ohio 45267-0524
+Dept. of Molecular Genetics                              phone: (513) 558-4420
+Univ. of Cincinnati College of Medicine                    fax: (513) 558-8474
+</PRE>
+
+<!--X-Body-of-Message-End-->
+<!--X-MsgBody-End-->
+<!--X-Follow-Ups-->
+<HR>
+<UL><LI><STRONG>Follow-Ups</STRONG>:
+<UL>
+<LI><STRONG><A NAME="00191" HREF="msg00191.html">[pgsql-jp 8464] egcs bug ? (Re: patch for NetBSD/macppc )</A></STRONG>
+<UL><LI><EM>From:</EM> Toshimi Aoki &lt;toshi@saluda.kinotrope.co.jp&gt;</LI></UL></LI>
+</UL></LI></UL>
+<!--X-Follow-Ups-End-->
+<!--X-References-->
+<!--X-References-End-->
+<!--X-BotPNI-->
+<UL>
+<LI>Prev by Date:
+<STRONG><A HREF="msg00188.html">[pgsql-jp 8461] Re: 画像の取り込みについて野質問</A></STRONG>
+</LI>
+<LI>Next by Date:
+<STRONG><A HREF="msg00190.html">[pgsql-jp 8463] Re: DateTime probrem on NetBSD/mac68k</A></STRONG>
+</LI>
+<LI>Prev by thread:
+<STRONG><A HREF="msg00194.html">[pgsql-jp 8467] RE: ＳＱＬ文の  select ..... as ＸＸＸＸ</A></STRONG>
+</LI>
+<LI>Next by thread:
+<STRONG><A HREF="msg00191.html">[pgsql-jp 8464] egcs bug ? (Re: patch for NetBSD/macppc )</A></STRONG>
+</LI>
+<LI>Index(es):
+<UL>
+<LI><A HREF="index.html#00189"><STRONG>Date</STRONG></A></LI>
+<LI><A HREF="threads.html#00189"><STRONG>Thread</STRONG></A></LI>
+</UL>
+</LI>
+</UL>
+
+<!--X-BotPNI-End-->
+<!--X-User-Footer-->
+<!--X-User-Footer-End-->
+</BODY>
+</HTML>
