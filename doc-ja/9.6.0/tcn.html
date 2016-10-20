@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>tcn</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="追加で提供されるモジュール"
+HREF="contrib.html"><LINK
+REL="PREVIOUS"
+TITLE="tablefunc"
+HREF="tablefunc.html"><LINK
+REL="NEXT"
+TITLE="test_decoding"
+HREF="test-decoding.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="tablefunc"
+HREF="tablefunc.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 F. 追加で提供されるモジュール</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="test_decoding"
+HREF="test-decoding.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="TCN"
+>F.39. tcn</A
+></H1
+><P
+><TT
+CLASS="FILENAME"
+>tcn</TT
+>モジュールは関連づけされたテーブル上の変更を監視者に通知するトリガ関数を提供します。
+これは<TT
+CLASS="LITERAL"
+>FOR EACH ROW</TT
+>の<TT
+CLASS="LITERAL"
+>AFTER</TT
+>トリガとして使用しなければなりません。
+ </P
+><P
+><TT
+CLASS="LITERAL"
+>CREATE TRIGGER</TT
+>文の中で与えることができるパラメータは１つしかありませんが、省略することができます。
+与えられた場合、それは通知のチャネル名として使用されます。
+省略された場合はチャネル名として<TT
+CLASS="LITERAL"
+>tcn</TT
+>が使用されます。
+ </P
+><P
+>通知のペイロードにはテーブル名、どのような種類の操作が行われたかを示す文字、主キー列における列名と値の組み合わせが含まれます。
+部位はそれぞれカンマで区切られています。
+正規表現を使用して簡単に解析するために、テーブル名と列名は常に二重引用符で括られ、またデータ値は常に単一引用符で括られています。
+内部に含まれる引用符は二重化されます。
+ </P
+><P
+>この拡張を使用する簡単な例を以下に示します。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>test=# create table tcndata
+test-#   (
+test(#     a int not null,
+test(#     b date not null,
+test(#     c text,
+test(#     primary key (a, b)
+test(#   );
+CREATE TABLE
+test=# create trigger tcndata_tcn_trigger
+test-#   after insert or update or delete on tcndata
+test-#   for each row execute procedure triggered_change_notification();
+CREATE TRIGGER
+test=# listen tcn;
+LISTEN
+test=# insert into tcndata values (1, date '2012-12-22', 'one'),
+test-#                            (1, date '2012-12-23', 'another'),
+test-#                            (2, date '2012-12-23', 'two');
+INSERT 0 3
+Asynchronous notification "tcn" with payload ""tcndata",I,"a"='1',"b"='2012-12-22'" received from server process with PID 22770.
+Asynchronous notification "tcn" with payload ""tcndata",I,"a"='1',"b"='2012-12-23'" received from server process with PID 22770.
+Asynchronous notification "tcn" with payload ""tcndata",I,"a"='2',"b"='2012-12-23'" received from server process with PID 22770.
+test=# update tcndata set c = 'uno' where a = 1;
+UPDATE 2
+Asynchronous notification "tcn" with payload ""tcndata",U,"a"='1',"b"='2012-12-22'" received from server process with PID 22770.
+Asynchronous notification "tcn" with payload ""tcndata",U,"a"='1',"b"='2012-12-23'" received from server process with PID 22770.
+test=# delete from tcndata where a = 1 and b = date '2012-12-22';
+DELETE 1
+Asynchronous notification "tcn" with payload ""tcndata",D,"a"='1',"b"='2012-12-22'" received from server process with PID 22770.</PRE
+><P>
+ </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="tablefunc.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="test-decoding.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>tablefunc</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>test_decoding</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

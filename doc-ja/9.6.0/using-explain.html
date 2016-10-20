@@ -1,0 +1,1234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>EXPLAINの利用</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="性能に関するヒント"
+HREF="performance-tips.html"><LINK
+REL="PREVIOUS"
+TITLE="性能に関するヒント"
+HREF="performance-tips.html"><LINK
+REL="NEXT"
+TITLE="プランナで使用される統計情報"
+HREF="planner-stats.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="性能に関するヒント"
+HREF="performance-tips.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="performance-tips.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 14章性能に関するヒント</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="プランナで使用される統計情報"
+HREF="planner-stats.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="USING-EXPLAIN"
+>14.1. <TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の利用</A
+></H1
+><P
+><SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>は受理した問い合わせから<I
+CLASS="FIRSTTERM"
+>問い合わせ計画</I
+>を作り出します。
+問い合わせの構造と含まれるデータの性質に適した正しい問い合わせ計画を選択することが、良い性能を得るために非常に重要になります。
+ですので、システムには優れた計画の選択を試みる複雑な<I
+CLASS="FIRSTTERM"
+>プランナ</I
+>が存在します。
+<A
+HREF="sql-explain.html"
+>EXPLAIN</A
+>コマンドを使えば、任意の問い合わせに対してプランナがどのような問い合わせ計画を作ったのかわかります。
+問い合わせ計画を読みこなすことは、習得するにはある程度の経験が必要な技術です。
+本節ではその基本を提供しようと考えます。
+   </P
+><P
+>本節の例は、9.3の開発版ソースを用いて<TT
+CLASS="COMMAND"
+>VACUUM ANALYZE</TT
+>を実行した後でリグレッションテストデータベースから取り出したものです。
+実際にこの例を試すと、似たような結果になるはずですが、おそらく推定コストや行数は多少異なることになるでしょう。
+<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>による統計情報は厳密なものではなくランダムなサンプリングを行った結果であり、また、コストは本質的にプラットフォームに何かしら依存するためです。
+   </P
+><P
+>例では、簡潔で人が読みやすい<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>のデフォルトの<SPAN
+CLASS="QUOTE"
+>"text"</SPAN
+>出力書式を使用します。
+今後の解析で<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の出力をプログラムに渡すことを考えているのであれば、代わりに機械読み取りが容易な出力書式（XML、JSON、YAML）のいずれかを使用すべきです。
+   </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="USING-EXPLAIN-BASICS"
+>14.1.1. <TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の基本</A
+></H2
+><P
+>問い合わせ計画は<I
+CLASS="FIRSTTERM"
+>計画ノード</I
+>のツリー構造です。
+ツリー構造の最下層ノードはスキャンノードで、テーブルから行そのものを返します。
+シーケンシャルスキャン、インデックススキャン、ビットマップインデックススキャンといったテーブルアクセス方法の違いに応じ、スキャンノードの種類に違いがあります。
+また、<TT
+CLASS="LITERAL"
+>VALUES</TT
+>句や<TT
+CLASS="LITERAL"
+>FROM</TT
+>内の集合を返す関数など独自のスキャンノード種類を持つ、テーブル行を元にしないものがあります。
+問い合わせが結合、集約、ソートなど、行そのものに対する操作を必要としている場合、スキャンノードの上位に更に、これらの操作を行うためのノードが追加されます。
+これらの操作の実現方法にも通常複数の方法がありますので、異なった種類のノードがここに出現することもあり得ます。
+<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>には計画ツリー内の各ノードにつき1行の出力があり、基本ノード種類とプランナが生成したその計画ノードの実行に要するコスト推定値を示します。
+さらに、ノードの追加属性を表示するためにノードの要約行からインデント付けされた行が出力される可能性があります。
+最初の1行目（最上位ノード）には、計画全体の実行コスト推定値が含まれます。
+プランナはこの値が最小になるように動作します。
+   </P
+><P
+>どのような出力となるのかを示すためだけに、ここで簡単な例を示します。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1;
+
+                         QUERY PLAN
+-------------------------------------------------------------
+ Seq Scan on tenk1  (cost=0.00..458.00 rows=10000 width=244)</PRE
+><P>
+   </P
+><P
+>この問い合わせには<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句がありませんので、テーブル行をすべてスキャンしなければなりません。
+このためプランナは単純なシーケンシャルスキャン計画を使用することを選びました。
+（左から右に）括弧で囲まれた数値には以下のものがあります。
+
+    <P
+></P
+></P><UL
+><LI
+><P
+>初期処理の推定コスト。
+出力段階が開始できるようになる前に消費される時間、例えば、SORTノードで実行されるソート処理の時間です。
+      </P
+></LI
+><LI
+><P
+>全体推定コスト。
+これは計画ノードが実行完了である、つまりすべての利用可能な行を受け取ることを前提として示されます。
+実際には、ノードの親ノードはすべての利用可能な行を読む前に停止する可能性があります（以下の<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>の例を参照）。
+      </P
+></LI
+><LI
+><P
+>この計画ノードが出力する行の推定数。ここでも、ノードが実行を完了することを前提としています。
+      </P
+></LI
+><LI
+><P
+>この計画ノードが出力する行の（バイト単位での）推定平均幅。
+      </P
+></LI
+></UL
+><P>
+   </P
+><P
+>コストはプランナのコストパラメータ（<A
+HREF="runtime-config-query.html#RUNTIME-CONFIG-QUERY-CONSTANTS"
+>項19.7.2</A
+>参照）によって決まる任意の単位で測定されます。
+取り出すディスクページ単位でコストを測定することが、伝統的な方式です。
+つまり、<A
+HREF="runtime-config-query.html#GUC-SEQ-PAGE-COST"
+>seq_page_cost</A
+>を慣習的に<TT
+CLASS="LITERAL"
+>1.0</TT
+>に設定し、他のコストパラメータを相対的に設定します。
+本節の例では、デフォルトのコストパラメータで実行しています。
+   </P
+><P
+>上位ノードのコストには、すべての子ノードのコストもその中に含まれていることを理解することは重要です。
+このコストはプランナが関与するコストのみ反映する点もまた重要です。
+とりわけ、結果の行をクライアントに転送するコストは、実際の処理時間の重要な要因となる可能性があるにもかかわらず、考慮されません。
+プランナは、計画をいかに変更しようと、どうすることもできないため、これを無視します。
+（正しい計画はどんなものであれ、すべて同じ行を結果として出力すると信じています。）
+   </P
+><P
+><TT
+CLASS="LITERAL"
+>rows</TT
+>の値は、計画ノードによって処理あるいはスキャンされた行数を表しておらず、ノードによって発行された行数を表すので、多少扱いにくくなっています。
+該当ノードに適用されるすべての<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句条件によるフィルタ処理の結果、スキャンされる行より少ない行数になることがよくあります。
+理想的には、最上位の行数の推定値は、実際に問い合わせによって返され、更新され、あるいは削除された概算の行数となります。
+   </P
+><P
+>例に戻ります。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1;
+
+                         QUERY PLAN
+-------------------------------------------------------------
+ Seq Scan on tenk1  (cost=0.00..458.00 rows=10000 width=244)</PRE
+><P>
+   </P
+><P
+>この数は非常に素直に導かれます。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SELECT relpages, reltuples FROM pg_class WHERE relname = 'tenk1';</PRE
+><P>
+
+を実行すると、<CODE
+CLASS="CLASSNAME"
+>tenk1</CODE
+>には358のディスクページと10000の行があることがわかります。
+推定コストは（ディスクページ読み取り * <A
+HREF="runtime-config-query.html#GUC-SEQ-PAGE-COST"
+>seq_page_cost</A
+>）+（スキャンした行 * <A
+HREF="runtime-config-query.html#GUC-CPU-TUPLE-COST"
+>cpu_tuple_cost</A
+>）と計算されます。
+デフォルトでは、<TT
+CLASS="VARNAME"
+>seq_page_cost</TT
+>は1.0、<TT
+CLASS="VARNAME"
+>cpu_tuple_cost</TT
+>は0.01です。
+ですから、推定コストは(358 * 1.0) + (10000 * 0.01) = 458となります。
+   </P
+><P
+>では、<TT
+CLASS="LITERAL"
+>WHERE</TT
+>条件を加えて、問い合わせを変更してみます。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 &lt; 7000;
+
+                         QUERY PLAN
+------------------------------------------------------------
+ Seq Scan on tenk1  (cost=0.00..483.00 rows=7001 width=244)
+   Filter: (unique1 &lt; 7000)</PRE
+><P>
+
+<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の出力が、Seq Scan計画ノードに付随する<SPAN
+CLASS="QUOTE"
+>"フィルタ"</SPAN
+>条件として適用される<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句を表示していることに注意してください。
+これは、この計画ノードがスキャンした各行に対してその条件を検査することを意味し、その条件を通過したもののみが出力されます。
+<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句があるため、推定出力行数が小さくなっています。
+しかし、依然として10000行すべてをスキャンする必要があるため、コストは小さくなっていません。
+実際には、<TT
+CLASS="LITERAL"
+>WHERE</TT
+>条件を検査するためにCPU時間が余計にかかることを反映して、ほんの少し（正確には10000 * <A
+HREF="runtime-config-query.html#GUC-CPU-OPERATOR-COST"
+>cpu_operator_cost</A
+>）ですがコストが上昇しています。
+   </P
+><P
+>この問い合わせが選択する実際の行数は7000です。
+しかし、<TT
+CLASS="LITERAL"
+>rows</TT
+>の推定行数は概算値に過ぎません。
+この実験を2回実行した場合、おそらく多少異なる推定値を得るでしょう。
+もっと言うと、これは<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>コマンドを行う度に変化することがあり得ます。
+なぜなら、<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>で生成される統計情報は、テーブルのランダムな標本から取り出されるからです。
+   </P
+><P
+>では、条件をより強く制限してみます。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 &lt; 100;
+
+                                  QUERY PLAN
+------------------------------------------------------------------------------
+ Bitmap Heap Scan on tenk1  (cost=5.07..229.20 rows=101 width=244)
+   Recheck Cond: (unique1 &lt; 100)
+   -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0)
+         Index Cond: (unique1 &lt; 100)</PRE
+><P>
+
+ここでは、プランナは2段階の計画を使用することを決定しました。
+子の計画ノードは、インデックスを使用して、インデックス条件に合う行の場所を検索します。
+そして、上位計画ノードが実際にテーブル自体からこれらの行を取り出します。
+行を別々に取り出すことは、シーケンシャルな読み取りに比べ非常に高価です。
+しかし、テーブルのすべてのページを読み取る必要はありませんので、シーケンシャルスキャンより低価になります。
+（2段階の計画を使用する理由は、別々に行を取り出すコストを最小にするために、上位の計画ノードがインデックスにより識別された行の位置を読み取る前に物理的な順序でソートすることです。
+ノードで記載されている<SPAN
+CLASS="QUOTE"
+>"bitmap"</SPAN
+>は、ソートを行う機構の名前です。）
+   </P
+><P
+>ここで<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句に別の条件を付与してみましょう。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND stringu1 = 'xxx';
+
+                                  QUERY PLAN
+------------------------------------------------------------------------------
+ Bitmap Heap Scan on tenk1  (cost=5.04..229.43 rows=1 width=244)
+   Recheck Cond: (unique1 &lt; 100)
+   Filter: (stringu1 = 'xxx'::name)
+   -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0)
+         Index Cond: (unique1 &lt; 100)</PRE
+><P>
+
+追加された<TT
+CLASS="LITERAL"
+>stringu1 = 'xxx'</TT
+>条件は出力行数推定値を減らしますが、同じ行集合にアクセスしなければなりませんので、コストは減りません。
+このインデックスが<TT
+CLASS="LITERAL"
+>unique1</TT
+>列に対してのみ存在するため、<TT
+CLASS="LITERAL"
+>stringu1</TT
+>句をインデックス条件として適用できないことに注意してください。
+代わりに、インデックスによって取り出される行に対するフィルタとして適用されます。
+これにより、追加の検査分を反映するため、コストは実際には少し上がります。
+   </P
+><P
+>場合によってはプランナは<SPAN
+CLASS="QUOTE"
+>"単純な"</SPAN
+>インデックススキャン計画を選択します。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 = 42;
+
+                                 QUERY PLAN
+-----------------------------------------------------------------------------
+ Index Scan using tenk1_unique1 on tenk1  (cost=0.29..8.30 rows=1 width=244)
+   Index Cond: (unique1 = 42)</PRE
+><P>
+
+この種の計画では、テーブル行はインデックス順で取り出されます。
+このため読み取りがより高価になりますが、この場合取り出す行数が少ないため、改めて行位置をソートし直すための追加コストは割に合いません。
+単一の行のみを取り出す問い合わせでは、この計画種類がよく現れます。
+また、<TT
+CLASS="LITERAL"
+>ORDER BY</TT
+>を満たすために必要となる余分な必要なソート処理がないため、インデックスの順序に一致する<TT
+CLASS="LITERAL"
+>ORDER BY</TT
+>条件を持つ問い合わせでよく使用されます。
+   </P
+><P
+><TT
+CLASS="LITERAL"
+>WHERE</TT
+>句で参照される複数の列に対して別々のインデックスが存在する場合、プランナはインデックスをANDやORで組み合わせて使用することを選択する可能性があります。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND unique2 &gt; 9000;
+
+                                     QUERY PLAN
+-------------------------------------------------------------------------------------
+ Bitmap Heap Scan on tenk1  (cost=25.08..60.21 rows=10 width=244)
+   Recheck Cond: ((unique1 &lt; 100) AND (unique2 &gt; 9000))
+   -&gt;  BitmapAnd  (cost=25.08..25.08 rows=10 width=0)
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0)
+               Index Cond: (unique1 &lt; 100)
+         -&gt;  Bitmap Index Scan on tenk1_unique2  (cost=0.00..19.78 rows=999 width=0)
+               Index Cond: (unique2 &gt; 9000)</PRE
+><P>
+
+しかし、これは両方のインデックスを参照する必要があります。
+そのため、インデックスを1つ使用し、他の条件についてはフィルタとして扱う方法と比べて常に勝るとは限りません。
+含まれる範囲を変更すると、それに伴い計画も変わることが分かるでしょう。
+   </P
+><P
+>以下に<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>の影響を示す例を示します。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND unique2 &gt; 9000 LIMIT 2;
+
+                                     QUERY PLAN
+-------------------------------------------------------------------------------------
+ Limit  (cost=0.29..14.48 rows=2 width=244)
+   -&gt;  Index Scan using tenk1_unique2 on tenk1  (cost=0.29..71.27 rows=10 width=244)
+         Index Cond: (unique2 &gt; 9000)
+         Filter: (unique1 &lt; 100)</PRE
+><P>
+   </P
+><P
+>これは上と同じ問い合わせですが、すべての行を取り出す必要がないため<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>を付けています。
+プランナはどうすべきかについて考えを変えました。
+インデックススキャンノードの総コストと総行数があたかも実行完了したかのように表示されていることに注意してください。
+しかしLimitノードが、これらの内５行のみを取り出した後で停止することが想定されています。
+そのため総コストは1/5程度のみとなり、これが問い合わせの実際の推定コストとなります。
+この計画は、以前の計画にLimitノードを追加することより好まれます。
+Limitはビットマップスキャンの起動コストを払うことを避けることができないためです。
+このため総コストはこの方法に25単位ほど増加します。
+   </P
+><P
+>今まで説明に使ってきたフィールドを使って2つのテーブルを結合してみましょう。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 &lt; 10 AND t1.unique2 = t2.unique2;
+
+                                      QUERY PLAN
+--------------------------------------------------------------------------------------
+ Nested Loop  (cost=4.65..118.62 rows=10 width=488)
+   -&gt;  Bitmap Heap Scan on tenk1 t1  (cost=4.36..39.47 rows=10 width=244)
+         Recheck Cond: (unique1 &lt; 10)
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..4.36 rows=10 width=0)
+               Index Cond: (unique1 &lt; 10)
+   -&gt;  Index Scan using tenk2_unique2 on tenk2 t2  (cost=0.29..7.91 rows=1 width=244)
+         Index Cond: (unique2 = t1.unique2)</PRE
+><P>
+   </P
+><P
+>この計画では、入力または子として２つのテーブルスキャンを持つ入れ子状ループ結合ノードがあります。
+計画のツリー構造を反映して、ノード要約行はインデント付けされます。
+結合の先頭、<SPAN
+CLASS="QUOTE"
+>"外部"</SPAN
+>、子は以前に説明したものと似たビットマップスキャンです。
+そのコストと行数は、該当ノードに<TT
+CLASS="LITERAL"
+>unique1 &lt; 10</TT
+> <TT
+CLASS="LITERAL"
+>WHERE</TT
+>句が適用されるため、<TT
+CLASS="LITERAL"
+>SELECT ... WHERE unique1 &lt; 10</TT
+>で得られたものと同じです。
+この段階では<TT
+CLASS="LITERAL"
+>t1.unique2 = t2.unique2</TT
+>句は関係しておらず、外部スキャンにおける出力行数に影響していません。
+入れ子状ループ結合ノードは、外部の子から得られた行毎に、その２番目または<SPAN
+CLASS="QUOTE"
+>"内部の"</SPAN
+>子を一回実行します。
+現在の外部の行からの列の値は内部スキャンに組み込まれます。
+ここで、外部行からの<TT
+CLASS="LITERAL"
+>t1.unique2</TT
+>の値が利用できますので、上述の単純な<TT
+CLASS="LITERAL"
+>SELECT ... WHERE t2.unique2 = <TT
+CLASS="REPLACEABLE"
+><I
+>constant</I
+></TT
+></TT
+>の場合に示したものと似た計画とコストが得られます。
+（実際、推定コストは、<TT
+CLASS="LITERAL"
+>t2</TT
+>に対するインデックススキャンが繰り返される間に発生することが想定されるキャッシュの結果、上で示した値よりわずかに低くなります。）
+ループノードのコストは、外部スキャンのコストと、各々の外部の行に対して内部スキャンが繰り返されることによるコスト（ここでは10 * 7.87）を加え、さらに結合処理を行うための少々のCPU時間を加えたものになります。
+   </P
+><P
+>この例では、結合の出力行数は2つのスキャンの出力行数の積に等しくなっていますが、いつもそうなるわけではありません。
+2つのテーブルに関係する<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句は、入力スキャン時ではなく、結合を行う際に適用されるからです。
+以下が例です。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 &lt; 10 AND t2.unique2 &lt; 10 AND t1.hundred &lt; t2.hundred;
+
+                                         QUERY PLAN
+---------------------------------------------------------------------------------------------
+ Nested Loop  (cost=4.65..49.46 rows=33 width=488)
+   Join Filter: (t1.hundred &lt; t2.hundred)
+   -&gt;  Bitmap Heap Scan on tenk1 t1  (cost=4.36..39.47 rows=10 width=244)
+         Recheck Cond: (unique1 &lt; 10)
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..4.36 rows=10 width=0)
+               Index Cond: (unique1 &lt; 10)
+   -&gt;  Materialize  (cost=0.29..8.51 rows=10 width=244)
+         -&gt;  Index Scan using tenk2_unique2 on tenk2 t2  (cost=0.29..8.46 rows=10 width=244)
+               Index Cond: (unique2 &lt; 10)</PRE
+><P>
+
+条件<TT
+CLASS="LITERAL"
+>t1.hundred &lt; t2.hundred</TT
+>は<TT
+CLASS="LITERAL"
+>tenk2_unique2</TT
+>インデックスの中では試験されません。
+このため結合ノードで適用されます。
+これは結合ノードの推定出力行数を減らしはしますが、入力スキャンには影響しません。
+   </P
+><P
+>ここではプランナが、具体化計画ノードをその上に挿入することで、結合の内部リレーションの<SPAN
+CLASS="QUOTE"
+>"具体化"</SPAN
+>を選択していることに注意してください。
+これは、たとえ入れ子上ループ結合ノードが外部リレーションから各行につき一度、そのデータを10回読む必要があったとしても、<TT
+CLASS="LITERAL"
+>t2</TT
+>インデックススキャンが一度だけ行なわれることを意味します。
+具体化ノードはそのデータを読んだときにメモリに保存し、その後の読み出しではそのデータをメモリから返します。
+   </P
+><P
+>外部結合を扱う時、<SPAN
+CLASS="QUOTE"
+>"結合フィルタ"</SPAN
+>および通常の<SPAN
+CLASS="QUOTE"
+>"フィルタ"</SPAN
+>の両方が付随する結合計画ノードが現れる可能性があります。
+結合フィルタ条件は外部結合の<TT
+CLASS="LITERAL"
+>ON</TT
+>句を元にしますので、結合フィルタ条件に合わない行がNULLで展開された行として発行され続けます。
+しかし通常のフィルタ条件が外部結合規則の後に適用され、条件に合わない行は削除されます。
+内部結合では、これらのフィルタ種類の間に意味的な違いはありません。
+   </P
+><P
+>問い合わせの選択性を少し変更すると、非常に異なる結合計画が得られるかもしれません。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 &lt; 100 AND t1.unique2 = t2.unique2;
+
+                                        QUERY PLAN
+------------------------------------------------------------------------------------------
+ Hash Join  (cost=230.47..713.98 rows=101 width=488)
+   Hash Cond: (t2.unique2 = t1.unique2)
+   -&gt;  Seq Scan on tenk2 t2  (cost=0.00..445.00 rows=10000 width=244)
+   -&gt;  Hash  (cost=229.20..229.20 rows=101 width=244)
+         -&gt;  Bitmap Heap Scan on tenk1 t1  (cost=5.07..229.20 rows=101 width=244)
+               Recheck Cond: (unique1 &lt; 100)
+               -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0)
+                     Index Cond: (unique1 &lt; 100)</PRE
+><P>
+   </P
+><P
+>ここでプランナはハッシュ結合の使用を選択しました。
+片方のテーブルの行がメモリ内のハッシュテーブルに格納され、もう片方のテーブルがスキャンされた後、各行に対して一致するかどうかハッシュテーブルを探索します。
+繰り返しますが、インデント付けにより計画の構造が表されます。
+<TT
+CLASS="LITERAL"
+>tenk1</TT
+>に対するビットマップスキャンはハッシュノードへの入力です。
+外部の子計画から行を読み取り、各行に対してハッシュテーブルを検索します。
+   </P
+><P
+>他にも、以下に示すようなマージ結合という結合があり得ます。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN SELECT *
+FROM tenk1 t1, onek t2
+WHERE t1.unique1 &lt; 100 AND t1.unique2 = t2.unique2;
+
+                                        QUERY PLAN
+------------------------------------------------------------------------------------------
+ Merge Join  (cost=198.11..268.19 rows=10 width=488)
+   Merge Cond: (t1.unique2 = t2.unique2)
+   -&gt;  Index Scan using tenk1_unique2 on tenk1 t1  (cost=0.29..656.28 rows=101 width=244)
+         Filter: (unique1 &lt; 100)
+   -&gt;  Sort  (cost=197.83..200.33 rows=1000 width=244)
+         Sort Key: t2.unique2
+         -&gt;  Seq Scan on onek t2  (cost=0.00..148.00 rows=1000 width=244)</PRE
+><P>
+   </P
+><P
+>マージ結合は、結合キーでソートされる入力データを必要とします。
+この計画では、正確な順序で行をアクセスするために<TT
+CLASS="LITERAL"
+>tenk1</TT
+>データがインデックススキャンを用いてソートされます。
+しかし、このテーブルの中でより多くの行がアクセスされるため、<TT
+CLASS="LITERAL"
+>onek</TT
+>ではシーケンシャルスキャンとソートが好まれています。
+（多くの行をソートする場合、インデックススキャンでは非シーケンシャルなディスクアクセスが必要となるため、シーケンシャルスキャンとソートの方がインデックススキャンより優れています。）
+   </P
+><P
+><A
+HREF="runtime-config-query.html#RUNTIME-CONFIG-QUERY-ENABLE"
+>項19.7.1</A
+>に記載したenable/disableフラグを使用して、プランナが最も良いと考えている戦略を強制的に無視させる方法により、異なった計画を観察することができます。
+（非常に原始的なツールですが、利用価値があります。
+<A
+HREF="explicit-joins.html"
+>項14.3</A
+>も参照してください。）
+例えば、前の例にて<TT
+CLASS="LITERAL"
+>onek</TT
+>テーブルを扱う最善の方法がシーケンシャルスキャンとソートであると納得できなければ、以下を試みることができます。
+
+</P><PRE
+CLASS="SCREEN"
+>SET enable_sort = off;
+
+EXPLAIN SELECT *
+FROM tenk1 t1, onek t2
+WHERE t1.unique1 &lt; 100 AND t1.unique2 = t2.unique2;
+
+                                        QUERY PLAN
+------------------------------------------------------------------------------------------
+ Merge Join  (cost=0.56..292.65 rows=10 width=488)
+   Merge Cond: (t1.unique2 = t2.unique2)
+   -&gt;  Index Scan using tenk1_unique2 on tenk1 t1  (cost=0.29..656.28 rows=101 width=244)
+         Filter: (unique1 &lt; 100)
+   -&gt;  Index Scan using onek_unique2 on onek t2  (cost=0.28..224.79 rows=1000 width=244)</PRE
+><P>
+
+これは、プランナが、シーケンシャルスキャンとソートよりインデックススキャンによる<TT
+CLASS="LITERAL"
+>onek</TT
+>のソート処理がおよそ12%程高価であるとみなしたことを示します。
+当然ながら、次の疑問はこれが正しいかどうかでしょう。
+後で説明する<TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>を使用することで調査することができます。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="USING-EXPLAIN-ANALYZE"
+>14.1.2. <TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+></A
+></H2
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の<TT
+CLASS="LITERAL"
+>ANALYZE</TT
+>オプションを使用して、プランナが推定するコストの精度を点検することができます。
+このオプションを付けると<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>は実際にその問い合わせを実行し、計画ノードごとに実際の行数と要した実際の実行時間を、普通の<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>が示すものと同じ推定値と一緒に表示します。
+例えば、以下のような結果を得ることができます。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN ANALYZE SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 &lt; 10 AND t1.unique2 = t2.unique2;
+
+                                                           QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=4.65..118.62 rows=10 width=488) (actual time=0.128..0.377 rows=10 loops=1)
+   -&gt;  Bitmap Heap Scan on tenk1 t1  (cost=4.36..39.47 rows=10 width=244) (actual time=0.057..0.121 rows=10 loops=1)
+         Recheck Cond: (unique1 &lt; 10)
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..4.36 rows=10 width=0) (actual time=0.024..0.024 rows=10 loops=1)
+               Index Cond: (unique1 &lt; 10)
+   -&gt;  Index Scan using tenk2_unique2 on tenk2 t2  (cost=0.29..7.91 rows=1 width=244) (actual time=0.021..0.022 rows=1 loops=10)
+         Index Cond: (unique2 = t1.unique2)
+ Planning time: 0.181 ms
+ Execution time: 0.501 ms</PRE
+><P>
+
+<SPAN
+CLASS="QUOTE"
+>"actual time"</SPAN
+>値は実時間をミリ秒単位で表されていること、<TT
+CLASS="LITERAL"
+>cost</TT
+>推定値は何らかの単位で表されていることに注意してください。
+ですからそのまま比較することはできません。
+注目すべきもっとも重要な点は通常、推定行数が実際の値と合理的に近いかどうかです。
+この例では、推定はすべて正確ですが、現実的にはあまりありません。
+   </P
+><P
+>問い合わせ計画の中には、何回も副計画ノードを実行する可能性のあるものがあります。
+例えば、上述の入れ子状ループの計画では、内部インデックススキャンは外部の行ごとに一度行われます。
+このような場合、<TT
+CLASS="LITERAL"
+>loops</TT
+>値はそのノードを実行する総回数を報告し、表示される実際の時間と行数は1実行当たりの平均です。
+これで値を表示された推定コストと比較できるようになります。
+<TT
+CLASS="LITERAL"
+>loops</TT
+>値をかけることで、そのノードで実際に費やされた総時間を得ることができます。
+上の例では、<TT
+CLASS="LITERAL"
+>tenk2</TT
+>に対するインデックススキャンの実行のために合計0.220ミリ秒要しています。
+   </P
+><P
+>場合によっては、<TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>は計画ノードの実行時間と行数以上の実行統計情報をさらに表示します。
+例えば、ソートとハッシュノードでは以下のような追加情報を提供します。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN ANALYZE SELECT *
+FROM tenk1 t1, tenk2 t2
+WHERE t1.unique1 &lt; 100 AND t1.unique2 = t2.unique2 ORDER BY t1.fivethous;
+
+                                                                 QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=717.34..717.59 rows=101 width=488) (actual time=7.761..7.774 rows=100 loops=1)
+   Sort Key: t1.fivethous
+   Sort Method: quicksort  Memory: 77kB
+   -&gt;  Hash Join  (cost=230.47..713.98 rows=101 width=488) (actual time=0.711..7.427 rows=100 loops=1)
+         Hash Cond: (t2.unique2 = t1.unique2)
+         -&gt;  Seq Scan on tenk2 t2  (cost=0.00..445.00 rows=10000 width=244) (actual time=0.007..2.583 rows=10000 loops=1)
+         -&gt;  Hash  (cost=229.20..229.20 rows=101 width=244) (actual time=0.659..0.659 rows=100 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 28kB
+               -&gt;  Bitmap Heap Scan on tenk1 t1  (cost=5.07..229.20 rows=101 width=244) (actual time=0.080..0.526 rows=100 loops=1)
+                     Recheck Cond: (unique1 &lt; 100)
+                     -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0) (actual time=0.049..0.049 rows=100 loops=1)
+                           Index Cond: (unique1 &lt; 100)
+ Planning time: 0.194 ms
+ Execution time: 8.008 ms</PRE
+><P>
+
+ソートノードは使用されるソート方式（具体的にはソートがメモリ内かディスク上か）および必要なメモリまたはディスクの容量を表示します。
+ハッシュノードでは、ハッシュバケット数とバッチ数、ハッシュテーブルで使用されるメモリのピーク容量が表示されます。
+（バッチ数が１を超える場合、同時にディスクの使用容量も含まれますが、表示はされません。）
+   </P
+><P
+>他の種類の追加情報はフィルタ条件によって除外される行数があります。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN ANALYZE SELECT * FROM tenk1 WHERE ten &lt; 7;
+
+                                               QUERY PLAN
+---------------------------------------------------------------------------------------------------------
+ Seq Scan on tenk1  (cost=0.00..483.00 rows=7000 width=244) (actual time=0.016..5.107 rows=7000 loops=1)
+   Filter: (ten &lt; 7)
+   Rows Removed by Filter: 3000
+ Planning time: 0.083 ms
+ Execution time: 5.905 ms</PRE
+><P>
+
+特に結合ノードで適用されるフィルタ条件ではこれらの数が有用です。
+<SPAN
+CLASS="QUOTE"
+>"Rows Removed"</SPAN
+>行は、少なくともスキャンされた１行、結合ノードにおける結合組み合わせの可能性がフィルタ条件によって拒絶された時にのみ現れます。
+   </P
+><P
+><SPAN
+CLASS="QUOTE"
+>"非可逆"</SPAN
+>インデックススキャンはフィルタ条件に似た状況です。
+例えば、特定の点を含有する多角形の検索を考えてみます。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN ANALYZE SELECT * FROM polygon_tbl WHERE f1 @&gt; polygon '(0.5,2.0)';
+
+                                              QUERY PLAN
+------------------------------------------------------------------------------------------------------
+ Seq Scan on polygon_tbl  (cost=0.00..1.05 rows=1 width=32) (actual time=0.044..0.044 rows=0 loops=1)
+   Filter: (f1 @&gt; '((0.5,2))'::polygon)
+   Rows Removed by Filter: 4
+ Planning time: 0.040 ms
+ Execution time: 0.083 ms</PRE
+><P>
+
+プランナは（ほぼ正確に）、インデックススキャンを考慮するには例のテーブルが小さ過ぎるとみなします。
+このため、フィルタ条件によってすべての行が拒絶される、普通のシーケンシャルスキャンとなります。
+しかしインデックススキャンの使用を強制するのであれば、以下のようにします。
+
+</P><PRE
+CLASS="SCREEN"
+>SET enable_seqscan TO off;
+
+EXPLAIN ANALYZE SELECT * FROM polygon_tbl WHERE f1 @&gt; polygon '(0.5,2.0)';
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Index Scan using gpolygonind on polygon_tbl  (cost=0.13..8.15 rows=1 width=32) (actual time=0.062..0.062 rows=0 loops=1)
+   Index Cond: (f1 @&gt; '((0.5,2))'::polygon)
+   Rows Removed by Index Recheck: 1
+ Planning time: 0.034 ms
+ Execution time: 0.144 ms</PRE
+><P>
+
+ここで、インデックスが１つの候補行を返し、それがインデックス条件の再検査により拒絶されることが分かります。
+多角形の含有試験ではGiSTインデックスが<SPAN
+CLASS="QUOTE"
+>"非可逆"</SPAN
+>であるため、これは発生します。
+実際には対象と重なる多角形を持つ行を返し、そしてこれらの行が正確に含有関係であることを試験しなければなりません。
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>には、より多くの実行時統計情報を取り出すために、<TT
+CLASS="LITERAL"
+>ANALYZE</TT
+>に付与できる<TT
+CLASS="LITERAL"
+>BUFFERS</TT
+>オプションがあります。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND unique2 &gt; 9000;
+
+                                                           QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on tenk1  (cost=25.08..60.21 rows=10 width=244) (actual time=0.323..0.342 rows=10 loops=1)
+   Recheck Cond: ((unique1 &lt; 100) AND (unique2 &gt; 9000))
+   Buffers: shared hit=15
+   -&gt;  BitmapAnd  (cost=25.08..25.08 rows=10 width=0) (actual time=0.309..0.309 rows=0 loops=1)
+         Buffers: shared hit=7
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0) (actual time=0.043..0.043 rows=100 loops=1)
+               Index Cond: (unique1 &lt; 100)
+               Buffers: shared hit=2
+         -&gt;  Bitmap Index Scan on tenk1_unique2  (cost=0.00..19.78 rows=999 width=0) (actual time=0.227..0.227 rows=999 loops=1)
+               Index Cond: (unique2 &gt; 9000)
+               Buffers: shared hit=5
+ Planning time: 0.088 ms
+ Execution time: 0.423 ms</PRE
+><P>
+
+<TT
+CLASS="LITERAL"
+>BUFFERS</TT
+>により提供される数は、問い合わせのどの部分がもっとも大きいI/Oであるかを識別する役に立ちます。
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>が実際に問い合わせを実行しますので、<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>のデータを出力することを優先して問い合わせの出力が破棄されたとしても、何らかの副作用が通常通り発生することに注意してください。
+テーブルを変更すること無くデータ変更問い合わせの解析を行いたければ、以下の例のように、実行後コマンドをロールバックしてください。
+
+</P><PRE
+CLASS="SCREEN"
+>BEGIN;
+
+EXPLAIN ANALYZE UPDATE tenk1 SET hundred = hundred + 1 WHERE unique1 &lt; 100;
+
+                                                           QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------
+ Update on tenk1  (cost=5.07..229.46 rows=101 width=250) (actual time=14.628..14.628 rows=0 loops=1)
+   -&gt;  Bitmap Heap Scan on tenk1  (cost=5.07..229.46 rows=101 width=250) (actual time=0.101..0.439 rows=100 loops=1)
+         Recheck Cond: (unique1 &lt; 100)
+         -&gt;  Bitmap Index Scan on tenk1_unique1  (cost=0.00..5.04 rows=101 width=0) (actual time=0.043..0.043 rows=100 loops=1)
+               Index Cond: (unique1 &lt; 100)
+ Planning time: 0.079 ms
+ Execution time: 14.727 ms
+
+ROLLBACK;</PRE
+><P>
+   </P
+><P
+>この例で分かるように、問い合わせが<TT
+CLASS="COMMAND"
+>INSERT</TT
+>、<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>、<TT
+CLASS="COMMAND"
+>DELETE</TT
+>である場合、テーブル変更を行うための実作業は最上位のInsert、Update、Delete計画ノードで行われます。
+このノード以下にある計画ノードは、古い行の検索、新しいデータの計算、あるいはその両方を行います。
+このため、前に述べたものと同じ種類のビットマップテーブルスキャンがあり、その出力が更新される行を格納するUpdateノードに渡されることが分かります。
+データ変更ノードが実行時間の多くを費やす可能性があります（現在これが一番多くの時間を費やしています）が、プランナは現在その作業を考慮してコスト推定に何も加えません。
+これは、行われる作業がすべての正確な問い合わせ計画の作業と同一であるためであり、このため計画の決定に影響を与えません。
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>UPDATE</TT
+>もしくは<TT
+CLASS="COMMAND"
+>DELETE</TT
+>コマンドが継承階層に影響する場合には、出力は以下のようになるでしょう。
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN UPDATE parent SET f2 = f2 + 1 WHERE f1 = 101;
+                                    QUERY PLAN
+-----------------------------------------------------------------------------------
+ Update on parent  (cost=0.00..24.53 rows=4 width=14)
+   Update on parent
+   Update on child1
+   Update on child2
+   Update on child3
+   -&gt;  Seq Scan on parent  (cost=0.00..0.00 rows=1 width=14)
+         Filter: (f1 = 101)
+   -&gt;  Index Scan using child1_f1_key on child1  (cost=0.15..8.17 rows=1 width=14)
+         Index Cond: (f1 = 101)
+   -&gt;  Index Scan using child2_f1_key on child2  (cost=0.15..8.17 rows=1 width=14)
+         Index Cond: (f1 = 101)
+   -&gt;  Index Scan using child3_f1_key on child3  (cost=0.15..8.17 rows=1 width=14)
+         Index Cond: (f1 = 101)</PRE
+><P>
+
+この例では、Updateノードは元々言及されている親テーブルに加えて3つの子テーブルを考慮することが必要です。
+そのため、テーブル毎に1つ、4つの入力スキャン副計画があります。
+明確にするため、Updateノードには対応する副計画と同じ順に更新される特定の対象テーブルを示す注釈が付けられています。
+(この注釈は<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 9.5からの新しいものです。以前のバージョンでは副計画を調べることで対象テーブルを勘で当てなければなりませんでした。)
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>で表示される<TT
+CLASS="LITERAL"
+>Planning time</TT
+>は、解析された問い合わせから問い合わせ計画を生成し最適化するのに掛かった時間です。
+解析と書き換えは含みません。
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>で表示される<TT
+CLASS="LITERAL"
+>Execution time</TT
+>（実行時間）にはエクゼキュータの起動、停止時間、発行される何らかのトリガの実行時間も含まれますが、解析や書き換え、計画作成の時間は含まれません。
+<TT
+CLASS="LITERAL"
+>BEFORE</TT
+>トリガがあればその実行時間は関連するInsert、Update、Deleteノード用の時間に含まれます。
+しかし、<TT
+CLASS="LITERAL"
+>AFTER</TT
+>トリガは計画全体が完了した後に発行されますので、<TT
+CLASS="LITERAL"
+>AFTER</TT
+>トリガの実行時間は計上されません。
+また、各トリガ（<TT
+CLASS="LITERAL"
+>BEFORE</TT
+>、<TT
+CLASS="LITERAL"
+>AFTER</TT
+>のいずれか）で費やされる総時間は別々に表示されます。
+しかし、遅延制約トリガはトランザクションが終わるまで実行されませんので、<TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>では考慮されないことに注意してください。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="USING-EXPLAIN-CAVEATS"
+>14.1.3. 警告</A
+></H2
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>により測定される実行時間が同じ問い合わせを普通に実行する場合と大きくそれる可能性がある、２つの重大な点があります。
+１つ目は、出力行がクライアントに配信されませんので、ネットワーク転送コストとI/O変換に関するコストが含まれないことです。
+２つ目は、<TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>によって加わる測定オーバーヘッドが大きくなることが、特に<CODE
+CLASS="FUNCTION"
+>gettimeofday()</CODE
+>オペレーティングシステムコールが低速なマシンであり得ることです。
+<A
+HREF="pgtesttiming.html"
+><SPAN
+CLASS="APPLICATION"
+>pg_test_timing</SPAN
+></A
+>を用いて、使用中のシステムの時間測定にかかるオーバーヘッドを測ることができます。
+   </P
+><P
+><TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>の結果を試験を行ったものと大きく異なる状況の推定に使ってはいけません。
+例えば、小さなテーブルの結果は、巨大なテーブルに適用できるとは仮定できません。
+プランナの推定コストは線形ではなく、そのため、テーブルの大小によって異なる計画を選択する可能性があります。
+極端な例ですが、テーブルが1ディスクページしか占めない場合、インデックスが使用できる、できないに関係なく、ほとんど常にシーケンシャルスキャン計画を得ることになります。
+プランナは、どのような場合でもテーブルを処理するために1ディスクページ読み取りを行うので、インデックスを参照するための追加的ページ読み取りを行う価値がないことを知っています。
+（上述の<TT
+CLASS="LITERAL"
+>polygon_tbl</TT
+>の例でこれが起こることを示しています。）
+   </P
+><P
+>実際の値と推定値がうまく合わないが本当は間違ったものがない場合があります。
+こうした状況の１つは、<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>や同様な効果により計画ノードの実行が短時間で終わる時に起こります。
+例えば、以前に使用した<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>問い合わせでは
+
+</P><PRE
+CLASS="SCREEN"
+>EXPLAIN ANALYZE SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND unique2 &gt; 9000 LIMIT 2;
+
+                                                          QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..14.71 rows=2 width=244) (actual time=0.177..0.249 rows=2 loops=1)
+   -&gt;  Index Scan using tenk1_unique2 on tenk1  (cost=0.29..72.42 rows=10 width=244) (actual time=0.174..0.244 rows=2 loops=1)
+         Index Cond: (unique2 &gt; 9000)
+         Filter: (unique1 &lt; 100)
+         Rows Removed by Filter: 287
+ Planning time: 0.096 ms
+ Execution time: 0.336 ms</PRE
+><P>
+
+インデックススキャンノードの推定コストと行数が実行完了したかのように表示されます。
+しかし現実では、Limitノードが２行を取り出した後に行の要求を停止します。
+このため実際の行数は２行のみであり、実行時間は提示された推定コストより小さくなります。
+これは推定間違いではなく、単なる推定値と本当の値を表示する方法における矛盾です。
+   </P
+><P
+>またマージ結合には、注意しないと混乱を招く測定上の乱れがあります。
+マージ結合は他の入力が使い尽くされ、ある入力の次のキー値が他の入力の最後のキー値より大きい場合、その入力の読み取りを停止します。
+このような場合、これ以上一致することはあり得ず、最初の入力の残りをスキャンする必要がありません。
+この結果、子のすべては読み取られず、<TT
+CLASS="LITERAL"
+>LIMIT</TT
+>の説明のようになります。
+また、外部（最初）の子が重複するキー値を持つ行を含む場合、内部（２番目）の子はバックアップされ、そのキー値が一致する行部分を再度スキャンされます。
+<TT
+CLASS="COMMAND"
+>EXPLAIN ANALYZE</TT
+>はこうした繰り返される同じ内部行の排出を実際の追加される行と同様に計上します。
+外部で多くの重複がある場合、内部の子計画ノードで繰り返される実際の行数は、内部リレーションにおける実際の行数より非常に多くなることがあり得ます。
+   </P
+><P
+>実装上の制限のため、BitmapAndおよびBitmapOrノードは常に実際の行数をゼロと報告します。
+   </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="performance-tips.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="planner-stats.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>性能に関するヒント</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="performance-tips.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>プランナで使用される統計情報</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,0 +1,833 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>リリース9.2.7</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="リリースノート"
+HREF="release.html"><LINK
+REL="PREVIOUS"
+TITLE="リリース9.2.8"
+HREF="release-9-2-8.html"><LINK
+REL="NEXT"
+TITLE="リリース9.2.6"
+HREF="release-9-2-6.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="リリース9.2.8"
+HREF="release-9-2-8.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 E. リリースノート</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="リリース9.2.6"
+HREF="release-9-2-6.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RELEASE-9-2-7"
+>E.43. リリース9.2.7</A
+></H1
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>リリース日: </B
+>2014-02-20</P
+></BLOCKQUOTE
+></DIV
+><P
+>このリリースは9.2.6に対し、各種不具合を修正したものです。
+9.2メジャーリリースにおける新機能については、<A
+HREF="release-9-2.html"
+>項E.50</A
+>を参照してください。
+  </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN141225"
+>E.43.1. バージョン9.2.7への移行</A
+></H2
+><P
+>9.2.Xからの移行ではダンプ/リストアは不要です。
+   </P
+><P
+>しかしながら、9.2.6以前のリリースからアップグレードする場合は、<A
+HREF="release-9-2-6.html"
+>項E.44</A
+>を参照して下さい。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN141230"
+>E.43.2. 変更点</A
+></H2
+><P
+></P
+><UL
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>GRANT ... WITH ADMIN OPTION</TT
+>制限を強化しました。(Noah Misch)
+     </P
+><P
+><TT
+CLASS="LITERAL"
+>ADMIN OPTION</TT
+>無しのロール権限では、メンバーの追加や削除が出来ないことになっていますが、
+先に<TT
+CLASS="LITERAL"
+>SET ROLE</TT
+>することにより、この制限は簡単にバイパス出来ていました。
+セキュリティのインパクトは大体、ロールのメンバーが、権限を譲り受けた他のメンバーの意図に反し、アクセスを取り消すことができることです。
+未承認のロールメンバー追加はあまり重要ではありません。
+非協力的なロールのメンバーは、いずれにせよ、ビューを作ったり<TT
+CLASS="LITERAL"
+>SECURITY DEFINER</TT
+>機能によって、
+他者に多くの権限を提供することができるからです。(CVE-2014-0060)
+     </P
+></LI
+><LI
+><P
+>PLバリデータ関数を手動呼び出し経由の権限昇格を防止しました。(Andres Freund)
+     </P
+><P
+>PLバリデータ関数の主な役割は<TT
+CLASS="COMMAND"
+>CREATE FUNCTION</TT
+>の中で黙示的に呼び出されますが、
+明示的に呼び出すことができる通常のSQL関数でもあります。
+実際に幾つか他の言語で書かれた機能で呼び出されているバリデータはチェックされておらず、
+プロセスの権限昇格に悪用される可能性がありました。
+もし同様の可能性があれば、必須ではない手続き言語でも独自のバリデーション機能にこの変更を加える必要があります。(CVE-2014-0061)
+     </P
+></LI
+><LI
+><P
+>テーブルとインデックスDDLでの名前の多重検索を防止しました。(Robert Haas、Andres Freund)
+     </P
+><P
+>が実行中の名前検索で異なる結果が出た場合、DDLのある部分をその他の部分とは違ったテーブルで実施することがありました。
+少なくとも<TT
+CLASS="COMMAND"
+>CREATE INDEX</TT
+>では、権限チェックがインデックス作成とは異なるテーブルに対して実施されることにより、権限昇格攻撃を許す可能性があります。(CVE-2014-0062)
+     </P
+></LI
+><LI
+><P
+>長い日付時刻文字列によるバッファオーバーランを防止しました。(Noah Misch)
+     </P
+><P
+><TT
+CLASS="LITERAL"
+>MAXDATELEN</TT
+>定数は<TT
+CLASS="TYPE"
+>interval</TT
+>型の取りえる最長の値に対して小さ過ぎたため、<CODE
+CLASS="FUNCTION"
+>interval_out()</CODE
+>関数内でバッファオーバーランを許していました。
+日付時刻の入力関数はバッファオーバーラン防止に対して慎重でしたが、非常に長いタイムゾーン名を含むような、有効な入力値を拒否するほど、制限は短いものでした。
+<SPAN
+CLASS="APPLICATION"
+>ecpg</SPAN
+>ライブラリには、これらを含む幾つか固有の脆弱性を含んでいました。
+     </P
+></LI
+><LI
+><P
+>サイズ算出での整数オーバーフローによるバッファオーバーランを防止しました。(Noah Misch、Heikki Linnakangas)
+     </P
+><P
+>幾つかの関数、多くはデータ入力関数で、オーバフローをチェックせずにメモリの割り当てサイズを計算していました。
+オーバーフローが発生した場合、小さすぎるバッファが割り当てられ、それを越えて書かれていました。(CVE-2014-0064)
+     </P
+></LI
+><LI
+><P
+>固定サイズのバッファのオーバーランを防止しました。(Peter Eisentraut、Jozef Mlich)
+     </P
+><P
+>固定サイズのバッファがオーバランしない明確な保証を提供するために、<CODE
+CLASS="FUNCTION"
+>strlcpy()</CODE
+>や関連する関数を使いました。
+前項とは違い、これらのケースが実際に問題を引き起こすかどうかは不明です。というのは、ほとんどの場合、入力文字列のサイズは事前に制限されている様に思われるからです。
+とはいえ、コベリティ(Coverity)のこのタイプの警告はすべて黙らせた方が賢明と思えます。(CVE-2014-0065)
+     </P
+></LI
+><LI
+><P
+><CODE
+CLASS="FUNCTION"
+>crypt()</CODE
+>関数がNULLを返した場合のクラッシュを防止しました。(Honza Horak、Bruce Momjian)
+     </P
+><P
+><CODE
+CLASS="FUNCTION"
+>crypt()</CODE
+>がNULLを返す比較的まれなシナリオがあり、その場合、 <TT
+CLASS="FILENAME"
+>contrib/chkpass</TT
+>はクラッシュしていました。
+問題が起こる可能性の中で、一つの実際的なケースは、<SPAN
+CLASS="APPLICATION"
+>libc</SPAN
+>が承認されていないハッシュアルゴリズムの実行を拒否するよう設定されてる（例えば<SPAN
+CLASS="QUOTE"
+>"FIPS モード"</SPAN
+>）場合です。(CVE-2014-0066)
+     </P
+></LI
+><LI
+><P
+>再帰テスト(regression testing)命令における<TT
+CLASS="LITERAL"
+>make check</TT
+>のリスクを文書化しました。(Noah Misch、Tom Lane)
+     </P
+><P
+><TT
+CLASS="LITERAL"
+>make check</TT
+>によって起動した一時サーバは<SPAN
+CLASS="QUOTE"
+>"trust"</SPAN
+>認証を使うため、
+同一マシン上の他のユーザがデータベースのスーパーユーザとして接続でき、
+そして、テストを起動したオペレーティングシステムのユーザ特権を悪用できる可能性があります。
+将来のリリースでは、おそらくこのリスクを防ぐためにテスト手順の変更が盛り込む予定ですが、その前に公開議論が必要です。
+そこで差し当たりは、同一マシン上に信頼されていないユーザが居る場合、<TT
+CLASS="LITERAL"
+>make check</TT
+>を使っている人に対して、警告を発するに留めています。(CVE-2014-0067)
+     </P
+></LI
+><LI
+><P
+>リレーションのセグメントが一杯でない時に、WALレコードが誤再生する場合があったのを修復しました。(Greg Stark、Tom Lane)
+     </P
+><P
+>WAL更新は、本来あるべき場所から多くのページを通り過ぎて、間違ったページに適用されることがありました。
+データ破壊とは別に、ファイル終端であるべき場所をずっと越えてアップデートが適用されてしまうため、
+このエラーはマスタサーバと比べてスタンバイサーバで著しい<SPAN
+CLASS="QUOTE"
+>"肥大化(bloat)"</SPAN
+>をもたらすことが報告されています。
+この故障モードはクラッシュリカバリ中の重大なリスクとは思われません。
+更新が頻発するマスタから得たベースバックアップで作られたスタンバイサーバの初期同期の時にのみリスクが発生します。
+     </P
+></LI
+><LI
+><P
+>リカバリによって整合性がとれたか判定する箇所の不具合を修正しました。(Tomonari Katsumata、Heikki Linnakangas)
+     </P
+><P
+>WALのリプレイ開始時にデータベースの整合性が既に取れていると誤った結論を得てしまう場合があり、
+そのためにデータベースが実際に整合性が取れる前にホットスタンバイのクエリを許可している可能性がありました。
+その他の症状として、<SPAN
+CLASS="QUOTE"
+>"PANIC: WAL contains references to invalid pages"</SPAN
+>が発生する可能性もありました。
+     </P
+></LI
+><LI
+><P
+>ホットスタンバイモードの<TT
+CLASS="LITERAL"
+>VACUUM</TT
+>操作によるWALリプレイで、Btreeインデックスページの不適切なロック処理を修正しました。 (Andres Freund、Heikki Linnakangas、Tom Lane)
+     </P
+><P
+>このエラーは<SPAN
+CLASS="QUOTE"
+>"PANIC: WAL contains references to invalid pages"</SPAN
+>障害をもたらす可能性がありました。
+     </P
+></LI
+><LI
+><P
+>非リーフのGINインデックスページへの挿入によって、ページ全体のWALレコードに適宜書き込むことを保証します。(Heikki Linnakangas)
+     </P
+><P
+>これまでのコードでは、部分ページ書き込みのイベント中にシステムがクラッシュした場合、インデックスが破損する恐れがありました。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>pause_at_recovery_target</TT
+>と<TT
+CLASS="LITERAL"
+>recovery_target_inclusive</TT
+>が両方セットされた場合、リカバリターゲットのレコードは停止後ではなく停止前に適用される事を保証します。(Heikki Linnakangas)
+     </P
+></LI
+><LI
+><P
+>サーバプロセス終了中の競合状態を修正しました。(Robert Haas)
+     </P
+><P
+>シグナルハンドラが、既に無効となったプロセスの<TT
+CLASS="VARNAME"
+>MyProc</TT
+> ポインタを利用しないことを保証します。
+     </P
+></LI
+><LI
+><P
+>walsenderの終了ロジックとwalreceiverのSIGHUPシグナルハンドラの競合状態を修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>エラー出力ロジックの中で、<TT
+CLASS="VARNAME"
+>errno</TT
+>の安全でない参照方法を修正しました。(Christian Kruse)
+     </P
+><P
+>これは、主に<TT
+CLASS="LITERAL"
+>HINT</TT
+>フィールドが欠如或いは不適切であるという奇妙な現象を引き起こしていました。
+     </P
+></LI
+><LI
+><P
+>サーバ起動時に早すぎる<CODE
+CLASS="FUNCTION"
+>ereport()</CODE
+>関数使用によって、クラッシュする可能性があったのを修正しました。(Tom Lane)
+     </P
+><P
+>クラッシュが観察された主なケースは、読み取り権限を持たないディレクトリでサーバが起動された場合です。
+     </P
+></LI
+><LI
+><P
+>OpenSSLのソケット書き込み関数で、リトライフラグを適切に消去しました。(Alexander Kukushkin)
+     </P
+><P
+>この消去が省かれると、SSLで暗号化された接続が突然切れた場合、サーバのロックアップを引き起こす可能性がありました。
+     </P
+></LI
+><LI
+><P
+>エスケープを含むユニコードの識別子(<TT
+CLASS="LITERAL"
+>U&amp;"..."</TT
+>構文)の長さチェックを修正しました。(Tom Lane)
+     </P
+><P
+>識別子がエスケープされたフォームが長すぎた場合、誤った切り捨て警告が出力されていました。
+しかし実際には、エスケープをデコードした後、識別子に切り捨ては不要でした。
+     </P
+></LI
+><LI
+><P
+>ロールのリストで、型名をキーワードに使うことができるようにしました。(Stephen Frost)
+     </P
+><P
+>以前のパッチで使えるようになった型名キーワードは、定位置のクォート無しでロール識別子として使うことができるものですが、
+<TT
+CLASS="LITERAL"
+>DROP ROLE</TT
+>のように、許されたロール識別子のリストから漏れていたケースがありました。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>EXISTS(SELECT * FROM zero_column_table)</TT
+>でパーサがクラッシュする障害を修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>WHERE (... x IN (SELECT ...) ...) IN (SELECT ...)</TT
+>のような、入れ子になったサブセレクトの誤ったプランによって、クラッシュする可能性があるのを修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>サブクエリに<TT
+CLASS="LITERAL"
+>UNION ALL</TT
+>を含む、継承テーブルへの<TT
+CLASS="LITERAL"
+>UPDATE/DELETE</TT
+>を修正しました。(Tom Lane)
+     </P
+><P
+>この修正なしでは、<TT
+CLASS="LITERAL"
+>UNION ALL</TT
+>サブクエリは最初の処理の後、継承された子テーブの更新プランに処理が正しく挿入されませんでした。典型的な結果として、それらの子テーブルには更新が起こりません。
+     </P
+></LI
+><LI
+><P
+>テーブル列の全ての値の分布が<SPAN
+CLASS="QUOTE"
+>"広すぎる"</SPAN
+>場合であっても、<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+> コマンドが統計情報を作る事を保証しました。(Tom Lane)
+     </P
+><P
+><TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>コマンドはヒストグラムと算出した中央値より大幅に離れた値は意図的に除外していますが、
+全てのサンプリングされたエントリが広すぎる場合、極端な値を排除するのは正常なことです。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>ALTER TABLE ... SET TABLESPACE</TT
+>内で権限チェック無しにデータベースのデフォルトテーブルスペース使用を許可するようにしました。(Stephen Frost)
+     </P
+><P
+><TT
+CLASS="LITERAL"
+>CREATE TABLE</TT
+>は常に使用を許可していましたが、<TT
+CLASS="LITERAL"
+>ALTER TABLE</TT
+>ではそれをしていませんでした。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>CASE</TT
+>の戻り値が複数行のものと、そうではないものが混ざっている場合に、<SPAN
+CLASS="QUOTE"
+>"cannot accept a set"</SPAN
+>エラーが発生してしたのを修正しました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>JSON出力で生成した場合の非数値を数値として適切に識別するようにしました。(Andrew Dunstan)
+     </P
+></LI
+><LI
+><P
+>pgstat関数の中でクライアントアドレスが全てゼロの場合のチェックを修正しました。(Kevin Grittner)
+     </P
+></LI
+><LI
+><P
+>テキストサーチのパーサでマルチバイト文字を誤判別する可能性を修正しました。(Tom Lane)
+     </P
+><P
+>マルチバイトエンコーディングでロケールにCを使用している場合、非ASCII文字は誤判別される可能性がありました。
+Cygwinでは非Cロケールでも同様に誤判別する可能性がありました。
+     </P
+></LI
+><LI
+><P
+><CODE
+CLASS="FUNCTION"
+>plainto_tsquery()</CODE
+>関数が誤作動する可能性があったのを修正しました。(Heikki Linnakangas)
+     </P
+><P
+>メモリ領域が重なっている場合のコピーで<CODE
+CLASS="FUNCTION"
+>memcpy()</CODE
+>関数ではなく<CODE
+CLASS="FUNCTION"
+>memmove()</CODE
+>関数を使うようにしました。
+これによる具体的な障害報告はありませんが、これは確かに危険性がありました。
+     </P
+></LI
+><LI
+><P
+><CODE
+CLASS="FUNCTION"
+>pg_start_backup()</CODE
+>と<CODE
+CLASS="FUNCTION"
+>pg_stop_backup()</CODE
+>の権限チェックの配置を修正しました。(Andres Freund、Magnus Hagander)
+     </P
+><P
+>以前のコーディングではカタログアにクセスにすべきではない時に、アクセスしようとすることがありました。
+     </P
+></LI
+><LI
+><P
+>ロケールチェック用のエンコーディング名として、<TT
+CLASS="LITERAL"
+>SHIFT_JIS</TT
+>を受け付けるようにしました。(Tatsuo Ishii)
+     </P
+></LI
+><LI
+><P
+>SQL言語関数における名前付きパラメータの<TT
+CLASS="LITERAL"
+>*</TT
+>修飾子を修正しました。(Tom Lane)
+     </P
+><P
+>コンポジットタイプの名前付きパラメータ<TT
+CLASS="LITERAL"
+>foo</TT
+>に<TT
+CLASS="LITERAL"
+>$1.*</TT
+>を与えた場合正しく動作しますが、<TT
+CLASS="LITERAL"
+>foo.*</TT
+>では動作しませんでした。
+     </P
+></LI
+><LI
+><P
+>Windows上の<CODE
+CLASS="FUNCTION"
+>PQhost()</CODE
+>関数の誤作動を修正しました。(Fujii Masao)
+     </P
+><P
+>ホストが定義されていない場合、<TT
+CLASS="LITERAL"
+>localhost</TT
+>を返すべきでした。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>COPY TO STDOUT/FROM STDIN</TT
+>中の障害用に<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>と<SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>のエラーハンドリングを改善しました。(Tom Lane)
+     </P
+><P
+>この修正を具体的にいうと、<TT
+CLASS="LITERAL"
+>COPY FROM STDIN</TT
+>中にサーバとの接続が切れた場合、9.2以上のサーバでは無限ループに陥る可能性がありました。
+これより古いバージョンのサーバや、他のクライアントアプリケーションでも、これに類する状況が起こるかもしれませんでした。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>の<TT
+CLASS="LITERAL"
+>\d</TT
+>コマンドにおいて、誤った翻訳ハンドリングを修正しました。(Peter Eisentraut, Tom Lane)
+     </P
+></LI
+><LI
+><P
+>フォアグラウンドプロセスが終了した場合、<SPAN
+CLASS="APPLICATION"
+>pg_basebackup</SPAN
+>のバックグラウンドプロセスが停止させられることを保証しました。(Magnus Hagander)
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>pg_basebackup</SPAN
+>の冗長モードで、正しくないファイル名が出力される可能性があるのを修正しました。(Magnus Hagander)
+     </P
+></LI
+><LI
+><P
+>ベースバックアップ内に2重に含ないように、PGDATA内のテーブルスペースに含まれることを避けました。(Dimitri Fontaine、Magnus Hagander)
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>ecpg</SPAN
+>の記述子の並びが間違っているのを修正しました。(MauMau)
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>ecpg</SPAN
+>で、接続パラメータにホスト名が欠如している場合の処理を適切に修正しました。(Michael Meskes)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="FILENAME"
+>contrib/dblink</TT
+>の接続開始時におけるパフォーマンス退行を修正しました。(Joe Conway)
+     </P
+><P
+>クライアントとサーバのエンコーディングが一致する場合、不必要な二重設定を止めました。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="FILENAME"
+>contrib/isn</TT
+>で、ISMN値のチェックディジットの間違った演算を修正しました。(Fabien Coelho)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="FILENAME"
+>contrib/pg_stat_statement</TT
+>の<TT
+CLASS="LITERAL"
+>CURRENT_DATE</TT
+>や関連する構造の処理を修正しました。
+     </P
+></LI
+><LI
+><P
+>ドキュメント通りの手順でクライアントのみのコードをインストールできることを保証しました。(Peter Eisentraut)
+     </P
+></LI
+><LI
+><P
+>MingwとCygwin環境でビルドする場合、<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+> DLLを<TT
+CLASS="FILENAME"
+>bin</TT
+>ディレクトリにインストールするようにしました。(Andrew Dunstan)
+     </P
+><P
+>MSVCビルドに於いて、このコピーは長らく行われてきました。
+<SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>のようなプログラムが、DLLを見つける事が出来ずに起動に失敗する問題は修正すべきです。
+     </P
+></LI
+><LI
+><P
+>Cygwin環境で廃止予定の<TT
+CLASS="LITERAL"
+>dllwrap</TT
+>ツールの使用を止めました。(Marco Atzeri)
+     </P
+></LI
+><LI
+><P
+>プレインテキストの<TT
+CLASS="FILENAME"
+>HISTORY</TT
+>ファイルと<TT
+CLASS="FILENAME"
+>src/test/regress/README</TT
+>ファイルは今後、生成されません。(Tom Lane)
+     </P
+><P
+>これらのテキストファイルは、メインHTMLとPDFドキュメントフォーマットで重複していました。
+それらの保守に関する問題は、読者が好むプレインテキストフォーマットより大幅に上回ります。
+配布用tarボールにはまた、これらの名前でファイルが含まれていますが、メインドキュメントを参照してもらうための指標となるスタブにすぎません。
+プレインテキストの<TT
+CLASS="FILENAME"
+>INSTALL</TT
+>ファイルは、そのためのユースケースとして、まだ保守されています。
+     </P
+></LI
+><LI
+><P
+>タイムゾーンデータファイルを<SPAN
+CLASS="APPLICATION"
+>tzdata</SPAN
+>リリース2013iに更新しました。
+ヨルダンでの夏時間の変更およびキューバの歴史的な地域データの修正が含まれます。
+     </P
+><P
+>それに加え、<TT
+CLASS="LITERAL"
+>Asia/Riyadh87</TT
+>、<TT
+CLASS="LITERAL"
+>Asia/Riyadh88</TT
+>と<TT
+CLASS="LITERAL"
+>Asia/Riyadh89</TT
+>は、
+もはやIANAによって保守されず、実際の常用時計として表示されることが無いため、削除されました。
+     </P
+></LI
+></UL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release-9-2-8.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="release-9-2-6.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>リリース9.2.8</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>リリース9.2.6</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

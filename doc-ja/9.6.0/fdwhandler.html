@@ -1,0 +1,286 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>外部データラッパの作成</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="内部情報"
+HREF="internals.html"><LINK
+REL="PREVIOUS"
+TITLE="手続き言語ハンドラの作成"
+HREF="plhandler.html"><LINK
+REL="NEXT"
+TITLE="外部データラッパ関数"
+HREF="fdw-functions.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="CHAPTER"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="手続き言語ハンドラの作成"
+HREF="plhandler.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="internals.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="外部データラッパ関数"
+HREF="fdw-functions.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="FDWHANDLER"
+></A
+>第 55章外部データラッパの作成</H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>目次</B
+></DT
+><DT
+>55.1. <A
+HREF="fdw-functions.html"
+>外部データラッパ関数</A
+></DT
+><DT
+>55.2. <A
+HREF="fdw-callbacks.html"
+>外部データラッパのコールバックルーチン</A
+></DT
+><DD
+><DL
+><DT
+>55.2.1. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-SCAN"
+>外部テーブルスキャンのためのFDWルーチン</A
+></DT
+><DT
+>55.2.2. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-JOIN-SCAN"
+>外部テーブルの結合をスキャンするためのFDWルーチン</A
+></DT
+><DT
+>55.2.3. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-UPPER-PLANNING"
+>FDW Routines For Planning Post-Scan/Join Processing</A
+></DT
+><DT
+>55.2.4. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-UPDATE"
+>外部テーブル更新のためのFDWルーチン</A
+></DT
+><DT
+>55.2.5. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-ROW-LOCKING"
+>行ロックのためのFDWルーチン</A
+></DT
+><DT
+>55.2.6. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-EXPLAIN"
+><TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>のためのFDWルーチン</A
+></DT
+><DT
+>55.2.7. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-ANALYZE"
+><TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>のためのFDWルーチン</A
+></DT
+><DT
+>55.2.8. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-IMPORT"
+><TT
+CLASS="COMMAND"
+>IMPORT FOREIGN SCHEMA</TT
+>のためのFDWルーチン</A
+></DT
+><DT
+>55.2.9. <A
+HREF="fdw-callbacks.html#FDW-CALLBACKS-PARALLEL"
+>FDW Routines for Parallel Execution</A
+></DT
+></DL
+></DD
+><DT
+>55.3. <A
+HREF="fdw-helpers.html"
+>外部データラッパヘルパ関数</A
+></DT
+><DT
+>55.4. <A
+HREF="fdw-planning.html"
+>外部データラッパのクエリプラン作成</A
+></DT
+><DT
+>55.5. <A
+HREF="fdw-row-locking.html"
+>外部データラッパでの行ロック</A
+></DT
+></DL
+></DIV
+><P
+>外部テーブルへの全ての操作は、コアサーバの呼び出しを処理する関数のセットで構成される、外部データラッパによって扱われます。
+リモートデータソースからデータを取り出し、そのデータを<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>エグゼキュータに返却する責任は外部データラッパにあります。
+もし外部テーブルの更新をサポートするのであれば、ラッパはそれも扱わなければなりません。
+本章では、新しい外部データラッパを作成する方法の概要を示します。
+   </P
+><P
+>独自の外部データラッパを作成する際、標準配布物に含まれているものは優れたリファレンスです。
+ソースツリーの<TT
+CLASS="FILENAME"
+>contrib</TT
+>サブディレクトリを調べてください。
+<A
+HREF="sql-createforeigndatawrapper.html"
+>CREATE FOREIGN DATA WRAPPER</A
+>マニュアルページにも有用な情報があります。
+   </P
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>注意: </B
+>標準SQLでは外部データラッパを作成するインターフェースを定義しています。
+しかしながら、PostgreSQLに適応させる労力が大きく、また標準のAPIが広く採用されているわけでもないので、PostgreSQLはそのAPIを実装していません。
+    </P
+></BLOCKQUOTE
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="plhandler.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="fdw-functions.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>手続き言語ハンドラの作成</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="internals.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>外部データラッパ関数</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,0 +1,507 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>リリース9.3.4</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="リリースノート"
+HREF="release.html"><LINK
+REL="PREVIOUS"
+TITLE="リリース9.3.5"
+HREF="release-9-3-5.html"><LINK
+REL="NEXT"
+TITLE="リリース9.3.3"
+HREF="release-9-3-3.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="リリース9.3.5"
+HREF="release-9-3-5.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 E. リリースノート</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="リリース9.3.3"
+HREF="release-9-3-3.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RELEASE-9-3-4"
+>E.27. リリース9.3.4</A
+></H1
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>リリース日: </B
+>2014-03-20</P
+></BLOCKQUOTE
+></DIV
+><P
+>このリリースは9.3.3に対し、各種不具合を修正したものです。
+9.3メジャーリリースにおける新機能については、<A
+HREF="release-9-3.html"
+>項E.31</A
+>を参照してください。
+  </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN137944"
+>E.27.1. バージョン9.3.4への移行</A
+></H2
+><P
+>9.3.Xからの移行ではダンプ/リストアは不要です。
+   </P
+><P
+>しかしながら、最初の変更ログにあるように、スタンバイサーバのデータが破損する問題を修正しています。
+このアップデートを適用した後、新規にベースバックアップからスタンバイサーバを再初期化した方が賢明かもしれません。
+   </P
+><P
+>また、9.3.3以前のリリースからアップグレードする場合は、<A
+HREF="release-9-3-3.html"
+>項E.28</A
+>を参照して下さい。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN137950"
+>E.27.2. 変更点</A
+></H2
+><P
+></P
+><UL
+><LI
+><P
+>WALからの再構築時に更新済みのタプルをロックするように修正しました。(Andres Freund, &Aacute;lvaro Herrera)
+     </P
+><P
+>この障害は、更新した行がインデックススキャンで見つからないため、インデックススキャンを使ったかどうかによってクエリーの結果に一貫性がとれない原因となっていました。
+先に更新された行が後から実行されたインデックス検索で見つからないため、後のプロセスは制約違反になる可能性があり、そのため矛盾する行が挿入できてしまう可能性がありました。
+この障害はWALからの再構築処理にあるので、クラッシュからのリカバリ中やスタンバイサーバでのみ発生します。
+外部キー制約で参照されているテーブルの行が更新されると同時に参照行が作成された場合、この不適切に再構築された問題は極普通に表面化します。
+     </P
+></LI
+><LI
+><P
+>ページ破損リスクを避けるために、GINメタページを無条件でリストアします。(Heikki Linnakangas)
+     </P
+><P
+>この見落としは理論的にはインデックスの破損をもたらすかもしれませんが、
+GINメタページのアクティブな部分は標準的なディスクセクタの512バイトよりも小さいので、
+実際に問題を引き起こすことはほとんどありません。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>NOTIFY</TT
+>メッセージ受信中にトランザクションのコミット状態チェックが競合状態になるのを防止しました。(Marko Tiikkaja)
+     </P
+><P
+>これはNOTIFY送信者によって更新されたデータベースのデータが見えるようになる前に、十分に高速なクライアントが通知に応答するかもしれないシナリオを防ぎます。
+     </P
+></LI
+><LI
+><P
+>マテリアライズドビューを<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>と<TT
+CLASS="COMMAND"
+>DELETE</TT
+>コマンドから参照できるようにしました。(Michael Paquier)
+     </P
+><P
+>以前は、そのようなクエリはマテリアライズドビュー内の行をロックできない為、エラーになっていました。
+     </P
+></LI
+><LI
+><P
+>クエリーのキャンセルリクエストによる、正規表現操作のより速い終了を許可します。(Tom Lane)
+     </P
+><P
+>おかしな正規表現によって長時間、中断不可なサーバプロセスでロックされてしまうシナリオを防ぎます。
+     </P
+></LI
+><LI
+><P
+>単一要素のROWの引数に対して<TT
+CLASS="LITERAL"
+>OVERLAPS</TT
+>を実行しようとする誤ったコードを削除しました。(Joshua Yanovski)
+     </P
+><P
+>このコードは決して正しく動かず、またこのケースはSQL標準にもドキュメントにも定義されていないため、修正するよりも削除した方が良いと思われました。
+     </P
+></LI
+><LI
+><P
+>ルールやビューをデパースする際、<TT
+CLASS="LITERAL"
+>AccessShareLock</TT
+>以上のロック取得を防ぎます。(Dean Rasheed)
+     </P
+><P
+>この見落としによって、<SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+>で<TT
+CLASS="LITERAL"
+>INSERT</TT
+>/<TT
+CLASS="LITERAL"
+>UPDATE</TT
+>/<TT
+CLASS="LITERAL"
+>DELETE</TT
+>コマンドをデパースする際、
+対象テーブルに予期しない<TT
+CLASS="LITERAL"
+>RowExclusiveLock</TT
+>ロックが発生していました。
+通常は無害ですが、例えば、これらのテーブルに<TT
+CLASS="LITERAL"
+>ShareLock</TT
+>を取得しようとするトランザクションが同時にあった場合、それを妨げていました。
+     </P
+></LI
+><LI
+><P
+>実行プラン作成で、インデックス終点探査の性能を改善しました。(Tom Lane)
+     </P
+><P
+>インデックス終点に未コミット行が多数ある場合に発生する大幅なパフォーマンス問題をこの変更で修正しました。この状況は、タイムスタンプやシーケンスで生成した識別子のように連続して与えられた値をインデックスとしている場合によくあることです。
+     </P
+></LI
+><LI
+><P
+>右側が固定式の場合、
+<TT
+CLASS="LITERAL"
+><TT
+CLASS="REPLACEABLE"
+><I
+>値</I
+></TT
+> IN (<TT
+CLASS="REPLACEABLE"
+><I
+>list</I
+></TT
+>)</TT
+>と
+<TT
+CLASS="LITERAL"
+><TT
+CLASS="REPLACEABLE"
+><I
+>値</I
+></TT
+> <TT
+CLASS="REPLACEABLE"
+><I
+>operator</I
+></TT
+> ANY(<TT
+CLASS="REPLACEABLE"
+><I
+>array</I
+></TT
+>)</TT
+>式では
+デフォルトではない選択評価を使うようにしました。(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>DROP DATABASE</TT
+>で統計情報ファイルをデータベース毎に正しく削除するようしました。(Tomas Vondra)
+     </P
+><P
+>この修正は統計情報ファイルが永続的に漏れるのを防ぐものです。
+<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>9.3にアップグレードすることで<TT
+CLASS="COMMAND"
+>DROP DATABASE</TT
+>コマンドを多用するユーザは、
+既存のデータベースに対応していない統計情報ディレクトリをチェックし統計情報ファイルを削除したい場合があります。
+<TT
+CLASS="FILENAME"
+>db_0.stat</TT
+>ファイルは削除すべきではないのでご注意ください。
+     </P
+></LI
+><LI
+><P
+>高負荷が続く状況下で不適切に切断してしまうのを防ぐ為に、<SPAN
+CLASS="APPLICATION"
+>walsender</SPAN
+>のpingロジックを修正しました。(Andres Freund, Heikki Linnakangas)
+     </P
+><P
+>WALデータの送信で忙しい状態が続いた場合、<SPAN
+CLASS="APPLICATION"
+>walsender</SPAN
+>はクライアントにpingメッセージの送信に失敗していました。
+にもかかわらずpingの応答受信を期待しており、その結果<A
+HREF="runtime-config-replication.html#GUC-WAL-SENDER-TIMEOUT"
+>wal_sender_timeout</A
+>タイムアウトで切断していました。
+     </P
+></LI
+><LI
+><P
+>クライアントが<SPAN
+CLASS="APPLICATION"
+>pg_receivexlog</SPAN
+>の場合、<SPAN
+CLASS="APPLICATION"
+>walsender</SPAN
+>が正常終了に失敗する事を修正しました。(Fujii Masao)
+     </P
+></LI
+><LI
+><P
+>アーカイブリカバリによるクラッシュリカバリ実施時にWALレベルとホットスタンバイパラメータのチェックが正しく行われるようにしました。(Heikki Linnakangas)
+     </P
+></LI
+><LI
+><P
+>クラッシュ直後にホットスタンバイ接続を許可できるかどうか調べる修正をしました。(Heikki Linnakangas)
+     </P
+></LI
+><LI
+><P
+>ページのチェックサムが有効かどうか表示するために、読み取り専用の<A
+HREF="runtime-config-preset.html#GUC-DATA-CHECKSUMS"
+>data_checksums</A
+>パラメータを追加しました。(Heikki Linnakangas)
+     </P
+><P
+>このパラメータ無しでは、チェックサム処理の状態を特定するのは困難でした。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="LITERAL"
+>ERROR</TT
+>でないメッセージ出力中の割り込みを防止しました。(Tom Lane)
+     </P
+><P
+>再帰的に<CODE
+CLASS="FUNCTION"
+>syslog()</CODE
+>に書き込まれたり、恐らくそれに関連した他の問題などによって、稀にサーバプロセスが固まる事への対処です。
+     </P
+></LI
+><LI
+><P
+>複数のOUTパラメータの場合や複合結果を返す場合の、PL/Perlのメモリリークを修正しました。(Alex Hunsaker)
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>スクリプトで<TT
+CLASS="LITERAL"
+>\copy</TT
+>がデータ外の行データを拾ってしまう問題を修正しました。(Kumar Rajeev Rastogi, Amit Khandekar)
+     </P
+><P
+><TT
+CLASS="LITERAL"
+>\copy ... from</TT
+>はデータがスクリプトファイルから来ていなかった場合でも、各データ行としてスクリプトファイルの行番号をインクリメントしていました。この間違いにより、同じスクリプトファイルの後の部分にエラーが発生していると誤った行番号で報告されていました。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>contrib/postgres_fdw</SPAN
+>が多重結合条件を正しく処理できるように修正しました。(Tom Lane)
+     </P
+><P
+>この見落としで、リモートサーバの<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句が同じ意味になるのか分からなくても、実行させるために<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句をリモートサーバに送ってしまう事がありました
+（例えば、<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句で非組込み演算子を使っている場合）。
+クエリーは取りあえず成功するかもしれませんし、リモートサーバからのエラーで失敗するかもしれません。もっと悪い事に、間違った結果を黙って返すかもしれません。
+     </P
+></LI
+><LI
+><P
+>新しいWindowsのバージョンで時々発生する<SPAN
+CLASS="QUOTE"
+>"could not reserve shared memory region"</SPAN
+>障害を防止しました。(MauMau)
+     </P
+></LI
+><LI
+><P
+>タイムゾーンデータファイルを<SPAN
+CLASS="APPLICATION"
+>tzdata</SPAN
+>リリース2014aに更新しました。
+フィジーとトルコでの夏時間の変更が含まれます。
+また、イスラエルとウクライナでの歴史的な地域データの修正が含まれます。
+     </P
+></LI
+></UL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release-9-3-5.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="release-9-3-3.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>リリース9.3.5</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>リリース9.3.3</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

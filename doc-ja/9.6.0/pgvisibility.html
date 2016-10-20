@@ -1,0 +1,347 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>pg_visibility</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="追加で提供されるモジュール"
+HREF="contrib.html"><LINK
+REL="PREVIOUS"
+TITLE="pg_trgm"
+HREF="pgtrgm.html"><LINK
+REL="NEXT"
+TITLE="postgres_fdw"
+HREF="postgres-fdw.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="pg_trgm"
+HREF="pgtrgm.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 F. 追加で提供されるモジュール</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="postgres_fdw"
+HREF="postgres-fdw.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="PGVISIBILITY"
+>F.32. pg_visibility</A
+></H1
+><P
+>  The <TT
+CLASS="FILENAME"
+>pg_visibility</TT
+> module provides a means for examining the
+  visibility map (VM) and page-level visibility information.  It also
+  provides functions to check the integrity of the visibility map and to
+  force it to be rebuilt.
+ </P
+><P
+>  Three different bits are used to store information about page-level
+  visibility.  The all-visible bit in the visibility map indicates that every
+  tuple on a given page of a relation is visible to every current transaction.
+  The all-frozen bit in the visibility map indicates that every tuple on the
+  page is frozen; that is, no future vacuum will need to modify the page
+  until such time as a tuple is inserted, updated, deleted, or locked on
+  that page.  The page-level <TT
+CLASS="LITERAL"
+>PD_ALL_VISIBLE</TT
+> bit has the
+  same meaning as the all-visible bit in the visibility map, but is stored
+  within the data page itself rather than a separate data structure.  These
+  will normally agree, but the page-level bit can sometimes be set while the
+  visibility map bit is clear after a crash recovery; or they can disagree
+  because of a change which occurs after <TT
+CLASS="LITERAL"
+>pg_visibility</TT
+> examines
+  the visibility map and before it examines the data page.  Any event which
+  causes data corruption can also cause these bits to disagree.
+ </P
+><P
+>  Functions which display information about <TT
+CLASS="LITERAL"
+>PD_ALL_VISIBLE</TT
+>
+  are much more costly than those which only consult the visibility map,
+  because they must read the relation's data blocks rather than only the
+  (much smaller) visibility map.  Functions that check the relation's
+  data blocks are similarly expensive.
+ </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180614"
+>F.32.1. Functions</A
+></H2
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_visibility_map(regclass, blkno bigint, all_visible OUT boolean, all_frozen OUT boolean) returns record</CODE
+></DT
+><DD
+><P
+>      Returns the all-visible and all-frozen bits in the visibility map for
+      the given block of the given relation.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_visibility(regclass, blkno bigint, all_visible OUT boolean, all_frozen OUT boolean, pd_all_visible OUT boolean) returns record</CODE
+></DT
+><DD
+><P
+>      Returns the all-visible and all-frozen bits in the visibility map for
+      the given block of the given relation, plus the
+      <TT
+CLASS="LITERAL"
+>PD_ALL_VISIBLE</TT
+> bit for that block.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_visibility_map(regclass, blkno OUT bigint, all_visible OUT boolean, all_frozen OUT boolean) returns setof record</CODE
+></DT
+><DD
+><P
+>      Returns the all-visible and all-frozen bits in the visibility map for
+      each block the given relation.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_visibility(regclass, blkno OUT bigint, all_visible OUT boolean, all_frozen OUT boolean, pd_all_visible OUT boolean) returns setof record</CODE
+></DT
+><DD
+><P
+>      Returns the all-visible and all-frozen bits in the visibility map for
+      each block the given relation, plus the <TT
+CLASS="LITERAL"
+>PD_ALL_VISIBLE</TT
+>
+      bit for each block.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_visibility_map_summary(regclass, all_visible OUT bigint, all_frozen OUT bigint) returns record</CODE
+></DT
+><DD
+><P
+>      Returns the number of all-visible pages and the number of all-frozen
+      pages in the relation according to the visibility map.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_check_frozen(regclass, t_ctid OUT tid) returns setof tid</CODE
+></DT
+><DD
+><P
+>      Returns the TIDs of non-frozen tuples present in pages marked all-frozen
+      in the visibility map.  If this function returns a non-empty set of
+      TIDs, the database is corrupt.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_check_visible(regclass, t_ctid OUT tid) returns setof tid</CODE
+></DT
+><DD
+><P
+>      Returns the TIDs of tuples which are not all-visible despite the fact
+      that the pages which contain them are marked as all-visible in the
+      visibility map.  If this function returns a non-empty set of TIDs, the
+      database is corrupt.
+     </P
+></DD
+><DT
+><CODE
+CLASS="FUNCTION"
+>pg_truncate_visibility_map(regclass) returns void</CODE
+></DT
+><DD
+><P
+>      Truncates the visibility map for the given relation.  This function
+      is only expected to be useful if you suspect that the visibility map
+      for the indicated relation is corrupt and wish to rebuild it.  The first
+      <TT
+CLASS="COMMAND"
+>VACUUM</TT
+> executed on the given relation after this function
+      is executed will scan every page in the relation and rebuild the
+      visibility map.
+     </P
+></DD
+></DL
+></DIV
+><P
+>   By default, these functions are not publicly executable.
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180661"
+>F.32.2. Author</A
+></H2
+><P
+>   Robert Haas <CODE
+CLASS="EMAIL"
+>&#60;<A
+HREF="mailto:rhaas@postgresql.org"
+>rhaas@postgresql.org</A
+>&#62;</CODE
+>
+  </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="pgtrgm.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="postgres-fdw.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>pg_trgm</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>postgres_fdw</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,0 +1,685 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>バックグラウンドワーカプロセス</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="サーバプログラミング"
+HREF="server-programming.html"><LINK
+REL="PREVIOUS"
+TITLE="例"
+HREF="spi-examples.html"><LINK
+REL="NEXT"
+TITLE="ロジカルデコーディング"
+HREF="logicaldecoding.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="CHAPTER"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="例"
+HREF="spi-examples.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="ロジカルデコーディング"
+HREF="logicaldecoding.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="BGWORKER"
+></A
+>第 46章バックグラウンドワーカプロセス</H1
+><P
+>PostgreSQLはユーザ提供のコードを別のプロセスとして実行できるように拡張することができます。
+このプロセスは<TT
+CLASS="COMMAND"
+>postgres</TT
+>によって起動、終了、監視され、サーバの状態に密接にリンクしています。
+これらのプロセスは<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>の共有メモリ領域にアタッチしたり、データベースの内部に接続するオプションを持ちます。これらはまた、通常のクライアントに接続された実際のサーバプロセスのように複数のトランザクションを連続して実行することができます。また、アプリケーションは<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>とリンクすることにより通常のクライアントアプリケーションのようにサーバに接続して動作することができます。
+ </P
+><DIV
+CLASS="WARNING"
+><P
+></P
+><TABLE
+CLASS="WARNING"
+BORDER="1"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="CENTER"
+><B
+>警告</B
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+><P
+>バックグラウンドワーカを使うにあたっては、堅牢性とセキュリティリスクを考慮しなくてはなりません。なぜならば、<TT
+CLASS="LITERAL"
+>C</TT
+>言語で書かれており、データへのアクセスが制限されていないためです。バックグラウンドワーカプロセスを有効にしたいと思っている管理者は厳重に注意して実践すべきです。注意深く検査されたモジュールだけが、バックグラウンドワーカプロセスの実行を許されるべきです。
+  </P
+></TD
+></TR
+></TABLE
+></DIV
+><P
+>バックグラウンドワーカは<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>スタート時にモジュールを <TT
+CLASS="VARNAME"
+>shared_preload_libraries</TT
+> に記すことによって実行できます。バックグラウンドワーカとして実行したいモジュールは <CODE
+CLASS="FUNCTION"
+>RegisterBackgroundWorker(<TT
+CLASS="TYPE"
+>BackgroundWorker *worker</TT
+>)</CODE
+> を <CODE
+CLASS="FUNCTION"
+>_PG_init()</CODE
+> から呼び出して登録する必要があります。バックグラウンドワーカはシステム起動後も <CODE
+CLASS="FUNCTION"
+>RegisterDynamicBackgroundWorker(<TT
+CLASS="TYPE"
+>BackgroundWorker *worker, BackgroundWorkerHandle **handle</TT
+>)</CODE
+> を呼び出すことによって実行することができます。<CODE
+CLASS="FUNCTION"
+>RegisterBackgroundWorker</CODE
+> とは異なり、postmasterからのみ呼び出すことができます。 <CODE
+CLASS="FUNCTION"
+>RegisterDynamicBackgroundWorker</CODE
+> は通常のバックエンドから呼び出す必要があります。
+ </P
+><P
+>その構造、<TT
+CLASS="STRUCTNAME"
+>BackgroundWorker</TT
+> は以下のように定義されます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>typedef void (*bgworker_main_type)(Datum main_arg);
+typedef struct BackgroundWorker
+{
+    char        bgw_name[BGW_MAXLEN];
+    int         bgw_flags;
+    BgWorkerStartTime bgw_start_time;
+    int         bgw_restart_time;       /* 秒単位、もしくは、BGW_NEVER_RESTART */
+    bgworker_main_type bgw_main;
+    char        bgw_library_name[BGW_MAXLEN];   /* bgw_mainがNULLの場合のみ */
+    char        bgw_function_name[BGW_MAXLEN];  /* bgw_mainがNULLの場合のみ */
+    Datum       bgw_main_arg;
+    char        bgw_extra[BGW_EXTRALEN];
+    int         bgw_notify_pid;
+} BackgroundWorker;</PRE
+><P>
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_name</TT
+> は、ログメッセージ、プロセス一覧等で使用される文字列です。
+  </P
+><P
+>★翻訳が必要
+   <P
+></P
+></P><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>BGWORKER_SHMEM_ACCESS</TT
+></DT
+><DD
+><P
+>       
+       Requests shared memory access.  Workers without shared memory access
+       cannot access any of <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL's</SPAN
+> shared
+       data structures, such as heavyweight or lightweight locks, shared
+       buffers, or any custom data structures which the worker itself may
+       wish to create and use.
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>BGWORKER_BACKEND_DATABASE_CONNECTION</TT
+></DT
+><DD
+><P
+>       
+       Requests the ability to establish a database connection through which it
+       can later run transactions and queries.  A background worker using
+       <TT
+CLASS="LITERAL"
+>BGWORKER_BACKEND_DATABASE_CONNECTION</TT
+> to connect to a
+       database must also attach shared memory using
+       <TT
+CLASS="LITERAL"
+>BGWORKER_SHMEM_ACCESS</TT
+>, or worker start-up will fail.
+      </P
+></DD
+></DL
+></DIV
+><P>
+
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_start_time</TT
+> は、 <TT
+CLASS="COMMAND"
+>postgres</TT
+> がプロセスを起動するべきタイミングを指定します。そのタイミングは、 <TT
+CLASS="LITERAL"
+>BgWorkerStart_PostmasterStart</TT
+> (<TT
+CLASS="COMMAND"
+>postgres</TT
+>自身が初期化を終えるとすぐに起動します。これを要求するプロセスはデータベース接続に望ましいものではありません。)、 <TT
+CLASS="LITERAL"
+>BgWorkerStart_ConsistentState</TT
+> (ホットスタンバイで一貫性のある状態に到達すると、つまりデータベースに接続して参照のみのクエリを許可する状態になると起動します。)、 <TT
+CLASS="LITERAL"
+>BgWorkerStart_RecoveryFinished</TT
+> (システムが参照/更新クエリを実行すると起動します。)のうちの一つです。この設定はいつプロセスが起動されるかを示すだけであることに注意してください。これらのプロセスは、違う状態になったときに停止するわけではありません。
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_restart_time</TT
+> は、プロセスがクラッシュした場合に <TT
+CLASS="COMMAND"
+>postgres</TT
+> がそのプロセスを再起動するために待つべき間隔を秒単位で指定します。これは任意の正の値、またはクラッシュしても再起動しない場合は <TT
+CLASS="LITERAL"
+>BGW_NEVER_RESTART</TT
+> を指定します。
+  </P
+><P
+>   <TT
+CLASS="STRUCTFIELD"
+>bgw_main</TT
+> is a pointer to the function to run when
+   the process is started.  This field can only safely be used to launch
+   functions within the core server, because shared libraries may be loaded
+   at different starting addresses in different backend processes.  This will
+   happen on all platforms when the library is loaded using any mechanism
+   other than <A
+HREF="runtime-config-client.html#GUC-SHARED-PRELOAD-LIBRARIES"
+>shared_preload_libraries</A
+>.  Even when that
+   mechanism is used, address space layout variations will still occur on
+   Windows, and when <TT
+CLASS="LITERAL"
+>EXEC_BACKEND</TT
+> is used.  Therefore, most users
+   of this API should set this field to NULL.  If it is non-NULL, it takes
+   precedence over <TT
+CLASS="STRUCTFIELD"
+>bgw_library_name</TT
+> and
+   <TT
+CLASS="STRUCTFIELD"
+>bgw_function_name</TT
+>.
+  </P
+><P
+>   <TT
+CLASS="STRUCTFIELD"
+>bgw_library_name</TT
+> is the name of a library in
+   which the initial entry point for the background worker should be sought.
+   The named library will be dynamically loaded by the worker process and
+   <TT
+CLASS="STRUCTFIELD"
+>bgw_function_name</TT
+> will be used to identify the
+   function to be called.  If loading a function from the core code,
+   <TT
+CLASS="STRUCTFIELD"
+>bgw_main</TT
+> should be set instead.
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_function_name</TT
+> は新しいバックグラウンドワーカから動的にロードされるときに初期エントリーポイントの関数名です。それは <TT
+CLASS="STRUCTFIELD"
+>bgw_main</TT
+> がNULLのとき無視されます。 ★変更あり
+  </P
+><P
+>   <TT
+CLASS="STRUCTFIELD"
+>bgw_main_arg</TT
+> is the <TT
+CLASS="TYPE"
+>Datum</TT
+> argument
+   to the background worker main function.  Regardless of whether that
+   function is specified via <TT
+CLASS="STRUCTFIELD"
+>bgw_main</TT
+> or via the combination
+   of <CODE
+CLASS="FUNCTION"
+>bgw_library_name</CODE
+> and <CODE
+CLASS="FUNCTION"
+>bgw_function_name</CODE
+>,
+   this main function should take a single argument of type <TT
+CLASS="TYPE"
+>Datum</TT
+>
+   and return <TT
+CLASS="TYPE"
+>void</TT
+>.  <TT
+CLASS="STRUCTFIELD"
+>bgw_main_arg</TT
+> will be
+   passed as the argument.  In addition, the global variable
+   <TT
+CLASS="LITERAL"
+>MyBgworkerEntry</TT
+>
+   points to a copy of the <TT
+CLASS="STRUCTNAME"
+>BackgroundWorker</TT
+> structure
+   passed at registration time; the worker may find it helpful to examine
+   this structure.
+  </P
+><P
+>   On Windows (and anywhere else where <TT
+CLASS="LITERAL"
+>EXEC_BACKEND</TT
+> is
+   defined) or in dynamic background workers it is not safe to pass a
+   <TT
+CLASS="TYPE"
+>Datum</TT
+> by reference, only by value. If an argument is required, it
+   is safest to pass an int32 or other small value and use that as an index
+   into an array allocated in shared memory. If a value like a <TT
+CLASS="TYPE"
+>cstring</TT
+>
+   or <TT
+CLASS="TYPE"
+>text</TT
+> is passed then the pointer won't be valid from the
+   new background worker process.
+  </P
+><P
+>   <TT
+CLASS="STRUCTFIELD"
+>bgw_extra</TT
+> can contain extra data to be passed
+   to the background worker.  Unlike <TT
+CLASS="STRUCTFIELD"
+>bgw_main_arg</TT
+>, this data
+   is not passed as an argument to the worker's main function, but it can be
+   accessed via <TT
+CLASS="LITERAL"
+>MyBgworkerEntry</TT
+>, as discussed above.
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_extra</TT
+>はバックグラウンドワーカに渡す追加データを含めることが出来ます。
+<TT
+CLASS="STRUCTFIELD"
+>bgw_main_arg</TT
+>とは異なり、このデータはワーカのメイン関数の引数として渡されていませんが、上述したように<TT
+CLASS="LITERAL"
+>MyBgworkerEntry</TT
+>を介してアクセスすることが出来ます。
+  </P
+><P
+><TT
+CLASS="STRUCTFIELD"
+>bgw_notify_pid</TT
+> はプロセスの開始時と終了時にpostmasterにSIGUSR1を送信するPostgreSQLバックエンドプロセスのPIDです。それはpostmasterの起動時間、またはワーカが起動するのを待ちたくない場合に0である必要があります。それ以外の場合は、 <TT
+CLASS="LITERAL"
+>MyProcPid</TT
+> で初期化すべきです。
+  </P
+><P
+>ひとたび実行すると、このプロセスは<CODE
+CLASS="FUNCTION"
+>BackgroundWorkerInitializeConnection(<TT
+CLASS="PARAMETER"
+>char *dbname</TT
+>, <TT
+CLASS="PARAMETER"
+>char *username</TT
+>)</CODE
+>または<CODE
+CLASS="FUNCTION"
+>BackgroundWorkerInitializeConnectionByOid(<TT
+CLASS="PARAMETER"
+>Oid dboid</TT
+>, <TT
+CLASS="PARAMETER"
+>Oid useroid</TT
+>)</CODE
+>を呼び出すことによって、データベースに接続できます。
+これはプロセスに<TT
+CLASS="LITERAL"
+>SPI</TT
+>インタフェースを使用してのトランザクションとクエリの実行を許します。
+もし、<TT
+CLASS="VARNAME"
+>dbname</TT
+>がNULLであった場合、または<TT
+CLASS="VARNAME"
+>dboid</TT
+>が<TT
+CLASS="LITERAL"
+>InvalidOid</TT
+>であった場合には、そのセッションは特定のデータベースに接続しません。しかし、共有カタログにはアクセス出来ます。
+もし、<TT
+CLASS="VARNAME"
+>username</TT
+> がNULLの場合、または<TT
+CLASS="VARNAME"
+>useroid</TT
+>が<TT
+CLASS="LITERAL"
+>InvalidOid</TT
+>の場合には、そのプロセスは <TT
+CLASS="COMMAND"
+>initdb</TT
+>時に作成されたスーパーユーザとして実行されます。
+バックグラウンドワーカはこれら２つの関数をどちらかを一度だけ呼ぶことが出来ます。
+これはデータベースを切り替えることができません。
+  </P
+><P
+> 制御が <TT
+CLASS="STRUCTFIELD"
+>bgw_main</TT
+> 関数に達したとき、シグナルはまずブロックされます。このブロックは解除されなければなりません。このことは、必要があれば、プロセスにそのシグナルハンドラをカスタマイズできることを意味します。シグナルは新しいプロセスで <CODE
+CLASS="FUNCTION"
+>BackgroundWorkerUnblockSignals</CODE
+> を呼び出すことにより、解除でき、 <CODE
+CLASS="FUNCTION"
+>BackgroundWorkerBlockSignals</CODE
+> を呼び出すことでブロックできます。
+  </P
+><P
+> バックグラウンドワーカは <TT
+CLASS="STRUCTFIELD"
+>bgw_restart_time</TT
+> が <TT
+CLASS="LITERAL"
+>BGW_NEVER_RESTART</TT
+> に設定されている場合、または <CODE
+CLASS="FUNCTION"
+>TerminateBackgroundWorker</CODE
+> によって0で終了した場合、postmasterに自動的に登録が解除されて終了します。
+ それ以外の場合、 <TT
+CLASS="STRUCTFIELD"
+>bgw_restart_time</TT
+> で設定された時間の後に再起動します。または、バックエンドの障害のために posmasterが最初期化された場合はすぐに再起動します。
+バックグラウンドワーカが何もすることがないときは、割り込み可能な休止状態にすることを考慮しないといけません。これは <CODE
+CLASS="FUNCTION"
+>WaitLatch()</CODE
+> を呼び出すことによって可能になります。
+この関数を呼んだときに、 <TT
+CLASS="LITERAL"
+>WL_POSTMASTER_DEATH</TT
+> フラグが設定され、 <TT
+CLASS="COMMAND"
+>postgres</TT
+> 自身が終了する緊急事態には、リターンコードを確認するようにしてください。
+  </P
+><P
+>バックグラウンドワーカを <CODE
+CLASS="FUNCTION"
+>RegisterDynamicBackgroundWorker</CODE
+> 関数により登録している場合、登録を実行するバックエンドはワーカの状態に関する情報を取得することが可能です。取得したい場合は <CODE
+CLASS="FUNCTION"
+>RegisterDynamicBackgroundWorker</CODE
+> に <TT
+CLASS="TYPE"
+>BackgroundWorkerHandle *</TT
+> のアドレスを渡す必要があります。もし登録に成功した場合、 <CODE
+CLASS="FUNCTION"
+>GetBackgroundWorkerPid(<TT
+CLASS="PARAMETER"
+>BackgroundWorkerHandle *</TT
+>, <TT
+CLASS="PARAMETER"
+>pid_t *</TT
+>)</CODE
+>または<CODE
+CLASS="FUNCTION"
+>TerminateBackgroundWorker(<TT
+CLASS="PARAMETER"
+>BackgroundWorkerHandle *</TT
+>)</CODE
+> のポインタは初期化されます。
+ <CODE
+CLASS="FUNCTION"
+>GetBackgroundWorkerPid</CODE
+> はワーカの状態を監視することができます。以下の返り値が得られます。 <TT
+CLASS="LITERAL"
+>BGWH_NOT_YET_STARTED</TT
+> ワーカはまだpostmasterにより開始されていない。<TT
+CLASS="LITERAL"
+>BGWH_STOPPED</TT
+>開始されたが、もはや実行されていない。 <TT
+CLASS="LITERAL"
+>BGWH_STARTED</TT
+>実行中です。この最後のケースでは、PIDは、第二の引数を介して返されます。
+<CODE
+CLASS="FUNCTION"
+>TerminateBackgroundWorker</CODE
+>はワーカが実行していた場合postmasterがワーカに <TT
+CLASS="LITERAL"
+>SIGTERM</TT
+> を送信し、まもなく登録を解除します。
+  </P
+><P
+> 場合によっては、バックグラウンドワーカを登録する処理は、ワーカが起動するのを待つことをお勧めします。これは <TT
+CLASS="STRUCTFIELD"
+>bgw_notify_pid</TT
+> から <TT
+CLASS="LITERAL"
+>MyProcPid</TT
+> で初期化し登録時に得られた <TT
+CLASS="TYPE"
+>BackgroundWorkerHandle *</TT
+> を使用して <CODE
+CLASS="FUNCTION"
+>WaitForBackgroundWorkerStartup(<TT
+CLASS="PARAMETER"
+>BackgroundWorkerHandle *handle</TT
+>, <TT
+CLASS="PARAMETER"
+>pid_t *</TT
+>)</CODE
+> 関数を呼び出すことで実現します。
+ postmasterがバックグラウンドワーカを開始しようと試みたか、postmasterが死ぬまで、この関数はブロックします。バックグラウンドランナーが実行されている場合、戻り値は <TT
+CLASS="LITERAL"
+>BGWH_STARTED</TT
+> 、およびPIDが提供されたアドレスに書き込まれます。そうでない場合、戻り値は <TT
+CLASS="LITERAL"
+>BGWH_STOPPED</TT
+> または <TT
+CLASS="LITERAL"
+>BGWH_POSTMASTER_DIED</TT
+> になります。
+  </P
+><P
+>★翻訳の必要あり
+  </P
+><P
+>バックグラウンドワーカの実例として、<TT
+CLASS="FILENAME"
+>src/test/modules/worker_spi</TT
+>というモジュールがあります。
+これはいくつかの有用な技術を示しています。
+  </P
+><P
+>登録できるバックグラウンドワーカの数は <A
+HREF="runtime-config-resource.html#GUC-MAX-WORKER-PROCESSES"
+>max_worker_processes</A
+>によって制限されています。
+  </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="spi-examples.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="logicaldecoding.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>例</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>ロジカルデコーディング</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,0 +1,293 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>GINおよびGiSTインデックス種類</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="全文検索"
+HREF="textsearch.html"><LINK
+REL="PREVIOUS"
+TITLE="テキスト検索のテストとデバッグ"
+HREF="textsearch-debugging.html"><LINK
+REL="NEXT"
+TITLE="psqlサポート"
+HREF="textsearch-psql.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="テキスト検索のテストとデバッグ"
+HREF="textsearch-debugging.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="textsearch.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 12章全文検索</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="psqlサポート"
+HREF="textsearch-psql.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="TEXTSEARCH-INDEXES"
+>12.9. GINおよびGiSTインデックス種類</A
+></H1
+><P
+>全文検索を高速化するために、2種類のインデックスが使えます。全文検索のためにインデックスが必須だと言うわけではないことを言っておかなければなりませんが、日常的に検索される列には、インデックスを使った方が良いでしょう。
+
+   <P
+></P
+></P><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+>&#13;
+      <TT
+CLASS="LITERAL"
+>CREATE INDEX <TT
+CLASS="REPLACEABLE"
+><I
+>name</I
+></TT
+> ON <TT
+CLASS="REPLACEABLE"
+><I
+>table</I
+></TT
+> USING GIN (<TT
+CLASS="REPLACEABLE"
+><I
+>column</I
+></TT
+>);</TT
+></DT
+><DD
+><P
+>GIN (Generalized Inverted Index)インデックスを作ります。
+<TT
+CLASS="REPLACEABLE"
+><I
+>column</I
+></TT
+>は<TT
+CLASS="TYPE"
+>tsvector</TT
+>型でなければなりません。
+      </P
+></DD
+><DT
+>&#13;
+      <TT
+CLASS="LITERAL"
+>CREATE INDEX <TT
+CLASS="REPLACEABLE"
+><I
+>name</I
+></TT
+> ON <TT
+CLASS="REPLACEABLE"
+><I
+>table</I
+></TT
+> USING GIST (<TT
+CLASS="REPLACEABLE"
+><I
+>column</I
+></TT
+>);</TT
+></DT
+><DD
+><P
+>GiST (Generalized Search Tree)インデックスを作ります。<TT
+CLASS="REPLACEABLE"
+><I
+>column</I
+></TT
+>は <TT
+CLASS="TYPE"
+>tsvector</TT
+> または<TT
+CLASS="TYPE"
+>tsquery</TT
+> 型です。
+      </P
+></DD
+></DL
+></DIV
+><P>
+  </P
+><P
+>GINインデックスの方がより好ましいテキスト検索インデックス形式です。
+転置インデックスなので、マッチした位置の圧縮されたリストと合わせて各単語(語彙素)へのインデックスエントリを含みます。
+複数単語での検索は最初のマッチを見つけることができ、その後、追加の単語がない行を削除するのにインデックスを使えます。
+GINインデックスは<TT
+CLASS="TYPE"
+>tsvector</TT
+>値の単語(語彙素)のみを格納しており、重み付けラベルは格納していません。
+そのため、重みを含む問い合わせを使う場合には、テーブル行の再検査が必要です。
+  </P
+><P
+>GiSTインデックスは、<I
+CLASS="FIRSTTERM"
+>非可逆</I
+>です。つまり、インデックスは間違った結果を返すかも知れないので、間違った結果を排除するために、テーブルの行をチェックすることが必要です。<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>はこの処理が必要とされた時に自動的に行います。
+GiSTインデックスが非可逆なのは、インデックス中の各文書が固定長の署名によって表現されているからです。署名は、各々の単語をハッシュして単一なビットにして、これらのビットをnビットの文書署名にORし、nビットの列中のビットにすることで実現されています。2つの単語が同じビット位置を生成すると、間違った一致が起こります。問い合わせ対象のすべての単語が照合すると(それが正しいか間違っているかは別として)、その照合が正しいものかどうかテーブルの行を取得して調べなければなりません。
+  </P
+><P
+>非可逆性は、間違った照合によるテーブルからの不必要なデータ取得のため、性能を劣化させます。テーブルへのランダムアクセスは遅いので、GiSTインデックスの有用性は制限されています。誤った照合がどの位あるかという可能性はいくつか要因によりますが、とりわけユニークな単語の数に依存します。ですから、辞書を使ってユニークな単語の数を減らすことをお勧めします。
+  </P
+><P
+><ACRONYM
+CLASS="ACRONYM"
+>GIN</ACRONYM
+>インデックスの構築時間は<A
+HREF="runtime-config-resource.html#GUC-MAINTENANCE-WORK-MEM"
+>maintenance_work_mem</A
+>を増やすことによってしばしば改善することができることに注意してください。一方<ACRONYM
+CLASS="ACRONYM"
+>GiST</ACRONYM
+>インデックスの構築時間にはあまりそのパラメータは効きません。
+  </P
+><P
+>大きなデータをパーティショニングし、GIN、GiSTインデックスを適切に使うことによってオンラインの更新を伴いながら、非常に高速な検索を実現することができます。
+パーティショニングは、以下のどちらかの方法でデータベースレベルで実現できます。(1)テーブルの継承を使う。(2)文書を複数のサーバに分散させ、<A
+HREF="dblink.html"
+>dblink</A
+>モジュールを使って検索結果を集約する。
+2の方法は、ランキング関数がローカルな情報しか使わないため可能です。
+  </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="textsearch-debugging.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="textsearch-psql.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>テキスト検索のテストとデバッグ</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="textsearch.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>サポート</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

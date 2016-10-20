@@ -1,0 +1,1243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>postgres_fdw</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.0文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="追加で提供されるモジュール"
+HREF="contrib.html"><LINK
+REL="PREVIOUS"
+TITLE="pg_visibility"
+HREF="pgvisibility.html"><LINK
+REL="NEXT"
+TITLE="seg"
+HREF="seg.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2016-10-20T00:12:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.0文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="pg_visibility"
+HREF="pgvisibility.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 F. 追加で提供されるモジュール</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="seg"
+HREF="seg.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="POSTGRES-FDW"
+>F.33. postgres_fdw</A
+></H1
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>モジュールは、外部の<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>サーバに格納されたデータをアクセスするために使用する、<TT
+CLASS="LITERAL"
+>postgres_fdw</TT
+>外部データラッパを提供します。
+ </P
+><P
+>実質上、本モジュールの提供する機能は以前の<A
+HREF="dblink.html"
+>dblink</A
+>モジュールが提供する機能と重複していますが、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はリモートのテーブルにアクセスするためにより透過的で標準に準拠した構文を利用できるほか、多くの場合においてより良い性能を得る事ができます。
+ </P
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>を使用したリモートアクセスを準備するには:
+  <P
+></P
+></P><OL
+COMPACT="COMPACT"
+TYPE="1"
+><LI
+><P
+><A
+HREF="sql-createextension.html"
+>CREATE EXTENSION</A
+>を使用して<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>拡張をインストールしてください。
+    </P
+></LI
+><LI
+><P
+><A
+HREF="sql-createserver.html"
+>CREATE SERVER</A
+>を使用して、接続しようとする各リモートデータベースを定義する外部サーバオブジェクトを作成してください。
+<TT
+CLASS="LITERAL"
+>user</TT
+>および<TT
+CLASS="LITERAL"
+>password</TT
+>を除く接続パラメータを、外部サーバオブジェクトのオプションとして指定します。
+    </P
+></LI
+><LI
+><P
+><A
+HREF="sql-createusermapping.html"
+>CREATE USER MAPPING</A
+>を使用して、外部サーバへのアクセスを許可するデータベースユーザごとにユーザマッピングを作成します。
+ユーザマッピングの<TT
+CLASS="LITERAL"
+>user</TT
+>および<TT
+CLASS="LITERAL"
+>password</TT
+>オプションを使用してリモートユーザのためのユーザ名とパスワードを指定します。
+    </P
+></LI
+><LI
+><P
+><A
+HREF="sql-createforeigntable.html"
+>CREATE FOREIGN TABLE</A
+>もしくは<A
+HREF="sql-importforeignschema.html"
+>IMPORT FOREIGN SCHEMA</A
+>を使用して、アクセスしたいリモートテーブルごとに外部テーブルを作成します。
+外部テーブルのカラム定義は被参照側のリモートテーブルに一致していなければなりません。
+しかしながら、外部テーブルのオプションとして正しいリモートの名前を外部テーブルのオプションに指定すれば、テーブルおよびカラム名はリモートのものと異なった名前を付ける事ができます。
+    </P
+></LI
+></OL
+><P>
+ </P
+><P
+>今のところ、リモートテーブルに格納されているデータにアクセスするには少なくとも外部テーブルに対する<TT
+CLASS="COMMAND"
+>SELECT</TT
+>権限が必要です。
+また、<TT
+CLASS="COMMAND"
+>INSERT</TT
+>や<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>、<TT
+CLASS="COMMAND"
+>DELETE</TT
+>を使用してリモートテーブルを操作する事もできます。
+（もちろん、ユーザマッピングで指定されたリモートユーザは、これらの操作を実行する権限を有している必要があります）
+ </P
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は今のところ、<TT
+CLASS="LITERAL"
+>ON CONFLICT DO UPDATE</TT
+>句のある<TT
+CLASS="COMMAND"
+>INSERT</TT
+>文をサポートしていないことに注意して下さい。
+しかし、一意インデックスの推定の指定を省略しているならば、<TT
+CLASS="LITERAL"
+>ON CONFLICT DO NOTHING</TT
+>句はサポートされます。
+ </P
+><P
+>一般的な推奨事項として、可能であれば外部テーブルのカラムを、被参照側のリモートテーブル側のカラムと全く同一のデータ型および照合順序によって定義してください。
+<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は必要に応じてデータ型の変換を行いますが、リモートサーバがローカルサーバとは少々違った<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句の解釈を行うため、データ型や照合順序が一致していないと、時には予期しない結果を得る事があるかもしれません。
+ </P
+><P
+>リモートテーブルより少ないカラム数で、あるいは異なった順序であっても外部テーブルを定義できる事に留意してください。
+リモートテーブル側のカラムとの対応付けは、その位置ではなく、名前によって行われます。
+ </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180711"
+>F.33.1. postgres_fdwの外部データラッパオプション</A
+></H2
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180713"
+>F.33.1.1. 接続オプション</A
+></H3
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>外部データラッパを使用する外部サーバは、以下に記すものを除き、<A
+HREF="libpq-connect.html#LIBPQ-PARAMKEYWORDS"
+>項32.1.2</A
+>に記載されている<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>が接続文字列としてサポートするものと同一のオプションを使用する事ができます。
+
+    <P
+></P
+></P><UL
+COMPACT="COMPACT"
+><LI
+><P
+>       <TT
+CLASS="LITERAL"
+>user</TT
+> および <TT
+CLASS="LITERAL"
+>password</TT
+>
+       （これらは代わりにユーザマッピングのオプションの中で指定します）
+      </P
+></LI
+><LI
+><P
+>       <TT
+CLASS="LITERAL"
+>client_encoding</TT
+>
+       （これはローカルサーバのエンコーディングが自動的にセットされます）
+      </P
+></LI
+><LI
+><P
+>       <TT
+CLASS="LITERAL"
+>fallback_application_name</TT
+>
+       （自動的に<TT
+CLASS="LITERAL"
+>postgres_fdw</TT
+>とセットされます）
+      </P
+></LI
+></UL
+><P>
+   </P
+><P
+>特権ユーザのみが外部サーバに対してパスワードなしの認証で接続できます。
+したがって、非特権ユーザのユーザマッピングには<TT
+CLASS="LITERAL"
+>password</TT
+>を必ず指定するようにして下さい。
+   </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180733"
+>F.33.1.2. オブジェクト名オプション</A
+></H3
+><P
+>これらのオプションによりリモートの<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>サーバに送出されるSQL文で使用される名前を制御する事ができます。
+外部テーブルがリモートテーブルとは異なった名前で定義されている場合、これらのオプションは必須です。
+   </P
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>schema_name</TT
+></DT
+><DD
+><P
+>外部テーブルに対して指定できるこのオプションは、リモートサーバ上のリモートテーブルのスキーマ名を与えます。
+省略された場合、外部テーブルのスキーマ名が使用されます。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>table_name</TT
+></DT
+><DD
+><P
+>外部テーブルに対して指定できるこのオプションは、リモートサーバ上のリモートテーブル名を与えます。
+省略された場合、外部テーブルのテーブル名が使用されます。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>column_name</TT
+></DT
+><DD
+><P
+>外部テーブルのカラムに対して指定できるこのオプションは、リモートサーバ上のカラム名を与えます。
+省略された場合、外部テーブルのカラム名が使用されます。
+      </P
+></DD
+></DL
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180753"
+>F.33.1.3. コスト推定オプション</A
+></H3
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はリモートサーバに対するクエリを実行しリモートのデータを受信します。したがって、理想的には外部テーブルをスキャンする推定コストは、それをリモートサーバで実行するコストと通信オーバーヘッドの和となります。
+この推定を行うための最も信頼できる方法は、リモートサーバに問い合わせを行い、その結果にオーバーヘッド分を加算する事ですが、小さいクエリではコスト推定を得るための追加的な問い合わせに要するコストに見合わないかもしれません。
+そこで、どのようにコスト推定を行うかを制御するため、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は以下のようなオプションを提供します。
+   </P
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>use_remote_estimate</TT
+></DT
+><DD
+><P
+>外部テーブルまたは外部サーバに指定できるこのオプションは、コスト推定を得るために<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>がリモートの<TT
+CLASS="COMMAND"
+>EXPLAIN</TT
+>コマンドを発行するかどうかを制御します。
+外部テーブルに対する設定は、関連付けられた外部サーバに対する設定を上書きしますが、その効果は当該外部テーブルに限定されます。
+デフォルト値は<TT
+CLASS="LITERAL"
+>false</TT
+>です。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>fdw_startup_cost</TT
+></DT
+><DD
+><P
+>外部テーブルまたは外部サーバに指定できるこのオプションは、当該外部サーバに関連付けられた全ての外部テーブルスキャンの推定開始コストに加算される数値です。
+これは、接続の確立、リモート側でのクエリのパース・最適化など、追加的なオーバーヘッドを表現します。
+デフォルト値は<TT
+CLASS="LITERAL"
+>100</TT
+>です。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>fdw_tuple_cost</TT
+></DT
+><DD
+><P
+>外部サーバに指定できるこのオプションは、このサーバでの外部テーブルのスキャンにおいて、各タプル毎に発生する追加的なコストとして使用される数値です。
+これは、サーバ間のデータ転送における追加的なオーバーヘッドを表現し、リモートサーバへのネットワーク遅延の高低を反映するためにこの数値を増減することができます。
+デフォルト値は<TT
+CLASS="LITERAL"
+>0.01</TT
+>です。
+      </P
+></DD
+></DL
+></DIV
+><P
+><TT
+CLASS="LITERAL"
+>use_remote_estimate</TT
+>が<TT
+CLASS="LITERAL"
+>true</TT
+>の時、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はリモートサーバから行数とコスト推定値を取得し、それを<TT
+CLASS="LITERAL"
+>fdw_startup_cost</TT
+>と<TT
+CLASS="LITERAL"
+>fdw_tuple_cost</TT
+>に加算します。
+一方、<TT
+CLASS="LITERAL"
+>use_remote_estimate</TT
+>が<TT
+CLASS="LITERAL"
+>false</TT
+>の時、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はローカルの行数とコスト推定値を取得し<TT
+CLASS="LITERAL"
+>fdw_startup_cost</TT
+>と<TT
+CLASS="LITERAL"
+>fdw_tuple_cost</TT
+>をコスト推定値に加算します。
+このローカルな推定は、リモートテーブルの統計情報のローカルコピーが利用可能でないと、正確である見込みはほとんどありません。
+ローカルな統計情報を更新するには外部テーブルに対する<A
+HREF="sql-analyze.html"
+>ANALYZE</A
+>を実行します。これはリモートテーブルに対するスキャンを実行し、あたかもローカルなテーブルであるかのように統計情報の計算と保存を行います。
+ローカルな統計情報を保存する事で、クエリの度にリモートテーブルの実行計画を作成するオーバヘッドを削減する事ができます。
+しかしながら、リモートテーブルの更新頻度が高ければローカルの統計情報はすぐに実態を反映しなくなるでしょう。
+   </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180791"
+>F.33.1.4. ★Remote Execution Options</A
+></H3
+><P
+>★  By default, only <TT
+CLASS="LITERAL"
+>WHERE</TT
+> clauses using built-in operators and
+    functions will be considered for execution on the remote server.  Clauses
+    involving non-built-in functions are checked locally after rows are
+    fetched.  If such functions are available on the remote server and can be
+    relied on to produce the same results as they do locally, performance can
+    be improved by sending such <TT
+CLASS="LITERAL"
+>WHERE</TT
+> clauses for remote
+    execution.  This behavior can be controlled using the following option:
+   </P
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>extensions</TT
+></DT
+><DD
+><P
+>★     This option is a comma-separated list of names
+       of <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> extensions that are installed, in
+       compatible versions, on both the local and remote servers.  Functions
+       and operators that are immutable and belong to a listed extension will
+       be considered shippable to the remote server.
+       This option can only be specified for foreign servers, not per-table.
+      </P
+><P
+>★     When using the <TT
+CLASS="LITERAL"
+>extensions</TT
+> option, <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>it is the
+       user's responsibility</I
+></SPAN
+> that the listed extensions exist and behave
+       identically on both the local and remote servers.  Otherwise, remote
+       queries may fail or behave unexpectedly.
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>fetch_size</TT
+></DT
+><DD
+><P
+>★     This option specifies the number of rows <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>
+       should get in each fetch operation. It can be specified for a foreign
+       table or a foreign server. The option specified on a table overrides
+       an option specified for the server.
+       The default is <TT
+CLASS="LITERAL"
+>100</TT
+>.
+      </P
+></DD
+></DL
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180813"
+>F.33.1.5. 更新機能オプション</A
+></H3
+><P
+>デフォルトでは<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>を使用する全ての外部テーブルは更新可能であると想定されます。以下のオプションにより、この挙動を上書きする事ができます。
+   </P
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>updatable</TT
+></DT
+><DD
+><P
+>このオプションは、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>が<TT
+CLASS="COMMAND"
+>INSERT</TT
+>、<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>あるいは<TT
+CLASS="COMMAND"
+>DELETE</TT
+>コマンドを使用して外部テーブルを操作する事を許可するかどうかを規定します。
+外部テーブルで指定されたオプションは、外部サーバにおいて指定されたオプションを上書きします。
+デフォルト値は<TT
+CLASS="LITERAL"
+>true</TT
+>です。
+      </P
+><P
+>もちろん、リモートテーブルが実際には更新可能ではなかった場合、いずれにしてもエラーが発生するでしょう。このオプションを使用することで、リモートサーバへの問い合わせを行う事なくローカルでエラーを発生させることができます。
+また、<TT
+CLASS="LITERAL"
+>information_schema</TT
+>ビューは、このオプションの値に従って<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>管理下の外部テーブルを更新可能（あるいは不可能）であるとレポートする事に留意してください。
+リモートサーバ側のチェックは一切行われません。
+      </P
+></DD
+></DL
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN180831"
+>F.33.1.6. インポートのオプション</A
+></H3
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は<A
+HREF="sql-importforeignschema.html"
+>IMPORT FOREIGN SCHEMA</A
+>を使って、外部テーブルの定義をインポートすることができます。
+このコマンドは、リモートのサーバ上に存在するテーブルあるいはビューとマッチする外部テーブルの定義をローカルサーバ上に作成します。
+インポートするリモートのテーブルにユーザ定義のデータ型の列がある場合、ローカルサーバにも同じ名前の互換性のある型がなければなりません。
+   </P
+><P
+>インポートの動作は以下のオプションでカスタマイズできます（<TT
+CLASS="COMMAND"
+>IMPORT FOREIGN SCHEMA</TT
+>コマンドで指定します）。
+   </P
+><P
+></P
+><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="LITERAL"
+>import_collate</TT
+></DT
+><DD
+><P
+>このオプションは、列の<TT
+CLASS="LITERAL"
+>COLLATE</TT
+>オプションが、外部サーバからインポートする外部テーブルの定義に含まれているかどうかを制御します。
+デフォルトは<TT
+CLASS="LITERAL"
+>true</TT
+>です。
+リモートサーバとローカルサーバで照合順序の名前の集合が異なる場合は、この設定を無効にする必要があるでしょう。
+リモートサーバが異なるOSで動作しているなら、そういうことがありそうです。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>import_default</TT
+></DT
+><DD
+><P
+>このオプションは、列の<TT
+CLASS="LITERAL"
+>DEFAULT</TT
+>式が外部サーバからインポートされる外部テーブルの定義に含まれているかどうかを制御します。
+デフォルトは<TT
+CLASS="LITERAL"
+>false</TT
+>です。
+このオプションを有効にする場合は、ローカルサーバとリモートサーバで異なる計算をされるデフォルトに注意して下さい。
+<CODE
+CLASS="FUNCTION"
+>nextval()</CODE
+>はよくある問題の一つです。
+インポートされるデフォルト式がローカルには存在しない関数または演算子を使っていた場合、<TT
+CLASS="COMMAND"
+>IMPORT</TT
+>は失敗します。
+      </P
+></DD
+><DT
+><TT
+CLASS="LITERAL"
+>import_not_null</TT
+></DT
+><DD
+><P
+>このオプションは、列の<TT
+CLASS="LITERAL"
+>NOT NULL</TT
+>制約が、外部サーバからインポートされる外部テーブルの定義に含まれているかどうかを制御します。
+デフォルトは<TT
+CLASS="LITERAL"
+>true</TT
+>です。
+      </P
+></DD
+></DL
+></DIV
+><P
+><TT
+CLASS="LITERAL"
+>NOT NULL</TT
+>以外の制約は決してリモートのテーブルからインポートされないことに注意して下さい。
+<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>は外部テーブルの<TT
+CLASS="LITERAL"
+>CHECK</TT
+>制約をサポートしていますが、それを自動的にインポートする予定はありません。
+なぜなら、制約の式はローカルとリモートのサーバで異なる評価をされる危険があるからです。
+<TT
+CLASS="LITERAL"
+>CHECK</TT
+>制約でそのような一貫しない動作があると、問い合わせの最適化で検知するのが難しい誤りが発生するかもしれません。
+そのため、<TT
+CLASS="LITERAL"
+>CHECK</TT
+>制約をインポートしたい場合は、それを手作業で実行する必要があり、またその一つ一つの意味を注意深く確認するべきです。
+外部テーブルの<TT
+CLASS="LITERAL"
+>CHECK</TT
+>制約の取扱いについて、詳しくは<A
+HREF="sql-createforeigntable.html"
+>CREATE FOREIGN TABLE</A
+>を参照して下さい。
+   </P
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180870"
+>F.33.2. 接続管理</A
+></H2
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は、外部サーバに関連付けられた外部テーブルを参照するクエリを最初に実行する際に、外部サーバへの接続を確立します。
+この接続は保持され、同じセッションで以降の問い合わせのために再利用されます。
+しかし、外部サーバへのアクセスに対して複数のユーザ識別子（ユーザマッピング）が使用される場合には、接続はユーザマッピング毎に確立される事になります。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180874"
+>F.33.3. トランザクション管理</A
+></H2
+><P
+>外部サーバ上のリモートテーブルを参照する際に、まだトランザクションが開始されていなければ<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はリモートサーバ上でトランザクションを開始します。
+ローカルのトランザクションがコミット、あるいはアボートした時、リモートのトランザクションも同様にコミット、あるいはアボートします。
+セーブポイントも同様に管理され、リモート側に関連付けられたセーブポイントが作成されます。
+  </P
+><P
+>ローカルトランザクションが<TT
+CLASS="LITERAL"
+>SERIALIZABLE</TT
+>隔離レベルを用いている時、リモートトランザクションも<TT
+CLASS="LITERAL"
+>SERIALIZABLE</TT
+>隔離レベルを使用します。
+それ以外の場合には<TT
+CLASS="LITERAL"
+>REPEATABLE READ</TT
+>隔離レベルを使用します。
+これは、あるクエリが複数のテーブルスキャンをリモート側で行う際に、確実に全てのスキャンにおいて一貫したスナップショットで結果を取り出すためです。
+その結果、別の要求によってリモートサーバ側で競合する更新が発生したとしても、あるトランザクション内の問い合わせはリモートサーバからの一貫したデータを参照する事となります。
+ローカルのトランザクションが<TT
+CLASS="LITERAL"
+>SERIALIZABLE</TT
+>あるいは<TT
+CLASS="LITERAL"
+>REPEATABLE READ</TT
+>隔離レベルを用いている場合、この動作は期待通りのものでしょう。
+一方、ローカルのトランザクションが<TT
+CLASS="LITERAL"
+>READ COMMITTED</TT
+>隔離レベルを使用している場合には、予想外の動作かもしれません。
+将来の<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>リリースではこれらのルールに変更が加えられるかもしれません。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180886"
+>F.33.4. リモート問い合わせの最適化</A
+></H2
+><P
+>外部サーバからのデータ転送量を削減するため、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>はリモート問い合わせを最適化しようと試みます。
+これは問い合わせの<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句をリモートサーバに送出する事、およびクエリで必要とされていないカラムを取得しない事により行われます。
+問い合わせの誤作動のリスクを下げるため、ビルトインのデータ型、演算子、関数だけを用いたものでない限り、リモートサーバに<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句は送出されません。また、<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句で使われる演算子と関数は<TT
+CLASS="LITERAL"
+>IMMUTABLE</TT
+>でなければなりません。
+★
+  </P
+><P
+>★ When <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+> encounters a join between foreign tables on
+   the same foreign server, it sends the entire join to the foreign server,
+   unless for some reason it believes that it will be more efficient to fetch
+   rows from each table individually, or unless the table references involved
+   are subject to different user mappings.  While sending the <TT
+CLASS="LITERAL"
+>JOIN</TT
+>
+   clauses, it takes the same precautions as mentioned above for the
+   <TT
+CLASS="LITERAL"
+>WHERE</TT
+> clauses.
+  </P
+><P
+>リモートサーバでの実行のために実際に送出される問い合わせは<TT
+CLASS="COMMAND"
+>EXPLAIN VERBOSE</TT
+>を用いて調べる事ができます。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180900"
+>F.33.5. リモート問い合わせ実行環境</A
+></H2
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>が開いたリモートセッションでは、<A
+HREF="runtime-config-client.html#GUC-SEARCH-PATH"
+>search_path</A
+>パラメータは<TT
+CLASS="LITERAL"
+>pg_catalog</TT
+>にだけ設定されますので、スキーマで修飾しなければビルトインオブジェクトだけが可視です。
+<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>自身が生成した問い合わせでは、常にそのような修飾を行ないますので、これは問題になりません。
+しかし、リモートテーブルのトリガやルールによってリモートサーバ上で実行された関数にとっては問題の原因となり得ます。
+例えば、リモートテーブルが実際にはビューであれば、そのビューで使われている関数はすべて制限された検索パスで実行されるでしょう。
+期待される検索パス環境を確立できるよう、そのような関数では名前はすべてスキーマ修飾するか、そのような関数に<TT
+CLASS="LITERAL"
+>SET search_path</TT
+>オプション(<A
+HREF="sql-createfunction.html"
+>CREATE FUNCTION</A
+>参照)を付けることをお薦めします。
+  </P
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は、同様に、パラメータ<A
+HREF="runtime-config-client.html#GUC-TIMEZONE"
+>TimeZone</A
+>、<A
+HREF="runtime-config-client.html#GUC-DATESTYLE"
+>DateStyle</A
+>、<A
+HREF="runtime-config-client.html#GUC-INTERVALSTYLE"
+>IntervalStyle</A
+>、<A
+HREF="runtime-config-client.html#GUC-EXTRA-FLOAT-DIGITS"
+>extra_float_digits</A
+>でリモートセッション設定を確立します。
+これは<TT
+CLASS="VARNAME"
+>search_path</TT
+>ほど問題にはならないでしょうが、もし必要になったら関数の<TT
+CLASS="LITERAL"
+>SET</TT
+>オプションで処理してください。
+  </P
+><P
+>上のパラメータのセッションレベルの設定を変更することで、この振舞いを覆すことはお薦め<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>しません</I
+></SPAN
+>。<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>が正常に動作しない原因となるでしょう。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180920"
+>F.33.6. Remote Query Execution Environment</A
+></H2
+><P
+>   In the remote sessions opened by <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>,
+   the <A
+HREF="runtime-config-client.html#GUC-SEARCH-PATH"
+>search_path</A
+> parameter is set to
+   just <TT
+CLASS="LITERAL"
+>pg_catalog</TT
+>, so that only built-in objects are visible
+   without schema qualification.  This is not an issue for queries
+   generated by <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+> itself, because it always
+   supplies such qualification.  However, this can pose a hazard for
+   functions that are executed on the remote server via triggers or rules
+   on remote tables.  For example, if a remote table is actually a view,
+   any functions used in that view will be executed with the restricted
+   search path.  It is recommended to schema-qualify all names in such
+   functions, or else attach <TT
+CLASS="LITERAL"
+>SET search_path</TT
+> options
+   (see <A
+HREF="sql-createfunction.html"
+>CREATE FUNCTION</A
+>) to such functions
+   to establish their expected search path environment.
+  </P
+><P
+>   <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+> likewise establishes remote session settings
+   for the parameters <A
+HREF="runtime-config-client.html#GUC-TIMEZONE"
+>TimeZone</A
+>,
+   <A
+HREF="runtime-config-client.html#GUC-DATESTYLE"
+>DateStyle</A
+>, <A
+HREF="runtime-config-client.html#GUC-INTERVALSTYLE"
+>IntervalStyle</A
+>,
+   and <A
+HREF="runtime-config-client.html#GUC-EXTRA-FLOAT-DIGITS"
+>extra_float_digits</A
+>.  These are less likely
+   to be problematic than <TT
+CLASS="VARNAME"
+>search_path</TT
+>, but can be handled
+   with function <TT
+CLASS="LITERAL"
+>SET</TT
+> options if the need arises.
+  </P
+><P
+>   It is <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>not</I
+></SPAN
+> recommended that you override this behavior by
+   changing the session-level settings of these parameters; that is likely
+   to cause <TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+> to malfunction.
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180940"
+>F.33.7. バージョン間互換性</A
+></H2
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>のリモートサーバには<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 8.3以降のバージョンを使用する事ができます。
+読み取り専用であれば、8.1以降のバージョンまで可能です。
+一方、<TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>は<TT
+CLASS="LITERAL"
+>IMMUTABLE</TT
+>属性を持ったビルトインの演算子と関数が外部テーブルの<TT
+CLASS="LITERAL"
+>WHERE</TT
+>句に含まれる場合、リモート側で実行しても安全であると仮定します。そのため、リモートサーバのリリース後に追加された関数が実行のために送出されるかもしれず、結果として<SPAN
+CLASS="QUOTE"
+>"関数が見つかりません"</SPAN
+>あるいは類するエラーを発生させる事になります。
+この種の問題は問い合わせの書き換えによって対処する事ができます。
+例えば、最適化を妨げるため、外部テーブルへの参照を<TT
+CLASS="LITERAL"
+>OFFSET 0</TT
+>を付けて副問い合わせに埋め込み、問題のある関数や演算子を副問い合わせの外に配置するなどの方法があります。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180950"
+>F.33.8. 例</A
+></H2
+><P
+>これは<TT
+CLASS="LITERAL"
+>postgres_fdw</TT
+>で外部テーブルを作成する例です。
+まず、拡張をインストールします。
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>CREATE EXTENSION postgres_fdw;</PRE
+><P
+>次に、<A
+HREF="sql-createserver.html"
+>CREATE SERVER</A
+>を使って外部サーバを作成します。
+この例では、ホスト<TT
+CLASS="LITERAL"
+>192.83.123.89</TT
+>でポート<TT
+CLASS="LITERAL"
+>5432</TT
+>を監視している<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>サーバに接続します。
+接続されるデータベースはリモートサーバ上で<TT
+CLASS="LITERAL"
+>foreign_db</TT
+>という名前です。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>CREATE SERVER foreign_server
+        FOREIGN DATA WRAPPER postgres_fdw
+        OPTIONS (host '192.83.123.89', port '5432', dbname 'foreign_db');</PRE
+><P>
+  </P
+><P
+>リモートサーバで使われるロールを特定するためにユーザマッピングも必要です。ユーザマッピングは<A
+HREF="sql-createusermapping.html"
+>CREATE USER MAPPING</A
+>で定義されます。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>CREATE USER MAPPING FOR local_user
+        SERVER foreign_server
+        OPTIONS (user 'foreign_user', password 'password');</PRE
+><P>
+  </P
+><P
+>これで<A
+HREF="sql-createforeigntable.html"
+>CREATE FOREIGN TABLE</A
+>により外部テーブルが作成できるようになりました。
+この例では、リモートサーバの<TT
+CLASS="STRUCTNAME"
+>some_schema.some_table</TT
+>という名前のテーブルにアクセスします。
+対応するローカルの名前は<TT
+CLASS="STRUCTNAME"
+>foreign_table</TT
+>です。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>CREATE FOREIGN TABLE foreign_table (
+        id integer NOT NULL,
+        data text
+)
+        SERVER foreign_server
+        OPTIONS (schema_name 'some_schema', table_name 'some_table');</PRE
+><P>
+
+<TT
+CLASS="COMMAND"
+>CREATE FOREIGN TABLE</TT
+>で宣言した列のデータ型やその他の属性は、実際のリモートテーブルと一致していることが必須です。
+リモートテーブルでどのような名前なのかを個々の列に対して<TT
+CLASS="LITERAL"
+>column_name</TT
+>オプションで指定しない限り、列名も一致していなければなりません。
+多くの場合、外部テーブルの定義を手作業で作成するよりも、<A
+HREF="sql-importforeignschema.html"
+>IMPORT FOREIGN SCHEMA</A
+>を使用する方が望ましいです。
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN180973"
+>F.33.9. 作者</A
+></H2
+><P
+>花田 茂 <CODE
+CLASS="EMAIL"
+>&#60;<A
+HREF="mailto:shigeru.hanada@gmail.com"
+>shigeru.hanada@gmail.com</A
+>&#62;</CODE
+>
+  </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="pgvisibility.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="seg.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>pg_visibility</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="contrib.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>seg</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
