@@ -9,7 +9,7 @@ CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
 REV="MADE"
 HREF="mailto:pgsql-docs@postgresql.org"><LINK
 REL="HOME"
-TITLE="pgpool-II 3.6-alpha1 Documentation"
+TITLE="pgpool-II 3.6-beta1 Documentation"
 HREF="index.html"><LINK
 REL="UP"
 TITLE="Server Configuration"
@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2016-10-27T02:19:07"></HEAD
+CONTENT="2016-11-02T06:53:34"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -44,7 +44,7 @@ ALIGN="center"
 VALIGN="bottom"
 ><A
 HREF="index.html"
->pgpool-II 3.6-alpha1 Documentation</A
+>pgpool-II 3.6-beta1 Documentation</A
 ></TH
 ></TR
 ><TR
@@ -100,7 +100,7 @@ NAME="RUNTIME-CONFIG-LOAD-BALANCING"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 > load balancing of SELECT queries
-    works with  Master Slave mode (<A
+    works with Master Slave mode (<A
 HREF="runtime-config-runnung-mode.html#RUNTIME-CONFIG-MASTER-SLAVE-MODE"
 >Section 5.3.1</A
 >)
@@ -114,12 +114,10 @@ CLASS="PRODUCTNAME"
 > sends the writing queries to the
     <ACRONYM
 CLASS="ACRONYM"
->Master DB</ACRONYM
->, and other queries get load balanced to
-    <ACRONYM
-CLASS="ACRONYM"
->Standby DB nodes</ACRONYM
-> if possible.  To which node
+>primay node</ACRONYM
+> in Master Slave mode, all of the backend nodes
+    in Replication mode, and other queries get load balanced among all backend nodes.
+    To which node
     the load balancing mechanism sends read queries is decided at the
     session start time and will not be changed until the session
     ends. The only exception is by writing special SQL comments. See
@@ -132,7 +130,7 @@ CLASS="NOTE"
 ><P
 ><B
 >Note: </B
->      Queries sent to Master DB because they cannot be balanced are
+>      Queries which are sent to primary node or replicated because they cannot be balanced are
       also accounted for in the load balancing algorithm.
     </P
 ></BLOCKQUOTE
@@ -159,11 +157,11 @@ CLASS="EMPHASIS"
 CLASS="ACRONYM"
 >SELECT
       </ACRONYM
-> statement, This will disable the load balance of the particular query
+> statement. This will disable the load balance of the particular query
       and <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> will send it to the Master DB node.
+> will send it to the master node (the primary node in Master Slave mode).
     </P
 ></BLOCKQUOTE
 ></DIV
@@ -194,8 +192,14 @@ CLASS="PRODUCTNAME"
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries.
-          i.e. SELECT queries from the clients gets distributed to
-          the configured PostgreSQL backends.
+          i.e. <ACRONYM
+CLASS="ACRONYM"
+>SELECT</ACRONYM
+> queries from the clients gets distributed to
+          the configured <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> backends.
           Default is off.
         </P
 ><P
@@ -220,12 +224,15 @@ CLASS="TYPE"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 > ignores the
-          white spaces at the beginning of SQL queries while in the load balance mode.
+          white spaces at the beginning of SQL queries in load balancing.
           It is useful if used with APIs like DBI/DBD:Pg which adds
-          white spaces against the user's will.
+          white spaces against the user's intention.
         </P
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
         </P
 ></DD
 ><DT
@@ -249,14 +256,26 @@ CLASS="emphasis"
 CLASS="EMPHASIS"
 >DO NOT</I
 ></SPAN
-> update the database. SELECTs using
-          functions not specified in this list are neither load balanced,
-          nor replicated (in the replication mode).
-          In master slave mode, such SELECTs are sent to master (primary) only.
+> update the database. SELECTs including
+          functions <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>not specified </I
+></SPAN
+> in this list are not load balanced.
+          These are replicated among all the DB nodes in Replication mode,
+          sent to the primary node only in Maste Slave mode.
         </P
 ><P
->          You can use regular expression into the list to match function name
-          (to which ^ and $ are automatically added),
+>          You can use regular expression to match function names,
+		  to which <TT
+CLASS="LITERAL"
+>^</TT
+> and <TT
+CLASS="LITERAL"
+>$</TT
+> are automatically added.
         </P
 ><DIV
 CLASS="EXAMPLE"
@@ -282,7 +301,10 @@ CLASS="PROGRAMLISTING"
           </P
 ></DIV
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
         </P
 ></DD
 ><DT
@@ -307,13 +329,26 @@ CLASS="EMPHASIS"
 >DO</I
 ></SPAN
 > update the database.
-          SELECTs using functions specified in this list are neither
-          load balanced, nor replicated (in the replication mode).
-          In master slave mode, such SELECTs are sent to master(primary) only.
+          SELECTs including functions <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>specified</I
+></SPAN
+> in this list are
+		  not load balanced.
+          These are replicated among all the DB nodes in Replication mode,
+          sent to the primary node only in Maste Slave mode.
         </P
 ><P
->          You can use regular expression into the list to match function name
-          (to which ^ and $ are automatically added),
+>          You can use regular expression to match function names,
+		  to which <TT
+CLASS="LITERAL"
+>^</TT
+> and <TT
+CLASS="LITERAL"
+>$</TT
+> are automatically added.
         </P
 ><DIV
 CLASS="EXAMPLE"
@@ -388,8 +423,8 @@ CLASS="LITERAL"
 > and <TT
 CLASS="LITERAL"
 >setval()</TT
-> were known to do writes to the database.
-            You can configure this by using <A
+> were known as functions writing to the database.
+            You can configure this by setting <A
 HREF="runtime-config-load-balancing.html#GUC-BLACK-FUNCTION-LIST"
 >black_function_list</A
 >
@@ -412,7 +447,10 @@ CLASS="NOTE"
 ><P
 ><B
 >Note: </B
->            PostgreSQL also contains <TT
+>            <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> also contains <TT
 CLASS="LITERAL"
 >lastval()</TT
 > and
@@ -434,7 +472,7 @@ CLASS="LITERAL"
 CLASS="LITERAL"
 >currval()</TT
 >
-            are not writing function type, But it is advised to treat
+            are not writing function type, but it is advised to treat
             <TT
 CLASS="LITERAL"
 >lastval()</TT
@@ -442,13 +480,16 @@ CLASS="LITERAL"
 CLASS="LITERAL"
 >currval()</TT
 >
-            as a writing functions to avoid errors in the case if
+            as writing functions to avoid errors which occur when
             these functions are accidentally load balanced.
           </P
 ></BLOCKQUOTE
 ></DIV
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
         </P
 ></DD
 ><DT
@@ -466,14 +507,16 @@ CLASS="TYPE"
 ><DD
 ><P
 >         Specifies the list of <TT
-CLASS="LITERAL"
->"database-name:node id"</TT
+CLASS="REPLACEABLE"
+><I
+>"database-name:node id"</I
+></TT
 > pairs
-         to make the <ACRONYM
+         to send <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
-> queries land on particular Backend
-         node for particular database connection.
+> queries to a particular backend
+         node for a particular database connection.
          For example, by specifying "test:1", <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
@@ -481,27 +524,39 @@ CLASS="PRODUCTNAME"
          will redirect all <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
-> queries to backend node 1 for
-         the connection connecting to "test" database.
-         You can specify multiple "database name:node id" pair by separating them
+> queries to the backend node of ID 1 for
+         the connection to "test" database.
+         You can specify multiple <TT
+CLASS="REPLACEABLE"
+><I
+>"database name:node id"</I
+></TT
+> pair by separating them
          using comma (,).
         </P
 ><P
 >         Regular expressions are also accepted for database name.
-         Special keyword <SPAN
+         You can use special keywords as <TT
+CLASS="REPLACEABLE"
+><I
+>node id</I
+></TT
+>.
+		 If <SPAN
 CLASS="emphasis"
 ><I
 CLASS="EMPHASIS"
 >"primary"</I
 ></SPAN
-> indicates the primary node and
-         <SPAN
+> is specified, queries are sent to the primary node, and
+         if <SPAN
 CLASS="emphasis"
 ><I
 CLASS="EMPHASIS"
 >"standby"</I
 ></SPAN
-> indicates one of standby nodes.
+> is specified, one of the standby nodes are selected randomly
+		 based on weights.
         </P
 ><DIV
 CLASS="EXAMPLE"
@@ -516,7 +571,7 @@ NAME="EXAMPLE-DATABASE-REDIRECT-LIST"
 >            If you want to configure the following <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
-> query routing rules.
+> query routing rules:
           </P
 ><P
 ></P
@@ -530,7 +585,7 @@ CLASS="ACRONYM"
 CLASS="LITERAL"
 >postgres</TT
 >
-                database to PRIMARY backend server.
+                database to the primary backend node.
               </P
 ></LI
 ><LI
@@ -545,7 +600,7 @@ CLASS="LITERAL"
                 <TT
 CLASS="LITERAL"
 >mydb1</TT
-> databases to backend node 1.
+> databases to backend node of ID 1.
               </P
 ></LI
 ><LI
@@ -557,12 +612,12 @@ CLASS="ACRONYM"
 CLASS="LITERAL"
 >mydb2</TT
 >
-                databases to STANDBY backend server.
+                database to standby backend nodes.
               </P
 ></LI
 ></UL
 ><P
->            The <A
+>            then the <A
 HREF="runtime-config-load-balancing.html#GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
 >database_redirect_preference_list</A
 > will be configured as follows:
@@ -574,7 +629,10 @@ CLASS="PROGRAMLISTING"
           </P
 ></DIV
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
         </P
 ></DD
 ><DT
@@ -592,14 +650,16 @@ CLASS="TYPE"
 ><DD
 ><P
 >          Specifies the list of <TT
-CLASS="LITERAL"
->"application-name:node id"</TT
+CLASS="REPLACEABLE"
+><I
+>"application-name:node id"</I
+></TT
 > pairs
-          to make the <ACRONYM
+          to send <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
-> queries land on particular Backend
-          node for particular client application connection.
+> queries to a particular backend
+          node for a particular client application connection.
         </P
 ><DIV
 CLASS="NOTE"
@@ -608,7 +668,16 @@ CLASS="NOTE"
 ><P
 ><B
 >Note: </B
->            In PostgreSQL V9.0 or later the "Application name" is a name specified
+>            In <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>V9.0</I
+></SPAN
+> or later the "Application name" is a name specified
             by a client when it connects to database.
           </P
 ></BLOCKQUOTE
@@ -633,8 +702,8 @@ CLASS="NOTE"
 >            <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> ony recognizes the application name
-            specified in the start-up packet.
+> recognizes the application name
+            only specified in the start-up packet.
             Although a client can provide the application name
             later in the session, but that does not get considered by the
             <SPAN
@@ -682,7 +751,7 @@ NAME="EXAMPLE-APP-NAME-REDIRECT-LIST"
 >            If you want to configure the following <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
-> query routing rules.
+> query routing rules:
           </P
 ><P
 ></P
@@ -696,7 +765,7 @@ CLASS="ACRONYM"
 CLASS="LITERAL"
 >psql</TT
 >
-                client to PRIMARY backend server.
+                client to the primary backend node.
               </P
 ></LI
 ><LI
@@ -708,7 +777,7 @@ CLASS="ACRONYM"
 CLASS="LITERAL"
 >myapp1</TT
 >
-                client to backend node 1.
+                client to backend node of ID 1.
               </P
 ></LI
 ><LI
@@ -720,12 +789,12 @@ CLASS="ACRONYM"
 CLASS="LITERAL"
 >myapp2</TT
 >
-                client to STANDBY backend server.
+                client to standby backend nodes.
               </P
 ></LI
 ></UL
 ><P
->            The <A
+>            then the <A
 HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
 >app_name_redirect_preference_list</A
 > will be configured as follows:
@@ -776,7 +845,7 @@ ALIGN="LEFT"
 >            <ACRONYM
 CLASS="ACRONYM"
 >JDBC</ACRONYM
-> driver PostgreSQL-9.3 and earlier versions
+> driver postgreSQL-9.3 and earlier versions
             does not send the application name in the startup packet even if
             the application name is specified using the <ACRONYM
 CLASS="ACRONYM"
@@ -797,14 +866,17 @@ HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
             feature through <ACRONYM
 CLASS="ACRONYM"
 >JDBC</ACRONYM
->, Use PostgreSQL-9.4 or later version of the driver.
+>, Use postgreSQL-9.4 or later version of the driver.
           </P
 ></TD
 ></TR
 ></TABLE
 ></DIV
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
         </P
 ></DD
 ><DT
@@ -848,7 +920,10 @@ CLASS="EMPHASIS"
 > behavior).
         </P
 ><P
->          This parameter can be changed by reloading the pgpool configurations.
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
 					You can also use <A
 HREF="sql-pgpool-set.html"
 >PGPOOL SET</A
