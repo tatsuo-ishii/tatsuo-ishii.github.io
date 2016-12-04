@@ -1,211 +1,48 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<HTML
-><HEAD
-><TITLE
->複雑な最適化問題としての問い合わせ処理</TITLE
-><META
-NAME="GENERATOR"
-CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
-REV="MADE"
-HREF="mailto:pgsql-docs@postgresql.org"><LINK
-REL="HOME"
-TITLE="PostgreSQL 9.6.0文書"
-HREF="index.html"><LINK
-REL="UP"
-TITLE="遺伝的問い合わせ最適化"
-HREF="geqo.html"><LINK
-REL="PREVIOUS"
-TITLE="遺伝的問い合わせ最適化"
-HREF="geqo.html"><LINK
-REL="NEXT"
-TITLE="遺伝的アルゴリズム"
-HREF="geqo-intro2.html"><LINK
-REL="STYLESHEET"
-TYPE="text/css"
-HREF="stylesheet.css"><META
-HTTP-EQUIV="Content-Type"
-CONTENT="text/html; charset=utf-8"><META
-NAME="creation"
-CONTENT="2016-10-20T00:12:21"></HEAD
-><BODY
-CLASS="SECT1"
-><DIV
-CLASS="NAVHEADER"
-><TABLE
-SUMMARY="Header navigation table"
-WIDTH="100%"
-BORDER="0"
-CELLPADDING="0"
-CELLSPACING="0"
-><TR
-><TH
-COLSPAN="4"
-ALIGN="center"
-VALIGN="bottom"
-><A
-HREF="index.html"
->PostgreSQL 9.6.0文書</A
-></TH
-></TR
-><TR
-><TD
-WIDTH="10%"
-ALIGN="left"
-VALIGN="top"
-><A
-TITLE="遺伝的問い合わせ最適化"
-HREF="geqo.html"
-ACCESSKEY="P"
->前のページ</A
-></TD
-><TD
-WIDTH="10%"
-ALIGN="left"
-VALIGN="top"
-><A
-HREF="geqo.html"
-ACCESSKEY="U"
->上に戻る</A
-></TD
-><TD
-WIDTH="60%"
-ALIGN="center"
-VALIGN="bottom"
->第 58章遺伝的問い合わせ最適化</TD
-><TD
-WIDTH="20%"
-ALIGN="right"
-VALIGN="top"
-><A
-TITLE="遺伝的アルゴリズム"
-HREF="geqo-intro2.html"
-ACCESSKEY="N"
->次のページ</A
-></TD
-></TR
-></TABLE
-><HR
-ALIGN="LEFT"
-WIDTH="100%"></DIV
-><DIV
-CLASS="SECT1"
-><H1
-CLASS="SECT1"
-><A
-NAME="GEQO-INTRO"
->58.1. 複雑な最適化問題としての問い合わせ処理</A
-></H1
-><P
->リレーショナル演算子の中で、処理と最適化が一番難しいのは<I
-CLASS="FIRSTTERM"
->結合</I
->です。
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>58.1. 複雑な最適化問題としての問い合わせ処理</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.78.1" /><link rel="home" href="index.html" title="PostgreSQL 9.6.0文書" /><link rel="up" href="geqo.html" title="第58章 遺伝的問い合わせ最適化" /><link rel="prev" href="geqo.html" title="第58章 遺伝的問い合わせ最適化" /><link rel="next" href="geqo-intro2.html" title="58.2. 遺伝的アルゴリズム" /><link rel="copyright" href="legalnotice.html" title="法的告知" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><td width="20%" align="left" colspan="2"></td><th width="60%" align="center"><a accesskey="h" href="index.html">PostgreSQL 9.6.0文書</a></th><td width="20%" align="right"></td></tr><tr><td width="10%" align="left" valign="top"><a accesskey="p" href="geqo.html">前へ</a> </td><td width="10%" align="left" valign="top"><a accesskey="u" href="geqo.html">上へ</a></td><td width="60%" align="center">58.1. 複雑な最適化問題としての問い合わせ処理</td><td width="20%" align="right" valign="top"> <a accesskey="n" href="geqo-intro2.html">次へ</a></td></tr></table><hr /></div><div class="sect1" id="geqo-intro"><div class="titlepage"><div><div><h2 class="title" style="clear: both">58.1. 複雑な最適化問題としての問い合わせ処理</h2></div></div></div><!--
+   <title>Query Handling as a Complex Optimization Problem</title>
+--><p><!--
+    Among all relational operators the most difficult one to process
+    and optimize is the <firstterm>join</firstterm>. The number of
+    possible query plans grows exponentially with the
+    number of joins in the query. Further optimization effort is
+    caused by the support of a variety of <firstterm>join
+    methods</firstterm> (e.g., nested loop, hash join, merge join in
+    <productname>PostgreSQL</productname>) to process individual joins
+    and a diversity of <firstterm>indexes</firstterm> (e.g.,
+    B-tree, hash, GiST and GIN in <productname>PostgreSQL</productname>) as
+    access paths for relations.
+-->リレーショナル演算子の中で、処理と最適化が一番難しいのは<em class="firstterm">結合</em>です。
 実行可能な問い合わせ計画の数は問い合わせの中に含まれる結合の数によって指数関数的に増加します。
-個々の結合や、多様な<I
-CLASS="FIRSTTERM"
->インデックス</I
->（例えば<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->のB-tree、ハッシュ、GiST、GINなど）をリレーションのアクセスパスとして処理するため、様々な<I
-CLASS="FIRSTTERM"
->結合メソッド</I
->（例えば<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->の入れ子ループ、ハッシュ結合、マージ結合など）を提供することが、さらなる最適化を行わなければならない腐心の原因となっています。
-   </P
-><P
->通常の<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->問い合わせオプティマイザは、候補ストラテジ空間にわたって<I
-CLASS="FIRSTTERM"
->しらみつぶしに近い検索</I
->を行います。
+個々の結合や、多様な<em class="firstterm">インデックス</em>（例えば<span class="productname">PostgreSQL</span>のB-tree、ハッシュ、GiST、GINなど）をリレーションのアクセスパスとして処理するため、様々な<em class="firstterm">結合メソッド</em>（例えば<span class="productname">PostgreSQL</span>の入れ子ループ、ハッシュ結合、マージ結合など）を提供することが、さらなる最適化を行わなければならない腐心の原因となっています。
+   </p><p><!--
+    The normal <productname>PostgreSQL</productname> query optimizer
+    performs a <firstterm>near-exhaustive search</firstterm> over the
+    space of alternative strategies. This algorithm, first introduced
+    in IBM's System R database, produces a near-optimal join order,
+    but can take an enormous amount of time and memory space when the
+    number of joins in the query grows large. This makes the ordinary
+    <productname>PostgreSQL</productname> query optimizer
+    inappropriate for queries that join a large number of tables.
+-->通常の<span class="productname">PostgreSQL</span>問い合わせオプティマイザは、候補ストラテジ空間にわたって<em class="firstterm">しらみつぶしに近い検索</em>を行います。
 IBMのSystem Rデータベースで初めて導入された、このアルゴリズムはほぼ最適な結合順を生成しますが、問い合わせ内の結合数が増えると膨大な処理時間とメモリ空間を必要とします。
-このため、通常の<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->問い合わせオプティマイザは結合するテーブル数の多い問い合わせには向いていません。
-   </P
-><P
->ドイツ、フライブルグにあるUniversity of Mining and TechnologyのInstitute of Automatic Controlでは、送電網の保守のための意志決定知識ベースシステムのためのバックエンドとして<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
-> DBMSを使おうとしたため問題が起こりました。
+このため、通常の<span class="productname">PostgreSQL</span>問い合わせオプティマイザは結合するテーブル数の多い問い合わせには向いていません。
+   </p><p><!--
+    The Institute of Automatic Control at the University of Mining and
+    Technology, in Freiberg, Germany, encountered some problems when
+    it wanted to use <productname>PostgreSQL</productname> as the
+    backend for a decision support knowledge based system for the
+    maintenance of an electrical power grid. The DBMS needed to handle
+    large join queries for the inference machine of the knowledge
+    based system. The number of joins in these queries made using the
+    normal query optimizer infeasible.
+-->ドイツ、フライブルグにあるUniversity of Mining and TechnologyのInstitute of Automatic Controlでは、送電網の保守のための意志決定知識ベースシステムのためのバックエンドとして<span class="productname">PostgreSQL</span> DBMSを使おうとしたため問題が起こりました。
 そのDBMSは知識ベースシステムの推論マシンのために、大規模な結合の問い合わせを処理する必要があったのです。
 こうした問い合わせに含まれる結合数を行うことは、通常の問い合わせオプティマイザでは実現不可能でした。
-   </P
-><P
->以下では、多数の結合を持つ問い合わせを効率的に行うことができるように、結合順問題を解決する<I
-CLASS="FIRSTTERM"
->遺伝的アルゴリズム</I
->の実装を説明します。
-   </P
-></DIV
-><DIV
-CLASS="NAVFOOTER"
-><HR
-ALIGN="LEFT"
-WIDTH="100%"><TABLE
-SUMMARY="Footer navigation table"
-WIDTH="100%"
-BORDER="0"
-CELLPADDING="0"
-CELLSPACING="0"
-><TR
-><TD
-WIDTH="33%"
-ALIGN="left"
-VALIGN="top"
-><A
-HREF="geqo.html"
-ACCESSKEY="P"
->前のページ</A
-></TD
-><TD
-WIDTH="34%"
-ALIGN="center"
-VALIGN="top"
-><A
-HREF="index.html"
-ACCESSKEY="H"
->ホーム</A
-></TD
-><TD
-WIDTH="33%"
-ALIGN="right"
-VALIGN="top"
-><A
-HREF="geqo-intro2.html"
-ACCESSKEY="N"
->次のページ</A
-></TD
-></TR
-><TR
-><TD
-WIDTH="33%"
-ALIGN="left"
-VALIGN="top"
->遺伝的問い合わせ最適化</TD
-><TD
-WIDTH="34%"
-ALIGN="center"
-VALIGN="top"
-><A
-HREF="geqo.html"
-ACCESSKEY="U"
->上に戻る</A
-></TD
-><TD
-WIDTH="33%"
-ALIGN="right"
-VALIGN="top"
->遺伝的アルゴリズム</TD
-></TR
-></TABLE
-></DIV
-></BODY
-></HTML
->
+   </p><p><!--
+    In the following we describe the implementation of a
+    <firstterm>genetic algorithm</firstterm> to solve the join
+    ordering problem in a manner that is efficient for queries
+    involving large numbers of joins.
+-->以下では、多数の結合を持つ問い合わせを効率的に行うことができるように、結合順問題を解決する<em class="firstterm">遺伝的アルゴリズム</em>の実装を説明します。
+   </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="geqo.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="geqo.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="geqo-intro2.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">第58章 遺伝的問い合わせ最適化 </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 58.2. 遺伝的アルゴリズム</td></tr></table></div></body></html>
