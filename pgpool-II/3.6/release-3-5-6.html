@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>A.5. Release 3.5.6</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="home" href="index.html" title="pgpool-II 3.7devel Documentation" /><link rel="up" href="release.html" title="Appendix A. Release Notes" /><link rel="prev" href="release-3-5-5.html" title="A.4. Release 3.5.5" /><link rel="next" href="release-3-4-9.html" title="A.6. Release 3.4.9" /><link rel="copyright" href="legalnotice.html" title="Legal Notice" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">A.5. Release 3.5.6</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="release-3-5-5.html">Prev</a> </td><th width="60%" align="center">Appendix A. Release Notes</th><td width="20%" align="right"> <a accesskey="n" href="release-3-4-9.html">Next</a></td></tr></table><hr /></div><div class="sect1" id="release-3-5-6"><div class="titlepage"><div><div><h2 class="title" style="clear: both">A.5. Release 3.5.6</h2></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Release Date</h3><p>2017-03-17</p></div><div class="sect2" id="idm45333508369920"><div class="titlepage"><div><div><h3 class="title">A.5.1. Bug fixes</h3></div></div></div><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>    Add "Wants=network.target" to pgpool.service file.
+    (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=294" target="_top">bug 294</a>) (Bo Peng)
+    </p></li><li class="listitem"><p>    Fix  <a class="link" href="pcp-promote-node.html" title="pcp_promote_node">pcp_promote_node</a> bug that fails promoting node 0. (Yugo Nagata)
+    </p><p>    The master node could not be promoted by pcp_promote_node with
+    the following error;
+    </p><pre class="programlisting">     FATAL: invalid pgpool mode for process recovery request
+     DETAIL: specified node is already primary node, can't promote node id 0
+     </pre><p>    In streaming replication mode, there is a case that Pgpool-II
+    regards the status of primary node as "standby" for some reasons,
+    for example, when pg_ctl promote is executed manually during
+    Pgpool-II is running, in which case, it seems to Pgpool-II
+    that the primary node doesn't exist.
+    </p><p>    This status mismatch should be fixe by pcp_promote_node, but when the node
+    is the master node (the first alive node), it fails as mentioned above.
+    </p><p>    The reason is as following. before changing the status, pcp_promote_node
+    checks if the specified node is already primary or not by comparing the
+    node id with PRIMARY_NODE_ID. However, if the primary doesn't exist from
+    Pgpool-II's view, PRIMARY_NODE_ID is set to 0, which is same as MASTER_NODE_ID.
+    Hence, when the master node is specified to be promoted, pcp_promote_node
+    is confused that this node is already primary and doesn't have to be
+    promoted, and it exits with the error.
+    </p><p>    To fix this, pcp_promote_node should check the node id by using
+    REAL_PRIMARY_NODE_ID, which is set -1 when the primary doesn't exist,
+    rather than PRIMARY_NODE_ID.
+
+    </p></li><li class="listitem"><p>    Add the latest release note link to README file.(Bo Peng)
+    </p></li><li class="listitem"><p>    <span class="productname">Pgpool-II</span>should not perform ping test after bringing down the VIP. (Muhammad Usama)
+    </p><p>    This issue was reported by the reporter of
+    bug:[pgpool-II 0000249]: watchdog sometimes fails de-escalation
+    </p></li><li class="listitem"><p>    Fix to release shared memory segments when <span class="productname">Pgpool-II</span>exits.
+    (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=272" target="_top">bug 272</a>) (Tatsuo Ishii)
+    </p></li><li class="listitem"><p>    Fix for  <a class="ulink" href="http://www.pgpool.net/pipermail/pgpool-general/2017-February/005373.html" target="_top">[pgpool-general: 5315]</a> pg_terminate_backend (Muhammad Usama)
+    </p></li><li class="listitem"><p>    Adding the missing ExecStop and ExecReload commands to the systemd service configuration file. (Muhammad Usama)
+    </p></li><li class="listitem"><p>    Fix for 281: "segmentation fault" when execute <a class="link" href="pcp-attach-node.html" title="pcp_attach_node">pcp_attach_node</a>.
+    (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=281" target="_top">bug 281</a>) (Muhammad Usama)
+    </p></li><li class="listitem"><p>    Fix load balancing bug in streaming replication mode. (Tatsuo Ishii)
+    </p><p>    In an explicit transaction, any SELECT will be load balanced until
+    write query is sent. After writing query is sent, any SELECT should be
+    sent to the primary node. However if a SELECT is sent before a sync
+    message is sent, this does not work since the treatment of writing
+    query is done after ready for query message arrives.
+    </p><p>    Solution is, the treatment for writing query is done in executing the writing query as well.
+    </p><p>    The bug has been there since V3.5.
+    </p></li><li class="listitem"><p>    Fix yet another kind mismatch error in streaming replication mode. (Tatsuo Ishii)
+    </p></li><li class="listitem"><p>    Fix <code class="function">do_query()</code>hangs after close message. (Tatsuo Ishii)
+    </p></li><li class="listitem"><p>    Fixing stack smashing detected. (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=280" target="_top">bug 280</a>) (Muhammad Usama)
+    </p><p>    It was a buffer overflow in <code class="function">wd_get_cmd</code> function
+
+    </p></li><li class="listitem"><p>    Fixing the issue with the watchdog process restart. (Muhammad Usama)
+    </p><p>    When the watchdog process gets abnormally terminated because of some problem
+    (e.g. Segmentation fault) the new spawned watchdog process fails to start and
+    produces an error "bind on ... failed with reason: Address already in use".
+    </p><p>    Reason is the abnormally terminating watchdog process never gets the time to
+    clean-up the socket it uses for IPC and the new process gets an error because
+    the socket address is already occupied.
+    </p><p>    Fix is, the Pgpool main process sets the flag in shared memory to mark the
+    watchdog process was abnormally terminated and at startup when the watchdog
+    process see that the flag is set, it performs the clean up of the socket file and
+    also performs the de-escalation (If the watchdog process was crashed when it
+    was master/coordinator node) if required before initializing itself.
+    </p></li><li class="listitem"><p>    Fix query cache bug reported in  <a class="ulink" href="http://www.pgpool.net/pipermail/pgpool-general-jp/2017-January/001440.html" target="_top">pgpool-general-jp:1441</a>. (Tatsuo Ishii)
+    </p><p>    In streaming replication mode with query cache enabled, SELECT hangs
+    in the following scenario:
+    </p><pre class="programlisting">    1) a SELECT hits query cache and returns rows from the query cache.
+    2) following SELECT needs to search meta data and it hangs.
+    </pre><p>    In #1, while returning the cached result, it misses to call
+    pool_unset_pending_response(), which leave the pending_response flag
+    be set. In #2, do_query() checks the flag and tries to read pending
+    response from backend. Since there's no pending data in backend, it
+    hangs in reading data from backend.
+    </p><p>    Fix is, just call <code class="function">pool_unset_pending_response()</code> in #1 to reset the
+    flag.
+    </p><p>    Bug report and fix provided by Nobuyuki Nagai.
+
+    New regression test item (068) added by me.
+    </p></li><li class="listitem"><p>    Remove elog/ereport calls from signal handlers. (Tatsuo Ishii)
+    </p><p>    See  <a class="ulink" href="http://www.pgpool.net/pipermail/pgpool-hackers/2016-December/001950.html" target="_top">[pgpool-hackers: 1950]</a> for details.
+    </p></li><li class="listitem"><p>    Fix bug failed to create INET domain socket in FreeBSD if listen_addresses = '*'.
+    (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=202" target="_top">bug 202</a>) (Bo Peng)
+    </p></li><li class="listitem"><p>    Fix for 0000249: watchdog sometimes fails de-escalation.
+    (<a class="ulink" href="http://www.pgpool.net/mantisbt/view.php?id=249" target="_top">bug 249</a>) (Muhammad Usama)
+    </p><p>    The solution is to use the <code class="function">waitpid()</code> system call without WNOHANG option.
+
+    </p></li><li class="listitem"><p>    Fix connection_life_time broken by authentication_timeout. (Yugo Nagata)
+    </p></li><li class="listitem"><p>    Fix authentication timeout that can occur right after client connecttions. (Yugo Nagata)
+    </p></li></ul></div></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="release-3-5-5.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="release.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="release-3-4-9.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">A.4. Release 3.5.5 </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> A.6. Release 3.4.9</td></tr></table></div></body></html>
