@@ -1,0 +1,455 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Release 3.5.9</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="pgpool-II 3.7devel Documentation"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="Release Notes"
+HREF="release.html"><LINK
+REL="PREVIOUS"
+TITLE="Release 3.5.10"
+HREF="release-3-5-10.html"><LINK
+REL="NEXT"
+TITLE="Release 3.5.8"
+HREF="release-3-5-8.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=ISO-8859-1"><META
+NAME="creation"
+CONTENT="2017-10-06T00:53:50"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>pgpool-II 3.7devel Documentation</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="Release 3.5.10"
+HREF="release-3-5-10.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>Appendix A. Release Notes</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="Release 3.5.8"
+HREF="release-3-5-8.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RELEASE-3-5-9"
+>A.10. Release 3.5.9</A
+></H1
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Release Date: </B
+>2017-07-11</P
+></BLOCKQUOTE
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN8288"
+>A.10.1. Bug fixes</A
+></H2
+><P
+></P
+><UL
+><LI
+><P
+>    Fix for <A
+HREF="http://www.sraoss.jp/pipermail/pgpool-hackers/2017-June/002400.html"
+TARGET="_top"
+>[pgpool-hackers: 2400]</A
+> Garbage output (Muhammad Usama)
+    </P
+><P
+>    Mostly the log messages fixes and few code cleanups.
+    </P
+></LI
+><LI
+><P
+>    Importing the latest changes in the <SPAN
+CLASS="PRODUCTNAME"
+>MemoryManager API</SPAN
+> from <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> code. (Muhammad Usama)
+    </P
+></LI
+><LI
+><P
+>    Fixing  <A
+HREF="http://www.sraoss.jp/pipermail/pgpool-hackers/2017-June/002390.html"
+TARGET="_top"
+>[pgpool-hackers: 2390]</A
+>Problems with the relative paths in daemon mode (Muhammad Usama)
+    </P
+></LI
+><LI
+><P
+>    Adjust function name change in <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 10 dev head. (Tatsuo Ishii)
+    </P
+><PRE
+CLASS="PROGRAMLISTING"
+>    pg_current_wal_location     -&#62; pg_current_wal_lsn
+    pg_last_wal_replay_location -&#62; pg_last_wal_replay_lsn
+    </PRE
+></LI
+><LI
+><P
+>    Fix a posible hang with streaming replication and extended protocol (Yugo Nagata)
+    </P
+><P
+>    This hang occured under a certain condition. The following is an example.
+    </P
+><PRE
+CLASS="PROGRAMLISTING"
+>    - pgpool.conf is configured so that all read queries are sent to the standby.
+    - First, issue a writing query in a transaction block
+    - After commiting the transaction, issue a select query.
+    - When processing the query, send Describe (statement) message just after Parse.
+    </PRE
+><P
+>    Without using <SPAN
+CLASS="PRODUCTNAME"
+>JDBC</SPAN
+>, we can reproduce the problem by <SPAN
+CLASS="PRODUCTNAME"
+>pgproto</SPAN
+> with the followeing messages.
+    </P
+><PRE
+CLASS="PROGRAMLISTING"
+>    'Q' "DROP TABLE IF EXISTS test_tbl"
+    'Y'
+    'Q' "CREATE TABLE test_tbl(i int)"
+    'Y'
+    'Q' "INSERT INTO test_tbl VALUES(1)"
+    'Y'
+
+    'P' "" "BEGIN" 0
+    'B' "" "" 0 0 0
+    'E' "" 0
+    'S'
+    'Y'
+
+    'P' "" "INSERT INTO test_tbl VALUES(1)" 0
+    'B' "" "" 0 0 0
+    'E' "" 0
+    'S'
+    'Y'
+
+    'P' "" "COMMIT" 0
+    'B' "" "" 0 0 0
+    'E' "" 0
+    'S'
+    'Y'
+
+    'P' "S_1" "SELECT * FROM test_tbl" 0
+    'D' 'S' "S_1"
+    'B' "C_1" "S_1" 0 0 0
+    'E' "C_1" 0
+    'S'
+    'Y'
+
+    'X'
+    </PRE
+><P
+>    To fix it, <CODE
+CLASS="FUNCTION"
+>parse_before_bind()</CODE
+> should be called only if we are in a transaction block so that we can send <TT
+CLASS="COMMAND"
+>Bind</TT
+> and <TT
+CLASS="COMMAND"
+>Execute</TT
+> to the right backend.
+    </P
+></LI
+><LI
+><P
+>    Fix <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> hang when used by <SPAN
+CLASS="PRODUCTNAME"
+>erlang</SPAN
+> applications. (Tatsuo Ishii)
+    </P
+><P
+>    <SPAN
+CLASS="PRODUCTNAME"
+>Erlang</SPAN
+> client sends "Describe" message followed by "Flush".  So the
+    backend returns "Row description." However <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> forgets to reset
+    the query in progress flag upon receiving "Row description" message,
+    then <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> keeps on waiting for response from backend. This is the
+    cause of erlang client hanging.
+    </P
+><P
+>    Fix is, just reset the query in progress flag upon receiving "Row
+    description" message. Same thing can be said to "no data" message.
+    </P
+><P
+>    See <A
+HREF="http://www.pgpool.net/pipermail/pgpool-general/2017-June/005613.html"
+TARGET="_top"
+>[pgpool-general: 5555]</A
+> for more details.
+    </P
+></LI
+><LI
+><P
+>    Fix bug with sending bind message to wrong target node. (<A
+HREF="https://www.pgpool.net/mantisbt/view.php?id=314"
+TARGET="_top"
+>bug 314</A
+>) (Tatsuo Ishii)
+    </P
+></LI
+><LI
+><P
+>    Fix query cache hang when used by node.js. (Tatsuo Ishii)
+    </P
+><P
+>    See <A
+HREF="http://www.pgpool.net/pipermail/pgpool-general/2017-May/005569.html"
+TARGET="_top"
+>[pgpool-general: 5511]</A
+> for more details.
+    </P
+></LI
+><LI
+><P
+>    Deal with <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 10 in streaming replication delay checking. (Tatsuo Ishii)
+    </P
+></LI
+><LI
+><P
+>    Fix query cache memory leak. (Tatsuo Ishii)
+    </P
+><P
+>    Clearing cache buffers in case of no oid queries (like <TT
+CLASS="COMMAND"
+>BEGIN</TT
+>,
+    <TT
+CLASS="COMMAND"
+>CHECKPOINT</TT
+>, <TT
+CLASS="COMMAND"
+>VACUUM</TT
+>, etc) should have been done, but it did not.
+    </P
+></LI
+><LI
+><P
+>    Fix extended query hang in certain case. (Tatsuo Ishii)
+    </P
+><P
+>    <SPAN
+CLASS="PRODUCTNAME"
+>errlang</SPAN
+> PostgreSQL API produces <TT
+CLASS="COMMAND"
+>Parse ('P')</TT
+>, <TT
+CLASS="COMMAND"
+>Describe ('D')</TT
+>,
+    <TT
+CLASS="COMMAND"
+>Flush ('H')</TT
+>, <TT
+CLASS="COMMAND"
+>Bind ('B')</TT
+>, and <TT
+CLASS="COMMAND"
+>Execute ('E')</TT
+>. Notice the 'H' message (this
+    does not happen in <SPAN
+CLASS="PRODUCTNAME"
+>JDBC</SPAN
+>. I suspect that's the reason why this problem
+    is not popular before). After that, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> dropped the extended
+    query mode, it failed to find which backend to read data. Thus <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> simply tries to read all of backend which causes hang
+    because it may have not send a message to some of backends.
+    </P
+><P
+>    Solution is, after receiving the flush message set doing extended query flag.
+    </P
+></LI
+><LI
+><P
+>    Fix corner case bug in <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> starting up. (Tatsuo Ishii)
+    </P
+><P
+>    It is possible that a failover request is accepted before primary node
+    is searched.  This leads <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> to a strange state: there's no
+    primary node if the failed node was a primary node (even if new
+    primary node exists as a result of promotion of existing standby).
+    </P
+><P
+>    See <A
+HREF="http://www.pgpool.net/pipermail/pgpool-hackers/2017-May/002321.html"
+TARGET="_top"
+>[pgpool-hackers: 2321]</A
+> for more details.
+    </P
+></LI
+></UL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release-3-5-10.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="release-3-5-8.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Release 3.5.10</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Release 3.5.8</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
