@@ -1,98 +1,283 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>第48章 レプリケーション進捗の追跡</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="logicaldecoding-synchronous.html" title="47.8. ロジカルデコーディングにおける同期レプリケーションのサポート" /><link rel="next" href="reference.html" title="パート VI. リファレンス" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><td width="20%" align="left" colspan="2"></td><th width="60%" align="center"><a accesskey="h" href="index.html">PostgreSQL 9.6.5文書</a></th><td width="20%" align="right"></td></tr><tr><td width="10%" align="left" valign="top"><a accesskey="p" href="logicaldecoding-synchronous.html">前へ</a> </td><td width="10%" align="left" valign="top"><a accesskey="u" href="server-programming.html">上へ</a></td><td width="60%" align="center">第48章 レプリケーション進捗の追跡</td><td width="20%" align="right" valign="top"> <a accesskey="n" href="reference.html">次へ</a></td></tr></table><hr /></div><div class="chapter" id="replication-origins"><div class="titlepage"><div><div><h2 class="title">第48章 レプリケーション進捗の追跡</h2></div></div></div><!--
- <title>Replication Progress Tracking</title>
---><a id="idp47048755451296" class="indexterm"></a><a id="idp47048755452576" class="indexterm"></a><p><!--
-  Replication origins are intended to make it easier to implement
-  logical replication solutions on top
-  of <link linkend="logicaldecoding">logical decoding</link>.
-  They provide a solution to two common problems:
--->レプリケーション起点(replication origins)は、<a class="link" href="logicaldecoding.html" title="第47章 ロジカルデコーディング">ロジカルデコーディング</a>の上に、ロジカルレプリケーションソリューションを実装しやすくすることを意図しています。
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>レプリケーション進捗の追跡</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="サーバプログラミング"
+HREF="server-programming.html"><LINK
+REL="PREVIOUS"
+TITLE="ロジカルデコーディングにおける同期レプリケーションのサポート"
+HREF="logicaldecoding-synchronous.html"><LINK
+REL="NEXT"
+TITLE="リファレンス"
+HREF="reference.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2017-10-17T11:51:21"></HEAD
+><BODY
+CLASS="CHAPTER"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="ロジカルデコーディングにおける同期レプリケーションのサポート"
+HREF="logicaldecoding-synchronous.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="リファレンス"
+HREF="reference.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="REPLICATION-ORIGINS"
+></A
+>第 48章レプリケーション進捗の追跡</H1
+><P
+>レプリケーション起点(replication origins)は、<A
+HREF="logicaldecoding.html"
+>ロジカルデコーディング</A
+>の上に、ロジカルレプリケーションソリューションを実装しやすくすることを意図しています。
 以下の2つの良くある問題に対して解決の方策を提供します。
-  </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><!--
-    <para>How to safely keep track of replication progress</para>
---><p>レプリケーション進捗をどうやって安全に追跡するか</p></li><li class="listitem"><!--
-    <para>How to change replication behavior based on the
-     origin of a row; for example, to prevent loops in bi-directional
-     replication setups</para>
---><p>たとえば双方向レプリケーションにおけるループを回避するために、起点の行ごとに、いかにしてレプリケーションの挙動を変えるか</p></li></ul></div><p>
- </p><p><!--
-  Replication origins have just two properties, a name and an OID. The name,
-  which is what should be used to refer to the origin across systems, is
-  free-form <type>text</type>. It should be used in a way that makes conflicts
-  between replication origins created by different replication solutions
-  unlikely; e.g. by prefixing the replication solution's name to it.
-  The OID is used only to avoid having to store the long version
-  in situations where space efficiency is important. It should never be shared
-  across systems.
--->レプリケーション起点は、名前とOIDから構成されます。
-システム中で起点を参照する際に使われる名前は、任意の<code class="type">text</code>です。
+  <P
+></P
+></P><UL
+><LI
+><P
+>レプリケーション進捗をどうやって安全に追跡するか</P
+></LI
+><LI
+><P
+>たとえば双方向レプリケーションにおけるループを回避するために、起点の行ごとに、いかにしてレプリケーションの挙動を変えるか</P
+></LI
+></UL
+><P>
+ </P
+><P
+>レプリケーション起点は、名前とOIDから構成されます。
+システム中で起点を参照する際に使われる名前は、任意の<TT
+CLASS="TYPE"
+>text</TT
+>です。
 その名前は、たとえばレプリケーションソリューションの名前を接頭辞にすることにより、別々のレプリケーションソリューションによって作成されたレプリケーションオリジンが衝突することがないように使われるべきです。
-<code class="type">oid</code>は、空間効率が重要な場合に、長い名前を格納することを避けたいときにのみ使用します。
-<code class="type">oid</code>はシステム間で共有すべきものではありません。
- </p><p><!--
-  Replication origins can be created using the function
-  <link linkend="pg-replication-origin-create"><function>pg_replication_origin_create()</function></link>;
-  dropped using
-  <link linkend="pg-replication-origin-drop"><function>pg_replication_origin_drop()</function></link>;
-  and seen in the
-  <link linkend="catalog-pg-replication-origin"><structname>pg_replication_origin</structname></link>
-  system catalog.
--->レプリケーション起点は<a class="link" href="functions-admin.html#pg-replication-origin-create"><code class="function">pg_replication_origin_create()</code></a>で作成し、<a class="link" href="functions-admin.html#pg-replication-origin-drop"><code class="function">pg_replication_origin_drop()</code></a>で削除し、<a class="link" href="catalog-pg-replication-origin.html" title="50.40. pg_replication_origin"><code class="structname">pg_replication_origin</code></a>システムカタログを使って参照します。
- </p><p><!--
-  One nontrivial part of building a replication solution is to keep track of
-  replay progress in a safe manner. When the applying process, or the whole
-  cluster, dies, it needs to be possible to find out up to where data has
-  successfully been replicated. Naive solutions to this, such as updating a
-  row in a table for every replayed transaction, have problems like run-time
-  overhead and database bloat.
--->レプリケーションソリューションを構築する際に無視できない問題は、どうやってリプレイの進捗を安全に追跡するか、ということです。
+<TT
+CLASS="TYPE"
+>oid</TT
+>は、空間効率が重要な場合に、長い名前を格納することを避けたいときにのみ使用します。
+<TT
+CLASS="TYPE"
+>oid</TT
+>はシステム間で共有すべきものではありません。
+ </P
+><P
+>レプリケーション起点は<A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-CREATE"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_create()</CODE
+></A
+>で作成し、<A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-DROP"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_drop()</CODE
+></A
+>で削除し、<A
+HREF="catalog-pg-replication-origin.html"
+><TT
+CLASS="STRUCTNAME"
+>pg_replication_origin</TT
+></A
+>システムカタログを使って参照します。
+ </P
+><P
+>レプリケーションソリューションを構築する際に無視できない問題は、どうやってリプレイの進捗を安全に追跡するか、ということです。
 (訳注: ログを)適用するプロセス、あるいはシステム全体が死んだ時に、どこまでデータのレプリケーションが成功したかを見つけることができなければなりません。
 トランザクションのリプレイの度にテーブルの行を更新するような素朴なソリューションは、実行時のオーバヘッドとデータベースの肥大化問題を起こします。
- </p><p><!--
-  Using the replication origin infrastructure a session can be
-  marked as replaying from a remote node (using the
-  <link linkend="pg-replication-origin-session-setup"><function>pg_replication_origin_session_setup()</function></link>
-  function). Additionally the <acronym>LSN</acronym> and commit
-  time stamp of every source transaction can be configured on a per
-  transaction basis using
-  <link linkend="pg-replication-origin-xact-setup"><function>pg_replication_origin_xact_setup()</function></link>.
-  If that's done replication progress will persist in a crash safe
-  manner. Replay progress for all replication origins can be seen in the
-  <link linkend="view-pg-replication-origin-status">
-   <structname>pg_replication_origin_status</structname>
-  </link> view. An individual origin's progress, e.g. when resuming
-  replication, can be acquired using
-  <link linkend="pg-replication-origin-progress"><function>pg_replication_origin_progress()</function></link>
-  for any origin or
-  <link linkend="pg-replication-origin-session-progress"><function>pg_replication_origin_session_progress()</function></link>
-  for the origin configured in the current session.
--->レプリケーション起点のインフラを使用することにより、あるセッションに対してリモートノードからリプレイしていることの目印を付けることができます。(<a class="link" href="functions-admin.html#pg-replication-origin-session-setup"><code class="function">pg_replication_origin_session_setup()</code></a>を使います)
-また、  <a class="link" href="functions-admin.html#pg-replication-origin-xact-setup"><code class="function">pg_replication_origin_xact_setup()</code></a>を使ってすべてのソーストランザクションに対してトランザクション単位で<acronym class="acronym">LSN</acronym>とタイムスタンプを記録するように設定することができます。
+ </P
+><P
+>レプリケーション起点のインフラを使用することにより、あるセッションに対してリモートノードからリプレイしていることの目印を付けることができます。(<A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-SESSION-SETUP"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_session_setup()</CODE
+></A
+>を使います)
+また、  <A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-XACT-SETUP"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_xact_setup()</CODE
+></A
+>を使ってすべてのソーストランザクションに対してトランザクション単位で<ACRONYM
+CLASS="ACRONYM"
+>LSN</ACRONYM
+>とタイムスタンプを記録するように設定することができます。
 終了後は、クラッシュに対して安全な方法で、レプリケーションの進捗は永続的に記録されます。
-すべてのレプリケーション起点のリプレイの進捗は、<a class="link" href="view-pg-replication-origin-status.html" title="50.70. pg_replication_origin_status"><code class="structname">pg_replication_origin_status</code></a>ビューで参照できます。
-たとえばレプリケーションの再開の際などには、個々の起点の進捗を、<a class="link" href="functions-admin.html#pg-replication-origin-progress"><code class="function">pg_replication_origin_progress()</code></a>で参照できます。
-現在のセッションに起点が設定されている場合は、<a class="link" href="functions-admin.html#pg-replication-origin-session-progress"><code class="function">pg_replication_origin_session_progress()</code></a>を使用します。
- </p><p><!--
-  In replication topologies more complex than replication from exactly one
-  system to one other system, another problem can be that it is hard to avoid
-  replicating replayed rows again. That can lead both to cycles in the
-  replication and inefficiencies. Replication origins provide an optional
-  mechanism to recognize and prevent that. When configured using the functions
-  referenced in the previous paragraph, every change and transaction passed to
-  output plugin callbacks (see <xref linkend="logicaldecoding-output-plugin">)
-  generated by the session is tagged with the replication origin of the
-  generating session.  This allows treating them differently in the output
-  plugin, e.g. ignoring all but locally-originating rows.  Additionally
-  the <link linkend="logicaldecoding-output-plugin-filter-origin">
-  <function>filter_by_origin_cb</function></link> callback can be used
-  to filter the logical decoding change stream based on the
-  source. While less flexible, filtering via that callback is
-  considerably more efficient than doing it in the output plugin.
--->厳密に一つのシステムから別の一つのシステムにレプリケーションする以上のより複雑なレプリケーションのトポロジでは、リプレイされた行を再びレプリケーションするのを避けるのが難しいという別な問題が発生するかもしれません。
+すべてのレプリケーション起点のリプレイの進捗は、<A
+HREF="view-pg-replication-origin-status.html"
+><TT
+CLASS="STRUCTNAME"
+>pg_replication_origin_status</TT
+></A
+>ビューで参照できます。
+たとえばレプリケーションの再開の際などには、個々の起点の進捗を、<A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-PROGRESS"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_progress()</CODE
+></A
+>で参照できます。
+現在のセッションに起点が設定されている場合は、<A
+HREF="functions-admin.html#PG-REPLICATION-ORIGIN-SESSION-PROGRESS"
+><CODE
+CLASS="FUNCTION"
+>pg_replication_origin_session_progress()</CODE
+></A
+>を使用します。
+ </P
+><P
+>厳密に一つのシステムから別の一つのシステムにレプリケーションする以上のより複雑なレプリケーションのトポロジでは、リプレイされた行を再びレプリケーションするのを避けるのが難しいという別な問題が発生するかもしれません。
 これにより、レプリケーションの巡回と、非効率性の両方が発生するかもしれません。
 レプリケーション起点には、この問題を認識し、避けるためのオプションの機構があります。
-前段で言及した関数を使うと、出力プラグインコールバック(<a class="xref" href="logicaldecoding-output-plugin.html" title="47.6. ロジカルデコーディングの出力プラグイン">47.6. ロジカルデコーディングの出力プラグイン</a>参照)に渡されるすべての更新とトランザクションに、セッションを生成しているレプリケーション起点がタグ付けされます。
+前段で言及した関数を使うと、出力プラグインコールバック(<A
+HREF="logicaldecoding-output-plugin.html"
+>項47.6</A
+>参照)に渡されるすべての更新とトランザクションに、セッションを生成しているレプリケーション起点がタグ付けされます。
 これにより、出力プラグインの中でそれらの扱いを分けることができます。たとえばローカルに起因する行以外はすべて無視するような場合です。
-また追加で、ソースに基づくロジカルデコーディングの変更ストリームをフィルターするために<a class="link" href="logicaldecoding-output-plugin.html#logicaldecoding-output-plugin-filter-origin" title="47.6.4.6. オリジンフィルターコールバック"><code class="function">filter_by_origin_cb</code></a>コールバックを使うことができます。
+また追加で、ソースに基づくロジカルデコーディングの変更ストリームをフィルターするために<A
+HREF="logicaldecoding-output-plugin.html#LOGICALDECODING-OUTPUT-PLUGIN-FILTER-ORIGIN"
+><CODE
+CLASS="FUNCTION"
+>filter_by_origin_cb</CODE
+></A
+>コールバックを使うことができます。
 これは柔軟ではありませんが、アウトプットプラグインを通してフィルタリングするのはずっと効率的です。
- </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="logicaldecoding-synchronous.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="server-programming.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="reference.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">47.8. ロジカルデコーディングにおける同期レプリケーションのサポート </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> パート VI. リファレンス</td></tr></table></div></body></html>
+ </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="logicaldecoding-synchronous.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="reference.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>ロジカルデコーディングにおける同期レプリケーションのサポート</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>リファレンス</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

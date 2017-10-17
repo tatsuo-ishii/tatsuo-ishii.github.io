@@ -1,43 +1,237 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>49.4. PostgreSQLルールシステム</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="parser-stage.html" title="49.3. 構文解析過程" /><link rel="next" href="planner-optimizer.html" title="49.5. プランナ/オプティマイザ" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><td width="20%" align="left" colspan="2"></td><th width="60%" align="center"><a accesskey="h" href="index.html">PostgreSQL 9.6.5文書</a></th><td width="20%" align="right"></td></tr><tr><td width="10%" align="left" valign="top"><a accesskey="p" href="parser-stage.html">前へ</a> </td><td width="10%" align="left" valign="top"><a accesskey="u" href="overview.html">上へ</a></td><td width="60%" align="center">49.4. <span class="productname">PostgreSQL</span>ルールシステム</td><td width="20%" align="right" valign="top"> <a accesskey="n" href="planner-optimizer.html">次へ</a></td></tr></table><hr /></div><div class="sect1" id="rule-system"><div class="titlepage"><div><div><h2 class="title" style="clear: both">49.4. <span class="productname">PostgreSQL</span>ルールシステム</h2></div></div></div><!--
-   <title>The <productname>PostgreSQL</productname> Rule System</title>
---><p><!--
-    <productname>PostgreSQL</productname> supports a powerful
-    <firstterm>rule system</firstterm> for the specification
-    of <firstterm>views</firstterm> and ambiguous <firstterm>view updates</firstterm>.
-    Originally the <productname>PostgreSQL</productname>
-    rule system consisted of two implementations:
---><span class="productname">PostgreSQL</span>には、<em class="firstterm">ビュー</em>と理解の仕方でどうとも取れる<em class="firstterm">ビューの更新</em>の仕様に対応する強力な<em class="firstterm">ルールシステム</em>があります。
-元々<span class="productname">PostgreSQL</span>のルールシステムは2つの実装で構成されていました。
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>PostgreSQLルールシステム</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="PostgreSQL内部の概要"
+HREF="overview.html"><LINK
+REL="PREVIOUS"
+TITLE="構文解析過程"
+HREF="parser-stage.html"><LINK
+REL="NEXT"
+TITLE="プランナ/オプティマイザ"
+HREF="planner-optimizer.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2017-10-17T11:51:21"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="構文解析過程"
+HREF="parser-stage.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="overview.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 49章PostgreSQL内部の概要</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="プランナ/オプティマイザ"
+HREF="planner-optimizer.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RULE-SYSTEM"
+>49.4. <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>ルールシステム</A
+></H1
+><P
+><SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>には、<I
+CLASS="FIRSTTERM"
+>ビュー</I
+>と理解の仕方でどうとも取れる<I
+CLASS="FIRSTTERM"
+>ビューの更新</I
+>の仕様に対応する強力な<I
+CLASS="FIRSTTERM"
+>ルールシステム</I
+>があります。
+元々<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>のルールシステムは2つの実装で構成されていました。
 
-    </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p><!--
-       The first one worked using <firstterm>row level</firstterm> processing and was
-       implemented deep in the <firstterm>executor</firstterm>. The rule system was
-       called whenever an individual row had been accessed. This
-       implementation was removed in 1995 when the last official release
-       of the <productname>Berkeley Postgres</productname> project was
-       transformed into <productname>Postgres95</productname>.
--->初めの1つは<em class="firstterm">行レベル</em>の処理を使って動き、<em class="firstterm">エクゼキュータ</em>の内部に深く実装されていました。
+    <P
+></P
+></P><UL
+><LI
+><P
+>初めの1つは<I
+CLASS="FIRSTTERM"
+>行レベル</I
+>の処理を使って動き、<I
+CLASS="FIRSTTERM"
+>エクゼキュータ</I
+>の内部に深く実装されていました。
 個別の行がアクセスされる度にルールシステムが呼ばれていました。
-この実装は1995年、最後の<span class="productname">Berkeley PostgreSQL</span>プロジェクトの公式リリースが<span class="productname">Postgres95</span>へ移行する時に削除されました。
-      </p></li><li class="listitem"><p><!--
-       The second implementation of the rule system is a technique
-       called <firstterm>query rewriting</firstterm>.
-       The <firstterm>rewrite system</firstterm> is a module
-       that exists between the <firstterm>parser stage</firstterm> and the
-       <firstterm>planner/optimizer</firstterm>. This technique is still implemented.
--->ルールシステムの2つ目の実装は<em class="firstterm">問い合わせ書き換え</em>と呼ばれる手法です。
-<em class="firstterm">書き換えシステム</em>は<em class="firstterm">構文解析過程</em>と<em class="firstterm">プランナ/オプティマイザ</em>の間にあるモジュールです。
+この実装は1995年、最後の<SPAN
+CLASS="PRODUCTNAME"
+>Berkeley PostgreSQL</SPAN
+>プロジェクトの公式リリースが<SPAN
+CLASS="PRODUCTNAME"
+>Postgres95</SPAN
+>へ移行する時に削除されました。
+      </P
+></LI
+><LI
+><P
+>ルールシステムの2つ目の実装は<I
+CLASS="FIRSTTERM"
+>問い合わせ書き換え</I
+>と呼ばれる手法です。
+<I
+CLASS="FIRSTTERM"
+>書き換えシステム</I
+>は<I
+CLASS="FIRSTTERM"
+>構文解析過程</I
+>と<I
+CLASS="FIRSTTERM"
+>プランナ/オプティマイザ</I
+>の間にあるモジュールです。
 この手法は現在でも実装されています。
-      </p></li></ul></div><p>
-   </p><p><!--
-    The query rewriter is discussed in some detail in
-    <xref linkend="rules">, so there is no need to cover it here.
-    We will only point out that both the input and the output of the
-    rewriter are query trees, that is, there is no change in the
-    representation or level of semantic detail in the trees.  Rewriting
-    can be thought of as a form of macro expansion.
--->問い合わせの書き換えについては<a class="xref" href="rules.html" title="第39章 ルールシステム">39章<em>ルールシステム</em></a>にて詳しく論議されますので、ここでは取り扱いません。
+      </P
+></LI
+></UL
+><P>
+   </P
+><P
+>問い合わせの書き換えについては<A
+HREF="rules.html"
+>第39章</A
+>にて詳しく論議されますので、ここでは取り扱いません。
 書き換えの入出力はともに問い合わせツリーである、つまり、ツリー内の表現の仕方や語義をどの程度詳しく判断するかには変更はない、ということを指摘するのに留めます。
 書き換えはマクロの拡張と捉えることもできます。
-   </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="parser-stage.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="overview.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="planner-optimizer.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">49.3. 構文解析過程 </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 49.5. プランナ/オプティマイザ</td></tr></table></div></body></html>
+   </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="parser-stage.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="planner-optimizer.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>構文解析過程</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="overview.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>プランナ/オプティマイザ</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

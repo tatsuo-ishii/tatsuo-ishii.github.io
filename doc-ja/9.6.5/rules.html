@@ -1,29 +1,294 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>第39章 ルールシステム</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="event-trigger-table-rewrite-example.html" title="38.5. テーブル書き換えイベントトリガの例" /><link rel="next" href="querytree.html" title="39.1. 問い合わせツリーとは" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><td width="20%" align="left" colspan="2"></td><th width="60%" align="center"><a accesskey="h" href="index.html">PostgreSQL 9.6.5文書</a></th><td width="20%" align="right"></td></tr><tr><td width="10%" align="left" valign="top"><a accesskey="p" href="event-trigger-table-rewrite-example.html">前へ</a> </td><td width="10%" align="left" valign="top"><a accesskey="u" href="server-programming.html">上へ</a></td><td width="60%" align="center">第39章 ルールシステム</td><td width="20%" align="right" valign="top"> <a accesskey="n" href="querytree.html">次へ</a></td></tr></table><hr /></div><div class="chapter" id="rules"><div class="titlepage"><div><div><h2 class="title">第39章 ルールシステム</h2></div></div></div><div class="toc"><p><strong>目次</strong></p><dl class="toc"><dt><span class="sect1"><a href="querytree.html">39.1. 問い合わせツリーとは</a></span></dt><dt><span class="sect1"><a href="rules-views.html">39.2. ビューとルールシステム</a></span></dt><dd><dl><dt><span class="sect2"><a href="rules-views.html#rules-select">39.2.1. <code class="command">SELECT</code>ルールの動き</a></span></dt><dt><span class="sect2"><a href="rules-views.html#idp47048750761040">39.2.2. 非<code class="command">SELECT</code>文のビュールール</a></span></dt><dt><span class="sect2"><a href="rules-views.html#idp47048750801824">39.2.3. <span class="productname">PostgreSQL</span>におけるビューの能力</a></span></dt><dt><span class="sect2"><a href="rules-views.html#rules-views-update">39.2.4. ビューの更新について</a></span></dt></dl></dd><dt><span class="sect1"><a href="rules-materializedviews.html">39.3. マテリアライズドビュー</a></span></dt><dt><span class="sect1"><a href="rules-update.html">39.4. <code class="command">INSERT</code>、<code class="command">UPDATE</code>、<code class="command">DELETE</code>についてのルール</a></span></dt><dd><dl><dt><span class="sect2"><a href="rules-update.html#idp47048750913488">39.4.1. 更新ルールの動作</a></span></dt><dt><span class="sect2"><a href="rules-update.html#rules-update-views">39.4.2. ビューとの協調</a></span></dt></dl></dd><dt><span class="sect1"><a href="rules-privileges.html">39.5. ルールと権限</a></span></dt><dt><span class="sect1"><a href="rules-status.html">39.6. ルールおよびコマンドの状態</a></span></dt><dt><span class="sect1"><a href="rules-triggers.html">39.7. ルール対トリガ</a></span></dt></dl></div><!--
-<title>The Rule System</title>
---><a id="idp47048750595376" class="indexterm"></a><p><!--
-     This chapter discusses the rule system in
-     <productname>PostgreSQL</productname>.  Production rule systems
-     are conceptually simple, but there are many subtle points
-     involved in actually using them.
--->本章では<span class="productname">PostgreSQL</span>のルールシステムについて説明します。
-本番で稼働するルールシステムは概念としては単純ですが、実際に使ってみると、わかりにくいところが少なからずあります。</p><p><!--
-     Some other database systems define active database rules, which
-     are usually stored procedures and triggers.  In
-     <productname>PostgreSQL</productname>, these can be implemented
-     using functions and triggers as well.
--->通常それらはストアドプロシージャとトリガですが、他のいくつかのデータベースシステムは能動的データベースルールを定義しています。
-<span class="productname">PostgreSQL</span>では関数とトリガとして実装されています。</p><p><!--
-     The rule system (more precisely speaking, the query rewrite rule
-     system) is totally different from stored procedures and triggers.
-     It modifies queries to take rules into consideration, and then
-     passes the modified query to the query planner for planning and
-     execution.  It is very powerful, and can be used for many things
-     such as query language procedures, views, and versions.  The
-     theoretical foundations and the power of this rule system are
-     also discussed in <xref linkend="STON90b"> and <xref
-     linkend="ONG90">.
--->ルールシステム（より正確に言うと問い合わせ書き換えルールシステム）はストアドプロシージャとトリガとはまったく異なります。
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>ルールシステム</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="サーバプログラミング"
+HREF="server-programming.html"><LINK
+REL="PREVIOUS"
+TITLE="テーブル書き換えイベントトリガの例"
+HREF="event-trigger-table-rewrite-example.html"><LINK
+REL="NEXT"
+TITLE="問い合わせツリーとは"
+HREF="querytree.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2017-10-17T11:51:21"></HEAD
+><BODY
+CLASS="CHAPTER"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="テーブル書き換えイベントトリガの例"
+HREF="event-trigger-table-rewrite-example.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="問い合わせツリーとは"
+HREF="querytree.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="RULES"
+></A
+>第 39章ルールシステム</H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>目次</B
+></DT
+><DT
+>39.1. <A
+HREF="querytree.html"
+>問い合わせツリーとは</A
+></DT
+><DT
+>39.2. <A
+HREF="rules-views.html"
+>ビューとルールシステム</A
+></DT
+><DD
+><DL
+><DT
+>39.2.1. <A
+HREF="rules-views.html#RULES-SELECT"
+><TT
+CLASS="COMMAND"
+>SELECT</TT
+>ルールの動き</A
+></DT
+><DT
+>39.2.2. <A
+HREF="rules-views.html#AEN64312"
+>非<TT
+CLASS="COMMAND"
+>SELECT</TT
+>文のビュールール</A
+></DT
+><DT
+>39.2.3. <A
+HREF="rules-views.html#AEN64368"
+><SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>におけるビューの能力</A
+></DT
+><DT
+>39.2.4. <A
+HREF="rules-views.html#RULES-VIEWS-UPDATE"
+>ビューの更新について</A
+></DT
+></DL
+></DD
+><DT
+>39.3. <A
+HREF="rules-materializedviews.html"
+>マテリアライズドビュー</A
+></DT
+><DT
+>39.4. <A
+HREF="rules-update.html"
+><TT
+CLASS="COMMAND"
+>INSERT</TT
+>、<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>、<TT
+CLASS="COMMAND"
+>DELETE</TT
+>についてのルール</A
+></DT
+><DD
+><DL
+><DT
+>39.4.1. <A
+HREF="rules-update.html#AEN64502"
+>更新ルールの動作</A
+></DT
+><DT
+>39.4.2. <A
+HREF="rules-update.html#RULES-UPDATE-VIEWS"
+>ビューとの協調</A
+></DT
+></DL
+></DD
+><DT
+>39.5. <A
+HREF="rules-privileges.html"
+>ルールと権限</A
+></DT
+><DT
+>39.6. <A
+HREF="rules-status.html"
+>ルールおよびコマンドの状態</A
+></DT
+><DT
+>39.7. <A
+HREF="rules-triggers.html"
+>ルール対トリガ</A
+></DT
+></DL
+></DIV
+><P
+>本章では<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>のルールシステムについて説明します。
+本番で稼働するルールシステムは概念としては単純ですが、実際に使ってみると、わかりにくいところが少なからずあります。</P
+><P
+>通常それらはストアドプロシージャとトリガですが、他のいくつかのデータベースシステムは能動的データベースルールを定義しています。
+<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>では関数とトリガとして実装されています。</P
+><P
+>ルールシステム（より正確に言うと問い合わせ書き換えルールシステム）はストアドプロシージャとトリガとはまったく異なります。
 ルールシステムはルールを参照して問い合わせを修正し、修正した問い合わせを、計画作成と実行のために問い合わせプランナに渡します。
 これは非常に強力なため、問い合わせ言語プロシージャ、ビューあるいはバージョンなど多くのパターンで使用することができます。
-このルールシステムの基礎理論と能力は<a class="xref" href="biblio.html#ston90b">[ston90b]</a>および<a class="xref" href="biblio.html#ong90">[ong90]</a>で解説されています。</p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="event-trigger-table-rewrite-example.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="server-programming.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="querytree.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">38.5. テーブル書き換えイベントトリガの例 </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 39.1. 問い合わせツリーとは</td></tr></table></div></body></html>
+このルールシステムの基礎理論と能力は<A
+HREF="biblio.html#STON90B"
+><I
+><A
+HREF="http://db.cs.berkeley.edu/papers/ERL-M90-36.pdf"
+TARGET="_top"
+>    On Rules, Procedures, Caching and Views in Database Systems
+    </A
+></I
+></A
+>および<A
+HREF="biblio.html#ONG90"
+><I
+>A Unified Framework for Version Modeling Using Production Rules in a Database System</I
+></A
+>で解説されています。</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="event-trigger-table-rewrite-example.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="querytree.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>テーブル書き換えイベントトリガの例</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="server-programming.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>問い合わせツリーとは</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

@@ -1,15 +1,271 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>第13章 同時実行制御</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="textsearch-migration.html" title="12.12. 8.3以前のテキスト検索からの移行" /><link rel="next" href="mvcc-intro.html" title="13.1. 序文" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><td width="20%" align="left" colspan="2"></td><th width="60%" align="center"><a accesskey="h" href="index.html">PostgreSQL 9.6.5文書</a></th><td width="20%" align="right"></td></tr><tr><td width="10%" align="left" valign="top"><a accesskey="p" href="textsearch-migration.html">前へ</a> </td><td width="10%" align="left" valign="top"><a accesskey="u" href="sql.html">上へ</a></td><td width="60%" align="center">第13章 同時実行制御</td><td width="20%" align="right" valign="top"> <a accesskey="n" href="mvcc-intro.html">次へ</a></td></tr></table><hr /></div><div class="chapter" id="mvcc"><div class="titlepage"><div><div><h2 class="title">第13章 同時実行制御</h2></div></div></div><div class="toc"><p><strong>目次</strong></p><dl class="toc"><dt><span class="sect1"><a href="mvcc-intro.html">13.1. 序文</a></span></dt><dt><span class="sect1"><a href="transaction-iso.html">13.2. トランザクションの分離</a></span></dt><dd><dl><dt><span class="sect2"><a href="transaction-iso.html#xact-read-committed">13.2.1. リードコミッティド分離レベル</a></span></dt><dt><span class="sect2"><a href="transaction-iso.html#xact-repeatable-read">13.2.2. リピータブルリード分離レベル</a></span></dt><dt><span class="sect2"><a href="transaction-iso.html#xact-serializable">13.2.3. シリアライザブル分離レベル</a></span></dt></dl></dd><dt><span class="sect1"><a href="explicit-locking.html">13.3. 明示的ロック</a></span></dt><dd><dl><dt><span class="sect2"><a href="explicit-locking.html#locking-tables">13.3.1. テーブルレベルロック</a></span></dt><dt><span class="sect2"><a href="explicit-locking.html#locking-rows">13.3.2. 行レベルロック</a></span></dt><dt><span class="sect2"><a href="explicit-locking.html#locking-pages">13.3.3. ページレベルロック</a></span></dt><dt><span class="sect2"><a href="explicit-locking.html#locking-deadlocks">13.3.4. デッドロック</a></span></dt><dt><span class="sect2"><a href="explicit-locking.html#advisory-locks">13.3.5. 勧告的ロック</a></span></dt></dl></dd><dt><span class="sect1"><a href="applevel-consistency.html">13.4. アプリケーションレベルでのデータの一貫性チェック</a></span></dt><dd><dl><dt><span class="sect2"><a href="applevel-consistency.html#serializable-consistency">13.4.1. シリアライザブルトランザクションを用いた一貫性の強化</a></span></dt><dt><span class="sect2"><a href="applevel-consistency.html#non-serializable-consistency">13.4.2. 明示的なブロッキングロックを用いた一貫性の強化</a></span></dt></dl></dd><dt><span class="sect1"><a href="mvcc-caveats.html">13.5. 警告</a></span></dt><dt><span class="sect1"><a href="locking-indexes.html">13.6. ロックとインデックス</a></span></dt></dl></div><!--
-  <title>Concurrency Control</title>
---><a id="idp47048729947968" class="indexterm"></a><p><!--
-   This chapter describes the behavior of the
-   <productname>PostgreSQL</productname> database system when two or
-   more sessions try to access the same data at the same time.  The
-   goals in that situation are to allow efficient access for all
-   sessions while maintaining strict data integrity.  Every developer
-   of database applications should be familiar with the topics covered
-   in this chapter.
--->本章では同時に2つ以上のセッションが同じデータにアクセスしようとした場合、<span class="productname">PostgreSQL</span>データベースシステムがどう振舞うかについて説明します。
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>同時実行制御</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="SQL言語"
+HREF="sql.html"><LINK
+REL="PREVIOUS"
+TITLE="8.3以前のテキスト検索からの移行"
+HREF="textsearch-migration.html"><LINK
+REL="NEXT"
+TITLE="序文"
+HREF="mvcc-intro.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2017-10-17T11:51:21"></HEAD
+><BODY
+CLASS="CHAPTER"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="8.3以前のテキスト検索からの移行"
+HREF="textsearch-migration.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="sql.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="序文"
+HREF="mvcc-intro.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="MVCC"
+></A
+>第 13章同時実行制御</H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>目次</B
+></DT
+><DT
+>13.1. <A
+HREF="mvcc-intro.html"
+>序文</A
+></DT
+><DT
+>13.2. <A
+HREF="transaction-iso.html"
+>トランザクションの分離</A
+></DT
+><DD
+><DL
+><DT
+>13.2.1. <A
+HREF="transaction-iso.html#XACT-READ-COMMITTED"
+>リードコミッティド分離レベル</A
+></DT
+><DT
+>13.2.2. <A
+HREF="transaction-iso.html#XACT-REPEATABLE-READ"
+>リピータブルリード分離レベル</A
+></DT
+><DT
+>13.2.3. <A
+HREF="transaction-iso.html#XACT-SERIALIZABLE"
+>シリアライザブル分離レベル</A
+></DT
+></DL
+></DD
+><DT
+>13.3. <A
+HREF="explicit-locking.html"
+>明示的ロック</A
+></DT
+><DD
+><DL
+><DT
+>13.3.1. <A
+HREF="explicit-locking.html#LOCKING-TABLES"
+>テーブルレベルロック</A
+></DT
+><DT
+>13.3.2. <A
+HREF="explicit-locking.html#LOCKING-ROWS"
+>行レベルロック</A
+></DT
+><DT
+>13.3.3. <A
+HREF="explicit-locking.html#LOCKING-PAGES"
+>ページレベルロック</A
+></DT
+><DT
+>13.3.4. <A
+HREF="explicit-locking.html#LOCKING-DEADLOCKS"
+>デッドロック</A
+></DT
+><DT
+>13.3.5. <A
+HREF="explicit-locking.html#ADVISORY-LOCKS"
+>勧告的ロック</A
+></DT
+></DL
+></DD
+><DT
+>13.4. <A
+HREF="applevel-consistency.html"
+>アプリケーションレベルでのデータの一貫性チェック</A
+></DT
+><DD
+><DL
+><DT
+>13.4.1. <A
+HREF="applevel-consistency.html#SERIALIZABLE-CONSISTENCY"
+>シリアライザブルトランザクションを用いた一貫性の強化</A
+></DT
+><DT
+>13.4.2. <A
+HREF="applevel-consistency.html#NON-SERIALIZABLE-CONSISTENCY"
+>明示的なブロッキングロックを用いた一貫性の強化</A
+></DT
+></DL
+></DD
+><DT
+>13.5. <A
+HREF="mvcc-caveats.html"
+>警告</A
+></DT
+><DT
+>13.6. <A
+HREF="locking-indexes.html"
+>ロックとインデックス</A
+></DT
+></DL
+></DIV
+><P
+>本章では同時に2つ以上のセッションが同じデータにアクセスしようとした場合、<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>データベースシステムがどう振舞うかについて説明します。
 このような状況でデータの整合性を確実に保つ一方、全てのセッションに対して効果的なアクセスを許可するようにすることが目的です。
 データベースアプリケーションを開発する方は、本章で扱われている内容を熟知していなければなりません。
-  </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="textsearch-migration.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="sql.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="mvcc-intro.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">12.12. 8.3以前のテキスト検索からの移行 </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 13.1. 序文</td></tr></table></div></body></html>
+  </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="textsearch-migration.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="mvcc-intro.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>8.3以前のテキスト検索からの移行</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="sql.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>序文</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
