@@ -1,0 +1,282 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>ディスク使用量の決定</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="ディスク使用量の監視"
+HREF="diskusage.html"><LINK
+REL="PREVIOUS"
+TITLE="ディスク使用量の監視"
+HREF="diskusage.html"><LINK
+REL="NEXT"
+TITLE="ディスク容量不足による問題"
+HREF="disk-full.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2018-02-10T07:29:51"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="ディスク使用量の監視"
+HREF="diskusage.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="diskusage.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 29章ディスク使用量の監視</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="ディスク容量不足による問題"
+HREF="disk-full.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="DISK-USAGE"
+>29.1. ディスク使用量の決定</A
+></H1
+><P
+>各テーブルには、データの大部分が格納されるプライマリヒープディスクファイルが備わっています。
+もしテーブルが、長くなる可能性のある値を持つ列を持つ時は、テーブルに関連付けられた<ACRONYM
+CLASS="ACRONYM"
+>TOAST</ACRONYM
+>ファイルもあるかもしれません。
+このファイルは、メインテーブルに収納するには大き過ぎる値をテーブルに格納するために使用されます（<A
+HREF="storage-toast.html"
+>項65.2</A
+>を参照してください）。
+<ACRONYM
+CLASS="ACRONYM"
+>TOAST</ACRONYM
+>テーブルが存在する場合は、そのテーブルに有効なインデックスが1つあります。
+基本テーブルに関連付けられたインデックスが存在することもあります。
+テーブルとインデックスはそれぞれ別のディスクファイルに格納されます。
+このファイルが1ギガバイトを超える場合は、複数のファイルになります。
+これらのファイルの命名規約について<A
+HREF="storage-file-layout.html"
+>項65.1</A
+>で説明します。
+  </P
+><P
+>ディスクスペースの監視は、次の3つの方法で行えます。
+<A
+HREF="functions-admin.html#FUNCTIONS-ADMIN-DBSIZE"
+>表9-83</A
+>にあるSQL関数を使用する方法と
+<A
+HREF="oid2name.html"
+>oid2name</A
+>モジュールを使用する方法、およびシステムカタログを手動で調べる方法です。
+SQL関数を使用する方法が、一般的に一番簡単な方法です。
+本セクションの残りの部分で、システムカタログを調査することによりこの方法を示します。
+  </P
+><P
+>バキュームされて間もないデータベース、もしくは解析されたデータベース上で<SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>を使用することにより、どのようなテーブルでもディスクの使用量を調べる問い合わせを発行できます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SELECT pg_relation_filepath(oid), relpages FROM pg_class WHERE relname = 'customer';
+
+ pg_relation_filepath | relpages
+----------------------+----------
+ base/16384/16806     |       60
+(1 row)</PRE
+><P>
+1ページは通常8キロバイトです
+（<TT
+CLASS="STRUCTFIELD"
+>relpages</TT
+>は<TT
+CLASS="COMMAND"
+>VACUUM</TT
+>と<TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>、さらに<TT
+CLASS="COMMAND"
+>CREATE INDEX</TT
+>といったいくつかのDDLによってのみ更新されることに注意してください）。
+もしテーブルのディスクファイルを直接調べるときは、ファイルのパス名称に注目して下さい。
+  </P
+><P
+><ACRONYM
+CLASS="ACRONYM"
+>TOAST</ACRONYM
+>テーブルで使用されている容量を示すには、以下のような問い合わせを使用してください。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SELECT relname, relpages
+FROM pg_class,
+     (SELECT reltoastrelid
+      FROM pg_class
+      WHERE relname = 'customer') AS ss
+WHERE oid = ss.reltoastrelid OR
+      oid = (SELECT indexrelid
+             FROM pg_index
+             WHERE indrelid = ss.reltoastrelid)
+ORDER BY relname;
+
+       relname        | relpages
+----------------------+----------
+ pg_toast_16806       |        0
+ pg_toast_16806_index |        1</PRE
+><P>
+  </P
+><P
+>インデックスサイズについても、以下のように簡単に表示できます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SELECT c2.relname, c2.relpages
+FROM pg_class c, pg_class c2, pg_index i
+WHERE c.relname = 'customer' AND
+      c.oid = i.indrelid AND
+      c2.oid = i.indexrelid
+ORDER BY c2.relname;
+
+       relname        | relpages
+----------------------+----------
+ customer_id_indexdex |       26</PRE
+><P>
+  </P
+><P
+>この情報を使用して、以下のように簡単に最大のテーブルとインデックスを見つけ出すことができます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SELECT relname, relpages
+FROM pg_class
+ORDER BY relpages DESC;
+
+       relname        | relpages
+----------------------+----------
+ bigtable             |     3290
+ customer             |     3144</PRE
+><P>
+  </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="diskusage.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="disk-full.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>ディスク使用量の監視</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="diskusage.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>ディスク容量不足による問題</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

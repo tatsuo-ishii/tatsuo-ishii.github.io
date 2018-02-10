@@ -1,0 +1,295 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>ロジカルデコーディングのコンセプト</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="ロジカルデコーディング"
+HREF="logicaldecoding.html"><LINK
+REL="PREVIOUS"
+TITLE="ロジカルデコーディングの例"
+HREF="logicaldecoding-example.html"><LINK
+REL="NEXT"
+TITLE="ストリームレプリケーションプロトコルインターフェイス"
+HREF="logicaldecoding-walsender.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2018-02-10T07:29:51"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="ロジカルデコーディングの例"
+HREF="logicaldecoding-example.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="logicaldecoding.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 47章ロジカルデコーディング</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="ストリームレプリケーションプロトコルインターフェイス"
+HREF="logicaldecoding-walsender.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="LOGICALDECODING-EXPLANATION"
+>47.2. ロジカルデコーディングのコンセプト</A
+></H1
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN71850"
+>47.2.1. ロジカルデコーディング</A
+></H2
+><P
+>&#13;ロジカルデコーディングは、データベースのテーブルへの恒久的な更新を、一貫性があって、データベース内部の状態に関する詳細な知識がなくても容易に理解できる形式として取得するプロセスです。
+    </P
+><P
+>&#13;<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>においてロジカルデコーディングは、記憶装置のレベルで更新を記述する<A
+HREF="wal.html"
+>書き込み先行ログ</A
+>の内容を、タプルやSQL文のストリームといったアプリケーション固有の形式にデコードすることによって実装されています。
+    </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="LOGICALDECODING-REPLICATION-SLOTS"
+>47.2.2. レプリケーションスロット</A
+></H2
+><P
+>ロジカルレプリケーションの文脈ではスロットは、元のサーバで行われた変更と同じ順序でクライアント上でリプレイできるようなストリームを表します。
+それぞれのスロットは、単一のデータベース上の変更操作の連鎖をストリームとして流します。
+    </P
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>注意: </B
+>また<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>には、ストリーミングレプリケーションスロットがあります
+(<A
+HREF="warm-standby.html#STREAMING-REPLICATION"
+>項26.2.5</A
+>参照)。しかし、ここでの説明とは少し違う使い方がされています。
+     </P
+></BLOCKQUOTE
+></DIV
+><P
+>それぞれのレプリケーションスロットは<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>クラスタの中で一意な識別子を持っています。スロットは、そのために使用される接続とは独立しており、クラッシュセーフです。
+    </P
+><P
+>ロジカルスロットは、通常の操作においては、各々の変更操作を一度だけ送出します。
+それぞれのスロットにおける現在位置は、チェックポイントのときにだけ永続的になります。
+ですからクラッシュすると、スロットは以前のLSNに戻ってしまうかもしれませんし、サーバの再起動時には最近の変更が再送されることになります。
+ロジカルデコーディングのクライアントは、同じメッセージを複数回扱うことによる好ましくない結果を避けることに対して責任を追っています。
+クライアントはデコーディングの際に最後に確認したLSNを記録し、繰り返されるデータをスキップしたり、（レプリケーションプロトコルを使う場合に）サーバに開始時点を決めさせるのではなく、記録しておいたLSNからデコーディングを始めるように要求するかもしれません。
+レプリケーション進捗追跡機能はこの目的のために設計されています。
+<A
+HREF="replication-origins.html"
+>replication origins</A
+>を参照してください。
+    </P
+><P
+>単一のデータベース中に、お互いに独立した複数のスロットが存在しても構いません。
+それぞれのスロットは自分自身の状態を持っており、データベース更新のストリーム上の別の場所から変更データを受信する異なる消費者があり得ます。
+多くのアプリケーションにとっては、各消費者に対して個別のスロットが必要となるでしょう。
+    </P
+><P
+>ロジカルレプリケーションスロットは、受信者の状態については関知しません。同時にでなければ、同じスロットを使う複数の異なる受信者を持つことさえできます。その場合は、直近の受信者がストリームの消費を終了した時点から更新データを受信するだけです。
+    </P
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>注意: </B
+>レプリケーションスロットは、クラッシュをまたがって永続し、消費者の状態については関知しません。
+スロットを使う接続がない場合でも、消費者が必要としているリソースが削除されることを防ぎます。
+これによりストレージが消費されます。何故ならば、関連するWALもシステムカタログの行も、レプリケーションスロットが必要とする限り<TT
+CLASS="COMMAND"
+>VACUUM</TT
+>によって削除されないからです。
+したがって、必要でなくなったスロットは削除すべきです。
+     </P
+></BLOCKQUOTE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN71877"
+>47.2.3. 出力プラグイン</A
+></H2
+><P
+>出力プラグインは、書き込み先行ログの内部データ表現を、レプリケーションスロットの消費者が必要とする形式に変換します。
+    </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN71880"
+>47.2.4. スナップショットのエクスポート</A
+></H2
+><P
+>ストリーミングレプリケーションのインターフェイスを使って新しいスロットを作ると、スナップショットがエクスポートされます(<A
+HREF="functions-admin.html#FUNCTIONS-SNAPSHOT-SYNCHRONIZATION"
+>項9.26.5</A
+>参照)。
+このスナップショットはまさにその時点でのデータベースの状態を示しており、スナップショット以後のすべての変更は更新ストリームに含まれるようになります。
+このことを利用して、スロットが作られた際のデータベースの状態を<A
+HREF="sql-set-transaction.html"
+><TT
+CLASS="LITERAL"
+>SET TRANSACTION SNAPSHOT</TT
+></A
+>を使って読み込むことにより、新しいレプリカを作ることができます。
+このトランザクションは、その時点のデータベースの状態をダンプするために使用することができます。
+また、スロットに含まれるデータを使って、ダンプした後で行われた更新を失うことなくデータベースを更新できます。
+    </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="logicaldecoding-example.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="logicaldecoding-walsender.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>ロジカルデコーディングの例</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="logicaldecoding.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>ストリームレプリケーションプロトコルインターフェイス</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

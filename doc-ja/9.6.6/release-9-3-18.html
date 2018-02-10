@@ -1,0 +1,850 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>リリース9.3.18</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="リリースノート"
+HREF="release.html"><LINK
+REL="PREVIOUS"
+TITLE="リリース9.3.19"
+HREF="release-9-3-19.html"><LINK
+REL="NEXT"
+TITLE="リリース9.3.17"
+HREF="release-9-3-17.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2018-02-10T07:29:51"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="リリース9.3.19"
+HREF="release-9-3-19.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>付録 E. リリースノート</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="リリース9.3.17"
+HREF="release-9-3-17.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="RELEASE-9-3-18"
+>E.33. リリース9.3.18</A
+></H1
+><DIV
+CLASS="FORMALPARA"
+><P
+><B
+>リリース日: </B
+>2017-08-10</P
+></DIV
+><P
+>このリリースは9.3.17に対し、各種不具合を修正したものです。
+9.3メジャーリリースにおける新機能については、<A
+HREF="release-9-3.html"
+>項E.51</A
+>を参照してください。
+  </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN139377"
+>E.33.1. バージョン9.3.18への移行</A
+></H2
+><P
+>9.3.Xからの移行ではダンプ/リストアは不要です。
+   </P
+><P
+>しかしながら、認証にユーザパスワードを利用する外部データサーバを使っている場合には、以下の変更点の1番目の項目を参照してください。
+   </P
+><P
+>また、9.3.16よりも前のバージョンからアップグレードする場合には、<A
+HREF="release-9-3-16.html"
+>項E.35</A
+>を参照してください。
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN139383"
+>E.33.2. 変更点</A
+></H2
+><P
+></P
+><UL
+><LI
+><P
+>ユーザマッピングオプションとして格納されたパスワードを保護するため、<TT
+CLASS="STRUCTNAME"
+>pg_user_mappings</TT
+>.<TT
+CLASS="STRUCTFIELD"
+>umoptions</TT
+>の可視性をさらに限定しました。
+(Noah Misch)
+     </P
+><P
+>CVE-2017-7486に対する修正は正しくありませんでした。
+その修正では、ユーザが関連する外部サーバに対する<TT
+CLASS="LITERAL"
+>USAGE</TT
+>権限を持っていなくとも、自身のユーザマッピングのオプションを見ることを許していました。
+このようなオプションはユーザ自身でなくサーバ所有者が用意したパスワードを含むかもしれません。
+このような場合に<TT
+CLASS="STRUCTNAME"
+>information_schema.user_mapping_options</TT
+>はオプションを見せませんので、<TT
+CLASS="STRUCTNAME"
+>pg_user_mappings</TT
+>も見せるべきではありません。
+(CVE-2017-7547)
+     </P
+><P
+>このパッチのみでは新たにinitdbされたデータベースでの動作しか修正しません。
+この変更を既存のデータベースに適用するには、以下を行う必要があります。
+     </P
+><DIV
+CLASS="PROCEDURE"
+><OL
+TYPE="1"
+><LI
+CLASS="STEP"
+><P
+><TT
+CLASS="LITERAL"
+>allow_system_table_mods = true</TT
+>を<TT
+CLASS="FILENAME"
+>postgresql.conf</TT
+>に加えた後、postmasterを再起動します。
+（<TT
+CLASS="COMMAND"
+>ALTER SYSTEM</TT
+>に対応したバージョンでは設定変更にそれを使うことができますが、それでも再起動は必要です。）
+       </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>クラスタ内の<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>各</I
+></SPAN
+>データベースでスーパーユーザとして以下のコマンドを実行します。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>SET search_path = pg_catalog;
+CREATE OR REPLACE VIEW pg_user_mappings AS
+    SELECT
+        U.oid       AS umid,
+        S.oid       AS srvid,
+        S.srvname   AS srvname,
+        U.umuser    AS umuser,
+        CASE WHEN U.umuser = 0 THEN
+            'public'
+        ELSE
+            A.rolname
+        END AS usename,
+        CASE WHEN (U.umuser &lt;&gt; 0 AND A.rolname = current_user
+                     AND (pg_has_role(S.srvowner, 'USAGE')
+                          OR has_server_privilege(S.oid, 'USAGE')))
+                    OR (U.umuser = 0 AND pg_has_role(S.srvowner, 'USAGE'))
+                    OR (SELECT rolsuper FROM pg_authid WHERE rolname = current_user)
+                    THEN U.umoptions
+                 ELSE NULL END AS umoptions
+    FROM pg_user_mapping U
+         LEFT JOIN pg_authid A ON (A.oid = U.umuser) JOIN
+        pg_foreign_server S ON (U.umserver = S.oid);</PRE
+><P>
+       </P
+></LI
+><LI
+CLASS="STEP"
+><P
+><TT
+CLASS="LITERAL"
+>template0</TT
+>、<TT
+CLASS="LITERAL"
+>template1</TT
+>データベースを含めることを忘れないでください。
+そうでないと、後に作ったデータベースに引き続き脆弱性が存在することになります。
+<TT
+CLASS="LITERAL"
+>template0</TT
+>を修正するには、これを一時的に接続を受け付けるようにする必要があります。
+<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 9.5以降では、以下が使えます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>ALTER DATABASE template0 WITH ALLOW_CONNECTIONS true;</PRE
+><P>
+そして、<TT
+CLASS="LITERAL"
+>template0</TT
+>を修正した後、以下で戻すことができます。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>ALTER DATABASE template0 WITH ALLOW_CONNECTIONS false;</PRE
+><P>
+9.5より前のバージョンにおいては代わりに以下を使います。
+</P><PRE
+CLASS="PROGRAMLISTING"
+>UPDATE pg_database SET datallowconn = true WHERE datname = 'template0';
+UPDATE pg_database SET datallowconn = false WHERE datname = 'template0';</PRE
+><P>
+       </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>最後に、<TT
+CLASS="LITERAL"
+>allow_system_table_mods</TT
+>設定を除去して、再度postmasterを再起動します。
+       </P
+></LI
+></OL
+></DIV
+></LI
+><LI
+><P
+>全てのパスワードに基づく認証方式で空パスワードを禁止しました。
+(Heikki Linnakangas)
+     </P
+><P
+><SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>は空に指定されたパスワードを無視し、それをサーバに送りません。
+よって、ユーザのパスワードが空文字列に設定されていた場合、<SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>や他の<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>ベースのクライアントを通して、そのパスワードでログインすることはできません。
+このことから管理者はパスワードを空に設定することはパスワードログインをできなくすることに等しいと思うかもしれません。
+しかしながら、改変されたクライアントや<SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>ベースでないクライアントで、設定されている認証方式次第ではログインできる可能性があります。
+特に最も一般的な<TT
+CLASS="LITERAL"
+>md5</TT
+>は空パスワードを受け付けていました。
+全ての場合で空パスワードを拒絶するようにサーバを変更しました。
+(CVE-2017-7546)
+     </P
+></LI
+><LI
+><P
+>タプル更新連鎖の同時ロックを修正しました。
+(&Aacute;lvaro Herrera)
+     </P
+><P
+>いくつかのセッションが競合しないロックモードで旧スナップショットを使ってタプル更新連鎖を同時にロックして、それらが全て成功した場合、それらの一部が競合状態のために失敗している（そして有効なタプルバージョンが無くなって終わる）可能性がありました。
+これは外部キー検査が実際には存在するけれども同時に更新されているタプルを参照するのに失敗するといった結果を招きました。
+     </P
+></LI
+><LI
+><P
+>XMAXが未だ関心のあるメンバーをちょうど1つ持つマルチトランザクションであるタプルを凍結するときの、潜在的なデータ破損を修正しました。
+(Teodor Sigaev)
+     </P
+></LI
+><LI
+><P
+>Windowsで新しいプロセスで共有メモリに対するアドレス範囲を確保できない場合、プロセス生成を再試行するようにしました。
+(Tom Lane, Amit Kapila)
+     </P
+><P
+>おそらくはアンチウイルス製品の干渉によりたまに起きていた子プロセスの起動失敗が、これで修正されると考えられます。
+     </P
+></LI
+><LI
+><P
+>Windowsビルドにおける低い発生確率で生じる共有述語ロックハッシュテーブルの破損を修正しました。
+(Thomas Munro, Tom Lane)
+     </P
+></LI
+><LI
+><P
+>SSL接続の正常終了に対する、接続リセットであったかのようなログ出力を回避しました。
+     </P
+></LI
+><LI
+><P
+>SSLセッションチケットをクライアントに送るのを防止しました。
+(Tom Lane)
+     </P
+><P
+>この修正はチケットを認識するクライアント側SSLコードによる再接続の失敗を防ぎます。
+     </P
+></LI
+><LI
+><P
+>Solaris上の設定<A
+HREF="runtime-config-connection.html#GUC-TCP-KEEPALIVES-IDLE"
+>tcp_keepalives_idle</A
+>に対するコードを修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>postmasterの停止と即座の再起動のすぐ後に発行された問い合わせメッセージを受け取るように、統計情報コレクタを修正しました。
+(Tom Lane)
+     </P
+><P
+>前のpostmaster停止から0.5秒以内に発行された統計情報の問い合わせは事実上無視されていました。
+     </P
+></LI
+><LI
+><P
+>統計情報コレクタの受信バッファサイズが少なくとも100KBであることを保証しました。
+(Tom Lane)
+     </P
+><P
+>これはデフォルトの受信バッファサイズがこれよりも小さい古いプラットフォーム上で統計情報データを取りこぼすリスクを軽減します。
+     </P
+></LI
+><LI
+><P
+>スタンバイが<TT
+CLASS="LITERAL"
+>XLOG_SWITCH</TT
+> WALレコードを処理した直後に昇格したときに、不正なWALセグメントが作られる可能性があり、修正しました。
+(Andres Freund)
+     </P
+></LI
+><LI
+><P
+>walsenderプロセスで<SPAN
+CLASS="SYSTEMITEM"
+>SIGHUP</SPAN
+>と<SPAN
+CLASS="SYSTEMITEM"
+>SIGUSR1</SPAN
+>の処理を修正しました。
+(Petr Jelinek, Andres Freund)
+     </P
+></LI
+><LI
+><P
+>postmasterでの競合状態による<SPAN
+CLASS="APPLICATION"
+>walreceiver</SPAN
+>プロセスの不必要な遅い再起動を修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>INSERT</TT
+>または<TT
+CLASS="COMMAND"
+>UPDATE</TT
+>が、配列のドメイン型の列の複数要素に値を与える場合について修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>ウィンドウ関数を集約関数の引数内の副<TT
+CLASS="LITERAL"
+>SELECT</TT
+>で使えるようにしました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>ALTER ... RENAME</TT
+>のときに自動生成された配列型を退避するようにしました。
+(Vik Fearing)
+     </P
+><P
+>これまでは<TT
+CLASS="COMMAND"
+>CREATE</TT
+>のときに衝突する自動生成された配列型の名前をぶつからないように変えていました。
+本修正はこの振る舞いを名前変更操作に拡張したものです。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>ALTER USER ... SET</TT
+>が<TT
+CLASS="COMMAND"
+>ALTER ROLE ... SET</TT
+>で対応している全ての構文の異形を確実に受け入れるようにしました。
+(Peter Eisentraut)
+     </P
+></LI
+><LI
+><P
+>データ型の入出力関数の引数や戻り値の型を<TT
+CLASS="TYPE"
+>opaque</TT
+>から正確な型に変えるときに、依存性情報を適切に更新するようにしました。
+(Heikki Linnakangas)
+     </P
+><P
+><TT
+CLASS="COMMAND"
+>CREATE TYPE</TT
+>は長らく使われていない形式で宣言された入出力関数を更新しますが、型の依存を記録するのを忘れていて、続く<TT
+CLASS="COMMAND"
+>DROP TYPE</TT
+>が壊れた関数定義を残すのを可能としていました。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>ANALYZE</TT
+>が<TT
+CLASS="TYPE"
+>tsvector</TT
+>列を処理するときのメモリ使用を減らしました。
+(Heikki Linnakangas)
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="TYPE"
+>money</TT
+>値に対する整数または浮動小数点による乗算または除算のときに不必要な精度劣化といい加減な丸め計算があり、これを修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+><CODE
+CLASS="FUNCTION"
+>regprocedurein()</CODE
+>などの識別子を解析する関数で空白のチェックを厳格化しました。
+(Tom Lane)
+     </P
+><P
+>有力なロケールによっては、これら関数がマルチバイト文字の一部を空白と誤認するおそれがありました。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>PL/Perl</SPAN
+>をコンパイルするときに、Perlに由来する適切な<TT
+CLASS="LITERAL"
+>#define</TT
+>シンボルを使うようにしました。
+(Ashutosh Sharma, Tom Lane)
+     </P
+><P
+>これにより移植性の問題を回避します。
+典型的には、最近のPerlバージョンで作業するときライブラリ読み込み中に<SPAN
+CLASS="QUOTE"
+>"ハンドシェイク"</SPAN
+>不一致が示されます。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>libpq</SPAN
+>にて、接続失敗した後にGSS/SASLおよびSSPI認証の状態を適切にリセットするようにしました。 
+(Michael Paquier)
+     </P
+><P
+>このリセットを怠ることで、SSL接続から非SSL接続に退行するときに、SSLでの試行でGSS/SASLに失敗すると常に非SSLの試行も失敗する結果をもたらしました。
+SSPIは失敗しませんがメモリリークが生じました。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>psql</SPAN
+>で、<TT
+CLASS="COMMAND"
+>COPY FROM STDIN</TT
+>がキーボードからのEOF信号で中断されて、続いて他の<TT
+CLASS="COMMAND"
+>COPY FROM STDIN</TT
+>が試みられたときに生じるエラーを修正しました。
+(Thomas Munro)
+     </P
+><P
+>この誤動作はBSDから派生した(macOSを含む)プラットフォームで見られましたが、他のほとんどのプラットフォームでは見られません。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="COMMAND"
+>REFRESH MATERIALIZED VIEW</TT
+>コマンドを最後に出力するように<SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+>と<SPAN
+CLASS="APPLICATION"
+>pg_restore</SPAN
+>を修正しました。
+(Tom Lane)
+     </P
+><P
+>これにより、マテリアライズドビューが異なるユーザが所有者のテーブルを参照するときのダンプ/リストアのエラーを防ぎます。
+     </P
+></LI
+><LI
+><P
+>      Fix <SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+> with the <TT
+CLASS="OPTION"
+>--clean</TT
+> option to
+      drop event triggers as expected (Tom Lane)
+     </P
+><P
+>また、イベントトリガの所有者を正しく割り当てるようになりました。
+これまではリストアスクリプトを実行したスーパーユーザが所有者になるようにリストアされていました。
+     </P
+></LI
+><LI
+><P
+><SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+>を空の演算子クラスに対して無効なSQLを出力しないように修正しました。
+(Daniel Gustafsson)
+     </P
+></LI
+><LI
+><P
+>Windows上で<SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+>の標準出力への出力を修正しました。
+(Kuntal Ghosh)
+     </P
+><P
+>ファイルディスクリプタをバイナリモードに設定しそこなっていたため、標準出力に書き出された圧縮されたプレーンテキストダンプに破損したデータが含まれていました。
+     </P
+></LI
+><LI
+><P
+>列名が変更されているビューの<TT
+CLASS="LITERAL"
+>ON SELECT</TT
+>ルールに対して<CODE
+CLASS="FUNCTION"
+>pg_get_ruledef()</CODE
+>が正しい出力を表示するように修正しました。
+(Tom Lane)
+     </P
+><P
+>一部の稀な場合に<SPAN
+CLASS="APPLICATION"
+>pg_dump</SPAN
+>がビューをダンプするのに<CODE
+CLASS="FUNCTION"
+>pg_get_ruledef()</CODE
+>に依存していて、この誤りがダンプ/リストアの失敗をもたらす可能性がありました。
+     </P
+></LI
+><LI
+><P
+>共通列を持たない<TT
+CLASS="LITERAL"
+>NATURAL LEFT JOIN</TT
+>結果のような、空の制約を伴う外部結合のダンプを修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>式が関数呼び出しに見える形に逆解析されない場合の<TT
+CLASS="LITERAL"
+>FROM</TT
+>句内の関数式のダンプを修正しました。
+(Tom Lane)
+     </P
+></LI
+><LI
+><P
+>&#13;Windows上で<SPAN
+CLASS="APPLICATION"
+>pg_basebackup</SPAN
+>の標準出力への出力を修正しました。
+(Haribabu Kommi)
+     </P
+><P
+>ファイルディスクリプタをバイナリモードに設定しそこなっていたため、標準出力に書き出されたバックアップに破損したデータが含まれていました。
+     </P
+></LI
+><LI
+><P
+>末尾のWALレコードが<A
+HREF="runtime-config-wal.html#GUC-WAL-LEVEL"
+>wal_level</A
+> = <TT
+CLASS="LITERAL"
+>minimum</TT
+>でないことを保証するように<SPAN
+CLASS="APPLICATION"
+>pg_upgrade</SPAN
+>を修正しました。
+<A
+HREF="runtime-config-wal.html#GUC-WAL-LEVEL"
+>wal_level</A
+> = <TT
+CLASS="LITERAL"
+>minimum</TT
+>
+(Bruce Momjian)
+     </P
+><P
+>この状態はアップグレードされたスタンバイサーバの再接続を妨げるおそれがありました。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>で、<TT
+CLASS="COMMAND"
+>ALTER SERVER</TT
+>または<TT
+CLASS="COMMAND"
+>ALTER USER MAPPING</TT
+>コマンドの後にリモートサーバへの接続を再確立するようにしました。
+(Kyotaro Horiguchi)
+     </P
+><P
+>これにより接続パラメータに影響するオプションの変更が即座に適用されることを保証します。
+     </P
+></LI
+><LI
+><P
+><TT
+CLASS="FILENAME"
+>postgres_fdw</TT
+>で、リモートのトランザクション制御コマンドのキャンセルを可能にしました。
+(Robert Haas, Rafia Sabih)
+     </P
+><P
+>この変更で以前よりも多くの場合に応答しないリモートサーバの待機から素早く免れることができます。
+     </P
+></LI
+><LI
+><P
+>gccで共有ライブラリをビルドするときに、<TT
+CLASS="OPTION"
+>-fpic</TT
+>でなく常に<TT
+CLASS="OPTION"
+>-fPIC</TT
+>を使うようにしました。
+(Tom Lane)
+     </P
+><P
+>一部のこの設定で違いが現れるプラットフォームで、より大きい拡張ライブラリに役立ちます。
+     </P
+></LI
+><LI
+><P
+>Perlの最近のバージョンで警告またはエラーになるのを回避するため、Microsoft MSVC用ビルドスクリプト内のエスケープされていない中括弧の問題を修正しました。
+(Andrew Dunstan)
+     </P
+></LI
+><LI
+><P
+>MSVCビルドで<SPAN
+CLASS="APPLICATION"
+>openssl</SPAN
+>ライブラリが<TT
+CLASS="FILENAME"
+>VC</TT
+>サブディレクトリ内に無い場合を処理するようにしました。
+(Andrew Dunstan)
+     </P
+></LI
+><LI
+><P
+>MSVCビルドで、<SPAN
+CLASS="APPLICATION"
+>libxml2</SPAN
+>ヘッダファイルの適切なインクルードパスを追加しました。
+(Andrew Dunstan)
+     </P
+><P
+>これは<SPAN
+CLASS="APPLICATION"
+>libxml2</SPAN
+>の標準Windowsインストールで以前に在るものを移動する必要があったものを修正します。
+     </P
+></LI
+><LI
+><P
+>MSVCビルドで、<TT
+CLASS="FILENAME"
+>tcl86.lib</TT
+>という名前のTclライブラリを認識するようにしました。
+(Noah Misch)
+     </P
+></LI
+></UL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="release-9-3-19.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="release-9-3-17.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>リリース9.3.19</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="release.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>リリース9.3.17</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

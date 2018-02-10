@@ -1,0 +1,444 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>インデックスコスト推定関数</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="PostgreSQL 9.6.5文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="インデックスアクセスメソッドのインタフェース定義"
+HREF="indexam.html"><LINK
+REL="PREVIOUS"
+TITLE="インデックス一意性検査"
+HREF="index-unique-checks.html"><LINK
+REL="NEXT"
+TITLE="汎用WALレコード"
+HREF="generic-wal.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2018-02-10T07:29:51"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>PostgreSQL 9.6.5文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="インデックス一意性検査"
+HREF="index-unique-checks.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="indexam.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 59章インデックスアクセスメソッドのインタフェース定義</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="汎用WALレコード"
+HREF="generic-wal.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="INDEX-COST-ESTIMATION"
+>59.6. インデックスコスト推定関数</A
+></H1
+><P
+><CODE
+CLASS="FUNCTION"
+>amcostestimate</CODE
+>関数には、インデックスと共に使用できることが決まっているWHERE句およびORDER BY句のリストを含む、インデックススキャンの可能性を記述する情報が与えられます。
+この関数はインデックスにアクセスするコストの概算とWHERE句の選択度（つまりインデックススキャンにて抽出される行の親テーブルにおける割合）を返さなくてはなりません。
+単純な場合だと、ほとんどすべてのコスト概算の作業は、オプティマイザの標準ルーチンを呼び出すことで行われます。
+<CODE
+CLASS="FUNCTION"
+>amcostestimate</CODE
+>関数を持つことの意味は、標準の概算を改善することができる場合に、インデックスアクセスメソッドがインデックス型固有の知識体系を提供することができるということです。
+  </P
+><P
+>それぞれの<CODE
+CLASS="FUNCTION"
+>amcostestimate</CODE
+>関数は以下のシグネチャを持たなければいけません。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>void
+amcostestimate (PlannerInfo *root,
+                IndexPath *path,
+                double loop_count,
+                Cost *indexStartupCost,
+                Cost *indexTotalCost,
+                Selectivity *indexSelectivity,
+                double *indexCorrelation);</PRE
+><P>
+
+最初の3つのパラメータは入力です。
+
+   <P
+></P
+></P><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="PARAMETER"
+>root</TT
+></DT
+><DD
+><P
+>処理されている問い合わせに関するプランナの情報。
+      </P
+></DD
+><DT
+><TT
+CLASS="PARAMETER"
+>path</TT
+></DT
+><DD
+><P
+>考慮されるインデックスアクセスパス。
+コストと選択性値を除くすべてのフィールドが有効です。
+      </P
+></DD
+><DT
+><TT
+CLASS="PARAMETER"
+>loop_count</TT
+></DT
+><DD
+><P
+>コスト概算の算出対象となるインデックススキャンが繰り返された回数です。
+これは通常、ネステッドループジョインの内部で利用されるスキャンの回数よりも大きい値になります。
+コスト概算は1回のスキャンのための値であることに注意してください。<TT
+CLASS="PARAMETER"
+>loop_count</TT
+>がより大きい場合、複数のスキャンにより得られる効果をみるには十分な値といえるでしょう。
+      </P
+></DD
+></DL
+></DIV
+><P>
+  </P
+><P
+>最後の4つのパラメータは参照渡しの出力です。
+
+   <P
+></P
+></P><DIV
+CLASS="VARIABLELIST"
+><DL
+><DT
+><TT
+CLASS="PARAMETER"
+>*indexStartupCost</TT
+></DT
+><DD
+><P
+>インデックスの起動処理にかかるコストに設定されます。
+      </P
+></DD
+><DT
+><TT
+CLASS="PARAMETER"
+>*indexTotalCost</TT
+></DT
+><DD
+><P
+>インデックス処理の全体のコストに設定されます。
+      </P
+></DD
+><DT
+><TT
+CLASS="PARAMETER"
+>*indexSelectivity</TT
+></DT
+><DD
+><P
+>インデックスの選択度に設定されます。
+      </P
+></DD
+><DT
+><TT
+CLASS="PARAMETER"
+>*indexCorrelation</TT
+></DT
+><DD
+><P
+> 
+インデックススキャンの順番と背後のテーブルの順番間の相関係数に設定されます。
+      </P
+></DD
+></DL
+></DIV
+><P>
+  </P
+><P
+>コスト概算関数は、SQLやその他の手続き言語ではなく、C言語で書かれなければいけないことに注意してください。
+理由はプランナ/オプティマイザの内部データ構造にアクセスしなければいけないためです。
+  </P
+><P
+>インデックスアクセスコストは<TT
+CLASS="FILENAME"
+>src/backend/optimizer/path/costsize.c</TT
+>で使われる、逐次的なディスクブロックの取り出しには<TT
+CLASS="VARNAME"
+>seq_page_cost</TT
+>のコストが、順不同の取り出しには<TT
+CLASS="VARNAME"
+>random_page_cost</TT
+>のコストが、そして、1つのインデックス行の処理には通常<TT
+CLASS="VARNAME"
+>cpu_index_tuple_cost</TT
+>というコストがかかる、というパラメータで計算されなければなりません。
+さらに、インデックス処理（特にindexquals自体の評価）の間に呼び出される比較演算すべてに対して、<TT
+CLASS="VARNAME"
+>cpu_operator_cost</TT
+>に適当な係数をかけたコストがかかります。
+  </P
+><P
+>アクセスコストは、インデックス自身のスキャンと関係するすべてのディスクとCPUコストも含むべきですが、インデックスで識別される親テーブルの行の処理や抽出にかかるコストは含めては<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>いけません</I
+></SPAN
+>。
+  </P
+><P
+><SPAN
+CLASS="QUOTE"
+>"起動用コスト"</SPAN
+>は、最初の行を取り出し始めることができるようになる前に費やされなければならない総スキャンコストの一部です。
+ほとんどのインデックスでは、これはゼロとすることができます。
+しかし、高い起動用コストを持つインデックス種類ではこれを非ゼロにすることを勧めます。
+  </P
+><P
+><TT
+CLASS="PARAMETER"
+>indexSelectivity</TT
+>は、インデックススキャンの間に抽出される親テーブルの行の概算された割合として設定されるべきです。
+非可逆問い合わせの場合はこの値が、与えられた制約条件を実際に通過する行の割合よりも高くなることがよくあります。
+  </P
+><P
+><TT
+CLASS="PARAMETER"
+>indexCorrelation</TT
+>は、インデックスの順番とテーブルの順番の間の（-1.0から1.0までの間の値を取る）相関として設定されるべきです。
+この値は、メインテーブルから行を取り出すためのコスト概算を調整するために使用されます。
+  </P
+><P
+><TT
+CLASS="PARAMETER"
+>loop_count</TT
+>の値が1より大きい場合、戻り値はインデックスを利用した1回のスキャンを想定した平均値であるべきです。
+  </P
+><DIV
+CLASS="PROCEDURE"
+><P
+><B
+>コスト概算</B
+></P
+><P
+>典型的なコスト概算は次のように進められます。
+   </P
+><OL
+TYPE="1"
+><LI
+CLASS="STEP"
+><P
+>与えられた制約条件に基づいて訪れられるメインテーブルの行の割合を概算して返します。
+インデックス型固有の知識体系を持たない場合、標準のオプティマイザの関数である<CODE
+CLASS="FUNCTION"
+>clauselist_selectivity()</CODE
+>を使用してください。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>*indexSelectivity = clauselist_selectivity(root, path-&gt;indexquals,
+                                           path-&gt;indexinfo-&gt;rel-&gt;relid,
+                                           JOIN_INNER, NULL);</PRE
+><P>
+    </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>スキャン中に訪れられるインデックスの行数を概算します。
+多くのインデックス種類では、これは<TT
+CLASS="PARAMETER"
+>indexSelectivity</TT
+>とインデックスの中にある行数を掛けたものと等しいですが、それより多い場合もあります。
+（ページおよび行内のインデックスのサイズは<TT
+CLASS="LITERAL"
+>path-&gt;indexinfo</TT
+>構造体から得ることができることに注意してください。）
+    </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>スキャン中に抽出されるインデックスページ数を概算します。
+これは単に<TT
+CLASS="PARAMETER"
+>indexSelectivity</TT
+>にページ内のインデックスのサイズを掛けたものになるでしょう。
+    </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>インデックスアクセスコストを計算します。
+汎用的な概算においては以下のように行うでしょう。
+
+</P><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ * 一般的な仮定は、インデックスページは逐次的に読まれるので、
+ * random_page_costではなく、それぞれseq_page_costが掛かるというものです。
+ * 各インデックス行でのindexqualsの評価にもコストが掛かります。
+ * コストはすべてスキャンの間に徐々に支払われると仮定します。
+ */
+cost_qual_eval(&amp;index_qual_cost, path-&gt;indexquals, root);
+*indexStartupCost = index_qual_cost.startup;
+*indexTotalCost = seq_page_cost * numIndexPages +
+    (cpu_index_tuple_cost + index_qual_cost.per_tuple) * numIndexTuples;</PRE
+><P>
+
+しかし、上では繰り返されるインデックススキャンにかかるインデックス読み込みについて減価償却を考慮していません。
+    </P
+></LI
+><LI
+CLASS="STEP"
+><P
+>インデックスの相関を概算します。
+1つのフィールドに対する単純な順番のインデックスでは、これはpg_statisticから入手することができます。
+相関が未知の場合、概算を用心深く考えるとゼロ（無相関）となります。
+    </P
+></LI
+></OL
+></DIV
+><P
+>コスト概算関数の例は<TT
+CLASS="FILENAME"
+>src/backend/utils/adt/selfuncs.c</TT
+>にあります。
+  </P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="index-unique-checks.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="generic-wal.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>インデックス一意性検査</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="indexam.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>汎用WALレコード</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
