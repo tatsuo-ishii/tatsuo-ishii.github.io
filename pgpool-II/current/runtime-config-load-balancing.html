@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2018-04-18T12:46:01"></HEAD
+CONTENT="2018-04-23T04:25:20"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -115,13 +115,12 @@ CLASS="PRODUCTNAME"
     <ACRONYM
 CLASS="ACRONYM"
 >primay node</ACRONYM
-> in Master Slave mode, all of the backend nodes
-    in Replication mode, and other queries get load balanced among all backend nodes.
-    To which node
-    the load balancing mechanism sends read queries is decided at the
-    session start time and will not be changed until the session
-    ends. The only exception is by writing special SQL comments. See
-    below for more details.
+> in Master Slave mode, all of the
+    backend nodes in Replication mode, and other queries get load
+    balanced among all backend nodes.  To which node the load
+    balancing mechanism sends read queries is decided at the session
+    start time and will not be changed until the session ends. However
+    there are some exceptions.  See below for more details.
   </P
 ><DIV
 CLASS="NOTE"
@@ -352,8 +351,64 @@ CLASS="SECT2"
 ><H2
 CLASS="SECT2"
 ><A
+NAME="RUNTIME-CONFIG-WRITING-QUERIES-MAY-AFFECT-LOAD-BALANCING"
+>5.7.2. Writing queries may affect Load Balancing</A
+></H2
+><P
+>     In general, read queries are load balanced if certain conditions
+     are met. However, writing queries may affect the load
+     balancing. Here "writing queries" mean all the queries except
+     below:
+   </P
+><P
+>   <P
+></P
+></P><UL
+><LI
+><P
+>	 SELECT/WITH without FOR UPDATE/SHARE
+       </P
+></LI
+><LI
+><P
+>	 COPY TO STODUT
+       </P
+></LI
+><LI
+><P
+>	 EXPLAIN
+       </P
+></LI
+><LI
+><P
+>	 EXPLAIN ANALYZE and the query is SELECT not including writing functions
+       </P
+></LI
+><LI
+><P
+>	 SHOW
+       </P
+></LI
+></UL
+><P>
+   </P
+><P
+>     If writing queires appear, succeeding read queries may not be
+     load balanced. i.e. sent to primary node (in streaming
+     replication mode) or master node (in other mode) depending on the
+     setting of <A
+HREF="runtime-config-load-balancing.html#GUC-DISABLE-LOAD-BALANCE-ON-WRITE"
+>disable_load_balance_on_write</A
+>.
+   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
 NAME="RUNTIME-CONFIG-LOAD-BALANCING-IN-STREAMING-RAPLICATION"
->5.7.2. Load Balancing in Streaming Replication</A
+>5.7.3. Load Balancing in Streaming Replication</A
 ></H2
 ><P
 >   While using Streaming replication and Hot Standby, it is important to
@@ -481,8 +536,23 @@ HREF="runtime-streaming-replication-check.html#GUC-DELAY-THRESHOLD"
 ></LI
 ><LI
 ><P
->             COPY TO
+>             COPY TO STDOUT
              </P
+></LI
+><LI
+><P
+>	       EXPLAIN
+	     </P
+></LI
+><LI
+><P
+>	       EXPLAIN ANALYZE and the query is SELECT not including writing functions
+	     </P
+></LI
+><LI
+><P
+>	       SHOW
+	     </P
 ></LI
 ></UL
 ><P>
@@ -583,7 +653,7 @@ CLASS="SECT2"
 CLASS="SECT2"
 ><A
 NAME="RUNTIME-CONFIG-LOAD-BALANCING-SETTINGS"
->5.7.3. Load Balancing Settings</A
+>5.7.4. Load Balancing Settings</A
 ></H2
 ><P
 ></P
@@ -1350,6 +1420,90 @@ HREF="sql-pgpool-set.html"
 > command to alter the value of
                     this parameter for a current session.
         </P
+></DD
+><DT
+><A
+NAME="GUC-DISABLE-LOAD-BALANCE-ON-WRITE"
+></A
+><TT
+CLASS="VARNAME"
+>disable_load_balance_on_write</TT
+> (<TT
+CLASS="TYPE"
+>string</TT
+>)
+        </DT
+><DD
+><P
+>	  Specify load balance behavior after write queries appear.
+	  This parameter is especially useful in streaming replication
+	  mode. When write queries are sent to primary server, the
+	  changes are applied to standby servers but there's a time
+	  lag. So if a client read the same row right after the write
+	  query, the client may not see the latest value of the
+	  row. If that's the problem, clients should always read data
+	  from the primary server. However this effectively disables
+	  load balancing, which leads to lesser performance. This
+	  parameter allows a fine tuning for the trade off between
+	  not-clustering-aware applications compatibility and
+	  performance.
+	</P
+><P
+>	  If this parameter is set to <TT
+CLASS="VARNAME"
+>off</TT
+>, read
+	  queries are load balanced even if write queries appear. This
+	  gives the best load balance performance but clients may see
+	  older data. This is useful for an environment where
+	  PostgreSQL parameter synchronous_commit = 'remote_apply', or
+	  in the native replication mode, since there's no replication
+	  delay in such environments.
+	</P
+><P
+>	  If this parameter is set to <TT
+CLASS="VARNAME"
+>transaction</TT
+>
+	  and write queries appear in an explicit transaction,
+	  subsequent read queries are not load balanced until the
+	  transaction ends.  Please note that read queries not in an
+	  explicit transaction are not affected by the parameter. This
+	  setting gives the best balance in most cases and you should
+	  start from this. This is the default and same behavior in
+	  <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II 3.7</SPAN
+> or before.
+	</P
+><P
+>	  If this parameter is set
+	  to <TT
+CLASS="VARNAME"
+>trans_transaction</TT
+> and write queries
+	  appear in an explicit transaction, subsequent read queries
+	  are not load balanced in the transaction and subsequent
+	  explicit transaction until the session ends. So this
+	  parameter is safer for older applications but give lesser
+	  performance than <TT
+CLASS="VARNAME"
+>transaction</TT
+>. Please note
+	  that read queries not in an explicit transaction are not
+	  affected by the parameter.
+	</P
+><P
+>	  If this parameter is set to <TT
+CLASS="VARNAME"
+>always</TT
+> and
+	  write queries appear, subsequent read queries are not load
+	  balanced until the session ends regardless they are in
+	  explicit transactions or not. This gives the highest
+	  compatibility with not-clustering-aware applications and the
+	  lowest performance.
+	</P
 ></DD
 ></DL
 ></DIV
