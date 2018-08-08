@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
 <HTML
 ><HEAD
 ><TITLE
@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2018-04-23T04:25:20"></HEAD
+CONTENT="2018-08-08T01:53:18"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -984,6 +984,110 @@ CLASS="PRODUCTNAME"
 ></DD
 ><DT
 ><A
+NAME="GUC-BLACK-QUERY-PATTERN-LIST"
+></A
+><TT
+CLASS="VARNAME"
+>black_query_pattern_list</TT
+> (<TT
+CLASS="TYPE"
+>string</TT
+>)
+        </DT
+><DD
+><P
+>          Specifies a semicolon separated list of SQL patterns that
+          should be sent to primary node.
+          SQL that matched patterns specified in this list are
+          not load balanced.
+          Only Maste Slave mode is supported.
+        </P
+><P
+>          You can use regular expression to match SQL patterns,
+          to which <TT
+CLASS="LITERAL"
+>^</TT
+> and <TT
+CLASS="LITERAL"
+>$</TT
+> are automatically added.
+          When using characters such as "'", ";" or "*" in SQL patterns, you need to escape them by using "\".
+        </P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="EXAMPLE-BLACK-QUERY-PATTERN-LIST-1"
+></A
+><P
+><B
+>Example 5-5. Using regular expression</B
+></P
+><P
+>            If the following SQL should be sent to the primary node only, You can
+            set the <A
+HREF="runtime-config-load-balancing.html#GUC-BLACK-QUERY-PATTERN-LIST"
+>black_query_pattern_list</A
+> like below:
+         <P
+></P
+></P><UL
+><LI
+><P
+>             SELECT * FROM table_name1;
+             </P
+></LI
+><LI
+><P
+>             SELECT * FROM table_name2 WHERE col LIKE '%a%';
+             </P
+></LI
+><LI
+><P
+>             SQL including table_nama3
+             </P
+></LI
+></UL
+><P>
+          </P
+><P
+>          </P><PRE
+CLASS="PROGRAMLISTING"
+>black_query_pattern_list = 'SELECT \* FROM table_name1\;;SELECT col1, col2 FROM table_name2 WHERE col1 LIKE \\'%a%\\'\;;.*table_name3.*'
+          </PRE
+><P>
+          </P
+></DIV
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>            If SQL matches both <A
+HREF="runtime-config-load-balancing.html#GUC-BLACK-FUNCTION-LIST"
+>black_function_list</A
+> and
+            <A
+HREF="runtime-config-load-balancing.html#GUC-WHITE-FUNCTION-LIST"
+>white_function_list</A
+>, <A
+HREF="runtime-config-load-balancing.html#GUC-WHITE-FUNCTION-LIST"
+>white_function_list</A
+>
+            setting is ignored and the SQL should be sent only to the primary node.
+          </P
+></BLOCKQUOTE
+></DIV
+><P
+>          This parameter can be changed by reloading the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configurations.
+        </P
+></DD
+><DT
+><A
 NAME="GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
 ></A
 ><TT
@@ -999,19 +1103,22 @@ CLASS="TYPE"
 >         Specifies the list of <TT
 CLASS="REPLACEABLE"
 ><I
->"database-name:node id"</I
+>"database-name:node id(ratio)"</I
 ></TT
 > pairs
          to send <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries to a particular backend
-         node for a particular database connection.
-         For example, by specifying "test:1", <SPAN
+         node for a particular database connection at a specified load balance ratio.
+		 The load balance ratio specifies a value between 0 and 1. The default is 1.0.
+        </P
+><P
+>         For example, by specifying "test:1(0.5)", <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >
-         will redirect all <ACRONYM
+         will redirect 50% <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries to the backend node of ID 1 for
@@ -1046,7 +1153,10 @@ CLASS="EMPHASIS"
 >"standby"</I
 ></SPAN
 > is specified, one of the standby nodes are selected randomly
-         based on weights.
+         based on weights (<A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-WEIGHT"
+>backend_weight</A
+>).
         </P
 ><DIV
 CLASS="EXAMPLE"
@@ -1055,7 +1165,7 @@ NAME="EXAMPLE-DATABASE-REDIRECT-LIST"
 ></A
 ><P
 ><B
->Example 5-5. Using database_redirect_preference_list</B
+>Example 5-6. Using database_redirect_preference_list</B
 ></P
 ><P
 >            If you want to configure the following <ACRONYM
@@ -1080,7 +1190,7 @@ CLASS="LITERAL"
 ></LI
 ><LI
 ><P
->                Route all <ACRONYM
+>                Route 30% <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries on <TT
@@ -1090,7 +1200,11 @@ CLASS="LITERAL"
                 <TT
 CLASS="LITERAL"
 >mydb1</TT
-> databases to backend node of ID 1.
+> databases to backend node of ID.
+				The other 70% <ACRONYM
+CLASS="ACRONYM"
+>SELECT</ACRONYM
+> queries will be sent to other backend nodes.
               </P
 ></LI
 ><LI
@@ -1113,7 +1227,7 @@ HREF="runtime-config-load-balancing.html#GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
 > will be configured as follows:
               </P><PRE
 CLASS="PROGRAMLISTING"
->database_redirect_preference_list = 'postgres:primary,mydb[01]:1,mydb2:standby'
+>database_redirect_preference_list = 'postgres:primary,mydb[01]:1(0.3),mydb2:standby'
               </PRE
 ><P>
           </P
@@ -1142,14 +1256,14 @@ CLASS="TYPE"
 >          Specifies the list of <TT
 CLASS="REPLACEABLE"
 ><I
->"application-name:node id"</I
+>"application-name:node id(ratio)"</I
 ></TT
 > pairs
           to send <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries to a particular backend
-          node for a particular client application connection.
+          node for a particular client application connection at a specified load balance ratio.
         </P
 ><DIV
 CLASS="NOTE"
@@ -1180,7 +1294,7 @@ CLASS="COMMAND"
           <TT
 CLASS="LITERAL"
 >"psql"</TT
->
+>.
         </P
 ><DIV
 CLASS="NOTE"
@@ -1227,6 +1341,7 @@ CLASS="EMPHASIS"
 >"standby"</I
 ></SPAN
 > indicates one of standby nodes.
+		  The load balance weight specifies a value between 0 and 1. The default is 1.0.
         </P
 ><DIV
 CLASS="EXAMPLE"
@@ -1235,7 +1350,7 @@ NAME="EXAMPLE-APP-NAME-REDIRECT-LIST"
 ></A
 ><P
 ><B
->Example 5-6. Using app-name_redirect_preference_list</B
+>Example 5-7. Using app-name_redirect_preference_list</B
 ></P
 ><P
 >            If you want to configure the following <ACRONYM
@@ -1260,14 +1375,14 @@ CLASS="LITERAL"
 ></LI
 ><LI
 ><P
->                Route all <ACRONYM
+>                Route 30% <ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 > queries from <TT
 CLASS="LITERAL"
 >myapp1</TT
 >
-                client to backend node of ID 1.
+                client to backend node of ID 1. The other 70% SELECT queries will be sent to other backend nodes.
               </P
 ></LI
 ><LI
@@ -1290,7 +1405,7 @@ HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
 > will be configured as follows:
               </P><PRE
 CLASS="PROGRAMLISTING"
->app_name_redirect_preference_list = 'psql:primary,myapp1:1,myapp2:standby'
+>app_name_redirect_preference_list = 'psql:primary,myapp1:1(0.3),myapp2:standby'
               </PRE
 ><P>
           </P
@@ -1310,6 +1425,48 @@ HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
 HREF="runtime-config-load-balancing.html#GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
 >database_redirect_preference_list</A
 >.
+          </P
+><P
+>			For example, if you set
+			<TT
+CLASS="LITERAL"
+>database_redirect_preference_list = 'postgres:standby(1.0)'</TT
+> and
+			<TT
+CLASS="LITERAL"
+>app_name_redirect_preference_list = 'myapp1:primary(1.0)'</TT
+>,
+			all SELECT from application myapp1 on postgres database will be sent to primary backend node.
+          </P
+></BLOCKQUOTE
+></DIV
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>			By specifying of <A
+HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
+>app_name_redirect_preference_list</A
+> and
+			<A
+HREF="runtime-config-load-balancing.html#GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
+>database_redirect_preference_list</A
+>, when multiple database
+			names and application names are matched, the first setting will be used.
+          </P
+><P
+>			For example, if you set
+			<TT
+CLASS="LITERAL"
+>database_redirect_preference_list = 'postgres:primary,postgres:standby'</TT
+>,
+			<TT
+CLASS="LITERAL"
+>"postgres: primary"</TT
+> will be used.
           </P
 ></BLOCKQUOTE
 ></DIV
