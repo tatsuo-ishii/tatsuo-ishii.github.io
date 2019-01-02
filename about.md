@@ -4,4 +4,4 @@ title: About
 permalink: /about/
 ---
 
-このページはPostgreSQLその他の情報を提供します。
+このページはPostgreSQLその他のOSSに関する情報を提供します。
