@@ -9,7 +9,10 @@ layout: default
 <ul>
   {% for post in site.posts %}
     <li>
-      <a href="{{ post.url }}">{{ post.title }}</a>
+      {% capture year %}{{ post.date | date: '%Y' }}{% endcapture %}
+      {% capture month %}{{ post.date | date: '%m' }}{% endcapture %}
+      {% capture day %}{{ post.date | date: '%d' }}{% endcapture %}
+      <a href="{{ post.url }}">{{ post.title }} ({{ year }}/{{ month }}/{{ day }})</a>
     </li>
   {% endfor %}
 </ul>
