@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: post
 title: ページフォーマット変更のお知らせ
 categories: [notice]
 tags: [Jekyll]

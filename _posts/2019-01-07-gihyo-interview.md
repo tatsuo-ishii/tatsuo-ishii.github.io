@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: post
 title: 技術評論社さんのインタビュー受けました
 categories: [blog]
 tags: [PostgreSQL]
