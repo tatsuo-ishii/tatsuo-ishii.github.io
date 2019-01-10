@@ -20,5 +20,5 @@ layout: default
 
 - [PostgreSQLオフィシャルサイト](https://www.postgresql.org)
 - [Pgpoolオフィシャルサイト](https://pgpool.net)
-- [PostgreSQLに関する技術情報](https://www.sraoss.co.jp/technology/postgresql/)
+- [PostgreSQLに関する技術情報](https://www.sraoss.co.jp/tech-blog/)
 - [古いニュース記事](index-old.html)
