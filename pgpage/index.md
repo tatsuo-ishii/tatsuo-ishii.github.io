@@ -19,6 +19,7 @@ layout: default
 ## その他お知らせとリンク
 
 - [PostgreSQLオフィシャルサイト](https://www.postgresql.org)
-- [Pgpoolオフィシャルサイト](https://pgpool.net)
+- [Pgpool-IIオフィシャルサイト(日本語)](https://pgpool.net/jp/)
+- [Pgpool-IIオフィシャルサイト(英語)](https://pgpool.net)
 - [PostgreSQLに関する技術情報](https://www.sraoss.co.jp/tech-blog/)
 - [古いニュース記事](index-old.html)
