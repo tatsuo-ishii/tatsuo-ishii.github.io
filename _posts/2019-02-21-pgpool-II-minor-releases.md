@@ -11,7 +11,7 @@ tags: [Pgpool-II, 4.0.3, 3.7.8. 3.6.15, 3.5.19, 3.4.22]
 
 4.0.3の主な修正点は以下です。
 
-- detach_false_primary = onのときに、pg_stat_wal_reciver()が返すwal_receiver_conninfo情報に"host"情報が含まれていると、誤って正しいバックエンドの状態を正しくないと誤検知することがある問題を修正しました
+- detach_false_primary = onのときに、pg_stat_wal_receiver()が返すconninfo情報に"host"情報が含まれていると、誤って正しいバックエンドの状態を正しくないと誤検知することがある問題を修正しました
 
 - 拡張問い合わせ処理中にSELECTなどが大量の検索結果を返す際にメモリが足りなくなる問題を修正しました(bug 462)
 
@@ -19,7 +19,7 @@ tags: [Pgpool-II, 4.0.3, 3.7.8. 3.6.15, 3.5.19, 3.4.22]
 
 - watchdogがクエリモードで監視しているときにセグメンテーションフォルトするのを修正しました(bug 455)
 
-- PostgreSQLが"terminating connection due to idle-in-transaction timeout"でエラーになった時に、Pgpool-IIがハングしたり、フェイルオーバーするの問題を修正しました(bug 448)。
+- PostgreSQLが"terminating connection due to idle-in-transaction timeout"でエラーになった時に、Pgpool-IIがハングしたり、フェイルオーバーする問題を修正しました(bug 448)。
 
 - 特定の場合に拡張問い合わせクエリ処理中にハングアップする[問題](https://www.pgpool.net/pipermail/pgpool-hackers/2018-December/003164.html)を修正しました
 
