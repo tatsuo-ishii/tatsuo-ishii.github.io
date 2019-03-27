@@ -4,6 +4,9 @@ layout: default
 
 - [PostgreSQL Information Ppage](pgpage/)
 
+## PostgreSQL current (under deveopment) document snapshot
+- [PostgreSQL 12dev: last update: 2019/03/28](postgresql/current/index.html)
+
 ## Outcom from the PostgreSQL document translation to Japanese project
 - [PostgreSQL 11.1 (under construction, last update: 2019/03/21)](doc-ja/11.1)
 - [PostgreSQL 10.5 (last update: 2018/10/28)](doc-ja/10.5)
