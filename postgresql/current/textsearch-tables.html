@@ -97,15 +97,17 @@ CREATE INDEX pgweb_idx ON pgweb USING GIN (to_tsvector('english', title || ' ' |
 </pre><p>
    </p><p>
     Another approach is to create a separate <code class="type">tsvector</code> column
-    to hold the output of <code class="function">to_tsvector</code>.  This example is a
+    to hold the output of <code class="function">to_tsvector</code>.  To keep this
+    column automatically up to date with its source data, use a stored
+    generated column.  This example is a
     concatenation of <code class="literal">title</code> and <code class="literal">body</code>,
     using <code class="function">coalesce</code> to ensure that one field will still be
     indexed when the other is <code class="literal">NULL</code>:
 
 </p><pre class="programlisting">
-ALTER TABLE pgweb ADD COLUMN textsearchable_index_col tsvector;
-UPDATE pgweb SET textsearchable_index_col =
-     to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body,''));
+ALTER TABLE pgweb
+    ADD COLUMN textsearchable_index_col tsvector
+               GENERATED ALWAYS AS (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(body, ''))) STORED;
 </pre><p>
 
     Then we create a <acronym class="acronym">GIN</acronym> index to speed up the search:
@@ -123,12 +125,6 @@ WHERE textsearchable_index_col @@ to_tsquery('create &amp; table')
 ORDER BY last_mod_date DESC
 LIMIT 10;
 </pre><p>
-   </p><p>
-    When using a separate column to store the <code class="type">tsvector</code>
-    representation,
-    it is necessary to create a trigger to keep the <code class="type">tsvector</code>
-    column current anytime <code class="literal">title</code> or <code class="literal">body</code> changes.
-    <a class="xref" href="textsearch-features.html#TEXTSEARCH-UPDATE-TRIGGERS" title="12.4.3. Triggers for Automatic Updates">Section 12.4.3</a> explains how to do that.
    </p><p>
     One advantage of the separate-column approach over an expression index
     is that it is not necessary to explicitly specify the text search

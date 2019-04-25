@@ -8,6 +8,7 @@ CREATE [ [ GLOBAL | LOCAL ] { TEMPORARY | TEMP } | UNLOGGED ] TABLE [ IF NOT EXI
 ] )
 [ INHERITS ( <em class="replaceable"><code>parent_table</code></em> [, ... ] ) ]
 [ PARTITION BY { RANGE | LIST | HASH } ( { <em class="replaceable"><code>column_name</code></em> | ( <em class="replaceable"><code>expression</code></em> ) } [ COLLATE <em class="replaceable"><code>collation</code></em> ] [ <em class="replaceable"><code>opclass</code></em> ] [, ... ] ) ]
+[ USING <em class="replaceable"><code>method</code></em> ]
 [ WITH ( <em class="replaceable"><code>storage_parameter</code></em> [= <em class="replaceable"><code>value</code></em>] [, ... ] ) | WITHOUT OIDS ]
 [ ON COMMIT { PRESERVE ROWS | DELETE ROWS | DROP } ]
 [ TABLESPACE <em class="replaceable"><code>tablespace_name</code></em> ]
@@ -19,6 +20,7 @@ CREATE [ [ GLOBAL | LOCAL ] { TEMPORARY | TEMP } | UNLOGGED ] TABLE [ IF NOT EXI
     [, ... ]
 ) ]
 [ PARTITION BY { RANGE | LIST | HASH } ( { <em class="replaceable"><code>column_name</code></em> | ( <em class="replaceable"><code>expression</code></em> ) } [ COLLATE <em class="replaceable"><code>collation</code></em> ] [ <em class="replaceable"><code>opclass</code></em> ] [, ... ] ) ]
+[ USING <em class="replaceable"><code>method</code></em> ]
 [ WITH ( <em class="replaceable"><code>storage_parameter</code></em> [= <em class="replaceable"><code>value</code></em>] [, ... ] ) | WITHOUT OIDS ]
 [ ON COMMIT { PRESERVE ROWS | DELETE ROWS | DROP } ]
 [ TABLESPACE <em class="replaceable"><code>tablespace_name</code></em> ]
@@ -30,6 +32,7 @@ CREATE [ [ GLOBAL | LOCAL ] { TEMPORARY | TEMP } | UNLOGGED ] TABLE [ IF NOT EXI
     [, ... ]
 ) ] { FOR VALUES <em class="replaceable"><code>partition_bound_spec</code></em> | DEFAULT }
 [ PARTITION BY { RANGE | LIST | HASH } ( { <em class="replaceable"><code>column_name</code></em> | ( <em class="replaceable"><code>expression</code></em> ) } [ COLLATE <em class="replaceable"><code>collation</code></em> ] [ <em class="replaceable"><code>opclass</code></em> ] [, ... ] ) ]
+[ USING <em class="replaceable"><code>method</code></em> ]
 [ WITH ( <em class="replaceable"><code>storage_parameter</code></em> [= <em class="replaceable"><code>value</code></em>] [, ... ] ) | WITHOUT OIDS ]
 [ ON COMMIT { PRESERVE ROWS | DELETE ROWS | DROP } ]
 [ TABLESPACE <em class="replaceable"><code>tablespace_name</code></em> ]
@@ -41,6 +44,7 @@ CREATE [ [ GLOBAL | LOCAL ] { TEMPORARY | TEMP } | UNLOGGED ] TABLE [ IF NOT EXI
   NULL |
   CHECK ( <em class="replaceable"><code>expression</code></em> ) [ NO INHERIT ] |
   DEFAULT <em class="replaceable"><code>default_expr</code></em> |
+  GENERATED ALWAYS AS ( <em class="replaceable"><code>generation_expr</code></em> ) STORED |
   GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY [ ( <em class="replaceable"><code>sequence_options</code></em> ) ] |
   UNIQUE <em class="replaceable"><code>index_parameters</code></em> |
   PRIMARY KEY <em class="replaceable"><code>index_parameters</code></em> |
@@ -61,7 +65,7 @@ CREATE [ [ GLOBAL | LOCAL ] { TEMPORARY | TEMP } | UNLOGGED ] TABLE [ IF NOT EXI
 
 <span class="phrase">and <em class="replaceable"><code>like_option</code></em> is:</span>
 
-{ INCLUDING | EXCLUDING } { COMMENTS | CONSTRAINTS | DEFAULTS | IDENTITY | INDEXES | STATISTICS | STORAGE | ALL }
+{ INCLUDING | EXCLUDING } { COMMENTS | CONSTRAINTS | DEFAULTS | GENERATED | IDENTITY | INDEXES | STATISTICS | STORAGE | ALL }
 
 <span class="phrase">and <em class="replaceable"><code>partition_bound_spec</code></em> is:</span>
 
@@ -240,11 +244,8 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
      </p><p>
       Partitioned tables do not support <code class="literal">EXCLUDE</code> constraints;
       however, you can define these constraints on individual partitions.
-      Also, while it's possible to define <code class="literal">PRIMARY KEY</code>
-      constraints on partitioned tables, creating foreign keys that
-      reference a partitioned table is not yet supported.
      </p><p>
-      See <a class="xref" href="ddl-partitioning.html" title="5.10. Table Partitioning">Section 5.10</a> for more discussion on table
+      See <a class="xref" href="ddl-partitioning.html" title="5.11. Table Partitioning">Section 5.11</a> for more discussion on table
       partitioning.
      </p></dd><dt id="SQL-CREATETABLE-PARTITION"><span class="term"><code class="literal">PARTITION OF <em class="replaceable"><code>parent_table</code></em> { FOR VALUES <em class="replaceable"><code>partition_bound_spec</code></em> | DEFAULT }</code></span></dt><dd><p>
       Creates the table as a <em class="firstterm">partition</em> of the specified
@@ -419,6 +420,9 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
           copying defaults that call database-modification functions, such as
           <code class="function">nextval</code>, may create a functional linkage
           between the original and new tables.
+         </p></dd><dt><span class="term"><code class="literal">INCLUDING GENERATED</code></span></dt><dd><p>
+          Any generation expressions of copied column definitions will be
+          copied.  By default, new columns will be regular base columns.
          </p></dd><dt><span class="term"><code class="literal">INCLUDING IDENTITY</code></span></dt><dd><p>
           Any identity specifications of copied column definitions will be
           copied.  A new sequence is created for each identity column of the
@@ -438,7 +442,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
           definitions will be copied.  The default behavior is to exclude
           <code class="literal">STORAGE</code> settings, resulting in the copied columns
           in the new table having type-specific default settings.  For more on
-          <code class="literal">STORAGE</code> settings, see <a class="xref" href="storage-toast.html" title="67.2. TOAST">Section 67.2</a>.
+          <code class="literal">STORAGE</code> settings, see <a class="xref" href="storage-toast.html" title="68.2. TOAST">Section 68.2</a>.
          </p></dd><dt><span class="term"><code class="literal">INCLUDING ALL</code></span></dt><dd><p>
           <code class="literal">INCLUDING ALL</code> is an abbreviated form selecting
           all the available individual options.  (It could be useful to write
@@ -479,7 +483,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
      </p><p>
       Currently, <code class="literal">CHECK</code> expressions cannot contain
       subqueries nor refer to variables other than columns of the
-      current row (see <a class="xref" href="ddl-constraints.html#DDL-CONSTRAINTS-CHECK-CONSTRAINTS" title="5.3.1. Check Constraints">Section 5.3.1</a>).
+      current row (see <a class="xref" href="ddl-constraints.html#DDL-CONSTRAINTS-CHECK-CONSTRAINTS" title="5.4.1. Check Constraints">Section 5.4.1</a>).
       The system column <code class="literal">tableoid</code>
       may be referenced, but not any other system column.
      </p><p>
@@ -503,6 +507,17 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
       The default expression will be used in any insert operation that
       does not specify a value for the column.  If there is no default
       for a column, then the default is null.
+     </p></dd><dt><span class="term"><code class="literal">GENERATED ALWAYS AS ( <em class="replaceable"><code>generation_expr</code></em> ) STORED</code><a id="id-1.9.3.85.6.2.18.1.2" class="indexterm"></a></span></dt><dd><p>
+      This clause creates the column as a <em class="firstterm">generated
+      column</em>.  The column cannot be written to, and when read it
+      will be computed from the specified expression.
+     </p><p>
+      The keyword <code class="literal">STORED</code> is required to signify that the
+      column will be computed on write and will be stored on disk.
+     </p><p>
+      The generation expression can refer to other columns in the table, but
+      not other generated columns.  Any functions and operators used must be
+      immutable.  References to other tables are not allowed.
      </p></dd><dt><span class="term"><code class="literal">GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY [ ( <em class="replaceable"><code>sequence_options</code></em> ) ]</code></span></dt><dd><p>
       This clause creates the column as an <em class="firstterm">identity
       column</em>.  It will have an implicit sequence attached to it
@@ -608,7 +623,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
       these are described fully under
       <a class="xref" href="sql-createindex.html" title="CREATE INDEX"><span class="refentrytitle">CREATE INDEX</span></a>.
      </p><p>
-      The access method must support <code class="literal">amgettuple</code> (see <a class="xref" href="indexam.html" title="Chapter 60. Index Access Method Interface Definition">Chapter 60</a>); at present this means <acronym class="acronym">GIN</acronym>
+      The access method must support <code class="literal">amgettuple</code> (see <a class="xref" href="indexam.html" title="Chapter 61. Index Access Method Interface Definition">Chapter 61</a>); at present this means <acronym class="acronym">GIN</acronym>
       cannot be used.  Although it's allowed, there is little point in using
       B-tree or hash indexes with an exclusion constraint, because this
       does nothing that an ordinary unique constraint doesn't do better.
@@ -636,9 +651,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
       addition of a foreign key constraint requires a
       <code class="literal">SHARE ROW EXCLUSIVE</code> lock on the referenced table.
       Note that foreign key constraints cannot be defined between temporary
-      tables and permanent tables.  Also note that while it is possible to
-      define a foreign key on a partitioned table, it is not possible to
-      declare a foreign key that references a partitioned table.
+      tables and permanent tables.
      </p><p>
       A value inserted into the referencing column(s) is matched against the
       values of the referenced table and referenced columns using the
@@ -717,6 +730,12 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
       <code class="literal">INITIALLY DEFERRED</code>, it is checked only at the
       end of the transaction.  The constraint check time can be
       altered with the <a class="xref" href="sql-set-constraints.html" title="SET CONSTRAINTS"><span class="refentrytitle">SET CONSTRAINTS</span></a> command.
+     </p></dd><dt id="SQL-CREATETABLE-METHOD"><span class="term"><code class="literal">USING <em class="replaceable"><code>method</code></em></code></span></dt><dd><p>
+      This optional clause specifies the table access method to use to store
+      the contents for the new table; the method needs be an access method of
+      type <code class="literal">TABLE</code>. See <a class="xref" href="tableam.html" title="Chapter 60. Table Access Method Interface Definition">Chapter 60</a> for more
+      information.  If this option is not specified, the default table access
+      method is chosen for the new materialized view. See <a class="xref" href="runtime-config-client.html#GUC-DEFAULT-TABLE-ACCESS-METHOD">default_table_access_method</a> for more information.
      </p></dd><dt><span class="term"><code class="literal">WITH ( <em class="replaceable"><code>storage_parameter</code></em> [= <em class="replaceable"><code>value</code></em>] [, ... ] )</code></span></dt><dd><p>
       This clause specifies optional storage parameters for a table or index;
       see <a class="xref" href="sql-createtable.html#SQL-CREATETABLE-STORAGE-PARAMETERS" title="Storage Parameters">Storage Parameters</a> for more
@@ -746,7 +765,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
           transaction block.  When used on a partitioned table, this action
           drops its partitions and when used on tables with inheritance
           children, it drops the dependent children.
-         </p></dd></dl></div></dd><dt><span class="term"><code class="literal">TABLESPACE <em class="replaceable"><code>tablespace_name</code></em></code></span></dt><dd><p>
+         </p></dd></dl></div></dd><dt id="SQL-CREATETABLE-TABLESPACE"><span class="term"><code class="literal">TABLESPACE <em class="replaceable"><code>tablespace_name</code></em></code></span></dt><dd><p>
       The <em class="replaceable"><code>tablespace_name</code></em> is the name
       of the tablespace in which the new table is to be created.
       If not specified,
@@ -774,7 +793,7 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
     shown, there is an additional parameter with the same name prefixed with
     <code class="literal">toast.</code>, which controls the behavior of the
     table's secondary <acronym class="acronym">TOAST</acronym> table, if any
-    (see <a class="xref" href="storage-toast.html" title="67.2. TOAST">Section 67.2</a> for more information about TOAST).
+    (see <a class="xref" href="storage-toast.html" title="68.2. TOAST">Section 68.2</a> for more information about TOAST).
     If a table parameter value is set and the
     equivalent <code class="literal">toast.</code> parameter is not, the TOAST table
     will use the table's parameter value.
@@ -825,6 +844,22 @@ WITH ( MODULUS <em class="replaceable"><code>numeric_literal</code></em>, REMAIN
      not override that.  Therefore there is seldom much point in explicitly
      setting this storage parameter to <code class="literal">true</code>, only
      to <code class="literal">false</code>.
+     </p></dd><dt><span class="term"><code class="literal">vacuum_index_cleanup</code> (<code class="type">boolean</code>)</span></dt><dd><p>
+      Enables or disables index cleanup when <code class="command">VACUUM</code> is
+      run on this table.  The default value is <code class="literal">true</code>.
+      Disabling index cleanup can speed up <code class="command">VACUUM</code> very
+      significantly, but may also lead to severely bloated indexes if table
+      modifications are frequent.  The <code class="literal">INDEX_CLEANUP</code>
+      parameter to <a class="xref" href="sql-vacuum.html" title="VACUUM"><span class="refentrytitle">VACUUM</span></a>, if specified, overrides
+      the value of this option.
+     </p></dd><dt><span class="term"><code class="literal">vacuum_truncate</code>, <code class="literal">toast.vacuum_truncate</code> (<code class="type">boolean</code>)</span></dt><dd><p>
+      Enables or disables vacuum to try to truncate off any empty pages
+      at the end of this table. The default value is <code class="literal">true</code>.
+      If <code class="literal">true</code>, <code class="command">VACUUM</code> and
+      autovacuum do the truncation and the disk space for
+      the truncated pages is returned to the operating system.
+      Note that the truncation requires <code class="literal">ACCESS EXCLUSIVE</code>
+      lock on the table.
      </p></dd><dt><span class="term"><code class="literal">autovacuum_vacuum_threshold</code>, <code class="literal">toast.autovacuum_vacuum_threshold</code> (<code class="type">integer</code>)</span></dt><dd><p>
       Per-table value for <a class="xref" href="runtime-config-autovacuum.html#GUC-AUTOVACUUM-VACUUM-THRESHOLD">autovacuum_vacuum_threshold</a>
       parameter.
@@ -1273,29 +1308,33 @@ CREATE TABLE cities_partdef
     the <code class="command">INSERT</code> command supports only one override clause
     that applies to the entire statement, so having multiple identity columns
     with different behaviors is not well supported.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.12"><h3><code class="literal">LIKE</code> Clause</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.12"><h3>Generated Columns</h3><p>
+    The option <code class="literal">STORED</code> is not standard but is also used by
+    other SQL implementations.  The SQL standard does not specify the storage
+    of generated columns.
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.13"><h3><code class="literal">LIKE</code> Clause</h3><p>
     While a <code class="literal">LIKE</code> clause exists in the SQL standard, many of the
     options that <span class="productname">PostgreSQL</span> accepts for it are not
     in the standard, and some of the standard's options are not implemented
     by <span class="productname">PostgreSQL</span>.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.13"><h3><code class="literal">WITH</code> Clause</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.14"><h3><code class="literal">WITH</code> Clause</h3><p>
     The <code class="literal">WITH</code> clause is a <span class="productname">PostgreSQL</span>
     extension; storage parameters are not in the standard.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.14"><h3>Tablespaces</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.15"><h3>Tablespaces</h3><p>
     The <span class="productname">PostgreSQL</span> concept of tablespaces is not
     part of the standard.  Hence, the clauses <code class="literal">TABLESPACE</code>
     and <code class="literal">USING INDEX TABLESPACE</code> are extensions.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.15"><h3>Typed Tables</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.16"><h3>Typed Tables</h3><p>
     Typed tables implement a subset of the SQL standard.  According to
     the standard, a typed table has columns corresponding to the
     underlying composite type as well as one other column that is
     the <span class="quote">“<span class="quote">self-referencing column</span>”</span>.  PostgreSQL does not
     support these self-referencing columns explicitly, but the same
     effect can be had using the OID feature.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.16"><h3><code class="literal">PARTITION BY</code> Clause</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.17"><h3><code class="literal">PARTITION BY</code> Clause</h3><p>
     The <code class="literal">PARTITION BY</code> clause is a
     <span class="productname">PostgreSQL</span> extension.
-   </p></div><div class="refsect2" id="id-1.9.3.85.9.17"><h3><code class="literal">PARTITION OF</code> Clause</h3><p>
+   </p></div><div class="refsect2" id="id-1.9.3.85.9.18"><h3><code class="literal">PARTITION OF</code> Clause</h3><p>
     The <code class="literal">PARTITION OF</code> clause is a
     <span class="productname">PostgreSQL</span> extension.
    </p></div></div><div class="refsect1" id="id-1.9.3.85.10"><h2>See Also</h2><span class="simplelist"><a class="xref" href="sql-altertable.html" title="ALTER TABLE"><span class="refentrytitle">ALTER TABLE</span></a>, <a class="xref" href="sql-droptable.html" title="DROP TABLE"><span class="refentrytitle">DROP TABLE</span></a>, <a class="xref" href="sql-createtableas.html" title="CREATE TABLE AS"><span class="refentrytitle">CREATE TABLE AS</span></a>, <a class="xref" href="sql-createtablespace.html" title="CREATE TABLESPACE"><span class="refentrytitle">CREATE TABLESPACE</span></a>, <a class="xref" href="sql-createtype.html" title="CREATE TYPE"><span class="refentrytitle">CREATE TYPE</span></a></span></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="sql-createsubscription.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="sql-commands.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="sql-createtableas.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">CREATE SUBSCRIPTION </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> CREATE TABLE AS</td></tr></table></div></body></html>

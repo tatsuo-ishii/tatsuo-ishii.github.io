@@ -75,10 +75,12 @@
         source server to be cleanly shut down.
        </p></dd><dt><span class="term"><code class="option">--source-server=<em class="replaceable"><code>connstr</code></em></code></span></dt><dd><p>
         Specifies a libpq connection string to connect to the source
-        <span class="productname">PostgreSQL</span> server to synchronize the target with.
-        The connection must be a normal (non-replication) connection
-        with superuser access. This option requires the source
-        server to be running and not in recovery mode.
+        <span class="productname">PostgreSQL</span> server to synchronize the target
+        with. The connection must be a normal (non-replication) connection
+        with a role having sufficient permissions to execute the functions
+        used by <span class="application">pg_rewind</span> on the source server
+        (see Notes section for details) or a superuser role.  This option
+        requires the source server to be running and not in recovery mode.
        </p></dd><dt><span class="term"><code class="option">-n</code><br /></span><span class="term"><code class="option">--dry-run</code></span></dt><dd><p>
         Do everything except actually modifying the target directory.
        </p></dd><dt><span class="term"><code class="option">-N</code><br /></span><span class="term"><code class="option">--no-sync</code></span></dt><dd><p>
@@ -100,7 +102,32 @@
    When <code class="option">--source-server</code> option is used,
    <span class="application">pg_rewind</span> also uses the environment variables
    supported by <span class="application">libpq</span> (see <a class="xref" href="libpq-envars.html" title="33.14. Environment Variables">Section 33.14</a>).
-  </p></div><div class="refsect1" id="id-1.9.5.9.8"><h2>Notes</h2><div class="refsect2" id="id-1.9.5.9.8.2"><h3>How it works</h3><p>
+  </p><p>
+   The environment variable <code class="envar">PG_COLOR</code> specifies whether to use
+   color in diagnostics messages.  Possible values are
+   <code class="literal">always</code>, <code class="literal">auto</code>,
+   <code class="literal">never</code>.
+  </p></div><div class="refsect1" id="id-1.9.5.9.8"><h2>Notes</h2><p>
+   When executing <span class="application">pg_rewind</span> using an online
+   cluster as source, a role having sufficient permissions to execute the
+   functions used by <span class="application">pg_rewind</span> on the source
+   cluster can be used instead of a superuser.  Here is how to create such
+   a role, named <code class="literal">rewind_user</code> here:
+</p><pre class="programlisting">
+CREATE USER rewind_user LOGIN;
+GRANT EXECUTE ON function pg_catalog.pg_ls_dir(text, boolean, boolean) TO rewind_user;
+GRANT EXECUTE ON function pg_catalog.pg_stat_file(text, boolean) TO rewind_user;
+GRANT EXECUTE ON function pg_catalog.pg_read_binary_file(text) TO rewind_user;
+GRANT EXECUTE ON function pg_catalog.pg_read_binary_file(text, bigint, bigint, boolean) TO rewind_user;
+</pre><p>
+  </p><p>
+   When executing <span class="application">pg_rewind</span> using an online
+   cluster as source which has been recently promoted, it is necessary
+   to execute a <code class="command">CHECKPOINT</code> after promotion so as its
+   control file reflects up-to-date timeline information, which is used by
+   <span class="application">pg_rewind</span> to check if the target cluster
+   can be rewound using the designated source cluster.
+  </p><div class="refsect2" id="id-1.9.5.9.8.4"><h3>How it works</h3><p>
     The basic idea is to copy all file system-level changes from the source
     cluster to the target cluster:
    </p><div class="procedure"><ol class="procedure" type="1"><li class="step"><p>

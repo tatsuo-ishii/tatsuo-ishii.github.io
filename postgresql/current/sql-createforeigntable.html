@@ -24,7 +24,8 @@ CREATE FOREIGN TABLE [ IF NOT EXISTS ] <em class="replaceable"><code>table_name<
 { NOT NULL |
   NULL |
   CHECK ( <em class="replaceable"><code>expression</code></em> ) [ NO INHERIT ] |
-  DEFAULT <em class="replaceable"><code>default_expr</code></em> }
+  DEFAULT <em class="replaceable"><code>default_expr</code></em> |
+  GENERATED ALWAYS AS ( <em class="replaceable"><code>generation_expr</code></em> ) STORED }
 
 <span class="phrase">and <em class="replaceable"><code>table_constraint</code></em> is:</span>
 
@@ -82,6 +83,10 @@ CHECK ( <em class="replaceable"><code>expression</code></em> ) [ NO INHERIT ]
       the given parent table with specified partition bound values.
       See the similar form of
       <a class="xref" href="sql-createtable.html" title="CREATE TABLE"><span class="refentrytitle">CREATE TABLE</span></a> for more details.
+      Note that it is currently not allowed to create the foreign table as a
+      partition of the parent table if there are indexes on the parent table.
+      (See also
+      <a class="link" href="sql-altertable.html" title="ALTER TABLE"><code class="command">ALTER TABLE ATTACH PARTITION</code></a>.)
      </p></dd><dt><span class="term"><code class="literal">CONSTRAINT <em class="replaceable"><code>constraint_name</code></em></code></span></dt><dd><p>
       An optional name for a column or table constraint.  If the
       constraint is violated, the constraint name is present in error messages,
@@ -125,6 +130,19 @@ CHECK ( <em class="replaceable"><code>expression</code></em> ) [ NO INHERIT ]
       The default expression will be used in any insert operation that
       does not specify a value for the column.  If there is no default
       for a column, then the default is null.
+     </p></dd><dt><span class="term"><code class="literal">GENERATED ALWAYS AS ( <em class="replaceable"><code>generation_expr</code></em> ) STORED</code><a id="id-1.9.3.66.6.2.13.1.2" class="indexterm"></a></span></dt><dd><p>
+      This clause creates the column as a <em class="firstterm">generated
+      column</em>.  The column cannot be written to, and when read it
+      will be computed from the specified expression.
+     </p><p>
+      The keyword <code class="literal">STORED</code> is required to signify that the
+      column will be computed on write.  (The computed value will be presented
+      to the foreign-data wrapper for storage and must be returned on
+      reading.)
+     </p><p>
+      The generation expression can refer to other columns in the table, but
+      not other generated columns.  Any functions and operators used must be
+      immutable.  References to other tables are not allowed.
      </p></dd><dt><span class="term"><em class="replaceable"><code>server_name</code></em></span></dt><dd><p>
       The name of an existing foreign server to use for the foreign table.
       For details on defining a server, see <a class="xref" href="sql-createserver.html" title="CREATE SERVER"><span class="refentrytitle">CREATE SERVER</span></a>.
@@ -160,6 +178,14 @@ CHECK ( <em class="replaceable"><code>expression</code></em> ) [ NO INHERIT ]
     the table might produce incorrect answers.  It is the user's
     responsibility to ensure that the constraint definition matches
     reality.
+   </p><p>
+    Similar considerations apply to generated columns.  Stored generated
+    columns are computed on insert or update on the local
+    <span class="productname">PostgreSQL</span> server and handed to the
+    foreign-data wrapper for writing out to the foreign data store, but it is
+    not enforced that a query of the foreign table returns values for stored
+    generated columns that are consistent with the generation expression.
+    Again, this might result in incorrect query results.
    </p><p>
     While rows can be moved from local partitions to a foreign-table partition
     (provided the foreign data wrapper supports tuple routing), they cannot be

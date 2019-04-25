@@ -352,6 +352,21 @@ CREATE INDEX idxgintags ON api USING GIN ((jdoc -&gt; 'tags'));
     expression <code class="literal">jdoc -&gt; 'tags'</code>.
     (More information on expression indexes can be found in <a class="xref" href="indexes-expressional.html" title="11.7. Indexes on Expressions">Section 11.7</a>.)
   </p><p>
+    Also, GIN index supports <code class="literal">@@</code> and <code class="literal">@?</code>
+    operators, which perform <code class="literal">jsonpath</code> matching.
+</p><pre class="programlisting">
+SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @@ '$.tags[*] == "qui"';
+</pre><p>
+</p><pre class="programlisting">
+SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @@ '$.tags[*] ? (@ == "qui")';
+</pre><p>
+    GIN index extracts statements of following form out of
+    <code class="literal">jsonpath</code>: <code class="literal">accessors_chain = const</code>.
+    Accessors chain may consist of <code class="literal">.key</code>,
+    <code class="literal">[*]</code> and <code class="literal">[index]</code> accessors.
+    <code class="literal">jsonb_ops</code> additionally supports <code class="literal">.*</code>
+    and <code class="literal">.**</code> statements.
+  </p><p>
     Another approach to querying is to exploit containment, for example:
 </p><pre class="programlisting">
 -- Find documents in which the key "tags" contains array element "qui"
@@ -367,7 +382,8 @@ SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @&gt; '{"tags": ["qu
     index.
   </p><p>
     Although the <code class="literal">jsonb_path_ops</code> operator class supports
-    only queries with the <code class="literal">@&gt;</code> operator, it has notable
+    only queries with the <code class="literal">@&gt;</code>, <code class="literal">@@</code>
+    and <code class="literal">@?</code> operators, it has notable
     performance advantages over the default operator
     class <code class="literal">jsonb_ops</code>.  A <code class="literal">jsonb_path_ops</code>
     index is usually much smaller than a <code class="literal">jsonb_ops</code>
@@ -381,7 +397,7 @@ SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @&gt; '{"tags": ["qu
     creates independent index items for each key and value in the data,
     while the latter creates index items only for each value in the
     data.
-    <a href="#ftn.id-1.5.7.22.18.8.3" class="footnote"><sup class="footnote" id="id-1.5.7.22.18.8.3">[6]</sup></a>
+    <a href="#ftn.id-1.5.7.22.18.9.3" class="footnote"><sup class="footnote" id="id-1.5.7.22.18.9.3">[6]</sup></a>
     Basically, each <code class="literal">jsonb_path_ops</code> index item is
     a hash of the value and the key(s) leading to it; for example to index
     <code class="literal">{"foo": {"bar": "baz"}}</code>, a single index item would
@@ -563,7 +579,7 @@ SELECT jdoc-&gt;'guid', jdoc-&gt;'name' FROM api WHERE jdoc @&gt; '{"tags": ["qu
        <p>
         Wildcard array element accessor that returns all array elements.
        </p>
-      </td></tr></tbody></table></div></div><br class="table-break" /></div><div class="footnotes"><br /><hr style="width:100; text-align:left;margin-left: 0" /><div id="ftn.id-1.5.7.22.18.8.3" class="footnote"><p><a href="#id-1.5.7.22.18.8.3" class="para"><sup class="para">[6] </sup></a>
+      </td></tr></tbody></table></div></div><br class="table-break" /></div><div class="footnotes"><br /><hr style="width:100; text-align:left;margin-left: 0" /><div id="ftn.id-1.5.7.22.18.9.3" class="footnote"><p><a href="#id-1.5.7.22.18.9.3" class="para"><sup class="para">[6] </sup></a>
       For this purpose, the term <span class="quote">“<span class="quote">value</span>”</span> includes array elements,
       though JSON terminology sometimes considers array elements distinct
       from values within objects.
