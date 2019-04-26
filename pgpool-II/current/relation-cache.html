@@ -2,7 +2,7 @@
 <HTML
 ><HEAD
 ><TITLE
->In Memory Query Caching</TITLE
+>Relation Cache</TITLE
 ><META
 NAME="GENERATOR"
 CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
@@ -15,11 +15,11 @@ REL="UP"
 TITLE="Performance Considerations"
 HREF="performance.html"><LINK
 REL="PREVIOUS"
-TITLE="Read Query Load Balancing"
-HREF="read-query-load-balancing.html"><LINK
+TITLE="In Memory Query Caching"
+HREF="in-memory-query-caching.html"><LINK
 REL="NEXT"
-TITLE="Relation Cache"
-HREF="relation-cache.html"><LINK
+TITLE="Other Performance Considerations"
+HREF="other-performance-considerations.html"><LINK
 REL="STYLESHEET"
 TYPE="text/css"
 HREF="stylesheet.css"><META
@@ -53,8 +53,8 @@ WIDTH="10%"
 ALIGN="left"
 VALIGN="top"
 ><A
-TITLE="Read Query Load Balancing"
-HREF="read-query-load-balancing.html"
+TITLE="In Memory Query Caching"
+HREF="in-memory-query-caching.html"
 ACCESSKEY="P"
 >Prev</A
 ></TD
@@ -77,8 +77,8 @@ WIDTH="20%"
 ALIGN="right"
 VALIGN="top"
 ><A
-TITLE="Relation Cache"
-HREF="relation-cache.html"
+TITLE="Other Performance Considerations"
+HREF="other-performance-considerations.html"
 ACCESSKEY="N"
 >Next</A
 ></TD
@@ -92,58 +92,83 @@ CLASS="SECT1"
 ><H1
 CLASS="SECT1"
 ><A
-NAME="IN-MEMORY-QUERY-CACHING"
->7.4. In Memory Query Caching</A
+NAME="RELATION-CACHE"
+>7.5. Relation Cache</A
 ></H1
 ><P
->      <SPAN
+>      Sometimes <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> allows to cache read query
-      results for later use. This will bring huge benefit for a type
-      of applications which issue same read queries many times. If
-      there are two queries and the query strings (parameter for
-      prepared statements if any) are identical, two queries are
-      regarded as "same". For the first time the query is
-      sent, <SPAN
-CLASS="PRODUCTNAME"
->Pgpool-II</SPAN
-> saves the query
-      result, and use it for the second query without asking anything
-      to <SPAN
+> needs to
+      ask <SPAN
 CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
->. This technique is
-      explained in <A
-HREF="runtime-in-memory-query-cache.html"
->Section 5.12</A
->.
+> to get meta
+      information, such as whether a table is a temporay one or
+      not. To get those
+      information, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> sends queires
+      primary <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> which could be up
+      to as many as 10 queries. To reduce the
+      overhead, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> maintains
+      "relation cahche". Next time same table is included in a
+      query, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> extracts the
+      information from the cahe.
+    </P
+><P
+>      There are some parameters to configure the relation
+      cahce. See <A
+HREF="runtime-misc.html#GUC-RELCACHE-EXPIRE"
+>relcache_expire</A
+>, <A
+HREF="runtime-misc.html#GUC-RELCACHE-SIZE"
+>relcache_size</A
+>
+      for more details.
     </P
 ><DIV
 CLASS="SECT2"
 ><H2
 CLASS="SECT2"
 ><A
-NAME="WHEN-NOT-TO-USE-IN-MEMORY-QUERY-CACHING"
->7.4.1. When not to Use in Memory Query Caching</A
+NAME="SHARED-RELATION-CACHE"
+>7.5.1. Shared Relation Cache</A
 ></H2
 ><P
->	When a table is modified, query results against the table
-	could be changed. To avoid
-	inconsistency, <SPAN
+>	The relation cache basically lives in process private memory,
+	which is bound to a session. So even if a relation cache is
+	created to for a table, in different session the relation
+	cache might not be created yet. After all, until a relation
+	cache entry is created in all process, queries continue to
+	sent to <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>.
+	<SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> discards
-	query cache data when corresponding table is modified. So
-	frequently updated database will not be suitable to use in
-	memory query caching. You can check if your database is
-	suitable to use query caching or not, you could
-	use <A
-HREF="sql-show-pool-cache.html"
->SHOW POOL_CACHE</A
->. If query cache hit
-	ration is lower than 70%, probably you want to avoid using the
-	query cache.
+> 4.1 overcomes the issue
+	by creating relation cahce in shared memory. If a session
+	creates a relation cache entry in the shared memory, other
+	sessions will get the cache result by looking at the shared
+	relation
+	cache. See <A
+HREF="runtime-misc.html#GUC-ENABLE-SHARED-RELCACHE"
+>enable_shared_relcache</A
+>
+	configuration parameter section for more details. This feature
+	is pretty effective and we recommend this feature be enabled.
       </P
 ></DIV
 ></DIV
@@ -163,7 +188,7 @@ WIDTH="33%"
 ALIGN="left"
 VALIGN="top"
 ><A
-HREF="read-query-load-balancing.html"
+HREF="in-memory-query-caching.html"
 ACCESSKEY="P"
 >Prev</A
 ></TD
@@ -181,7 +206,7 @@ WIDTH="33%"
 ALIGN="right"
 VALIGN="top"
 ><A
-HREF="relation-cache.html"
+HREF="other-performance-considerations.html"
 ACCESSKEY="N"
 >Next</A
 ></TD
@@ -191,7 +216,7 @@ ACCESSKEY="N"
 WIDTH="33%"
 ALIGN="left"
 VALIGN="top"
->Read Query Load Balancing</TD
+>In Memory Query Caching</TD
 ><TD
 WIDTH="34%"
 ALIGN="center"
@@ -205,7 +230,7 @@ ACCESSKEY="U"
 WIDTH="33%"
 ALIGN="right"
 VALIGN="top"
->Relation Cache</TD
+>Other Performance Considerations</TD
 ></TR
 ></TABLE
 ></DIV
