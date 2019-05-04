@@ -1,0 +1,241 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>読み出しクエリの負荷分散</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="Pgpool-II 4.1devel 文書"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="性能に関する考慮"
+HREF="performance.html"><LINK
+REL="PREVIOUS"
+TITLE="クライアント接続の管理"
+HREF="managing-client-connections.html"><LINK
+REL="NEXT"
+TITLE="インメモリクエリキャッシュ"
+HREF="in-memory-query-caching.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=utf-8"><META
+NAME="creation"
+CONTENT="2019-05-04T08:56:22"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>Pgpool-II 4.1devel 文書</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="クライアント接続の管理"
+HREF="managing-client-connections.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="performance.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>第 7章性能に関する考慮</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="インメモリクエリキャッシュ"
+HREF="in-memory-query-caching.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="READ-QUERY-LOAD-BALANCING"
+>7.3. 読み出しクエリの負荷分散</A
+></H1
+><P
+>      複数の<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>ノードがあり、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>がストリーミングレプリケーションモード、ロジカルレプリケーションモード、slonyモード、レプリケーションモードで動作していると(これらの動作モードについては<A
+HREF="configuring-pgpool.html#RUNNING-MODE"
+>項4.3.2</A
+>を参照のこと)、読み出しクエリをこれらのデータベースノードに分散させ、各々のノードにより少ない数のクエリを処理させることによってより高いスループットを得ることができます。
+      この機能を使うためには、<A
+HREF="runtime-config-load-balancing.html#GUC-LOAD-BALANCE-MODE"
+>load_balance_mode</A
+>をonにする必要があります。
+    </P
+><P
+>      今の所、非常に多くのシステムがストリーミングレプリケーションモードを使用しているので、以後このモードに焦点を当てて説明します。
+    </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="SESSION-LEVEL-LOAD-BALANCING-VS-STATEMENT-LEVEL-LOAD-BALANCING"
+>7.3.1. セッションレベルのロードバランスとステートメントレベルのロードバランス</A
+></H2
+><P
+>	デフォルトではロードバランスモードは「セッションレベル」で、読み出しクエリを送るノードはクライアントが<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>に接続した時に決定されます。
+	たとえば、ノード0、1があると、新しいセッションが作られた時にどちらかのノードがランダムに選択されます。
+	長期的にはどちらのノードが選ばれるかの確率は、<A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-WEIGHT"
+>backend_weight</A
+>0と<A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-WEIGHT"
+>backend_weight</A
+>1の比率に近づきます。
+	これらの値が等しければ、どちらかのノードが選ばれるチャンスは同じになるでしょう。
+      </P
+><P
+>	一方、<A
+HREF="runtime-config-load-balancing.html#GUC-STATEMENT-LEVEL-LOAD-BALANCE"
+>statement_level_load_balance</A
+>がonなら、
+	ロードバランスノードは各クエリが開始する時に決まります。
+	これは、アプリケーションが自分自身のコネクションプールを持っており、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>に接続し続けるので、ひとたびアプリケーションが起動するとロードバランスノードが変わらない場合に有効です。
+	他のユースケースはバッチアプリケーションです。たくさんのクエリを発行しますが、セッションは一つです。
+	ステートメントレベルのロードバランスによって、複数のサーバを利用できます。
+      </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="CREATING-SPECIFIC-PURPOSE-DATABASE-NODE"
+>7.3.2. 特定目的のデータベースノードを作る</A
+></H2
+><P
+>	OLAP環境では、特定目的のために大きな読み出し専用のデータベースを持つことが望ましいです。
+	ストリーミングレプリケーションでレプリカデータベースを作ることによって、このようなデータベースを作ることができます。
+	読み出しクエリをそのデータベースに発行する方法は2つあります。
+	データベース名を指定する方法と、アプリケーション名を指定する方法です。
+	前者のためには<A
+HREF="runtime-config-load-balancing.html#GUC-DATABASE-REDIRECT-PREFERENCE-LIST"
+>database_redirect_preference_list</A
+>を、後者のためには<A
+HREF="runtime-config-load-balancing.html#GUC-APP-NAME-REDIRECT-PREFERENCE-LIST"
+>app_name_redirect_preference_list</A
+>を使ってください。
+      </P
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="managing-client-connections.html"
+ACCESSKEY="P"
+>前のページ</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>ホーム</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="in-memory-query-caching.html"
+ACCESSKEY="N"
+>次のページ</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>クライアント接続の管理</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="performance.html"
+ACCESSKEY="U"
+>上に戻る</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>インメモリクエリキャッシュ</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
