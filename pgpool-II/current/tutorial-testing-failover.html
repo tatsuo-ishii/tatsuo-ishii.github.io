@@ -9,14 +9,14 @@ CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
 REV="MADE"
 HREF="mailto:pgsql-docs@postgresql.org"><LINK
 REL="HOME"
-TITLE="pgpool-II 4.1devel Documentation"
+TITLE="pgpool-II 4.0.5 Documentation"
 HREF="index.html"><LINK
 REL="UP"
 TITLE="Getting Started"
 HREF="tutorial-start.html"><LINK
 REL="PREVIOUS"
-TITLE="Testing Load Balance"
-HREF="tutorial-testing-load-balance.html"><LINK
+TITLE="Testing Replication"
+HREF="tutorial-testing-replication.html"><LINK
 REL="NEXT"
 TITLE="Testing Online Recovery"
 HREF="tutorial-testing-online-recovery.html"><LINK
@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2019-08-02T00:03:35"></HEAD
+CONTENT="2019-08-07T07:54:53"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -44,7 +44,7 @@ ALIGN="center"
 VALIGN="bottom"
 ><A
 HREF="index.html"
->pgpool-II 4.1devel Documentation</A
+>pgpool-II 4.0.5 Documentation</A
 ></TH
 ></TR
 ><TR
@@ -53,8 +53,8 @@ WIDTH="10%"
 ALIGN="left"
 VALIGN="top"
 ><A
-TITLE="Testing Load Balance"
-HREF="tutorial-testing-load-balance.html"
+TITLE="Testing Replication"
+HREF="tutorial-testing-replication.html"
 ACCESSKEY="P"
 >Prev</A
 ></TD
@@ -110,17 +110,24 @@ CLASS="PRODUCTNAME"
 > sets the
       status of the server to "down" and continue the database
       operation using remaining servers.
-</P><PRE
+      </P><PRE
 CLASS="PROGRAMLISTING"
 >$ pg_ctl -D data1 stop
 waiting for server to shut down.... done
 server stopped
 $ psql -p 11000 -c "show pool_nodes" test
- node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay | last_status_change
----------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------+---------------------
- 0       | /tmp     | 11002 | up     | 0.500000  | primary | 4276       | true              | 0                 | 2019-01-31 12:00:09
- 1       | /tmp     | 11003 | down   | 0.500000  | standby | 1          | false             | 0                 | 2019-01-31 12:03:07
-(2 rows)</PRE
+ node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay 
+---------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------
+ 0       | /tmp     | 11002 | up     | 0.500000  | primary | 2172       | true              | 0
+ 1       | /tmp     | 11003 | down   | 0.500000  | standby | 0          | false             | 0
+(2 rows)
+
+$ psql -p 11000 -c "SELECT sum(abalance) FROM pgbench_accounts" test
+  sum   
+--------
+ 192112
+(1 row)
+      </PRE
 ><P>
       The standby node was shut down by pg_ctl
       command. <SPAN
@@ -130,36 +137,38 @@ CLASS="PRODUCTNAME"
       detaches the standby node. "show pool_nodes" command shows that
       the standby node is in down status. You can continue to use the
       cluster without the standby node:
-</P><PRE
+      </P><PRE
 CLASS="PROGRAMLISTING"
 >$ psql -p 11000 -c "SELECT sum(abalance) FROM pgbench_accounts" test
   sum   
 --------
- 216117
-(1 row)</PRE
+ 192112
+(1 row)
+      </PRE
 ><P>
       What happens if the primary server goes down? In this case, one
       of remaining standby server is promoted to new primary
       server. For this testing, we start from the state in which both
       nodes are up.
-</P><PRE
+      </P><PRE
 CLASS="PROGRAMLISTING"
 >$ psql -p 11000 -c "show pool_nodes" test
- node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay | last_status_change
----------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------+---------------------
- 0       | /tmp     | 11002 | up     | 0.500000  | primary | 0          | false             | 0                 | 2019-01-31 12:04:58
- 1       | /tmp     | 11003 | up     | 0.500000  | standby | 0          | true              | 0                 | 2019-01-31 12:04:58
+ node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay 
+---------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------
+ 0       | /tmp     | 11002 | up     | 0.500000  | primary | 2173       | true              | 0
+ 1       | /tmp     | 11003 | up     | 0.500000  | standby | 0          | false             | 0
 (2 rows)
 
 $ pg_ctl -D data0 stop
 waiting for server to shut down.... done
 server stopped
 $ psql -p 11000 -c "show pool_nodes" test
- node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay | last_status_change
----------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------+---------------------
- 0       | /tmp     | 11002 | down   | 0.500000  | standby | 0          | false             | 0                 | 2019-01-31 12:05:20
- 1       | /tmp     | 11003 | up     | 0.500000  | primary | 0          | true              | 0                 | 2019-01-31 12:05:20
-(2 rows)</PRE
+ node_id | hostname | port  | status | lb_weight |  role   | select_cnt | load_balance_node | replication_delay 
+---------+----------+-------+--------+-----------+---------+------------+-------------------+-------------------
+ 0       | /tmp     | 11002 | down   | 0.500000  | standby | 2173       | false             | 0
+ 1       | /tmp     | 11003 | up     | 0.500000  | primary | 0          | true              | 0
+(2 rows)
+      </PRE
 ><P>
       Now the primary node is changed from 0 to 1. What happens
       inside? When the node 0 goes
@@ -167,16 +176,13 @@ $ psql -p 11000 -c "show pool_nodes" test
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 > detects it and
-      executes <TT
-CLASS="VARNAME"
->failover_command</TT
-> defined
+      executes "fail_over_script" defined
       in <TT
 CLASS="FILENAME"
 >pgpool.conf</TT
 >.  Here is the content of the
       file.
-</P><PRE
+      </P><PRE
 CLASS="PROGRAMLISTING"
 >#! /bin/sh
 # Execute command by failover.
@@ -214,8 +220,8 @@ if [ a"$failed_node_id" = a"$old_primary_node_id" ];then	# master failed
 ! 	new_primary_db_cluster=${mydir}/data"$new_master_id"
 	echo $pg_ctl -D $new_primary_db_cluster promote &#62;&#62;$log	# let standby take over
 	$pg_ctl -D $new_primary_db_cluster promote &#62;&#62;$log	# let standby take over
-	sleep 2
-fi</PRE
+fi
+      </PRE
 ><P>
       The script receives necessary information as parameters
       from <SPAN
@@ -242,7 +248,7 @@ WIDTH="33%"
 ALIGN="left"
 VALIGN="top"
 ><A
-HREF="tutorial-testing-load-balance.html"
+HREF="tutorial-testing-replication.html"
 ACCESSKEY="P"
 >Prev</A
 ></TD
@@ -270,7 +276,7 @@ ACCESSKEY="N"
 WIDTH="33%"
 ALIGN="left"
 VALIGN="top"
->Testing Load Balance</TD
+>Testing Replication</TD
 ><TD
 WIDTH="34%"
 ALIGN="center"
