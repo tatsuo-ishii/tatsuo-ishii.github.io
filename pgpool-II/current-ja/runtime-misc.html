@@ -9,7 +9,7 @@ CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
 REV="MADE"
 HREF="mailto:pgsql-docs@postgresql.org"><LINK
 REL="HOME"
-TITLE="Pgpool-II 4.0.5 文書"
+TITLE="Pgpool-II 4.1devel 文書"
 HREF="index.html"><LINK
 REL="UP"
 TITLE="サーバの設定"
@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2019-08-07T07:52:35"></HEAD
+CONTENT="2019-08-07T08:22:56"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -44,7 +44,7 @@ ALIGN="center"
 VALIGN="bottom"
 ><A
 HREF="index.html"
->Pgpool-II 4.0.5 文書</A
+>Pgpool-II 4.1devel 文書</A
 ></TH
 ></TR
 ><TR
@@ -123,6 +123,10 @@ CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
 >のシステムカタログの問い合わせ結果を保存しておくものです。
 キャッシュはpgpoolの子プロセスのローカルメモリ空間に保管されています。
+<A
+HREF="runtime-misc.html#GUC-ENABLE-SHARED-RELCACHE"
+>enable_shared_relcache</A
+>が有効な場合、子プロセス間で共有するために共有メモリにも保管されます。
 もし<TT
 CLASS="COMMAND"
 >ALTER TABLE</TT
@@ -153,6 +157,8 @@ CLASS="TYPE"
 ><P
 >リレーションキャッシュのエントリ数を指定します。
 デフォルトは256です。
+リレーションキャッシュは、一つのテーブルあたり最大10個程度のエントリが作成されます。
+そのため、必要なリレーションキャッシュのサイズは、使用するテーブル数 * 10 で見積れます。
         </P
 ><DIV
 CLASS="NOTE"
@@ -182,11 +188,11 @@ CLASS="PROGRAMLISTING"
 ></DD
 ><DT
 ><A
-NAME="GUC-CHECK-TEMP-TABLE"
+NAME="GUC-ENABLE-SHARED-RELCACHE"
 ></A
 ><TT
 CLASS="VARNAME"
->check_temp_table</TT
+>enable_shared_relcache</TT
 > (<TT
 CLASS="TYPE"
 >boolean</TT
@@ -194,22 +200,182 @@ CLASS="TYPE"
         </DT
 ><DD
 ><P
->onに設定されたとき、<ACRONYM
+>onにするとクエリキャッシュを利用して子プロセス間でリレーションキャッシュを共有します。
+デフォルトはoffです。
+それぞれの子プロセスは<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>のシステムカタログを参照するために同じクエリを実行していましたが、クエリキャッシュにより同じクエリの実行を1回だけとすることが期待できます。
+クエリキャッシュ上の寿命は、<A
+HREF="runtime-misc.html#GUC-RELCACHE-EXPIRE"
+>relcache_expire</A
+>の値となります。
+本パラメータは、<A
+HREF="runtime-in-memory-query-cache.html#GUC-MEMORY-CACHE-ENABLED"
+>memory_cache_enabled</A
+>がoffの場合も有効です。
+この場合、一部のクエリキャッシュのパラメータ（<A
+HREF="runtime-in-memory-query-cache.html#GUC-MEMQCACHE-METHOD"
+>memqcache_method</A
+>と<A
+HREF="runtime-in-memory-query-cache.html#GUC-MEMQCACHE-MAXCACHE"
+>memqcache_maxcache</A
+>、および各キャッシュストレージ用のパラメータ）も有効になります。
+        </P
+><P
+>このパラメータがonなら、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>はローカルのリレーションキャッシュをまず検索します。
+該当するキャッシュエントリが見つからない場合は、次にクエリキャッシュを検索します。
+もしクエリキャッシュに該当エントリが見つかったら、ローカルキャッシュにコピーします。
+見つからなかった場合には、<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>にクエリを発行して問い合わせを実行し、結果をクエリキャッシュに登録するとともに、ローカルキャッシュにも登録します。
+        </P
+><P
+>このパラメータはサーバ起動時にのみ設定可能です
+        </P
+></DD
+><DT
+><A
+NAME="GUC-RELCACHE-QUERY-TARGET"
+></A
+><TT
+CLASS="VARNAME"
+>relcache_query_target</TT
+> (<TT
+CLASS="TYPE"
+>enum</TT
+>)
+        </DT
+><DD
+><P
+>	  リレーションキャッシュを作成するためのクエリを送る先のノードを指定します。
+	  <TT
+CLASS="LITERAL"
+>master</TT
+>にすると、クエリはマスタ（プライマリ）に送られます。
+	  これがデフォルトで、最新のデータを入手できるため、ほとんどのユーザに推奨する設定です。
+	  もしマスタ（プライマリ）の負荷を下げたい場合は、このパラメータを<TT
+CLASS="LITERAL"
+>load_balance_node</TT
+>に設定できます。
+	  これにより、クエリは負荷分散ノードに送られます。
+	  これは特に、大陸Aに<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>とプライマリサーバがあり、一方大陸Bに<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>とスタンバイサーバがあるような構成で有効です。
+	  Bのユーザは地理的にスタンバイサーバが近いため、スタンバイからデータを読みたいと思うでしょう。
+	  その場合は、backend_weight0 (これはプライマリの設定です)を0に、backend_weight1(これはスタンバイの設定です)を1にし、relache_query_targetを<TT
+CLASS="LITERAL"
+>load_balance_node</TT
+>にします。
+	</P
+><P
+>	  しかし、スタンバイにクエリを送る場合、レプリケーションの遅延により、最近作られたテーブルや行はスタンバイサーバにはまだないかもしれないことに注意してください。
+	  ですから、更新頻度の高いシステムではこの設定はおすすめできません。
+	</P
+><P
+>	  このパラメータは<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>の設定を再読み込みすることで変更可能です。
+	</P
+></DD
+><DT
+><A
+NAME="GUC-CHECK-TEMP-TABLE"
+></A
+><TT
+CLASS="VARNAME"
+>check_temp_table</TT
+> (<TT
+CLASS="TYPE"
+>enum</TT
+>)
+        </DT
+><DD
+><P
+>	  <TT
+CLASS="LITERAL"
+>catalog</TT
+>あるいは<TT
+CLASS="LITERAL"
+>trace</TT
+>に設定されたとき、<ACRONYM
 CLASS="ACRONYM"
 >SELECT</ACRONYM
 >に含まれるテーブルが一時テーブルかどうかのチェックを行います。
-一時テーブルをチェックするため<SPAN
+	  <TT
+CLASS="LITERAL"
+>catalog</TT
+>に設定すると一時テーブルをチェックするため<SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >はプライマリ/マスター<SPAN
 CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
 >バックエンドのシステムカタログに問い合わせ、プライマリ/マスタサーバの負荷を上げます。
-もしシステムが決して一時テーブルを使用しないことが確かならば、安全に<TT
+	</P
+><P
+>	  <TT
+CLASS="LITERAL"
+>trace</TT
+>に設定されていると、一時テーブルの情報を入手するために<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>は一時テーブルの作成と削除を追跡します。
+	  ですからシステムカタログへアクセする必要がありません。
+	  しかし、一時テーブルの生成が<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>から見えない場合（たとえば関数やトリガの中で行われる場合）、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>は一時テーブルの生成を認識できません。
+	</P
+><P
+>	  もしシステムが決して一時テーブルを使用しないことが確かならば、安全に<TT
 CLASS="VARNAME"
 >check_tmp_table</TT
->をoffにすることができます。
-デフォルトはonです。
+>を<TT
+CLASS="LITERAL"
+>none</TT
+>にすることができます。
+	</P
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>注意: </B
+>	    4.0以前のバージョンとの互換性のために、<TT
+CLASS="LITERAL"
+>catalog</TT
+>と同じ意味の<TT
+CLASS="LITERAL"
+>on</TT
+>、<TT
+CLASS="LITERAL"
+>none</TT
+>と同じ意味の<TT
+CLASS="LITERAL"
+>off</TT
+>も受け付けますが、将来のバージョンではこれらは削除されるかもしれません。
+	  </P
+></BLOCKQUOTE
+></DIV
+><P
+>デフォルトは<TT
+CLASS="LITERAL"
+>catalog</TT
+>です。
         </P
 ><P
 >このパラメータは<SPAN
@@ -314,7 +480,7 @@ CLASS="LITERAL"
 >ファイルを格納するディレクトリのフルパスを指定します。
 デフォルトは<TT
 CLASS="LITERAL"
->"/tmp"</TT
+>'/tmp'</TT
 >です。
         </P
 ><P

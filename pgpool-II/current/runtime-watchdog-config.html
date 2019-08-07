@@ -9,7 +9,7 @@ CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
 REV="MADE"
 HREF="mailto:pgsql-docs@postgresql.org"><LINK
 REL="HOME"
-TITLE="pgpool-II 4.0.5 Documentation"
+TITLE="pgpool-II 4.1devel Documentation"
 HREF="index.html"><LINK
 REL="UP"
 TITLE="Server Configuration"
@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2019-08-07T07:54:53"></HEAD
+CONTENT="2019-08-07T08:22:38"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -44,7 +44,7 @@ ALIGN="center"
 VALIGN="bottom"
 ><A
 HREF="index.html"
->pgpool-II 4.0.5 Documentation</A
+>pgpool-II 4.1devel Documentation</A
 ></TH
 ></TR
 ><TR
@@ -647,7 +647,10 @@ CLASS="PRODUCTNAME"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 > shuts down, detects a network
-        blackout or detects the lost of quorum.
+        blackout or detects the lost of <I
+CLASS="FIRSTTERM"
+>quorum</I
+>.
         </P
 ><P
 >          This command is executed before bringing down the virtual/floating IP address
@@ -712,16 +715,102 @@ CLASS="TYPE"
           </DT
 ><DD
 ><P
->        When enabled, <SPAN
+>          When enabled, <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> will perform the degenerate/failover on
-        backend node if the quorum exists. In the absence of the quorum, <SPAN
+> will consider quorum when it performs the degenerate/failover on backend node.
+        </P
+><P
+>	  We can say that "quorum exists" if the number of live
+	  watchdog nodes (that is number
+	  of <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> nodes) can be a
+	  majority against the total number of watchdog nodes. For
+	  example, suppose number of watchdog nodes is 5. If number of
+	  live nodes is greater than or equal to 3, then quorum
+	  exists. On the other hand if number of live nodes is 2 or
+	  lower, quorum does not exist since it never be
+	  majority.
+	</P
+><P
+>	  If the quorum exists, <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >
-        node that detects the backend failure will quarantine the failed backend node until the quorum exists again.
-        </P
+	  could work better on failure detection because even if a
+	  watchdog node mistakenly detects a failure of backend node,
+	  it would be denied by other major watchdog nodes.
+	  <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> works that way
+	  when <A
+HREF="runtime-watchdog-config.html#GUC-FAILOVER-REQUIRE-CONSENSUS"
+>failover_require_consensus</A
+> is on
+	  (the default), but you can change it so that immediate
+	  failover happens when a failure is detected.
+	  A <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> node which mistakenly
+	  detects failure of backend node will quarantine the backend
+	  node.
+	</P
+><P
+>  	  The existence of quorum can be shown by invoking <A
+HREF="pcp-watchdog-info.html"
+>pcp_watchdog_info</A
+> command with <TT
+CLASS="LITERAL"
+>--verbose</TT
+> option.
+	  If <TT
+CLASS="LITERAL"
+>Quorum state</TT
+> is <TT
+CLASS="LITERAL"
+>QUORUM EXIST</TT
+> or <TT
+CLASS="LITERAL"
+>QUORUM IS ON THE EDGE</TT
+>, then the quorum exists.
+	  If <TT
+CLASS="LITERAL"
+>Quorum state</TT
+> is <TT
+CLASS="LITERAL"
+>QUORUM ABSENT</TT
+>, then the quorum does not exist.
+	</P
+><P
+>	  Please note that if the number of watchdog nodes is even, we
+	  regard that quorum exists when the number of live nodes is
+	  greater than or equal to half of total watchdog nodes.
+	</P
+><P
+>	  In the absence of the
+          quorum, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> node that
+          detects the backend failure will quarantine the failed
+          backend node until the quorum exists again.
+	</P
+><P
+>	  Although it is possible to force detaching the quarantine
+	  node by using <TT
+CLASS="COMMAND"
+>pcp_detach_node</TT
+> command, it
+	  is not possible to attach the node again by
+	  using <TT
+CLASS="COMMAND"
+>pcp_attach_node</TT
+> command.
+	</P
 ><P
 >        The quarantine nodes behaves similar to the detached backend nodes but unlike failed/degenerated backends
         the quarantine status is not propagated to the other <SPAN
@@ -753,8 +842,50 @@ CLASS="PRODUCTNAME"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 > will not have
-        any useable master backend node.
+        any usable master backend node.
         </P
+><P
+>          Moreover, unlike for the failed
+          nodes, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> keeps the
+          health-check running on the quarantined nodes and as soon as
+          the quarantined node becomes reachable again it gets
+          automatically re-attached.
+        </P
+><P
+>          From <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II </SPAN
+><SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>V4.1</I
+></SPAN
+> onwards, if the watchdog-master node
+          fails to build the consensus for primary backend node failover and the primary backend node gets into a
+          quarantine state, then it resigns from its master/coordinator responsibilities and lowers its wd_priority
+          for next leader election and let the cluster elect some different new leader.
+            </P><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>            When the master node fails to build the consensus for standby backend node failure, it takes no action
+            and similarly quarantined standby backend nodes on watchdog-master do not trigger a new leader election.
+            </P
+></BLOCKQUOTE
+></DIV
+><P>
+        </P
+><P
+>	  If this parameter is off, failover will be triggered even if
+	  quorum does not exist.
+	</P
 ><P
 >          Default is on.
         </P
@@ -803,6 +934,10 @@ CLASS="PRODUCTNAME"
 >        For example, in a three node watchdog cluster, the failover will only be performed until at
         least two nodes ask for performing the failover on the particular backend node.
         </P
+><P
+>	  If this parameter is off, failover will be triggered even if
+	  there's no consensus.
+	</P
 ><P
 >          Default is on.
         </P
@@ -919,6 +1054,13 @@ CLASS="PRODUCTNAME"
 > node.
         </P
 ><P
+>	  For example, if an error found in a health check round does
+	  not get enough vote and the error still persists, next round
+	  of health check will give one more vote.  This parameter is
+	  useful if you want to detect a persistent error which might
+	  not be found by other watchdog nodes.
+        </P
+><P
 >          Default is off.
         </P
 ><P
@@ -1027,7 +1169,15 @@ CLASS="LITERAL"
        to other <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> and checks the response
+> and checks the response.
+       When installation location between <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+       servers is far, <TT
+CLASS="LITERAL"
+>query</TT
+> may be useful.
        <DIV
 CLASS="CAUTION"
 ><P
