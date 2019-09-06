@@ -6,7 +6,7 @@ tags: [Pgpool-II, Major-releases, 4.1beta1]
 ---
 待望のPgpool-II 4.1 beta1がリリースされました。
 
-[リリースアナウンス](https://pgpool.net/mediawiki/index.php/Main_Page#Pgpool-II_4.1_beta1_released_.282019.2F09.2F06.29)
+[リリースアナウンス](https://www.pgpool.net/mediawiki/jp/index.php/%E3%83%A1%E3%82%A4%E3%83%B3%E3%83%9A%E3%83%BC%E3%82%B8#Pgpool-II_4.1_beta1_.E3.83.AA.E3.83.AA.E3.83.BC.E3.82.B9_.282019.2F09.2F06.29)
 
 Pgpool-II 4.1では、多くの新機能追加、性能改善が行われています。
 
