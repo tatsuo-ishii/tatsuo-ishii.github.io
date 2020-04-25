@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>14.1. Using EXPLAIN</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="performance-tips.html" title="Chapter 14. Performance Tips" /><link rel="next" href="planner-stats.html" title="14.2. Statistics Used by the Planner" /></head><body><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">14.1. Using <code xmlns="http://www.w3.org/1999/xhtml" class="command">EXPLAIN</code></th></tr><tr><td width="10%" align="left"><a accesskey="p" href="performance-tips.html" title="Chapter 14. Performance Tips">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="performance-tips.html" title="Chapter 14. Performance Tips">Up</a></td><th width="60%" align="center">Chapter 14. Performance Tips</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 12devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="planner-stats.html" title="14.2. Statistics Used by the Planner">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="USING-EXPLAIN"><div class="titlepage"><div><div><h2 class="title" style="clear: both">14.1. Using <code class="command">EXPLAIN</code></h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-BASICS">14.1.1. <code class="command">EXPLAIN</code> Basics</a></span></dt><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-ANALYZE">14.1.2. <code class="command">EXPLAIN ANALYZE</code></a></span></dt><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-CAVEATS">14.1.3. Caveats</a></span></dt></dl></div><a id="id-1.5.13.4.2" class="indexterm"></a><a id="id-1.5.13.4.3" class="indexterm"></a><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>14.1. Using EXPLAIN</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="performance-tips.html" title="Chapter 14. Performance Tips" /><link rel="next" href="planner-stats.html" title="14.2. Statistics Used by the Planner" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">14.1. Using <code xmlns="http://www.w3.org/1999/xhtml" class="command">EXPLAIN</code></th></tr><tr><td width="10%" align="left"><a accesskey="p" href="performance-tips.html" title="Chapter 14. Performance Tips">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="performance-tips.html" title="Chapter 14. Performance Tips">Up</a></td><th width="60%" align="center">Chapter 14. Performance Tips</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="planner-stats.html" title="14.2. Statistics Used by the Planner">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="USING-EXPLAIN"><div class="titlepage"><div><div><h2 class="title" style="clear: both">14.1. Using <code class="command">EXPLAIN</code></h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-BASICS">14.1.1. <code class="command">EXPLAIN</code> Basics</a></span></dt><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-ANALYZE">14.1.2. <code class="command">EXPLAIN ANALYZE</code></a></span></dt><dt><span class="sect2"><a href="using-explain.html#USING-EXPLAIN-CAVEATS">14.1.3. Caveats</a></span></dt></dl></div><a id="id-1.5.13.4.2" class="indexterm"></a><a id="id-1.5.13.4.3" class="indexterm"></a><p>
     <span class="productname">PostgreSQL</span> devises a <em class="firstterm">query
     plan</em> for each query it receives.  Choosing the right
     plan to match the query structure and the properties of the data
@@ -215,7 +215,45 @@ EXPLAIN SELECT * FROM tenk1 WHERE unique1 = 42;
     often see this plan type for queries that fetch just a single row.  It's
     also often used for queries that have an <code class="literal">ORDER BY</code> condition
     that matches the index order, because then no extra sorting step is needed
-    to satisfy the <code class="literal">ORDER BY</code>.
+    to satisfy the <code class="literal">ORDER BY</code>.  In this example, adding
+    <code class="literal">ORDER BY unique1</code> would use the same plan because the
+    index already implicitly provides the requested ordering.
+   </p><p>
+     The planner may implement an <code class="literal">ORDER BY</code> clause in several
+     ways.  The above example shows that such an ordering clause may be
+     implemented implicitly.  The planner may also add an explicit
+     <code class="literal">sort</code> step:
+
+</p><pre class="screen">
+EXPLAIN SELECT * FROM tenk1 ORDER BY unique1;
+                            QUERY PLAN
+-------------------------------------------------------------------
+ Sort  (cost=1109.39..1134.39 rows=10000 width=244)
+   Sort Key: unique1
+   -&gt;  Seq Scan on tenk1  (cost=0.00..445.00 rows=10000 width=244)
+</pre><p>
+
+    If a part of the plan guarantees an ordering on a prefix of the
+    required sort keys, then the planner may instead decide to use an
+    <code class="literal">incremental sort</code> step:
+
+</p><pre class="screen">
+EXPLAIN SELECT * FROM tenk1 ORDER BY four, ten LIMIT 100;
+                                              QUERY PLAN
+------------------------------------------------------------------------------------------------------
+ Limit  (cost=521.06..538.05 rows=100 width=244)
+   -&gt;  Incremental Sort  (cost=521.06..2220.95 rows=10000 width=244)
+         Sort Key: four, ten
+         Presorted Key: four
+         -&gt;  Index Scan using index_tenk1_on_four on tenk1  (cost=0.29..1510.08 rows=10000 width=244)
+</pre><p>
+
+    Compared to regular sorts, sorting incrementally allows returning tuples
+    before the entire result set has been sorted, which particularly enables
+    optimizations with <code class="literal">LIMIT</code> queries.  It may also reduce
+    memory usage and the likelihood of spilling sorts to disk, but it comes at
+    the cost of the increased overhead of splitting the result set into multiple
+    sorting batches.
    </p><p>
     If there are separate indexes on several of the columns referenced
     in <code class="literal">WHERE</code>, the planner might choose to use an AND or OR
@@ -750,13 +788,14 @@ EXPLAIN ANALYZE SELECT * FROM tenk1 WHERE unique1 &lt; 100 AND unique2 &gt; 9000
     BitmapAnd and BitmapOr nodes always report their actual row counts as zero,
     due to implementation limitations.
    </p><p>
-    Generally, the <code class="command">EXPLAIN</code> output will display details for
-    every plan node which was generated by the query planner.  However, there
-    are cases where the executor is able to determine that certain nodes are
-    not required; currently, the only node types to support this are the
-    <code class="literal">Append</code> and <code class="literal">MergeAppend</code> nodes.  These
-    node types have the ability to discard subnodes which they are able to
-    determine won't contain any records required by the query.  It is possible
-    to determine that nodes have been removed in this way by the presence of a
-    "Subplans Removed" property in the <code class="command">EXPLAIN</code> output.
+    Normally, <code class="command">EXPLAIN</code> will display every plan node
+    created by the planner.  However, there are cases where the executor
+    can determine that certain nodes need not be executed because they
+    cannot produce any rows, based on parameter values that were not
+    available at planning time.  (Currently this can only happen for child
+    nodes of an Append or MergeAppend node that is scanning a partitioned
+    table.)  When this happens, those plan nodes are omitted from
+    the <code class="command">EXPLAIN</code> output and a <code class="literal">Subplans
+    Removed: <em class="replaceable"><code>N</code></em></code> annotation appears
+    instead.
    </p></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="performance-tips.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="performance-tips.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="planner-stats.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 14. Performance Tips </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 14.2. Statistics Used by the Planner</td></tr></table></div></body></html>

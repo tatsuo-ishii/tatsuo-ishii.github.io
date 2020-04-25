@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>SELECT</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="sql-security-label.html" title="SECURITY LABEL" /><link rel="next" href="sql-selectinto.html" title="SELECT INTO" /></head><body><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">SELECT</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="sql-security-label.html" title="SECURITY LABEL">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="sql-commands.html" title="SQL Commands">Up</a></td><th width="60%" align="center">SQL Commands</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 12devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sql-selectinto.html" title="SELECT INTO">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="SQL-SELECT"><div class="titlepage"></div><a id="id-1.9.3.171.1" class="indexterm"></a><a id="id-1.9.3.171.2" class="indexterm"></a><a id="id-1.9.3.171.3" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">SELECT</span></h2><p>SELECT, TABLE, WITH — retrieve rows from a table or view</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><pre class="synopsis">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>SELECT</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="sql-security-label.html" title="SECURITY LABEL" /><link rel="next" href="sql-selectinto.html" title="SELECT INTO" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">SELECT</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="sql-security-label.html" title="SECURITY LABEL">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="sql-commands.html" title="SQL Commands">Up</a></td><th width="60%" align="center">SQL Commands</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sql-selectinto.html" title="SELECT INTO">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="SQL-SELECT"><div class="titlepage"></div><a id="id-1.9.3.171.1" class="indexterm"></a><a id="id-1.9.3.171.2" class="indexterm"></a><a id="id-1.9.3.171.3" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">SELECT</span></h2><p>SELECT, TABLE, WITH — retrieve rows from a table or view</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><pre class="synopsis">
 [ WITH [ RECURSIVE ] <em class="replaceable"><code>with_query</code></em> [, ...] ]
 SELECT [ ALL | DISTINCT [ ON ( <em class="replaceable"><code>expression</code></em> [, ...] ) ] ]
     [ * | <em class="replaceable"><code>expression</code></em> [ [ AS ] <em class="replaceable"><code>output_name</code></em> ] [, ...] ]
@@ -12,7 +12,7 @@ SELECT [ ALL | DISTINCT [ ON ( <em class="replaceable"><code>expression</code></
     [ ORDER BY <em class="replaceable"><code>expression</code></em> [ ASC | DESC | USING <em class="replaceable"><code>operator</code></em> ] [ NULLS { FIRST | LAST } ] [, ...] ]
     [ LIMIT { <em class="replaceable"><code>count</code></em> | ALL } ]
     [ OFFSET <em class="replaceable"><code>start</code></em> [ ROW | ROWS ] ]
-    [ FETCH { FIRST | NEXT } [ <em class="replaceable"><code>count</code></em> ] { ROW | ROWS } ONLY ]
+    [ FETCH { FIRST | NEXT } [ <em class="replaceable"><code>count</code></em> ] { ROW | ROWS } { ONLY | WITH TIES } ]
     [ FOR { UPDATE | NO KEY UPDATE | SHARE | KEY SHARE } [ OF <em class="replaceable"><code>table_name</code></em> [, ...] ] [ NOWAIT | SKIP LOCKED ] [...] ]
 
 <span class="phrase">where <em class="replaceable"><code>from_item</code></em> can be one of:</span>
@@ -170,6 +170,12 @@ TABLE [ ONLY ] <em class="replaceable"><code>table_name</code></em> [ * ]
     Without <code class="literal">RECURSIVE</code>, <code class="literal">WITH</code> queries
     can only reference sibling <code class="literal">WITH</code> queries
     that are earlier in the <code class="literal">WITH</code> list.
+   </p><p>
+    When there are multiple queries in the <code class="literal">WITH</code>
+    clause, <code class="literal">RECURSIVE</code> should be written only once,
+    immediately after <code class="literal">WITH</code>.  It applies to all queries
+    in the <code class="literal">WITH</code> clause, though it has no effect on
+    queries that do not use recursion or forward references.
    </p><p>
     The primary query and the <code class="literal">WITH</code> queries are all
     (notionally) executed at the same time.  This implies that the effects of
@@ -1010,7 +1016,7 @@ OFFSET <em class="replaceable"><code>start</code></em>
     which <span class="productname">PostgreSQL</span> also supports.  It is:
 </p><pre class="synopsis">
 OFFSET <em class="replaceable"><code>start</code></em> { ROW | ROWS }
-FETCH { FIRST | NEXT } [ <em class="replaceable"><code>count</code></em> ] { ROW | ROWS } ONLY
+FETCH { FIRST | NEXT } [ <em class="replaceable"><code>count</code></em> ] { ROW | ROWS } { ONLY | WITH TIES }
 </pre><p>
     In this syntax, the <em class="replaceable"><code>start</code></em>
     or <em class="replaceable"><code>count</code></em> value is required by
@@ -1020,10 +1026,13 @@ FETCH { FIRST | NEXT } [ <em class="replaceable"><code>count</code></em> ] { ROW
     ambiguity.
     If <em class="replaceable"><code>count</code></em> is
     omitted in a <code class="literal">FETCH</code> clause, it defaults to 1.
-    <code class="literal">ROW</code>
-    and <code class="literal">ROWS</code> as well as <code class="literal">FIRST</code>
-    and <code class="literal">NEXT</code> are noise words that don't influence
-    the effects of these clauses.
+    The <code class="literal">WITH TIES</code> option is used to return any additional
+    rows that tie for the last place in the result set according to
+    the <code class="literal">ORDER BY</code> clause; <code class="literal">ORDER BY</code>
+    is mandatory in this case.
+    <code class="literal">ROW</code> and <code class="literal">ROWS</code> as well as
+    <code class="literal">FIRST</code> and <code class="literal">NEXT</code> are noise
+    words that don't influence the effects of these clauses.
     According to the standard, the <code class="literal">OFFSET</code> clause must come
     before the <code class="literal">FETCH</code> clause if both are present; but
     <span class="productname">PostgreSQL</span> is laxer and allows either order.
@@ -1074,7 +1083,7 @@ KEY SHARE
 </pre><p>
    </p><p>
     For more information on each row-level lock mode, refer to
-    <a class="xref" href="explicit-locking.html#LOCKING-ROWS" title="13.3.2. Row-level Locks">Section 13.3.2</a>.
+    <a class="xref" href="explicit-locking.html#LOCKING-ROWS" title="13.3.2. Row-Level Locks">Section 13.3.2</a>.
    </p><p>
     To prevent the operation from waiting for other transactions to commit,
     use either the <code class="literal">NOWAIT</code> or <code class="literal">SKIP LOCKED</code>

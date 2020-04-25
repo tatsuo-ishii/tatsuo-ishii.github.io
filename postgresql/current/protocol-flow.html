@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>52.2. Message Flow</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="protocol-overview.html" title="52.1. Overview" /><link rel="next" href="sasl-authentication.html" title="52.3. SASL Authentication" /></head><body><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">52.2. Message Flow</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="protocol-overview.html" title="52.1. Overview">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="protocol.html" title="Chapter 52. Frontend/Backend Protocol">Up</a></td><th width="60%" align="center">Chapter 52. Frontend/Backend Protocol</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 12devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sasl-authentication.html" title="52.3. SASL Authentication">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="PROTOCOL-FLOW"><div class="titlepage"><div><div><h2 class="title" style="clear: both">52.2. Message Flow</h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.3">52.2.1. Start-up</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.4">52.2.2. Simple Query</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">52.2.3. Extended Query</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.6">52.2.4. Function Call</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-COPY">52.2.5. COPY Operations</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-ASYNC">52.2.6. Asynchronous Operations</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.9">52.2.7. Canceling Requests in Progress</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.10">52.2.8. Termination</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.11">52.2.9. <acronym class="acronym">SSL</acronym> Session Encryption</a></span></dt></dl></div><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>52.2. Message Flow</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="protocol-overview.html" title="52.1. Overview" /><link rel="next" href="sasl-authentication.html" title="52.3. SASL Authentication" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">52.2. Message Flow</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="protocol-overview.html" title="52.1. Overview">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="protocol.html" title="Chapter 52. Frontend/Backend Protocol">Up</a></td><th width="60%" align="center">Chapter 52. Frontend/Backend Protocol</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sasl-authentication.html" title="52.3. SASL Authentication">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="PROTOCOL-FLOW"><div class="titlepage"><div><div><h2 class="title" style="clear: both">52.2. Message Flow</h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.3">52.2.1. Start-up</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.4">52.2.2. Simple Query</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">52.2.3. Extended Query</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.6">52.2.4. Function Call</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-COPY">52.2.5. COPY Operations</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#PROTOCOL-ASYNC">52.2.6. Asynchronous Operations</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.9">52.2.7. Canceling Requests in Progress</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.10">52.2.8. Termination</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.11">52.2.9. <acronym class="acronym">SSL</acronym> Session Encryption</a></span></dt><dt><span class="sect2"><a href="protocol-flow.html#id-1.10.5.7.12">52.2.10. <acronym class="acronym">GSSAPI</acronym> Session Encryption</a></span></dt></dl></div><p>
    This section describes the message flow and the semantics of each
    message type.  (Details of the exact representation of each message
    appear in <a class="xref" href="protocol-message-formats.html" title="52.7. Message Formats">Section 52.7</a>.)  There are
@@ -834,6 +834,61 @@ SELCT 1/0;
    </p><p>
     While the protocol itself does not provide a way for the server to
     force <acronym class="acronym">SSL</acronym> encryption, the administrator can
+    configure the server to reject unencrypted sessions as a byproduct
+    of authentication checking.
+   </p></div><div class="sect2" id="id-1.10.5.7.12"><div class="titlepage"><div><div><h3 class="title">52.2.10. <acronym class="acronym">GSSAPI</acronym> Session Encryption</h3></div></div></div><p>
+    If <span class="productname">PostgreSQL</span> was built with
+    <acronym class="acronym">GSSAPI</acronym> support, frontend/backend communications
+    can be encrypted using <acronym class="acronym">GSSAPI</acronym>.  This provides
+    communication security in environments where attackers might be
+    able to capture the session traffic. For more information on
+    encrypting <span class="productname">PostgreSQL</span> sessions with
+    <acronym class="acronym">GSSAPI</acronym>, see <a class="xref" href="gssapi-enc.html" title="18.10. Secure TCP/IP Connections with GSSAPI Encryption">Section 18.10</a>.
+   </p><p>
+    To initiate a <acronym class="acronym">GSSAPI</acronym>-encrypted connection, the
+    frontend initially sends a GSSENCRequest message rather than a
+    StartupMessage.  The server then responds with a single byte
+    containing <code class="literal">G</code> or <code class="literal">N</code>, indicating that it
+    is willing or unwilling to perform <acronym class="acronym">GSSAPI</acronym> encryption,
+    respectively.  The frontend might close the connection at this point
+    if it is dissatisfied with the response.  To continue after
+    <code class="literal">G</code>, using the GSSAPI C bindings as discussed in RFC2744
+    or equivalent, perform a <acronym class="acronym">GSSAPI</acronym> initialization by
+    calling <code class="function">gss_init_sec_context()</code> in a loop and sending
+    the result to the server, starting with an empty input and then with each
+    result from the server, until it returns no output.  When sending the
+    results of <code class="function">gss_init_sec_context()</code> to the server,
+    prepend the length of the message as a four byte integer in network byte
+    order.  If this is successful, then use <code class="function">gss_wrap()</code> to
+    encrypt the usual StartupMessage and all subsequent data, prepending the
+    length of the result from <code class="function">gss_wrap()</code> as a four byte
+    integer in network byte order to the actual encrypted payload.  Note that
+    the server will only accept encrypted packets from the client which are less
+    than 16kB; <code class="function">gss_wrap_size_limit()</code> should be used by the
+    client to determine the size of the unencrypted message which will fit
+    within this limit and larger messages should be broken up into multiple
+    <code class="function">gss_wrap()</code> calls.  Typical segments are 8kB of
+    unencrypted data, resulting in encrypted packets of slightly larger than 8kB
+    but well within the 16kB maximum.  The server can be expected to not send
+    encrypted packets of larger than 16kB to the client.  To continue after
+    <code class="literal">N</code>, send the usual StartupMessage and proceed without
+    encryption.
+   </p><p>
+    The frontend should also be prepared to handle an ErrorMessage
+    response to GSSENCRequest from the server.  This would only occur if
+    the server predates the addition of <acronym class="acronym">GSSAPI</acronym> encryption
+    support to <span class="productname">PostgreSQL</span>.  In this case the
+    connection must be closed, but the frontend might choose to open a fresh
+    connection and proceed without requesting <acronym class="acronym">GSSAPI</acronym>
+    encryption.  Given the length limits specified above, the ErrorMessage can
+    not be confused with a proper response from the server with an appropriate
+    length.
+   </p><p>
+    An initial GSSENCRequest can also be used in a connection that is being
+    opened to send a CancelRequest message.
+   </p><p>
+    While the protocol itself does not provide a way for the server to
+    force <acronym class="acronym">GSSAPI</acronym> encryption, the administrator can
     configure the server to reject unencrypted sessions as a byproduct
     of authentication checking.
    </p></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="protocol-overview.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="protocol.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="sasl-authentication.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">52.1. Overview </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 52.3. SASL Authentication</td></tr></table></div></body></html>

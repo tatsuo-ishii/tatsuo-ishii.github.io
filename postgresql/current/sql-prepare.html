@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>PREPARE</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="sql-notify.html" title="NOTIFY" /><link rel="next" href="sql-prepare-transaction.html" title="PREPARE TRANSACTION" /></head><body><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">PREPARE</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="sql-notify.html" title="NOTIFY">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="sql-commands.html" title="SQL Commands">Up</a></td><th width="60%" align="center">SQL Commands</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 12devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sql-prepare-transaction.html" title="PREPARE TRANSACTION">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="SQL-PREPARE"><div class="titlepage"></div><a id="id-1.9.3.158.1" class="indexterm"></a><a id="id-1.9.3.158.2" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">PREPARE</span></h2><p>PREPARE — prepare a statement for execution</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><pre class="synopsis">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>PREPARE</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="sql-notify.html" title="NOTIFY" /><link rel="next" href="sql-prepare-transaction.html" title="PREPARE TRANSACTION" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">PREPARE</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="sql-notify.html" title="NOTIFY">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="sql-commands.html" title="SQL Commands">Up</a></td><th width="60%" align="center">SQL Commands</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="sql-prepare-transaction.html" title="PREPARE TRANSACTION">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="SQL-PREPARE"><div class="titlepage"></div><a id="id-1.9.3.158.1" class="indexterm"></a><a id="id-1.9.3.158.2" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">PREPARE</span></h2><p>PREPARE — prepare a statement for execution</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><pre class="synopsis">
 PREPARE <em class="replaceable"><code>name</code></em> [ ( <em class="replaceable"><code>data_type</code></em> [, ...] ) ] AS <em class="replaceable"><code>statement</code></em>
 </pre></div><div class="refsect1" id="id-1.9.3.158.6"><h2>Description</h2><p>
    <code class="command">PREPARE</code> creates a prepared statement. A prepared
@@ -55,36 +55,43 @@ PREPARE <em class="replaceable"><code>name</code></em> [ ( <em class="replaceabl
       Any <code class="command">SELECT</code>, <code class="command">INSERT</code>, <code class="command">UPDATE</code>,
       <code class="command">DELETE</code>, or <code class="command">VALUES</code> statement.
      </p></dd></dl></div></div><div class="refsect1" id="SQL-PREPARE-NOTES"><h2>Notes</h2><p>
-   Prepared statements can use generic plans rather than re-planning with
-   each set of supplied <code class="command">EXECUTE</code> values.  This occurs
-   immediately for prepared statements with no parameters; otherwise
-   it occurs only after five or more executions produce plans whose
-   estimated cost average (including planning overhead) is more expensive
-   than the generic plan cost estimate.  Once a generic plan is chosen,
-   it is used for the remaining lifetime of the prepared statement.
-   Using <code class="command">EXECUTE</code> values which are rare in columns with
-   many duplicates can generate custom plans that are so much cheaper
-   than the generic plan, even after adding planning overhead, that the
-   generic plan might never be used.
+   A prepared statement can be executed with either a <em class="firstterm">generic
+   plan</em> or a <em class="firstterm">custom plan</em>.  A generic
+   plan is the same across all executions, while a custom plan is generated
+   for a specific execution using the parameter values given in that call.
+   Use of a generic plan avoids planning overhead, but in some situations
+   a custom plan will be much more efficient to execute because the planner
+   can make use of knowledge of the parameter values.  (Of course, if the
+   prepared statement has no parameters, then this is moot and a generic
+   plan is always used.)
   </p><p>
-   A generic plan assumes that each value supplied to
-   <code class="command">EXECUTE</code> is one of the column's distinct values
-   and that column values are uniformly distributed.  For example,
-   if statistics record three distinct column values, a generic plan
-   assumes a column equality comparison will match 33% of processed rows.
-   Column statistics also allow generic plans to accurately compute the
-   selectivity of unique columns.  Comparisons on non-uniformly-distributed
-   columns and specification of non-existent values affects the average
-   plan cost, and hence if and when a generic plan is chosen.
+   By default (that is, when <a class="xref" href="runtime-config-query.html#GUC-PLAN-CACHE_MODE">plan_cache_mode</a> is set
+   to <code class="literal">auto</code>), the server will automatically choose
+   whether to use a generic or custom plan for a prepared statement that
+   has parameters.  The current rule for this is that the first five
+   executions are done with custom plans and the average estimated cost of
+   those plans is calculated.  Then a generic plan is created and its
+   estimated cost is compared to the average custom-plan cost.  Subsequent
+   executions use the generic plan if its cost is not so much higher than
+   the average custom-plan cost as to make repeated replanning seem
+   preferable.
+  </p><p>
+   This heuristic can be overridden, forcing the server to use either
+   generic or custom plans, by setting <code class="varname">plan_cache_mode</code>
+   to <code class="literal">force_generic_plan</code>
+   or <code class="literal">force_custom_plan</code> respectively.
+   This setting is primarily useful if the generic plan's cost estimate
+   is badly off for some reason, allowing it to be chosen even though
+   its actual cost is much more than that of a custom plan.
   </p><p>
    To examine the query plan <span class="productname">PostgreSQL</span> is using
-   for a prepared statement, use <a class="xref" href="sql-explain.html" title="EXPLAIN"><span class="refentrytitle">EXPLAIN</span></a>, e.g.
-   <code class="command">EXPLAIN EXECUTE</code>.
+   for a prepared statement, use <a class="xref" href="sql-explain.html" title="EXPLAIN"><span class="refentrytitle">EXPLAIN</span></a>, for example
+</p><pre class="programlisting">
+EXPLAIN EXECUTE <em class="replaceable"><code>name</code></em>(<em class="replaceable"><code>parameter_values</code></em>);
+</pre><p>
    If a generic plan is in use, it will contain parameter symbols
-   <code class="literal">$<em class="replaceable"><code>n</code></em></code>, while a custom plan will have the
-   supplied parameter values substituted into it.
-   The row estimates in the generic plan reflect the selectivity
-   computed for the parameters.
+   <code class="literal">$<em class="replaceable"><code>n</code></em></code>, while a custom plan
+   will have the supplied parameter values substituted into it.
   </p><p>
    For more information on query planning and the statistics collected
    by <span class="productname">PostgreSQL</span> for that purpose, see
@@ -132,7 +139,7 @@ PREPARE usrrptplan (int) AS
 EXECUTE usrrptplan(1, current_date);
 </pre><p>
 
-   Note that the data type of the second parameter is not specified,
+   In this example, the data type of the second parameter is not specified,
    so it is inferred from the context in which <code class="literal">$2</code> is used.
   </p></div><div class="refsect1" id="id-1.9.3.158.10"><h2>Compatibility</h2><p>
    The SQL standard includes a <code class="command">PREPARE</code> statement,

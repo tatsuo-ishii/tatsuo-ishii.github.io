@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>pg_receivewal</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="app-pg-isready.html" title="pg_isready" /><link rel="next" href="app-pgrecvlogical.html" title="pg_recvlogical" /></head><body><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">pg_receivewal</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="app-pg-isready.html" title="pg_isready">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="reference-client.html" title="PostgreSQL Client Applications">Up</a></td><th width="60%" align="center">PostgreSQL Client Applications</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 12devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="app-pgrecvlogical.html" title="pg_recvlogical">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="APP-PGRECEIVEWAL"><div class="titlepage"></div><a id="id-1.9.4.15.1" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">pg_receivewal</span></h2><p>pg_receivewal — stream write-ahead logs from a <span class="productname">PostgreSQL</span> server</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p id="id-1.9.4.15.4.1"><code class="command">pg_receivewal</code> [<em class="replaceable"><code>option</code></em>...]</p></div></div><div class="refsect1" id="id-1.9.4.15.5"><h2>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>pg_receivewal</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="app-pg-isready.html" title="pg_isready" /><link rel="next" href="app-pgrecvlogical.html" title="pg_recvlogical" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">pg_receivewal</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="app-pg-isready.html" title="pg_isready">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="reference-client.html" title="PostgreSQL Client Applications">Up</a></td><th width="60%" align="center">PostgreSQL Client Applications</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="app-pgrecvlogical.html" title="pg_recvlogical">Next</a></td></tr></table><hr></hr></div><div class="refentry" id="APP-PGRECEIVEWAL"><div class="titlepage"></div><a id="id-1.9.4.15.1" class="indexterm"></a><div class="refnamediv"><h2><span class="refentrytitle">pg_receivewal</span></h2><p>pg_receivewal — stream write-ahead logs from a <span class="productname">PostgreSQL</span> server</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p id="id-1.9.4.15.4.1"><code class="command">pg_receivewal</code> [<em class="replaceable"><code>option</code></em>...]</p></div></div><div class="refsect1" id="id-1.9.4.15.5"><h2>
    Description
   </h2><p>
    <span class="application">pg_receivewal</span> is used to stream the write-ahead log
@@ -19,7 +19,17 @@
    Unlike the WAL receiver of a PostgreSQL standby server, <span class="application">pg_receivewal</span>
    by default flushes WAL data only when a WAL file is closed.
    The option <code class="option">--synchronous</code> must be specified to flush WAL data
-   in real time.
+   in real time. Since <span class="application">pg_receivewal</span> does not
+   apply WAL, you should not allow it to become a synchronous standby when
+   <a class="xref" href="runtime-config-wal.html#GUC-SYNCHRONOUS-COMMIT">synchronous_commit</a> equals
+   <code class="literal">remote_apply</code>. If it does, it will appear to be a
+   standby that never catches up, and will cause transaction commits to
+   block. To avoid this, you should either configure an appropriate value
+   for <a class="xref" href="runtime-config-replication.html#GUC-SYNCHRONOUS-STANDBY-NAMES">synchronous_standby_names</a>, or specify
+   <code class="varname">application_name</code> for
+   <span class="application">pg_receivewal</span> that does not match it, or
+   change the value of <code class="varname">synchronous_commit</code> to
+   something other than <code class="literal">remote_apply</code>.
   </p><p>
    The write-ahead log is streamed over a regular
    <span class="productname">PostgreSQL</span> connection and uses the replication
@@ -175,8 +185,8 @@
    (see <a class="xref" href="libpq-envars.html" title="33.14. Environment Variables">Section 33.14</a>).
   </p><p>
    The environment variable <code class="envar">PG_COLOR</code> specifies whether to use
-   color in diagnostics messages.  Possible values are
-   <code class="literal">always</code>, <code class="literal">auto</code>,
+   color in diagnostic messages. Possible values are
+   <code class="literal">always</code>, <code class="literal">auto</code> and
    <code class="literal">never</code>.
   </p></div><div class="refsect1" id="id-1.9.4.15.9"><h2>Notes</h2><p>
    When using <span class="application">pg_receivewal</span> instead of
