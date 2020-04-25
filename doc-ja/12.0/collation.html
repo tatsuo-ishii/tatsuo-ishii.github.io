@@ -628,8 +628,9 @@ SQL環境における照合順序オブジェクトにはどのような名前�
     Otherwise, any strings that compare equal according to the collation but
     are not byte-wise equal will be sorted according to their byte values.
 -->
-このシステムでは、<span class="quote">「<span class="quote">大文字小文字の違いを無視</span>」</span>、あるいは<span class="quote">「<span class="quote">アクセントを無視</span>」</span>、あるいはその類似（<code class="literal">ks</code>を使用）の照合順序を作成できますが、PostgreSQLは今のところ、そのような照合順序が真の大文字小文字あるいはアクセントを無視するように動作しないことに注意してください。
-照合順序としては同一に扱われるものの、バイトごとの比較では異なる文字列は、バイト値によってソートされます。
+このシステムでは、<span class="quote">「<span class="quote">大文字小文字の違いを無視</span>」</span>、あるいは<span class="quote">「<span class="quote">アクセントを無視</span>」</span>、あるいはその類似（<code class="literal">ks</code>キーを使用）の照合順序を作成できますが、照合順序が真の大文字小文字あるいはアクセントを無視するように動作するためには、<code class="command">CREATE COLLATION</code>内で<em class="firstterm">決定論的</em>でないとして宣言されている必要があることに注意してください。
+<a class="xref" href="collation.html#COLLATION-NONDETERMINISTIC" title="23.2.2.4. 非決定論的な照合順序">23.2.2.4</a>を参照してください。
+宣言されていない場合、照合順序としては同一に扱われるものの、バイトごとの比較では異なる文字列は、バイト値によってソートされます。
    </p><div class="note"><h3 class="title">注記</h3><p>
 <!--
      By design, ICU will accept almost any string as a locale name and match
@@ -660,9 +661,12 @@ SQL環境における照合順序オブジェクトにはどのような名前�
 CREATE COLLATION german FROM "de_DE";
 CREATE COLLATION french FROM "fr-x-icu";
 </pre><p>
-   </p></div></div><div class="sect3" id="COLLATION-NONDETERMINISTIC"><div class="titlepage"><div><div><h4 class="title">23.2.2.4. Nondeterministic Collations</h4></div></div></div><p>
-     A collation is either <em class="firstterm">deterministic</em> or
-     <em class="firstterm">nondeterministic</em>.  A deterministic collation uses
+   </p></div></div><div class="sect3" id="COLLATION-NONDETERMINISTIC"><div class="titlepage"><div><div><h4 class="title">23.2.2.4. 非決定論的な照合順序</h4></div></div></div><!--
+    <title>Nondeterministic Collations</title>
+--><p>
+<!--
+     A collation is either <firstterm>deterministic</firstterm> or
+     <firstterm>nondeterministic</firstterm>.  A deterministic collation uses
      deterministic comparisons, which means that it considers strings to be
      equal only if they consist of the same byte sequence.  Nondeterministic
      comparison may determine strings to be equal even if they consist of
@@ -671,32 +675,58 @@ CREATE COLLATION french FROM "fr-x-icu";
      different Unicode normal forms.  It is up to the collation provider to
      actually implement such insensitive comparisons; the deterministic flag
      only determines whether ties are to be broken using bytewise comparison.
-     See also <a class="ulink" href="https://unicode.org/reports/tr10" target="_top">Unicode Technical
-     Standard 10</a> for more information on the terminology.
+     See also <ulink url="https://unicode.org/reports/tr10">Unicode Technical
+     Standard 10</ulink> for more information on the terminology.
+-->
+照合順序は<em class="firstterm">決定論的</em>もしくは<em class="firstterm">非決定論的</em>のどちらかです。
+決定論的な照合順序は決定論的な比較を使用します。
+つまり、同じバイト列で構成される場合に限り等しい文字列とみなします。
+非決定論的な比較は、異なるバイト値で構成される文字列の場合でさえ文字列が等しいと判定するかもしれません。
+一般的な状況では、大文字小文字を区別しない比較、アクセントを区別しない比較および異なるUnicode正規化形式による文字列の比較が含まれます。
+このような区別しない比較を実際に実装するかは照合順序のプロパイダ次第です。
+deterministicフラグはバイト単位の比較を用いて分解されるかどうかのみを決定します。
+用語の詳細については、<a class="ulink" href="https://unicode.org/reports/tr10" target="_top">Unicode Technical Standard 10</a>を参照してください。
     </p><p>
+<!--
      To create a nondeterministic collation, specify the property
-     <code class="literal">deterministic = false</code> to <code class="command">CREATE
-     COLLATION</code>, for example:
+     <literal>deterministic = false</literal> to <command>CREATE
+     COLLATION</command>, for example:
+-->
+非決定論的な照合順序を作るためには<code class="command">CREATE COLLATION</code>に<code class="literal">deterministic = false</code>プロパティを指定します。
+以下に例を示します。
 </p><pre class="programlisting">
 CREATE COLLATION ndcoll (provider = icu, locale = 'und', deterministic = false);
 </pre><p>
+<!--
      This example would use the standard Unicode collation in a
      nondeterministic way.  In particular, this would allow strings in
      different normal forms to be compared correctly.  More interesting
      examples make use of the ICU customization facilities explained above.
      For example:
+-->
+この例では非決定論的な方法で標準のUnicode照合順序を使えます。
+具体的には、これは異なる正規形の文字列を正しく比較できるでしょう。
+より興味深い例は上述したICUカスタマイズ機能を用いた場合です。
+以下に例を示します。
 </p><pre class="programlisting">
 CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);
 CREATE COLLATION ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
 </pre><p>
     </p><p>
+<!--
      All standard and predefined collations are deterministic, all
      user-defined collations are deterministic by default.  While
-     nondeterministic collations give a more <span class="quote">「<span class="quote">correct</span>」</span> behavior,
+     nondeterministic collations give a more <quote>correct</quote> behavior,
      especially when considering the full power of Unicode and its many
      special cases, they also have some drawbacks.  Foremost, their use leads
      to a performance penalty.  Also, certain operations are not possible with
      nondeterministic collations, such as pattern matching operations.
      Therefore, they should be used only in cases where they are specifically
      wanted.
+-->
+すべての標準および事前に定義された照合順序は決定論的であり、すべてのユーザ定義の照合順序はデフォルトで決定論的です。
+特にUnicodeの全機能およびその特別な場合を考えた際、非決定論的な照合順序はより多くの<span class="quote">「<span class="quote">正しい</span>」</span>振る舞いを与えると同時に、いくつかの欠点もあります。
+第一にそれらを使用するとパフォーマンスが低下します。
+また、パターンマッチング操作などで非決定論的な照合順序による操作ができないことも避けられません。
+したがって、これらは明確に必要とされる場合のみに使用されるべきです。
     </p></div></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="locale.html">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="charset.html">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="multibyte.html">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">23.1. ロケールのサポート </td><td width="20%" align="center"><a accesskey="h" href="index.html">ホーム</a></td><td width="40%" align="right" valign="top"> 23.3. 文字セットサポート</td></tr></table></div></body></html>
