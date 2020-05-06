@@ -31,4 +31,4 @@ layout: default
 
 ## Pgpool-II 4.2 dev SGML doc
 - [Pgpool-II 4.2 dev (English) (last update: 2020/05/06)](pgpool-II/current)
-- [Pgpool-II 4.2 dev (Japanese) (last update: 2020/05/06)](pgpool-II/current-ja)
+- [Pgpool-II 4.2 dev (Japanese) (last update: 2020/05/07)](pgpool-II/current-ja)
