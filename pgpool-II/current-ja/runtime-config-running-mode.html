@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2020-05-06T06:45:59"></HEAD
+CONTENT="2020-06-20T22:18:10"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -921,6 +921,111 @@ CLASS="LITERAL"
 ></DD
 ></DL
 ></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="GUC-SNAPSHOT-ISOLATION-MODE"
+>5.3.5. スナップショットアイソレーションモード</A
+></H2
+><P
+>   このモードは、ネィティブレプリケーションモードと似ていますが、更にノードをまたがる可視性の一貫性を保証します。
+   実装は研究論文<A
+HREF="biblio.html#MISHIMA2009"
+><I
+><A
+HREF="http://www.vldb.org/pvldb/vol2/vldb09-694.pdf"
+TARGET="_top"
+>Pangea: An
+    Eager Database Replication Middleware guaranteeing Snapshot
+    Isolation without modification of Database Servers</A
+></I
+></A
+>に基づいています。
+   たとえば、以下のようなノードにまたがる可視性の一貫性がないことからくるノード間のデータ不整合を防ぐことができます。
+   ここで、S1, S2はセッションを表し、N1, N2はPostgreSQLのサーバ1と2を表します。
+   </P><PRE
+CLASS="PROGRAMLISTING"
+>S1/N1: BEGIN;
+S1/N2: BEGIN;
+S1/N1: UPDATE t1 SET i = i + 1;	-- i = 1
+S1/N2: UPDATE t1 SET i = i + 1; -- i = 1
+S1/N1: COMMIT;
+S2/N1: BEGIN;
+S2/N2: BEGIN;
+S2/N2: DELETE FROM t1 WHERE i = 1; -- delete 1 row since S1/N2 is not committed yet
+S2/N1: DELETE FROM t1 WHERE i = 1; -- delete no row since S1/N1 is committed and i is not 1 anymore
+S1/N2: COMMIT;
+S2/N1: COMMIT;
+S2/N2: COMMIT;
+   </PRE
+><P>
+   スナップショットアイソレーションモードでは、以下のどちらかとなり、いずれにしてもノード間のデータの一貫性は損なわれません。
+   </P><PRE
+CLASS="PROGRAMLISTING"
+>S1/N1: BEGIN;
+S1/N2: BEGIN;
+S1/N1: UPDATE t1 SET i = i + 1;	-- i = 1
+S1/N2: UPDATE t1 SET i = i + 1; -- i = 1
+S2/N1: BEGIN;
+S2/N2: BEGIN;
+S1/N1: COMMIT;
+S1/N2: COMMIT;
+S2/N1: DELETE FROM t1 WHERE i = 1; -- delete no row since S1/N1 is committed and i is not 1 anymore
+S2/N2: DELETE FROM t1 WHERE i = 1; -- delete no row since S1/N2 is committed and i is not 1 anymore
+S2/N1: COMMIT;
+S2/N2: COMMIT;
+   </PRE
+><P>
+
+   </P><PRE
+CLASS="PROGRAMLISTING"
+>S1/N1: BEGIN;
+S1/N2: BEGIN;
+S1/N1: UPDATE t1 SET i = i + 1;	-- i = 1
+S1/N2: UPDATE t1 SET i = i + 1; -- i = 1
+S2/N1: BEGIN;
+S2/N2: BEGIN;
+S2/N1: DELETE FROM t1 WHERE i = 1; -- delete 1 row since S1/N1 is not committed yet
+S2/N2: DELETE FROM t1 WHERE i = 1; -- delete 1 row since S1/N2 is not committed yet
+S1/N1: COMMIT;
+S1/N2: COMMIT;
+S2/N1: COMMIT;
+S2/N2: COMMIT;
+   </PRE
+><P>
+
+   ただし、制限事項がいくつかあり、今の所(<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.2)では「実験的な実装」という位置づけです。
+   業務で使用する場合には慎重なテストをお勧めします。
+  </P
+><P
+></P
+><UL
+><LI
+><P
+>     PostgreSQLのトランザクション分離レベルをREPEATABLE READにする必要があります。
+     具体的には、<TT
+CLASS="FILENAME"
+>postgresql.conf</TT
+>に以下のように記述します。
+     </P><PRE
+CLASS="PROGRAMLISTING"
+>      default_transaction_isolation = 'repeatable read'
+     </PRE
+><P>
+    </P
+></LI
+><LI
+><P
+>     シリアル型やシーケンスに関する一貫した可視性を保証しません。
+    </P
+></LI
+></UL
 ></DIV
 ></DIV
 ><DIV
