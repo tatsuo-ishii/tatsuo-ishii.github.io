@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>19.13. Distributed Transaction Management</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="runtime-config-locks.html" title="19.12. Lock Management" /><link rel="next" href="runtime-config-compatible.html" title="19.14. Version and Platform Compatibility" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">19.13. Distributed Transaction Management</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="runtime-config-locks.html" title="19.12. Lock Management">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="runtime-config.html" title="Chapter 19. Server Configuration">Up</a></td><th width="60%" align="center">Chapter 19. Server Configuration</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="runtime-config-compatible.html" title="19.14. Version and Platform Compatibility">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="RUNTIME-CONFIG-DISTRIBUTED-TRANSACTION"><div class="titlepage"><div><div><h2 class="title" style="clear: both">19.13. Distributed Transaction Management</h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="runtime-config-distributed-transaction.html#RUNTIME-CONFIG-DISTRIBUTED-TRANSACTION-SETTINGS">19.13.1. Setting</a></span></dt><dt><span class="sect2"><a href="runtime-config-distributed-transaction.html#RUNTIME-CONFIG-FOREIGN-TRANSACTION-RESOLVER">19.13.2. Foreign Transaction Resolvers</a></span></dt></dl></div><div class="sect2" id="RUNTIME-CONFIG-DISTRIBUTED-TRANSACTION-SETTINGS"><div class="titlepage"><div><div><h3 class="title">19.13.1. Setting</h3></div></div></div><div class="variablelist"><dl class="variablelist"><dt id="GUC-FOREIGN-TWOPHASE-COMMIT"><span class="term"><code class="varname">foreign_twophase_commit</code> (<code class="type">enum</code>)
+        <a id="id-1.6.6.16.2.2.1.1.3" class="indexterm"></a>
+       </span></dt><dd><p>
+         Specifies whether distributed transaction commits ensures that all
+         involved changes on foreign servers are committed or not. Valid
+         values are <code class="literal">required</code> and <code class="literal">disabled</code>.
+         The default setting is <code class="literal">disabled</code>. Setting to
+         <code class="literal">disabled</code> don't use two-phase commit protocol to
+         commit or rollback distributed transactions. When set to
+         <code class="literal">required</code> distributed transactions strictly requires
+         that all written servers can use two-phase commit protocol.  That is,
+         the distributed transaction cannot commit if even one server does not
+         support the prepare callback routine
+         (described in <a class="xref" href="fdw-callbacks.html#FDW-CALLBACKS-TRANSACTION-MANAGEMENT" title="57.2.11. FDW Routines For Transaction Management">Section 57.2.11</a>).
+         In <code class="literal">required</code> case, distributed transaction commit will
+         wait for all involving foreign transaction to be committed before the
+         command return a "success" indication to the client.
+        </p><p>
+         This parameter can be changed at any time; the behavior for any one
+         transaction is determined by the setting in effect when it commits.
+        </p><div class="note"><h3 class="title">Note</h3><p>
+          When <code class="literal">disabled</code> there can be risk of database
+          consistency if one or more foreign servers crashes while committing
+          the distributed transactions.
+         </p></div></dd><dt id="GUC-MAX-PREPARED-FOREIGN-TRANSACTIONS"><span class="term"><code class="varname">max_prepared_foreign_transactions</code> (<code class="type">integer</code>)
+        <a id="id-1.6.6.16.2.2.2.1.3" class="indexterm"></a>
+       </span></dt><dd><p>
+         Sets the maximum number of foreign transactions that can be prepared
+         simultaneously. A single local transaction can give rise to multiple
+         foreign transaction. If a user expects <code class="literal">N</code> local
+         transactions and each of those involves <code class="literal">K</code> foreign
+         servers, this value need to be set <code class="literal">N * K</code>, not
+         just <code class="literal">N</code>.  This parameter can only be set at server
+         start.
+        </p><p>
+         When running a standby server, you must set this parameter to the
+         same or higher value than on the master server. Otherwise, queries
+         will not be allowed in the standby server.
+        </p></dd></dl></div></div><div class="sect2" id="RUNTIME-CONFIG-FOREIGN-TRANSACTION-RESOLVER"><div class="titlepage"><div><div><h3 class="title">19.13.2. Foreign Transaction Resolvers</h3></div></div></div><p>
+      These settings control the behavior of a foreign transaction resolver.
+     </p><div class="variablelist"><dl class="variablelist"><dt id="GUC-MAX-FOREIGN-TRANSACTION-RESOLVERS"><span class="term"><code class="varname">max_foreign_transaction_resolvers</code> (<code class="type">int</code>)
+        <a id="id-1.6.6.16.3.3.1.1.3" class="indexterm"></a>
+       </span></dt><dd><p>
+         Specifies maximum number of foreign transaction resolution workers. A foreign transaction
+         resolver is responsible for foreign transaction resolution on one database.
+        </p><p>
+         Foreign transaction resolution workers are taken from the pool defined by
+         <code class="varname">max_worker_processes</code>.
+        </p><p>
+         The default value is 0.
+        </p></dd><dt id="GUC-FOREIGN-TRANSACTION-RESOLUTION-RETY-INTERVAL"><span class="term"><code class="varname">foreign_transaction_resolution_retry_interval</code> (<code class="type">integer</code>)
+        <a id="id-1.6.6.16.3.3.2.1.3" class="indexterm"></a>
+       </span></dt><dd><p>
+         Specify how long the foreign transaction resolver should wait when the last resolution
+         fails before retrying to resolve foreign transaction. This parameter can only be set in the
+         <code class="filename">postgresql.conf</code> file or on the server command line.
+        </p><p>
+         The default value is 10 seconds.
+        </p></dd><dt id="GUC-FOREIGN-TRANSACTION-RESOLVER-TIMEOUT"><span class="term"><code class="varname">foreign_transaction_resolver_timeout</code> (<code class="type">integer</code>)
+        <a id="id-1.6.6.16.3.3.3.1.3" class="indexterm"></a>
+       </span></dt><dd><p>
+         Terminate foreign transaction resolver processes that don't have any foreign
+         transactions to resolve longer than the specified number of milliseconds.
+         A value of zero disables the timeout mechanism, meaning it connects to one
+         database until stopping manually by <code class="function">pg_stop_foreign_xact_resovler()</code>.
+         This parameter can only be set in the <code class="filename">postgresql.conf</code>
+         file or on the server command line.
+        </p><p>
+         The default value is 60 seconds.
+        </p></dd></dl></div></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="runtime-config-locks.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="runtime-config.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="runtime-config-compatible.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">19.12. Lock Management </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 19.14. Version and Platform Compatibility</td></tr></table></div></body></html>

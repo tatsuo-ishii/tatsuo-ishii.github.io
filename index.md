@@ -5,9 +5,10 @@ layout: default
 - [PostgreSQL Information Ppage](pgpage/)
 
 ## PostgreSQL current (under deveopment) document snapshot
-- [PostgreSQL 13dev: last update: 2020/04/25](postgresql/current/index.html)
+- [PostgreSQL 14dev: last update: 2020/07/25](postgresql/current/index.html)
 
 ## Outcom from the PostgreSQL document translation to Japanese project
+- [PostgreSQL 12.3 (last update: 2020/07/25)](doc-ja/12.3)
 - [PostgreSQL 12.0 (last update: 2020/05/06)](doc-ja/12.0)
 - [PostgreSQL 11.5 (last update: 2019/10/05)](doc-ja/11.5)
 - [PostgreSQL 11.4 (last update: 2019/07/22)](doc-ja/11.4)
@@ -30,5 +31,5 @@ layout: default
 - [PostgreSQL 9.4.5 (last update: 2016/07/07)](doc-ja/9.4.5)
 
 ## Pgpool-II 4.2 dev SGML doc
-- [Pgpool-II 4.2 dev (English) (last update: 2020/07/17)](pgpool-II/current)
-- [Pgpool-II 4.2 dev (Japanese) (last update: 2020/07/17)](pgpool-II/current-ja)
+- [Pgpool-II 4.2 dev (English) (last update: 2020/07/25)](pgpool-II/current)
+- [Pgpool-II 4.2 dev (Japanese) (last update: 2020/07/25)](pgpool-II/current-ja)

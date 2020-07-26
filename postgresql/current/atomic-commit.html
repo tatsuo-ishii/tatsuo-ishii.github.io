@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>32.1. Atomic Commit</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="distributed-transaction.html" title="Chapter 32. Distributed Transaction" /><link rel="next" href="regress.html" title="Chapter 33. Regression Tests" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">32.1. Atomic Commit</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="distributed-transaction.html" title="Chapter 32. Distributed Transaction">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="distributed-transaction.html" title="Chapter 32. Distributed Transaction">Up</a></td><th width="60%" align="center">Chapter 32. Distributed Transaction</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="regress.html" title="Chapter 33. Regression Tests">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="ATOMIC-COMMIT"><div class="titlepage"><div><div><h2 class="title" style="clear: both">32.1. Atomic Commit</h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="atomic-commit.html#id-1.6.19.3.3">32.1.1. Atomic Commit Using Two-phase Commit Protocol</a></span></dt><dt><span class="sect2"><a href="atomic-commit.html#ATOMIC-COMMIT-IN-DOUBT-TRANSACTION">32.1.2. In-Doubt Transactions</a></span></dt><dt><span class="sect2"><a href="atomic-commit.html#ATOMIC-COMMIT-TRANSACTION-RESOLVER">32.1.3. Foreign Transaction Resolver Processes</a></span></dt><dt><span class="sect2"><a href="atomic-commit.html#id-1.6.19.3.6">32.1.4. Configuration Settings</a></span></dt></dl></div><p>
+   Formerly, transactions on foreign server were simply committed or rolled
+   back one by one. Therefore, when one foreign server had a problem during
+   commit, it was possible that transactions on only part of foreign servers
+   are committed while other transactions are rolled back. This used to leave
+   database data in an inconsistent state in term of federated database.
+   Atomic commit of distributed transaction is an operation that applies a set
+   of changes as a single operation globally. This guarantees all-or-nothing
+   results for the changes on all remote hosts involved in.
+   <span class="productname">PostgreSQL</span> provides a way to perform read-write
+   transactions with foreign resources using foreign data wrappers.
+   Using the <span class="productname">PostgreSQL</span>'s atomic commit ensures that
+   all the changes on foreign servers are either committed or rolled back using
+   the transaction callback routines
+   (see <a class="xref" href="fdw-callbacks.html#FDW-CALLBACKS-TRANSACTION-MANAGEMENT" title="57.2.11. FDW Routines For Transaction Management">Section 57.2.11</a>).
+  </p><div class="sect2" id="id-1.6.19.3.3"><div class="titlepage"><div><div><h3 class="title">32.1.1. Atomic Commit Using Two-phase Commit Protocol</h3></div></div></div><p>
+    To achieve commit among all foreign servers automatically,
+    <span class="productname">PostgreSQL</span> employs two-phase commit protocol,
+    which is a type of atomic commitment protocol (ACP).  Using two-phase
+    commit protocol, the commit sequence of distributed transaction performs
+    with the following steps:
+    </p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p>
+       Prepare all transactions on foreign servers.
+       <span class="productname">PostgreSQL</span>'s distributed transaction manager
+       prepares all transaction on the foreign servers if two-phase commit is
+       required. Two-phase commit is required when the transaction modifies
+       data on two or more servers including the local server itself and
+       <a class="xref" href="runtime-config-distributed-transaction.html#GUC-FOREIGN-TWOPHASE-COMMIT">foreign_twophse_commit</a> is
+       <code class="literal">required</code>. If the prepare on all foreign servers is
+       successful then go to the next step.  If there is any failure in the
+       prepare phase, the server will rollback all the transactions on both
+       local and foreign servers.
+      </p></li><li class="listitem"><p>
+       Commit locally. The server commits transaction locally.  Any failure happens
+       in this step the server changes to rollback, then rollback all transactions
+       on both local and foreign servers.
+      </p></li><li class="listitem"><p>
+       Resolve all prepared transaction on foreign servers. Prepared transactions
+       are committed or rolled back according to the result of the local transaction.
+       This step is performed by a foreign transaction resolver process.
+      </p></li></ol></div><p>
+   </p><p>
+    Each commit of a distributed transaction will wait until confirmation is
+    received that all prepared transactions are committed or rolled back.
+   </p></div><div class="sect2" id="ATOMIC-COMMIT-IN-DOUBT-TRANSACTION"><div class="titlepage"><div><div><h3 class="title">32.1.2. In-Doubt Transactions</h3></div></div></div><p>
+    The atomic commit mechanism ensures that all foreign servers either commit
+    or rollback using two-phase commit protocol. However, foreign transactions
+    become <em class="firstterm">in-doubt</em> in two cases:
+
+    </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>The local node crashed during either preparing or resolving foreign
+       transaction.</p></li><li class="listitem"><p>user canceled the query.</p></li></ul></div><p>
+
+    You can check in-doubt transaction in <a class="xref" href="view-pg-foreign-xacts.html" title="52.78. pg_foreign_xacts">Section 52.78</a>
+    view. These foreign transactions are resolved by foreign transaction resolver
+    process or executing <code class="function">pg_resolve_foriegn_xact</code> function
+    manually.
+   </p></div><div class="sect2" id="ATOMIC-COMMIT-TRANSACTION-RESOLVER"><div class="titlepage"><div><div><h3 class="title">32.1.3. Foreign Transaction Resolver Processes</h3></div></div></div><p>
+    Foreign transaction resolver processes are auxiliary processes that are
+    responsible for resolving both foreign transactions that are prepared by
+    online transactions and in-doubt transactions. They commit or rollback
+    prepared transactions on all foreign servers involved with the distributed
+    transaction if the local node received agreement messages from all
+    foreign servers during the first step of two-phase commit protocol.
+   </p><p>
+    One foreign transaction resolver is responsible for transaction resolutions
+    on the database to which it is connected. On failure during resolution, they
+    retry to resolve at an interval of
+    <code class="varname">foreign_transaction_resolution_interval</code> time.
+   </p><div class="note"><h3 class="title">Note</h3><p>
+     During a foreign transaction resolver process connecting to the database,
+     database cannot be dropped without immediate shutdown. You can call
+     <code class="function">pg_stop_foreign_xact_resovler</code> function to stop the
+     particular resolver process before dropping the database.
+    </p></div></div><div class="sect2" id="id-1.6.19.3.6"><div class="titlepage"><div><div><h3 class="title">32.1.4. Configuration Settings</h3></div></div></div><p>
+    Atomic commit requires several configuration options to be set.
+    On the local node, <a class="xref" href="runtime-config-distributed-transaction.html#GUC-MAX-PREPARED-FOREIGN-TRANSACTIONS">max_prepared_foreign_transactions</a> and
+    <a class="xref" href="runtime-config-distributed-transaction.html#GUC-MAX-FOREIGN-TRANSACTION-RESOLVERS">max_foreign_transaction_resolvers</a> must be non-zero value,
+    and <a class="xref" href="runtime-config-distributed-transaction.html#GUC-FOREIGN-TWOPHASE-COMMIT">foreign_twophse_commit</a> must be enabled.  Additionally
+    the <code class="varname">max_worker_processes</code> may need to be adjusted
+    to accommodate for foreign transaction resolver workers, at least
+    (<code class="varname">max_foreign_transaction_resolvers</code> + <code class="literal">1</code>).
+    Note that other <span class="productname">PostgreSQL</span> features such as parallel
+    queries, logical replication, etc., also take worker slots from
+    <code class="varname">max_worker_processes</code>.
+   </p></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="distributed-transaction.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="distributed-transaction.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="regress.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 32. Distributed Transaction </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 33. Regression Tests</td></tr></table></div></body></html>

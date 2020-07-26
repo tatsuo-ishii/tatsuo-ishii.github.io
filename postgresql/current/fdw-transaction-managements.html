@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>57.6. Transaction managements for Foreign Data Wrappers</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="fdw-row-locking.html" title="57.5. Row Locking in Foreign Data Wrappers" /><link rel="next" href="tablesample-method.html" title="Chapter 58. Writing a Table Sampling Method" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">57.6. Transaction managements for Foreign Data Wrappers</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="fdw-row-locking.html" title="57.5. Row Locking in Foreign Data Wrappers">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="fdwhandler.html" title="Chapter 57. Writing a Foreign Data Wrapper">Up</a></td><th width="60%" align="center">Chapter 57. Writing a Foreign Data Wrapper</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="tablesample-method.html" title="Chapter 58. Writing a Table Sampling Method">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="FDW-TRANSACTION-MANAGEMENTS"><div class="titlepage"><div><div><h2 class="title" style="clear: both">57.6. Transaction managements for Foreign Data Wrappers</h2></div></div></div><div class="toc"><dl class="toc"><dt><span class="sect2"><a href="fdw-transaction-managements.html#FDW-TRANSACTION-COMMIT-ROLLBACK">57.6.1. Commit and Rollback Single Foreign Transaction</a></span></dt><dt><span class="sect2"><a href="fdw-transaction-managements.html#FDW-TRANSACTION-DISTRIBUTED-TRANSACTION-COMMIT">57.6.2. Atomic Commit and Rollback Distributed Transaction</a></span></dt></dl></div><p>
+    If a FDW's server supports transaction, it is usually worthwhile for the
+    FDW to manage transaction opened on the foreign server. The FDW callback
+    function <code class="literal">CommitForeignTransaction</code>,
+    <code class="literal">RollbackForeignTransaction</code> and
+    <code class="literal">PrepareForeignTransaction</code> are used to manage Transaction
+    management and must fit into the working of the
+    <span class="productname">PostgreSQL</span> transaction processing.
+   </p><p>
+    The information in <code class="literal">FdwXactRslvState</code> can be used to get
+    information of foreign server being processed such as server name, OID of
+    server, user and user mapping. The <code class="literal">flags</code> has contains flag
+    bit describing the foreign transaction state for transaction management.
+   </p><div class="sect2" id="FDW-TRANSACTION-COMMIT-ROLLBACK"><div class="titlepage"><div><div><h3 class="title">57.6.1. Commit and Rollback Single Foreign Transaction</h3></div></div></div><p>
+     The FDW callback function <code class="literal">CommitForeignTransaction</code>
+     and <code class="literal">RollbackForeignTransaction</code> can be used to commit
+     and rollback the foreign transaction. During transaction commit, the core
+     transaction manager calls <code class="literal">CommitForeignTransaction</code> function
+     in the pre-commit phase and calls
+     <code class="literal">RollbackForeignTransaction</code> function in the post-rollback
+     phase.
+    </p></div><div class="sect2" id="FDW-TRANSACTION-DISTRIBUTED-TRANSACTION-COMMIT"><div class="titlepage"><div><div><h3 class="title">57.6.2. Atomic Commit and Rollback Distributed Transaction</h3></div></div></div><p>
+     In addition to simply commit and rollback foreign transactions described at
+     <a class="xref" href="fdw-transaction-managements.html#FDW-TRANSACTION-COMMIT-ROLLBACK" title="57.6.1. Commit and Rollback Single Foreign Transaction">Section 57.6.1</a>,
+     <span class="productname">PostgreSQL</span> global transaction manager enables
+     distributed transactions to atomically commit and rollback among all foreign
+     servers, which is as known as atomic commit in literature. To achieve atomic
+     commit, <span class="productname">PostgreSQL</span> employs two-phase commit
+     protocol, which is a type of atomic commitment protocol. Every FDWs that wish
+     to support two-phase commit protocol are required to have the FDW callback
+     function <code class="function">PrepareForeignTransaction</code> and optionally
+     <code class="function">GetPrepareId</code>, in addition to
+     <code class="function">CommitForeignTransaction</code> and
+     <code class="function">RollbackForeignTransaction</code>
+     (see <a class="xref" href="fdw-callbacks.html#FDW-CALLBACKS-TRANSACTION-MANAGEMENT" title="57.2.11. FDW Routines For Transaction Management">Section 57.2.11</a> for details).
+    </p><p>
+     An example of distributed transaction is as follows
+</p><pre class="programlisting">
+BEGIN;
+UPDATE ft1 SET col = 'a';
+UPDATE ft2 SET col = 'b';
+COMMIT;
+</pre><p>
+    ft1 and ft2 are foreign tables on different foreign servers may be using different
+    Foreign Data Wrappers.
+    </p><p>
+     When the core executor access the foreign servers, foreign servers whose FDW
+     supports transaction management callback routines is registered as a participant.
+     During registration, <code class="function">GetPrepareId</code> is called if provided to
+     generate an unique transaction identifer.
+    </p><p>
+     During pre-commit phase of local transaction, the foreign transaction manager
+     persists the foreign transaction information to the disk and WAL, and then
+     prepare all foreign transaction by calling
+     <code class="function">PrepareForeignTransaction</code> if two-phase commit protocol
+     is required. Two-phase commit is required when the transaction modified data
+     on more than one servers including the local server itself and user requests
+     foreign twophase commit (see <a class="xref" href="runtime-config-distributed-transaction.html#GUC-FOREIGN-TWOPHASE-COMMIT">foreign_twophse_commit</a>).
+    </p><p>
+     <span class="productname">PostgreSQL</span> can commit locally and go to the next
+     step if and only if all foreign transactions are prepared successfully.
+     If any failure happens or user requests to cancel during preparation,
+     the distributed transaction manager changes over rollback and calls
+     <code class="function">RollbackForeignTransaction</code>.
+    </p><p>
+     When changing over rollback due to any failure, it calls
+     <code class="function">RollbackForeignTransaction</code> with
+     <code class="literal">FDWXACT_FLAG_ONEPHASE</code> for foreign transactions which are not
+     closed yet, and calls <code class="function">RollbackForeignTransaction</code> without
+     that flag for foreign transactions which are already prepared.  For foreign
+     transactions which are being prepared, it does both because it's not sure that
+     the preeparation has been completed on the foreign server. Therefore,
+     <code class="function">RollbackForeignTransaction</code> needs to tolerate the undefined
+     object error.
+    </p><p>
+     Note that when <code class="literal">(frstate-&gt;flags &amp; FDWXACT_FLAG_ONEPHASE)</code>
+     is true, both <code class="literal">CommitForeignTransaction</code> function and
+     <code class="literal">RollbackForeignTransaction</code> function should commit and
+     rollback directly, rather than processing prepared transactions. This can
+     happen when two-phase commit is not required or foreign server is not
+     modified with in the transaction.
+    </p><p>
+     Once all foreign transaction is prepared, the core transaction manager commits
+     locally. After that the transaction commit waits for all prepared foreign
+     transaction to be committed before completetion. After all prepared foreign
+     transactions are resolved the transaction commit completes.
+    </p><p>
+     One foreign transaction resolver process is responsible for foreign
+     transaction resolution on a database. Foreign transaction resolver process
+     calls either <code class="function">CommitForeignTransaction</code> or
+     <code class="function">RollbackForeignTransaction</code> to resolve foreign
+     transaction identified by <code class="literal">frstate-&gt;fdwxact_id</code>. If failed
+     to resolve, resolver process will exit with an error message. The foreign
+     transaction launcher will launch the resolver process again at
+     <a class="xref" href="runtime-config-distributed-transaction.html#GUC-FOREIGN-TRANSACTION-RESOLUTION-RETY-INTERVAL">foreign_transaction_resolution_retry_interval</a> interval.
+    </p></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="fdw-row-locking.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="fdwhandler.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="tablesample-method.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">57.5. Row Locking in Foreign Data Wrappers </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 58. Writing a Table Sampling Method</td></tr></table></div></body></html>

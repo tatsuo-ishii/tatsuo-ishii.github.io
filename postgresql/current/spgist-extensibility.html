@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>65.3. Extensibility</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="spgist-builtin-opclasses.html" title="65.2. Built-in Operator Classes" /><link rel="next" href="spgist-implementation.html" title="65.4. Implementation" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">65.3. Extensibility</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="spgist-builtin-opclasses.html" title="65.2. Built-in Operator Classes">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="spgist.html" title="Chapter 65. SP-GiST Indexes">Up</a></td><th width="60%" align="center">Chapter 65. SP-GiST Indexes</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 13devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="spgist-implementation.html" title="65.4. Implementation">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="SPGIST-EXTENSIBILITY"><div class="titlepage"><div><div><h2 class="title" style="clear: both">65.3. Extensibility</h2></div></div></div><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>65.3. Extensibility</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="spgist-builtin-opclasses.html" title="65.2. Built-in Operator Classes" /><link rel="next" href="spgist-implementation.html" title="65.4. Implementation" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">65.3. Extensibility</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="spgist-builtin-opclasses.html" title="65.2. Built-in Operator Classes">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="spgist.html" title="Chapter 65. SP-GiST Indexes">Up</a></td><th width="60%" align="center">Chapter 65. SP-GiST Indexes</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="spgist-implementation.html" title="65.4. Implementation">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="SPGIST-EXTENSIBILITY"><div class="titlepage"><div><div><h2 class="title" style="clear: both">65.3. Extensibility</h2></div></div></div><p>
   <acronym class="acronym">SP-GiST</acronym> offers an interface with a high level of
   abstraction, requiring the access method developer to implement only
   methods specific to a given data type. The <acronym class="acronym">SP-GiST</acronym> core
@@ -49,18 +49,20 @@
    are therefore not discussed further here.
   </p></div><p>
   There are five user-defined methods that an index operator class for
-  <acronym class="acronym">SP-GiST</acronym> must provide, and one is optional.  All five
+  <acronym class="acronym">SP-GiST</acronym> must provide, and two are optional.  All five
   mandatory methods follow the convention of accepting two <code class="type">internal</code>
   arguments, the first of which is a pointer to a C struct containing input
   values for the support method, while the second argument is a pointer to a
   C struct where output values must be placed.  Four of the mandatory methods just
   return <code class="type">void</code>, since all their results appear in the output struct; but
-  <code class="function">leaf_consistent</code> additionally returns a <code class="type">boolean</code> result.
+  <code class="function">leaf_consistent</code> returns a <code class="type">boolean</code> result.
   The methods must not modify any fields of their input structs.  In all
   cases, the output struct is initialized to zeroes before calling the
   user-defined method.  The optional sixth method <code class="function">compress</code>
-  accepts datum to be indexed as the only argument and returns a value suitable
-  for physical storage in a leaf tuple.
+  accepts a <code class="type">datum</code> to be indexed as the only argument and returns a value suitable
+  for physical storage in a leaf tuple.  The optional seventh method
+  <code class="function">options</code> accepts an <code class="type">internal</code> pointer to a C struct, where
+  opclass-specific parameters should be placed, and returns <code class="type">void</code>.
  </p><p>
   The five mandatory user-defined methods are:
  </p><div class="variablelist"><dl class="variablelist"><dt><span class="term"><code class="function">config</code></span></dt><dd><p>
@@ -551,7 +553,7 @@ typedef struct spgLeafConsistentOut
        In this case, the executor will calculate the exact distances after
        fetching the tuple from the heap, and will reorder the tuples if needed.
       </p></dd></dl></div><p>
-  The optional user-defined method is:
+  The optional user-defined method are:
  </p><div class="variablelist"><dl class="variablelist"><dt><span class="term"><code class="function">Datum compress(Datum in)</code></span></dt><dd><p>
        Converts the data item into a format suitable for physical storage in
        a leaf tuple of index page.  It accepts
@@ -559,6 +561,27 @@ typedef struct spgLeafConsistentOut
        value and returns
        <code class="structname">spgConfigOut</code>.<code class="structfield">leafType</code>
        value.  Output value should not be toasted.
+      </p></dd><dt><span class="term"><code class="function">options</code></span></dt><dd><p>
+       Defines a set of user-visible parameters that control operator class
+       behavior.
+      </p><p>
+        The <acronym class="acronym">SQL</acronym> declaration of the function must look like this:
+
+</p><pre class="programlisting">
+CREATE OR REPLACE FUNCTION my_options(internal)
+RETURNS void
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT;
+</pre><p>
+      </p><p>
+       The function is passed a pointer to a <em class="replaceable"><code>local_relopts</code></em>
+       struct, which needs to be filled with a set of operator class
+       specific options.  The options can be accessed from other support
+       functions using the <code class="literal">PG_HAS_OPCLASS_OPTIONS()</code> and
+       <code class="literal">PG_GET_OPCLASS_OPTIONS()</code> macros.
+      </p><p>
+       Since the representation of the key in <acronym class="acronym">SP-GiST</acronym> is
+       flexible, it may depend on user-specified parameters.
       </p></dd></dl></div><p>
    All the SP-GiST support methods are normally called in a short-lived
    memory context; that is, <code class="varname">CurrentMemoryContext</code> will be reset
