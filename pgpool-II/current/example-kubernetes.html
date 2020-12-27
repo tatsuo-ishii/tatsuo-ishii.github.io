@@ -1,0 +1,701 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Pgpool-II on Kubernetes</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="pgpool-II 4.3devel Documentation"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="Configuration Examples"
+HREF="example-configs.html"><LINK
+REL="PREVIOUS"
+TITLE="Aurora Configuration Example"
+HREF="example-aurora.html"><LINK
+REL="NEXT"
+TITLE="Reference"
+HREF="reference.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=ISO-8859-1"><META
+NAME="creation"
+CONTENT="2020-12-27T10:41:24"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>pgpool-II 4.3devel Documentation</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="Aurora Configuration Example"
+HREF="example-aurora.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="example-configs.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 8. Configuration Examples</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="Reference"
+HREF="reference.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="EXAMPLE-KUBERNETES"
+>8.5. <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> on Kubernetes</A
+></H1
+><P
+>  This section explains how to run <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> to achieve
+  read query load balancing and connection pooling on Kubernetes.
+ </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-KUBERNETES-INTRO"
+>8.5.1. Introduction</A
+></H2
+><P
+>   Because <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> is a stateful application and managing
+   <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> has very specific requirements (e.g. backup,
+   recovery, automatic failover, etc), the built-in functionality of <SPAN
+CLASS="PRODUCTNAME"
+>Kubernetes</SPAN
+>
+   can't handle these tasks. Therefore, an Operator that extends the functionality of the Kubernetes to create
+   and manage PostgreSQL is required.
+  </P
+><P
+>   There are several PostgreSQL operators, such as
+   <A
+HREF="https://github.com/CrunchyData/postgres-operator"
+TARGET="_top"
+>Crunchy PostgreSQL Operator</A
+>,
+   <A
+HREF="https://github.com/zalando/postgres-operator"
+TARGET="_top"
+>Zalando PostgreSQL Operator</A
+> and
+   <A
+HREF="https://github.com/kubedb/operator"
+TARGET="_top"
+>KubeDB</A
+>.
+   However, these operators don't provide query load balancing functionality.
+  </P
+><P
+>   This section explains how to combine PostgreSQL Operator with Pgpool-II to deploy a PostgreSQL cluster
+   with query load balancing and connection pooling capability on Kubernetes. Pgpool-II can be combined with
+   any of the PostgreSQL operators mentioned above.
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-KUBERNETES-ARCHITECTURE"
+>8.5.2. Architecture</A
+></H2
+><P
+>   <DIV
+CLASS="FIGURE"
+><A
+NAME="AEN7328"
+></A
+><P
+><B
+>Figure 8-2. Architecture</B
+></P
+><DIV
+CLASS="MEDIAOBJECT"
+><P
+><IMG
+SRC="pgpool_on_k8s.gif"></P
+></DIV
+></DIV
+>
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-KUBERNETES-PRE-SETUP"
+>8.5.3. Prerequisites</A
+></H2
+><P
+>   Before you start the configuration process, please check the following prerequisites.
+  <P
+></P
+></P><UL
+><LI
+><P
+>     Make sure you have a <SPAN
+CLASS="PRODUCTNAME"
+>Kubernetes</SPAN
+> cluster, and <TT
+CLASS="COMMAND"
+>kubectl</TT
+> is installed.
+    </P
+></LI
+><LI
+><P
+>     PostgreSQL Operator and a PostgreSQL cluster are installed.
+    </P
+></LI
+></UL
+><P>
+  </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-KUBERNETES-DEPLOY-PGPOOL"
+>8.5.4. Deploy Pgpool-II</A
+></H2
+><P
+>   Deploy Pgpool-II pod that contains a Pgpool-II container and a
+   <A
+HREF="https://github.com/pgpool/pgpool2_exporter"
+TARGET="_top"
+>Pgpool-II Exporter</A
+> container.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgpool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgpool
+  template:
+    metadata:
+      labels:
+        app: pgpool
+    spec:
+      containers:
+      - name: pgpool
+        image: pgpool/pgpool:4.2
+    ...
+      - name: pgpool-stats
+        image: pgpool/pgpool2_exporter:1.0
+    ...
+  </PRE
+><P
+>   <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>'s health check, automatic failover, Watchdog and online recovery features
+   aren't required on <SPAN
+CLASS="PRODUCTNAME"
+>Kubernetes</SPAN
+>. You need to only enable load balancing and connection
+   pooling.
+  </P
+><P
+>   The Pgpool-II pod should work with the minimal configuration below:
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>backend_hostname0='primary service name'
+backend_hostname1='replica service name'
+backend_port0='5432'
+backend_port1='5432'
+backend_flag0='ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+backend_flag1='DISALLOW_TO_FAILOVER'
+
+sr_check_period = 10
+sr_check_user='PostgreSQL user name'
+
+load_balance_mode = on
+connection_cache = on
+listen_addresses = '*'
+  </PRE
+><P
+>   There are two ways you can configure Pgpool-II.
+   <P
+></P
+></P><OL
+TYPE="1"
+><LI
+><P
+>      Using environment variables
+     </P
+></LI
+><LI
+><P
+>      Using a <A
+HREF="https://kubernetes.io/docs/concepts/configuration/configmap/"
+TARGET="_top"
+>ConfigMap</A
+>
+     </P
+></LI
+></OL
+><P>
+  </P
+><P
+>   You may need to configure client authentication and more parameters in a production environment.
+   In a production environment, we recommend using a ConfigMap to configure Pgpool-II's
+   config files, i.e. pgpool.conf, pcp.conf, pool_passwd and pool_hba.conf.
+  </P
+><P
+>   The following sections explain how to configure and deploy Pgpool-II pod using environment
+   variables and ConfigMap respectively. You can download the various manifest files used for
+   deploying Pgpool-II from <A
+HREF="https://github.com/pgpool/pgpool2_on_k8s"
+TARGET="_top"
+>here</A
+>.
+  </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-KUBERNETES-CONFIGURE-PGPOOL-ENV"
+>8.5.4.1. Configure Pgpool-II using environment variables</A
+></H3
+><P
+>    Kubernetes environment variables can be passed to a container in a pod.
+    You can define environment variables in the deployment manifest to configure Pgpool-II's parameters.
+    <TT
+CLASS="FILENAME"
+>pgpool_deploy.yaml</TT
+> is an example of a Deployment manifest.
+    You can download <TT
+CLASS="FILENAME"
+>pgpool_deploy.yaml</TT
+> and specify environment variables in this manifest file.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>$ curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_deploy.yaml
+   </PRE
+><P
+>    Environment variables starting with <TT
+CLASS="LITERAL"
+>PGPOOL_PARAMS_</TT
+> can be converted to Pgpool-II's configuration
+    parameters and these values can override the default configurations.
+   </P
+><P
+></P
+><UL
+><LI
+><P
+>      The Pgpool-II container Docker images is build with streaming replication mode.
+      By default, load balancing, connection pooling and streaming replication check is enabled.
+     </P
+></LI
+><LI
+><P
+>      Specify <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>only two backend nodes</I
+></SPAN
+>.
+      Specify the Primary Service name to <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-HOSTNAME"
+>backend_hostname</A
+>0.
+      Specify the Replica Service name to <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-HOSTNAME"
+>backend_hostname</A
+>1.
+      Because failover is managed by <SPAN
+CLASS="PRODUCTNAME"
+>Kubernetes</SPAN
+>,
+      specify <TT
+CLASS="LITERAL"
+>DISALLOW_TO_FAILOVER</TT
+> flag to <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-FLAG"
+>backend_flag</A
+>
+      for both of the two nodes and <TT
+CLASS="LITERAL"
+>ALWAYS_PRIMARY</TT
+> flag to <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-FLAG"
+>backend_flag</A
+>0.
+      Configure appropriate <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-WEIGHT"
+>backend_weight</A
+> as usual.
+      You don't need to specify <A
+HREF="runtime-config-backend-settings.html#GUC-BACKEND-DATA-DIRECTORY"
+>backend_data_directory</A
+>.
+     </P
+><P
+>      For example, the following environment variables defined in manifest,
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>env:
+- name: PGPOOL_PARAMS_BACKEND_HOSTNAME0
+  value: "hippo"
+- name: PGPOOL_PARAMS_BACKEND_HOSTNAME1
+  value: "hippo-replica"
+- name: PGPOOL_PARAMS_BACKEND_FLAG0
+  value: "ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER"
+- name: PGPOOL_PARAMS_BACKEND_FLAG1
+  value: "DISALLOW_TO_FAILOVER"
+     </PRE
+><P
+>      will be convert to the following configuration parameters in pgpool.conf.
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>backend_hostname0='hippo'
+backend_hostname1='hippo-replica'
+backend_flag0='ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+backend_flag1='DISALLOW_TO_FAILOVER'
+     </PRE
+></LI
+><LI
+><P
+>      Specify a PostgreSQL user name and password to perform streaming replication check.
+      For the security reasons, we recommend that you specify a encrypted password.
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>- name: PGPOOL_PARAMS_SR_CHECK_USER
+  value: "PostgreSQL user name"
+- name: PGPOOL_PARAMS_SR_CHECK_PASSWORD
+  value: "encrypted PostgreSQL user's password"
+     </PRE
+><P
+>      Alternatively, you can create a secret and use this secret as environment variables.
+     </P
+></LI
+><LI
+><P
+>      Since health check is performed by <SPAN
+CLASS="PRODUCTNAME"
+>Kubernetes</SPAN
+>, Pgpool-II's health check should be disabled.
+      Because the default value is off, we don't need to set this parameter.
+     </P
+></LI
+><LI
+><P
+>      By default, the following environment variables will be set when Pgpool-II container is started.
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>export PGPOOL_PARAMS_LISTEN_ADDRESSES=*
+export PGPOOL_PARAMS_SR_CHECK_USER=${POSTGRES_USER:-"postgres"}
+export PGPOOL_PARAMS_SOCKET_DIR=/var/run/postgresql
+export PGPOOL_PARAMS_PCP_SOCKET_DIR=/var/run/postgresql
+     </PRE
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-KUBERNETES-CONFIGURE-PGPOOL-CONFIGMAP"
+>8.5.4.2. Configure Pgpool-II using ConfigMap</A
+></H3
+><P
+>    Alternatively, you can use a Kubernetes <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> to store entire configuration files,
+    i.e. pgpool.conf, pcp.conf, pool_passwd and pool_hba.conf.
+    The <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> can be mounted to Pgpool-II's container as a volume.
+   </P
+><P
+>    You can download the example manifest files that define the <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> and <TT
+CLASS="LITERAL"
+>Deployment</TT
+>
+    from <A
+HREF="https://github.com/pgpool/pgpool2_on_k8s"
+TARGET="_top"
+>repository</A
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_configmap.yaml
+curl -LO https://raw.githubusercontent.com/pgpool/pgpool2_on_k8s/master/pgpool_deploy_with_mount_configmap.yaml
+   </PRE
+><P
+>    The manifest that defines the <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> is in the following format. You can update it based
+    on your configuration preferences.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgpool-config
+  labels:
+    app: pgpool-config
+data:
+  pgpool.conf: |-
+    listen_addresses = '*'
+    port = 9999
+    socket_dir = '/var/run/postgresql'
+    pcp_listen_addresses = '*'
+    pcp_port = 9898
+    pcp_socket_dir = '/var/run/postgresql'
+    backend_hostname0 = 'hippo'
+    backend_port0 = 5432
+    backend_weight0 = 1
+    backend_flag0 = 'ALWAYS_PRIMARY|DISALLOW_TO_FAILOVER'
+    backend_hostname1 = 'hippo-replica'
+    backend_port1 = 5432
+    backend_weight1 = 1
+    backend_flag1 = 'DISALLOW_TO_FAILOVER'
+    sr_check_user = 'postgres'
+    sr_check_period = 10
+    enable_pool_hba = on
+    master_slave_mode = on
+    num_init_children = 32
+    max_pool = 4
+    child_life_time = 300
+    child_max_connections = 0
+    connection_life_time = 0
+    client_idle_limit = 0
+    connection_cache = on
+    load_balance_mode = on
+  pcp.conf: |-
+    postgres:e8a48653851e28c69d0506508fb27fc5
+  pool_passwd: |-
+    postgres:md53175bce1d3201d16594cebf9d7eb3f9d
+  pool_hba.conf: |-
+    local   all         all                               trust
+    host    all         all         127.0.0.1/32          trust
+    host    all         all         ::1/128               trust
+    host    all         all         0.0.0.0/0             md5
+   </PRE
+><P
+>    First, you need to create the <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> before referencing it to <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> pod.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>kubectl apply -f pgpool_configmap.yaml
+   </PRE
+><P
+>    Once you have created the <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+>, you can deploy <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> pod and
+    mount the <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> to Pgpool-II pod as a volume.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgpool
+  ...
+        volumeMounts:
+        - name: pgpool-config
+          mountPath: /usr/local/pgpool-II/etc
+      ...
+      volumes:
+      - name: pgpool-config
+        configMap:
+          name: pgpool-config
+   </PRE
+><P
+>    <TT
+CLASS="FILENAME"
+>pgpool_deploy_with_mount_configmap.yaml</TT
+> is an example of a Deployment manifest that mounts the
+    created <TT
+CLASS="LITERAL"
+>ConfigMap</TT
+> to the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> pod.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>kubectl apply -f pgpool_deploy_with_mount_configmap.yaml
+   </PRE
+><P
+>   After deploying Pgpool-II, you can see the Pgpool-II pod and services using <TT
+CLASS="COMMAND"
+>kubectl get pod</TT
+>
+   and <TT
+CLASS="COMMAND"
+>kubectl get svc</TT
+> command.
+  </P
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="example-aurora.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="reference.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Aurora Configuration Example</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="example-configs.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Reference</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
