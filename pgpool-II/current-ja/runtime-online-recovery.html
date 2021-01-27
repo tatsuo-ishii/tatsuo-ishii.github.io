@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2020-12-27T10:42:07"></HEAD
+CONTENT="2021-01-22T05:39:28"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -167,17 +167,48 @@ CLASS="PRODUCTNAME"
 >  
   オンラインリカバリは2段階に分けて実施されます。
   第1段階は「ファーストステージ」、第2段階は「セカンドステージ」と呼ばれます。
-  それぞれのステージ用にスクリプトを用意する必要があります。
   <A
 HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
 >native_replication_mode</A
+>あるいは<A
+HREF="runtime-config-running-mode.html#GUC-SNAPSHOT-ISOLATION-MODE"
+>snapshot_isolation_mode</A
 >の時のみセカンドステージが必要です。
    ストリーミングレプリケーションモードを含むその他のモードでは、セカンドステージは実施されず、<A
 HREF="runtime-online-recovery.html#GUC-RECOVERY-2ND-STAGE-COMMAND"
 >recovery_2nd_stage_command</A
 >用のスクリプトを用意する必要はありません。
     つまり、そのエントリを空文字にしておいても問題ありません。
-    これらのスクリプトの例は<A
+ </P
+><P
+>  ファーストステージでは、<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>の<TT
+CLASS="COMMAND"
+>pg_baseback</TT
+>コマンドなどを利用してメイン(プライマリ)ノードのバックアップコピーからレプリカ(スタンバイ)ノードを作ります。
+  ファーストステージ中に更新されたデータは<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>のトランザクションログに記録されます。
+ </P
+><P
+>  セカンドステージでは、リカバリ対象のレプリカノードを起動します。
+  この時にトランザクションログが再生され、このレプリカノードは完全にメインノードと同期します。
+ </P
+><P
+>  それぞれのステージ用にスクリプトを用意する必要があります。
+  完全なサンプルスクリプトが<A
+HREF="https://git.postgresql.org/gitweb/?p=pgpool2.git;a=blob_plain;f=src/sample/scripts/recovery_1st_stage.sample;hb=refs/heads/master"
+TARGET="_top"
+>/etc/pgpool-II/recovery_1st_stage.sample</A
+>および<A
+HREF="https://git.postgresql.org/gitweb/?p=pgpool2.git;a=blob_plain;f=src/sample/scripts/recovery_2nd_stage.sample;hb=refs/heads/master"
+TARGET="_top"
+>/etc/pgpool-II/recovery_2nd_stage.sample</A
+>に用意されています。
+  これらのスクリプトを使ったインストール例は<A
 HREF="example-cluster.html#EXAMPLE-CLUSTER-PGPOOL-CONFIG-ONLINE-RECOVERY"
 >項8.2.6.8</A
 >にあります。
@@ -213,15 +244,15 @@ CLASS="PRODUCTNAME"
     全てのクライアント接続が切断されるまで待機（<A
 HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
 >native_replication_mode</A
+>あるいは<A
+HREF="runtime-config-running-mode.html#GUC-SNAPSHOT-ISOLATION-MODE"
+>snapshot_isolation_mode</A
 >のみ）。
    </P
 ></LI
 ><LI
 ><P
->    CHECKPOINT（<A
-HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
->native_replication_mode</A
->のみ）。
+>    CHECKPOINT.
    </P
 ></LI
 ><LI
@@ -230,6 +261,9 @@ HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
     オンラインリカバリのセカンドステージ（<A
 HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
 >native_replication_mode</A
+>あるいは<A
+HREF="runtime-config-running-mode.html#GUC-SNAPSHOT-ISOLATION-MODE"
+>snapshot_isolation_mode</A
 >のみ）。
    </P
 ></LI
@@ -313,6 +347,9 @@ CLASS="NOTE"
    <A
 HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
 >native_replication_mode</A
+>あるいは<A
+HREF="runtime-config-running-mode.html#GUC-SNAPSHOT-ISOLATION-MODE"
+>snapshot_isolation_mode</A
 >でのオンラインリカバリには制限事項があります。
     <SPAN
 CLASS="PRODUCTNAME"
@@ -588,63 +625,6 @@ CLASS="PRODUCTNAME"
      </P
 ></BLOCKQUOTE
 ></DIV
-><DIV
-CLASS="CAUTION"
-><P
-></P
-><TABLE
-CLASS="CAUTION"
-BORDER="1"
-WIDTH="90%"
-><TR
-><TD
-ALIGN="CENTER"
-><B
->注意</B
-></TD
-></TR
-><TR
-><TD
-ALIGN="LEFT"
-><P
->      
-      <TT
-CLASS="VARNAME"
->recovery_1st_stage_command</TT
->は、<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->から見ると、一つの<ACRONYM
-CLASS="ACRONYM"
->SQL</ACRONYM
->として実行されます。
-      そのため、<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->の<TT
-CLASS="VARNAME"
->statement_timeout</TT
->が<TT
-CLASS="VARNAME"
->recovery_1st_stage_command</TT
->の完了にかかる時間よりも短く設定されていると、<TT
-CLASS="VARNAME"
->recovery_1st_stagecommand</TT
->コマンドの実行が途中でキャンセルされます。
-     </P
-><P
->      
-      典型的なエラーは以下のようなものです。
-      </P><PRE
-CLASS="PROGRAMLISTING"
->       rsync used in the command is killed by signal 2 for example.
-      </PRE
-><P>
-     </P
-></TD
-></TR
-></TABLE
-></DIV
 ><P
 >     
      このパラメータは<SPAN
@@ -672,6 +652,9 @@ CLASS="TYPE"
      これは<A
 HREF="runtime-config-running-mode.html#GUC-REPLICATION-MODE"
 >native_replication_mode</A
+>あるいは<A
+HREF="runtime-config-running-mode.html#GUC-SNAPSHOT-ISOLATION-MODE"
+>snapshot_isolation_mode</A
 >時のみ必要であるため、他のモードではコマンドファイルを用意する必要はありません。
       コマンドファイルはセキュリティ上の観点からデータベースクラスタ内に配置される必要があります。
       例えば、<TT
@@ -775,54 +758,6 @@ CLASS="VARNAME"
 >は実行されない可能性があります。
      </P
 ></BLOCKQUOTE
-></DIV
-><DIV
-CLASS="CAUTION"
-><P
-></P
-><TABLE
-CLASS="CAUTION"
-BORDER="1"
-WIDTH="90%"
-><TR
-><TD
-ALIGN="CENTER"
-><B
->注意</B
-></TD
-></TR
-><TR
-><TD
-ALIGN="LEFT"
-><P
->      
-      <TT
-CLASS="VARNAME"
->recovery_2nd_stage_command</TT
->は、<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->から見ると、一つの<ACRONYM
-CLASS="ACRONYM"
->SQL</ACRONYM
->として実行されます。
-      そのため、<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->の<TT
-CLASS="VARNAME"
->statement_timeout</TT
->が<TT
-CLASS="VARNAME"
->recovery_2nd_stage_command</TT
->の完了にかかる時間よりも短く設定されていると、<TT
-CLASS="VARNAME"
->recovery_1st_stagecommand</TT
->コマンドの実行が途中でキャンセルされます。
-     </P
-></TD
-></TR
-></TABLE
 ></DIV
 ><P
 >     
