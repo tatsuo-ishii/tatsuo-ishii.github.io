@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2021-01-22T05:39:28"></HEAD
+CONTENT="2021-02-02T09:34:29"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -245,23 +245,25 @@ CLASS="PRODUCTNAME"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >はコネクションプーリング、自動フェイルオーバの機能を提供します。
-    ストリーミングレプリケーションモードとネイティブレプリケーションモードのときにのみオンラインリカバリが利用可能です。
+    ストリーミングレプリケーションモード、ネイティブレプリケーションモード、スナップショットアイソレーションモードでは、更新処理を受け付けながらデータベースノードの同期を取り直すオンラインリカバリが利用可能です。
+    オンラインリカバリの詳細については<A
+HREF="runtime-online-recovery.html"
+>項5.10</A
+>を参照してください。
    </P
 ><P
->    
-    これらのモードは互いに排他的であり、サーバ起動後は変更することができません。
+>    これらのモードは互いに排他的であり、サーバ起動後は変更することができません。
     システム設計の初期の段階でどのモードを使うか決めなければなりません。
-    どれを使えば良いかわからない場合は、ストリーミングレプリケーションモードを使うことを推奨します。
+    どれを使えば良いかわからない場合は、ストリーミングレプリケーションモードかスナップショットアイソレーションモードを使うことを推奨します。
    </P
 ><P
->    
-    <I
+>    <I
 CLASS="FIRSTTERM"
 >ストリーミングレプリケーションモード</I
 >はストリーミングレプリケーションを使用する<SPAN
 CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
->サーバと一緒に使うことができます。
+>サーバ(AWSのAuroa、RDSを含みます)と一緒に使うことができます。
     このモードでは、<SPAN
 CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
@@ -271,10 +273,60 @@ CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >の使用法です。
     このモードでは負荷分散が可能です。
+    ノードをまたがる可視性の一貫性は保証されません。
    </P
 ><P
->    
-    <I
+>    <I
+CLASS="FIRSTTERM"
+>スナップショットアイソレーションモード</I
+>では、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>がデータベースを同期する責任を持ちます。
+    このモードの利点はデータベース同期が同期的に行われることです。
+    すなわち、データベースへの書き込みは全ての<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>サーバが書き込み操作を完了するまで返ってきません。
+    また、スナップショットアイソレーションモードは、ノードをまたがる可視性の一貫性を保証します。
+    これは簡単に言うと、単一サーバ上のトランザクション可視性ルールがそのまま複数サーバからなるクラスタでも適用されるということで、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>のスナップショットアイソレーションモードが持つ著しい特徴です。
+    実際、<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>に改造を加えずにノードをまたがる可視性の一貫性を保証するシステムは、現時点では<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>のスナップショットアイソレーションモードだけです。
+    これにより、アプリケーションは単一の<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>ではなく複数<SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>からなるクラスタを使っていることを意識しないで済むメリットがあります。
+    ただし、このモードではトランザクション分離レベルを<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>REPEATABLE READにする必要があります</I
+></SPAN
+>。
+      具体的には、<TT
+CLASS="FILENAME"
+>postgresql.conf</TT
+>に以下のように記述します。
+      </P><PRE
+CLASS="PROGRAMLISTING"
+>       default_transaction_isolation = 'repeatable read'
+      </PRE
+><P>
+    また、トランザクションの一貫性を保つ仕組みのオーバヘッドにより、ストリーミングレプリケーションモードやネイティブレプリケーションモードに比べると性能が低下します。
+   </P
+><P
+>    <I
 CLASS="FIRSTTERM"
 >ネイティブレプリケーションモード</I
 >では、<SPAN
@@ -286,30 +338,8 @@ CLASS="PRODUCTNAME"
 CLASS="PRODUCTNAME"
 >PostgreSQL</SPAN
 >サーバが書き込み操作を完了するまで返ってきません。
-    しかし、<SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
-> 9.6以降では、ストリーミングレプリケーションで<TT
-CLASS="LITERAL"
->synchronous_commit = remote_apply</TT
->と設定することにより、同様の効果が得られます。
-    ネイティブレプリケーションモードの<A
-HREF="restrictions.html"
->制限事項</A
->を回避できるので、この設定が使える場合には、ネイティブレプリケーションモードではなくてこの設定を使うことをお勧めします。
-     <SPAN
-CLASS="PRODUCTNAME"
->PostgreSQL</SPAN
->はノードをまたがるスナップショット管理を提供しないため、セッションYがノードBでコミットする前に、ノードAでコミットしたデータをセッションXが見ることがあり得ます。
-     もしセッションXが、そのときノードAで見た見たデータに基づいてノードBのデータを更新しようとすると、ノードAとノードBのデータ一貫性は損なわれるかもしれません。
-     この問題を回避するには、ユーザは明示的にノードAのデータをロックしなければなりません。
-     これがストリーミングレプリケーションと<TT
-CLASS="LITERAL"
->synchronous_commit = remote_apply</TT
->を使用することをおすすめするもう一つの理由です。
-   </P
-><P
->    このモードでは負荷分散が可能です。
+    このモードではノードをまたがる可視性の一貫性は保証されないので、トランザクション分離レベルをREPEATABLE READに限定したくない場合を除き、スナップショットアイソレーションモードを使うことをお勧めします。
+    このモードでは負荷分散が可能です。
    </P
 ><P
 >    
@@ -363,40 +393,6 @@ CLASS="PRODUCTNAME"
 >を使う特別な理由が無い限りこのモードの使用を推奨しません。
     このモードでは負荷分散が可能です。
    </P
-><P
->    <I
-CLASS="FIRSTTERM"
->スナップショットアイソレーションモード</I
->は、ネィティブレプリケーションモードと似ていますが、更にノードをまたがる可視性の一貫性を保証します。
-    ただし、制限事項がいくつかあり、今の所(<SPAN
-CLASS="PRODUCTNAME"
->Pgpool-II</SPAN
-> 4.2)では「実験的な実装」という位置づけです。
-    業務で使用する場合には慎重なテストをお勧めします。
-   </P
-><P
-></P
-><UL
-><LI
-><P
->      PostgreSQLのトランザクション分離レベルをREPEATABLE READにする必要があります。
-      具体的には、<TT
-CLASS="FILENAME"
->postgresql.conf</TT
->に以下のように記述します。
-      </P><PRE
-CLASS="PROGRAMLISTING"
->       default_transaction_isolation = 'repeatable read'
-      </PRE
-><P>
-     </P
-></LI
-><LI
-><P
->      シリアル型やシーケンスに関する一貫した可視性を保証しません。
-     </P
-></LI
-></UL
 ><P
 >    
     <I
