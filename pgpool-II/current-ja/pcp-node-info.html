@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2021-02-19T10:01:40"></HEAD
+CONTENT="2021-02-27T07:14:09"></HEAD
 ><BODY
 CLASS="REFENTRY"
 ><DIV
@@ -208,8 +208,8 @@ NAME="AEN7875"
    ここでは例を示します。
    </P><PRE
 CLASS="PROGRAMLISTING"
->    $ pcp_node_info -h localhost -U postgres 1
-    /tmp 11003 2 0.500000 up standby 0 streaming async 2019-04-23 13:58:40
+>    $ pcp_node_info -w -p 11001 1
+    /tmp 11003 1 0.500000 waiting up standby standby 0 streaming async 2021-02-27 14:51:30
    </PRE
 ><P>
   </P
@@ -224,21 +224,23 @@ CLASS="LITERALLAYOUT"
     3. ステータス
     4. ロードバランスウェイト
     5. バックエンド状態名
-    6. バックエンドの役割
-    7. レプリケーションの遅延
-    8. レプリケーション状態 (PostgreSQL 9.1以降。pg_stat_replicationから取得)
-    9. 同期レプリケーション状態 (PostgreSQL 9.2以降。pg_stat_replicationから取得)
-    10. 最終ステータス変更時刻
+    6. 実際のバックエンドの状態 (Pgpool-II 4.3以降。pg_isreadyで取得)
+    7. バックエンドの役割
+    8. 実際のバックエンドの役割(Pgpool-II 4.3以降。pg_is_in_recoveryで取得)
+    9. レプリケーションの遅延
+    10. レプリケーション状態 (Pgpool-II 4.1以降。pg_stat_replicationから取得)
+    11. 同期レプリケーション状態 (Pgpool-II 4.1以降。pg_stat_replicationから取得)
+    12. 最終ステータス変更時刻
    </PRE
 ><P>
   </P
 ><P
 >   
-   7, 8, 9は、<A
+   9, 10, 11は、<A
 HREF="runtime-streaming-replication-check.html#GUC-SR-CHECK-PERIOD"
 >sr_check_period</A
 >が0以外でなければ正しく表示されません。
-    また、8, 9は、<A
+    また、10, 11は、<A
 HREF="runtime-streaming-replication-check.html#GUC-SR-CHECK-USER"
 >sr_check_user</A
 >が<SPAN
@@ -307,29 +309,60 @@ CLASS="PRODUCTNAME"
 ><P>
   </P
 ><P
+>   6は実際のバックエンドの状態をリアルタイムで取得して表示します。
+   情報の取得は<TT
+CLASS="COMMAND"
+>pg_isready</TT
+>を呼び出すことによって行われます。
+   <A
+HREF="pcp-detach-node.html"
+>pcp_detach_node</A
+>でバックエンドノードを切り離すと、<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>が管理する状態は"Down"になりますが、バックエンドの実際の状態は"up"なので、5と6が一致しないことはあり得ます。
+    逆に、5が"up"なのに、6が"down"というのは起こらないはずです。
+  </P
+><P
+>   8は実際のバックエンドの状態をリアルタイムで取得して表示します。
+   その結果はストリーミングレプリケーションモードでは、"primary"か"standby"ですが、情報が取得できなければ"unknown"と表示します。
+   <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>はノードID順にバックエンドノードを調べ、最後に見つけたスタンバイ以外のノードをプライマリとするので、誤ってスタンバイ以外のノードが複数できたときなどには、7と8が一致しないことはありえます。
+   （このコマンドはそのような状態を見つけるのに役立ちます。)
+   それ以外のモードでは、"main"あるいは"replica"と表示されます。
+   ストリーミングレプリケーションモードと違って、<CODE
+CLASS="FUNCTION"
+>pg_is_in_recovery</CODE
+>は呼び出されず、7と8が異なる値になることはありません。
+  </P
+><P
 >   
-   ロードバランスウェイトは Normalize されたフォーマットで出力されます。
+   ロードバランスウェイトは0から1に正規化されたフォーマットで出力されます。
   </P
 ><P
 >   
    <TT
 CLASS="OPTION"
 >--verbose</TT
-> オプションは出力内容を理解するのに役に立ちます。例：
+> オプションは出力内容を理解するのに役に立ちます。例を示します：
   </P
 ><PRE
 CLASS="PROGRAMLISTING"
->   $ pcp_node_info --verbose -h localhost -U postgres 1
-   Hostname               : /tmp
-   Port                   : 11003
-   Status                 : 2
-   Weight                 : 0.500000
-   Status Name            : up
-   Role                   : standby
-   Replication Delay      : 0
-   Replication State      : streaming
-   Replication Sync State : async
-   Last Status Change     : 2019-04-23 13:58:40
+>$ pcp_node_info -w -p 11001 --verbose 1
+Hostname               : /tmp
+Port                   : 11003
+Status                 : 1
+Weight                 : 0.500000
+Status Name            : waiting
+Backend Status Name    : up
+Role                   : standby
+Backend Role           : standby
+Replication Delay      : 0
+Replication State      : streaming
+Replication Sync State : async
+Last Status Change     : 2021-02-27 14:51:30
   </PRE
 ></DIV
 ><DIV
