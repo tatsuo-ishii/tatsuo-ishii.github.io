@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=ISO-8859-1"><META
 NAME="creation"
-CONTENT="2021-02-27T07:21:33"></HEAD
+CONTENT="2021-04-20T06:38:31"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -101,12 +101,14 @@ NAME="RUNTIME-IN-MEMORY-QUERY-CACHE"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >.
-  <SPAN
+  The in memory query cache keeps the SELECT results and the results are reused.
+  When the underlying table gets updated, corresponding cache enrties are deleted (in case <A
+HREF="runtime-in-memory-query-cache.html#GUC-MEMQCACHE-AUTO-CACHE-INVALIDATION"
+>memqcache_auto_cache_invalidation</A
+> is on. This parameter is on by default), thus restarting <SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
-> does not
-  need a restart when the cache gets outdated because of
-  the underlying table updates.
+> is not neccessary.
  </P
 ><P
 >  In memory cache saves the pair of SELECT statement
@@ -170,6 +172,56 @@ HREF="sql-show-pool-cache.html"
 >SHOW POOL_CACHE</A
 >) is lower than 70%,
    you might want to disable in memory cache.
+ </P
+><P
+>  A <TT
+CLASS="LITERAL"
+>SELECT</TT
+> result is basically registered when
+  SELECT normaly finishes.  If an explicit transaction is executing,
+  <TT
+CLASS="LITERAL"
+>SELECT</TT
+> result is not registered until the
+  transaction is committed.  Also in extended query mode, the timing
+  of cache registeration varies depending on <A
+HREF="runtime-config-running-mode.html#GUC-BACKEND-CLUSTERING-MODE"
+>clustering mode</A
+>.  In
+  <A
+HREF="runtime-config-running-mode.html#RUNTIME-CONFIG-STREAMING-REPLICATION-MODE"
+>streaming
+  replication mode</A
+> and <A
+HREF="runtime-config-running-mode.html#RUNTIME-CONFIG-LOGICAL-REPLICATION-MODE"
+>logical
+  replication mode</A
+>, cache is registered when
+  <TT
+CLASS="LITERAL"
+>Sync</TT
+> message is sent from frontend, and the
+  response (<TT
+CLASS="LITERAL"
+>Ready for query</TT
+> message) is returned
+  from backend.  Thus even if commands are sent from frontend, the
+  second Execute (SELECT 1) will not use query cache.
+  </P><PRE
+CLASS="PROGRAMLISTING"
+>   Parse (SELECT 1)
+   Bind (SELECT 1)
+   Execute (SELECT 1)
+   Parse (SELECT 1)
+   Bind (SELECT 1)
+   Execute (SELECT 1)
+   Sync
+  </PRE
+><P>
+
+  On the other hand, in other clustering mode, since the result of
+  first Execute (SELECT 1) is registered, the second Execute (SELECT
+  1) will use the query cache.
  </P
 ><DIV
 CLASS="SECT2"

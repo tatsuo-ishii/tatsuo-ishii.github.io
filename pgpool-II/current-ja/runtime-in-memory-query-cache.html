@@ -26,7 +26,7 @@ HREF="stylesheet.css"><META
 HTTP-EQUIV="Content-Type"
 CONTENT="text/html; charset=utf-8"><META
 NAME="creation"
-CONTENT="2021-02-27T07:14:09"></HEAD
+CONTENT="2021-04-20T06:38:41"></HEAD
 ><BODY
 CLASS="SECT1"
 ><DIV
@@ -101,7 +101,11 @@ NAME="RUNTIME-IN-MEMORY-QUERY-CACHE"
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >の全てのモードでインメモリクエリキャッシュを利用することができます。
-  テーブルが更新によりキャッシュが古くなっても、<SPAN
+  クエリキャッシュはSELECTの結果を保管しておいて再利用するものです。
+  テーブルの更新によりキャッシュが古くなると、自動的にそのテーブルに関連したキャッシュが削除される(<A
+HREF="runtime-in-memory-query-cache.html#GUC-MEMQCACHE-AUTO-CACHE-INVALIDATION"
+>memqcache_auto_cache_invalidation</A
+>がonの場合。デフォルトでこの項目はonになっています)ので<SPAN
 CLASS="PRODUCTNAME"
 >Pgpool-II</SPAN
 >の再起動の必要はありません。
@@ -157,7 +161,48 @@ CLASS="PRODUCTNAME"
   キャッシュのヒット率(<A
 HREF="sql-show-pool-cache.html"
 >SHOW POOL_CACHE</A
->を使って確認できます)が70%以下の場合は、インメモリクエリキャッシュ無効にしたほうがいいかもしれません。
+>を使って確認できます)が70%以下の場合は、インメモリクエリキャッシュを無効にしたほうが良いかもしれません。
+ </P
+><P
+>  クエリキャッシュに<TT
+CLASS="LITERAL"
+>SELECT</TT
+>結果が登録されるのは、基本的にSELECTが正常終了したときです。
+  明示的なトランザクションを実行中なら、そのトランザクションがコミットされるまではクエリキャッシュには<TT
+CLASS="LITERAL"
+>SELECT</TT
+>結果は登録されません。
+  また、拡張問い合わせでは、<A
+HREF="runtime-config-running-mode.html#GUC-BACKEND-CLUSTERING-MODE"
+>クラスタリングモード</A
+>により、キャッシュの登録されるタイミングが異なることに注意してください。
+  <A
+HREF="runtime-config-running-mode.html#RUNTIME-CONFIG-STREAMING-REPLICATION-MODE"
+>ストリーミングレプリケーションモード</A
+>と<A
+HREF="runtime-config-running-mode.html#RUNTIME-CONFIG-LOGICAL-REPLICATION-MODE"
+>ロジカルレプリケーションモード</A
+>では、<TT
+CLASS="LITERAL"
+>Sync</TT
+>メッセージがフロントエンドから送られ、その応答(<TT
+CLASS="LITERAL"
+>Ready for query</TT
+>メッセージ)がバックエンドから返ってきたタイミングになります。
+  ですから、
+  </P><PRE
+CLASS="PROGRAMLISTING"
+>   Parse (SELECT 1)
+   Bind (SELECT 1)
+   Execute (SELECT 1)
+   Parse (SELECT 1)
+   Bind (SELECT 1)
+   Execute (SELECT 1)
+   Sync
+  </PRE
+><P>
+  という順でコマンドがフロントエンドから送信されても、2回目のExecute (SELECT 1)ではクエリキャッシュは利用されません。
+  一方それ以外のクラスタリングモードでは、1回目のExecute (SELECT 1)の結果がクエリキャッシュに登録されるので、2回目のExecute (SELECT 1)ではクエリキャッシュが利用されます。
  </P
 ><DIV
 CLASS="SECT2"
@@ -209,7 +254,7 @@ HREF="runtime-misc.html#GUC-ENABLE-SHARED-RELCACHE"
        その上、たとえ<A
 HREF="runtime-in-memory-query-cache.html#GUC-MEMORY-CACHE-ENABLED"
 >memory_cache_enabled</A
->パラメータがオフに設定されいたとしても、クエリキャッシュは使用されます。
+>パラメータがオフに設定されていたとしても、クエリキャッシュは使用されます。
        リレーションキャッシュの詳細は<A
 HREF="runtime-misc.html"
 >項5.15</A
