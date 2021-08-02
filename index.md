@@ -8,6 +8,7 @@ layout: default
 - [PostgreSQL 14dev: last update: 2020/07/25](postgresql/current/index.html)
 
 ## Outcom from the PostgreSQL document translation to Japanese project
+- [PostgreSQL 13.1 (last update: 2021/08/02)](doc-ja/13.1)
 - [PostgreSQL 12.4 (last update: 2020/11/14)](doc-ja/12.4)
 - [PostgreSQL 12.3 (last update: 2020/08/16)](doc-ja/12.3)
 - [PostgreSQL 12.0 (last update: 2020/05/06)](doc-ja/12.0)
