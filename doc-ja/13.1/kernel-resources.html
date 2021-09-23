@@ -39,9 +39,9 @@ Unix（派生）システムでは、<span class="quote">「<span class="quote">
     POSIX semaphores are used on Linux and FreeBSD systems while other
     platforms use System V semaphores.
 -->
-デフォルトでは<span class="productname">PostgreSQL</span>は通常、非常に少量のSystem V共有メモリと、もっと大量の無名<code class="function">mmap</code>共有メモリを持ちます。
+デフォルトでは<span class="productname">PostgreSQL</span>は通常、非常に少量のSystem V共有メモリと、もっと大量の無名<code class="function">mmap</code>共有メモリを割り当てます。
 代替方法として、単一の大きなSystem Vメモリリージョンも利用できます
-（<a class="xref" href="runtime-config-resource.html#GUC-SHARED-MEMORY-TYPE">shared_memory_type</a>参照。）
+（<a class="xref" href="runtime-config-resource.html#GUC-SHARED-MEMORY-TYPE">shared_memory_type</a>参照）。
 
 さらに、System V又はPOSIXスタイルのどちらかのセマフォがサーバの起動時に作成されます。
 現在、LinuxとFreeBSDシステムではPOSIXセマフォが使用され、それ以外のプラットフォームではSystem Vセマフォが使用されます。
@@ -82,7 +82,7 @@ System V <acronym class="acronym">IPC</acronym>機能は、通常システム全
 -->
 <span class="productname">PostgreSQL</span>は、サーバのコピー毎にSystem V共有メモリの数バイト（64ビットプラットフォームでは通常48バイト）を必要とします。
 最近のほとんどのオペレーティングシステムでは、このくらいの量は簡単に割り当てられます。
-しかし複数のサーバのコピーを実行している場合やSystem V共有メモリを使用する他のアプリケーションを実行している場合は、システム全体のSystem V共有メモリである<code class="varname">SHMALL</code>を増加させる必要があるかもしれません。
+しかし複数のサーバのコピーを実行している場合やSystem V共有メモリを使用する他のアプリケーションを実行している場合（<a class="xref" href="runtime-config-resource.html#GUC-SHARED-MEMORY-TYPE">shared_memory_type</a>および<a class="xref" href="runtime-config-resource.html#GUC-DYNAMIC-SHARED-MEMORY-TYPE">dynamic_shared_memory_type</a>を参照）は、システム全体のSystem V共有メモリである<code class="varname">SHMALL</code>を増加させる必要があるかもしれません。
 多くのシステムでは<code class="varname">SHMALL</code>をバイト単位ではなくページ単位で測ることに注意してください。
    </p><p>
 <!--
@@ -179,9 +179,9 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
         sort of configuration commonly used for other databases such
         as <application>DB/2</application>.</para>
 -->
-少なくともバージョン5.1では、すべてのメモリが共有メモリとして使用できるように設定されているようにみえますので、<code class="varname">SHMMAX</code>などのパラメータに対して特別な設定は必要ありません。
+<code class="varname">SHMMAX</code>などのパラメータに対して特別な設定は必要ありません。
+これは、すべてのメモリを共有メモリとして使用できるように設定されているためです。
 これは<span class="application">DB/2</span>などの他のデータベースでも使用される、一般的な設定方法です。
-
        </p><!--
        <para> It might, however, be necessary to modify the global
        <command>ulimit</command> information in
@@ -197,9 +197,13 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
 -->
       <a id="id-1.6.5.7.3.14.2.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default shared memory settings are usually good enough, unless
-        you have set <code class="literal">shared_memory_type</code> to <code class="literal">sysv</code>.
+        you have set <literal>shared_memory_type</literal> to <literal>sysv</literal>.
         System V semaphores are not used on this platform.
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定していない限り、通常はデフォルトの共有メモリ設定で十分です。
+System V セマフォはこのプラットフォームでは使用しません。
        </p><p>
 <!--
         The default IPC settings can be changed using
@@ -226,7 +230,7 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
         out to swap.  This can be accomplished using the <command>sysctl</command>
         setting <literal>kern.ipc.shm_use_phys</literal>.
 -->
-また、System V共有メモリをRAM上に固定して、スワップによってページアウトされるのを避けるために、カーネルを設定したいと考えるかもしれません。
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定している場合は、System V共有メモリをRAM上に固定して、スワップによってページアウトされるのを避けるために、カーネルを設定することもできます。
 これは<code class="command">sysctl</code>を使用して<code class="literal">kern.ipc.shm_use_phys</code>を設定することで実現できます。
        </p><p>
 <!--
@@ -237,28 +241,30 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
         the host's IPC namespace from jails, and take measures to avoid
         collisions.)
 -->
-<span class="application">sysctl</span>の<code class="literal">security.jail.sysvipc_allowed</code>を有効にしてFreeBSD jailを実行している場合、異なるjailで実行する<span class="application">postmaster</span>を別のオペレーティングシステムユーザで実行しなければなりません。
-これは、非特権ユーザが別のjailの共有メモリやセマフォに干渉することを防止できるため、セキュリティが向上します。
-また、これによりPostgreSQLのIPCを整理するコードを適切に動作させることができます。
-（FreeBSD 6.0以降では、IPC整理コードは他のjailにおけるプロセスを適切に検出せず、異なるjailで同一ポートでpostmasterを実行させることができません。）
+FreeBSD jailを実行している場合、<code class="literal">sysvshm</code>パラメータを<code class="literal">new</code>に設定して、独自のSystem V共有メモリ名前空間を有するようにする必要があります。
+（FreeBSD 11.0以前は、jailからIPC名前空間への共有アクセスを可能にし、衝突を避けるための対策を講じる必要がありました。）
        </p></dd><dt><span class="term"><span class="systemitem">NetBSD</span>
 <!--
       <indexterm><primary>NetBSD</primary><secondary>IPC configuration</secondary></indexterm>
 -->
       <a id="id-1.6.5.7.3.14.3.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default shared memory settings are usually good enough, unless
-        you have set <code class="literal">shared_memory_type</code> to <code class="literal">sysv</code>.
-        You will usually want to increase <code class="literal">kern.ipc.semmni</code>
-        and <code class="literal">kern.ipc.semmns</code>,
-        as <span class="systemitem">NetBSD</span>'s default settings
+        you have set <literal>shared_memory_type</literal> to <literal>sysv</literal>.
+        You will usually want to increase <literal>kern.ipc.semmni</literal>
+        and <literal>kern.ipc.semmns</literal>,
+        as <systemitem class="osname">NetBSD</systemitem>'s default settings
         for these are uncomfortably small.
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定していない限り、通常はデフォルトの共有メモリ設定で十分です。
+通常は、<code class="literal">kern.ipc.semmni</code>と<code class="literal">kern.ipc.semmns</code>を増やす必要があります。これは、<span class="systemitem">NetBSD</span>のデフォルト設定は不適切に小さいためです。
        </p><p>
 <!--
         IPC parameters can be adjusted using <command>sysctl</command>,
         for example:
 -->
-<span class="systemitem">NetBSD</span> 5.0以降では、以下の例のようにIPCパラメータを<code class="command">sysctl</code>を用いて調整することができます。
+以下の例のようにIPCパラメータを<code class="command">sysctl</code>を用いて調整することができます。
 </p><pre class="screen">
 <code class="prompt">#</code> <strong class="userinput"><code>sysctl -w kern.ipc.semmni=100</code></strong>
 </pre><p>
@@ -266,43 +272,58 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
         To make these settings persist over reboots, modify
         <filename>/etc/sysctl.conf</filename>.
 -->
-この設定を再起動しても永続化させるためには<code class="filename">/etc/sysctl.conf</code>を編集してください。
+これらの設定を再起動しても永続化するには、<code class="filename">/etc/sysctl.conf</code>を変更します。
        </p><p>
-        If you have set <code class="literal">shared_memory_type</code> to
-        <code class="literal">sysv</code>, you might also want to configure your kernel
+<!--
+        If you have set <literal>shared_memory_type</literal> to
+        <literal>sysv</literal>, you might also want to configure your kernel
         to lock System V shared memory into RAM and prevent it from being paged
-        out to swap.  This can be accomplished using the <code class="command">sysctl</code>
-        setting <code class="literal">kern.ipc.shm_use_phys</code>.
+        out to swap.  This can be accomplished using the <command>sysctl</command>
+        setting <literal>kern.ipc.shm_use_phys</literal>.
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定している場合は、System V共有メモリをRAM上に固定して、スワップによってページアウトされるのを避けるために、カーネルを設定することもできます。
+これは<code class="command">sysctl</code>を使用して<code class="literal">kern.ipc.shm_use_phys</code>を設定することで実現できます。
        </p></dd><dt><span class="term"><span class="systemitem">OpenBSD</span>
 <!--
       <indexterm><primary>OpenBSD</primary><secondary>IPC configuration</secondary></indexterm>
 -->
       <a id="id-1.6.5.7.3.14.4.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default shared memory settings are usually good enough, unless
-        you have set <code class="literal">shared_memory_type</code> to <code class="literal">sysv</code>.
+        you have set <literal>shared_memory_type</literal> to <literal>sysv</literal>.
         You will usually want to
-        increase <code class="literal">kern.seminfo.semmni</code>
-        and <code class="literal">kern.seminfo.semmns</code>,
-        as <span class="systemitem">OpenBSD</span>'s default settings
+        increase <literal>kern.seminfo.semmni</literal>
+        and <literal>kern.seminfo.semmns</literal>,
+        as <systemitem class="osname">OpenBSD</systemitem>'s default settings
         for these are uncomfortably small.
---&gt;
-<span class="systemitem">OpenBSD</span>のデフォルト設定は不適切に小さいため、通常<code class="literal">kern.seminfo.semmni</code>と<code class="literal">kern.seminfo.semmns</code>を増加させたいと思うでしょう。
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定していない限り、通常はデフォルトの共有メモリ設定で十分です。
+通常は、<code class="literal">kern.seminfo.semmni</code>と<code class="literal">kern.seminfo.semmns</code>を増やす必要があります。これは、<span class="systemitem">OpenBSD</span>のデフォルト設定は不適切に小さいためです。
        </p><p>
-        IPC parameters can be adjusted using <code class="command">sysctl</code>,
+<!--
+        IPC parameters can be adjusted using <command>sysctl</command>,
         for example:
+-->
+以下の例のようにIPCパラメータを<code class="command">sysctl</code>を用いて調整することができます。
 </p><pre class="screen">
 <code class="prompt">#</code> <strong class="userinput"><code>sysctl kern.seminfo.semmni=100</code></strong>
 </pre><p>
+<!--
         To make these settings persist over reboots, modify
-        <code class="filename">/etc/sysctl.conf</code>.
+        <filename>/etc/sysctl.conf</filename>.
+-->
+これらの設定を再起動しても永続化するには、<code class="filename">/etc/sysctl.conf</code>を変更します。
        </p></dd><dt><span class="term"><span class="systemitem">HP-UX</span>
 <!--
       <indexterm><primary>HP-UX</primary><secondary>IPC configuration</secondary></indexterm>
 -->
       <a id="id-1.6.5.7.3.14.5.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default settings tend to suffice for normal installations.
+-->
+通常のインストールでは、既定の設定で十分です。
        </p><p>
 <!--
         <acronym>IPC</acronym> parameters can be set in the <application>System
@@ -319,10 +340,14 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
 -->
       <a id="id-1.6.5.7.3.14.6.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default shared memory settings are usually good enough, unless
-        you have set <code class="literal">shared_memory_type</code> to <code class="literal">sysv</code>,
+        you have set <literal>shared_memory_type</literal> to <literal>sysv</literal>,
         and even then only on older kernel versions that shipped with low defaults.
         System V semaphores are not used on this platform.
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定していて、低いデフォルトで出荷されたより古いカーネルバージョンでない限り、通常はデフォルトの共有メモリ設定で十分です。
+System V セマフォはこのプラットフォームでは使用しません。
        </p><p>
 <!--
         The shared memory size settings can be changed via the
@@ -334,21 +359,28 @@ POSIXセマフォを使用している場合、System Vと同じ数のセマフ�
 <code class="prompt">$</code> <strong class="userinput"><code>sysctl -w kernel.shmmax=17179869184</code></strong>
 <code class="prompt">$</code> <strong class="userinput"><code>sysctl -w kernel.shmall=4194304</code></strong>
 </pre><p>
+<!--
         To make these settings persist over reboots, see
-        <code class="filename">/etc/sysctl.conf</code>.
+        <filename>/etc/sysctl.conf</filename>.
+-->
+これらの設定を再起動しても永続化するには、<code class="filename">/etc/sysctl.conf</code>を参照してください。
        </p></dd><dt><span class="term"><span class="systemitem">macOS</span>
 <!--
       <indexterm><primary>macOS</primary><secondary>IPC configuration</secondary></indexterm>
 -->
       <a id="id-1.6.5.7.3.14.7.1.2" class="indexterm"></a>
       </span></dt><dd><p>
+<!--
         The default shared memory and semaphore settings are usually good enough, unless
-        you have set <code class="literal">shared_memory_type</code> to <code class="literal">sysv</code>.
+        you have set <literal>shared_memory_type</literal> to <literal>sysv</literal>.
+-->
+<code class="literal">shared_memory_type</code>を<code class="literal">sysv</code>に設定していない限り、通常はデフォルトの共有メモリとセマフォ設定で十分です。
        </p><p>
+<!--
         The recommended method for configuring shared memory in macOS
-        is to create a file named <code class="filename">/etc/sysctl.conf</code>,
+        is to create a file named <filename>/etc/sysctl.conf</filename>,
         containing variable assignments such as:
---&gt;
+-->
 macOSにおける共有メモリの推奨設定方法は、以下のような変数代入文からなる<code class="filename">/etc/sysctl.conf</code>という名称のファイルを作成することです。
 </p><pre class="programlisting">
 kern.sysv.shmmax=4194304
@@ -368,7 +400,7 @@ kern.sysv.shmall=1024
 <!--
         <varname>SHMMAX</varname> can only be set to a multiple of 4096.
 -->
-最近のリリースのmacOSは、<code class="varname">SHMMAX</code>を4096の倍数以外に設定しようとすると無視しますので、注意してください。
+<code class="varname">SHMMAX</code>は4096の倍数のみ設定できます。
        </p><p>
 <!--
         <varname>SHMALL</varname> is measured in 4 kB pages on this platform.
@@ -381,19 +413,19 @@ kern.sysv.shmall=1024
         values via <filename>/etc/sysctl.conf</filename>, so that the values will be
         kept across reboots.
 -->
-古めのバージョンのmacOSでは、共有メモリパラメータの変更を有効にするために再起動が必要になります。
-10.5から<code class="varname">SHMMNI</code>以外の変更は、<span class="application">sysctl</span>を用いることにより、その場で行うことができます。
+<code class="varname">SHMMNI</code>以外の変更は、<span class="application">sysctl</span>を用いることにより、その場でおこなうことができます。
 しかしいずれにせよ<code class="filename">/etc/sysctl.conf</code>経由で望む値に設定することが最善です。
 再起動を行っても値が保持されるからです。
        </p></dd><dt><span class="term"><span class="systemitem">Solaris</span><br /></span><span class="term"><span class="systemitem">illumos</span></span></dt><dd><p>
+<!--
         The default shared memory and semaphore settings are usually good enough for most
-        <span class="productname">PostgreSQL</span> applications.  Solaris defaults
-        to a <code class="varname">SHMMAX</code> of one-quarter of system <acronym class="acronym">RAM</acronym>.
+        <productname>PostgreSQL</productname> applications.  Solaris defaults
+        to a <varname>SHMMAX</varname> of one-quarter of system <acronym>RAM</acronym>.
         To further adjust this setting, use a project setting associated
-        with the <code class="literal">postgres</code> user.  For example, run the
-        following as <code class="literal">root</code>:
---&gt;
-Solaris 10以降とOpenSolarisでは、デフォルトの共有メモリとセマフォ設定は大抵の<span class="productname">PostgreSQL</span>アプリケーションで十分あります。
+        with the <literal>postgres</literal> user.  For example, run the
+        following as <literal>root</literal>:
+-->
+大抵の<span class="productname">PostgreSQL</span>アプリケーションではデフォルトの共有メモリとセマフォ設定で十分です。
 Solarisのデフォルトの<code class="varname">SHMMAX</code>はシステムの<acronym class="acronym">RAM</acronym>の1/4になりました。
 さらにこの設定を調整するためには、<code class="literal">postgres</code>ユーザに関するプロジェクト設定を使用しなければなりません。
 例えば以下を<code class="literal">root</code>権限で実行してください。
@@ -640,7 +672,7 @@ default:\
     <productname>PostgreSQL</productname> or another process cause the
     system to run out of virtual memory.
 -->
-Linux 2.4以降では、デフォルトの仮想メモリの動作は<span class="productname">PostgreSQL</span>には最適ではありません。
+Linuxでのデフォルトの仮想メモリの動作は<span class="productname">PostgreSQL</span>には最適ではありません。
 カーネルがメモリオーバーコミットを実装する方法のため、カーネルは、<span class="productname">PostgreSQL</span>や他のプロセスのメモリ要求がシステムの仮想メモリを枯渇させた場合、<span class="productname">PostgreSQL</span> postmaster （マスタサーバプロセス）を終了させる可能性があります。
    </p><p>
 <!--
@@ -691,7 +723,7 @@ Out of Memory: Killed process 12345 (postgres).
     and instead make use of external connection-pooling software.
 -->
 <span class="productname">PostgreSQL</span>自体が実行中のシステムのメモリ不足を引き起こした場合、設定を変更することで問題を防止することができます。
-メモリ関連の設定パラメータ、具体的には<a class="link" href="runtime-config-resource.html#GUC-SHARED-BUFFERS"><code class="varname">shared_buffers</code></a>および<a class="link" href="runtime-config-resource.html#GUC-WORK-MEM"><code class="varname">work_mem</code></a>、を低くすることで回避できる場合もあります。
+場合によっては、メモリ関連の設定パラメータ、<a class="link" href="runtime-config-resource.html#GUC-SHARED-BUFFERS"><code class="varname">shared_buffers</code></a>、<a class="link" href="runtime-config-resource.html#GUC-WORK-MEM"><code class="varname">work_mem</code></a>および<a class="link" href="runtime-config-resource.html#GUC-HASH-MEM-MULTIPLIER"><code class="varname">hash_mem_multiplier</code></a>を低くすることで回避できる場合もあります。
 この他にもデータベースサーバ自体への接続を多く許可しすぎることで問題が引き起こされる場合もあります。
 多くの場合、<a class="link" href="runtime-config-connection.html#GUC-MAX-CONNECTIONS"><code class="varname">max_connections</code></a>を減らし、外部のコネクションプールソフトウェアを使用することで改善されます。
    </p><p>
@@ -704,9 +736,9 @@ Out of Memory: Killed process 12345 (postgres).
     lead to more robust system behavior.  This is done by selecting strict
     overcommit mode via <command>sysctl</command>:
 -->
-Linux 2.6以降では、メモリを<span class="quote">「<span class="quote">オーバーコミット</span>」</span>させないようにカーネルの動作を変更することができます。
+メモリを<span class="quote">「<span class="quote">オーバーコミット</span>」</span>させないようにカーネルの動作を変更することができます。
 この設定は完全に<a class="ulink" href="https://lwn.net/Articles/104179/" target="_top">OOM killer</a>の発生を防ぐことはできませんが、その発生頻度をかなり軽減しますので、システム動作の堅牢性をより高めます。
-これは、以下のように<code class="command">sysctl</code>を使用して厳密なオーバーコミットモードを選択すること、もしくは、<code class="filename">/etc/sysctl.conf</code>に同等の項目を記述することで実施されます。
+これは、以下のように<code class="command">sysctl</code>を使用して厳密なオーバーコミットモードを選択するこで実施されます。
 </p><pre class="programlisting">
 sysctl -w vm.overcommit_memory=2
 </pre><p>
@@ -782,7 +814,7 @@ export PG_OOM_ADJUST_VALUE=0
 <span class="productname">PostgreSQL</span>のように、メモリの大きな連続チャンクを使用するとき、特に<a class="xref" href="runtime-config-resource.html#GUC-SHARED-BUFFERS">shared_buffers</a>の値が大きい場合に、huge pagesを使用するとオーバーヘッドが減少します。
 <span class="productname">PostgreSQL</span>でこの機能を有効にするには、<code class="varname">CONFIG_HUGETLBFS=y</code>および<code class="varname">CONFIG_HUGETLB_PAGE=y</code>としたカーネルが必要です。
 またカーネル設定<code class="varname">vm.nr_hugepages</code>を調整する必要もあるでしょう。
-必要なhuge pages数を見積もるには、huge pagesを有効にせずに<span class="productname">PostgreSQL</span>を起動し、procファイルシステムを使用してpostmasterの無名共有セグメントサイズとシステムのhuge pageサイズの値をチェックします。
+必要なhuge pages数を見積もるには、huge pagesを有効にせずに<span class="productname">PostgreSQL</span>を起動し、<code class="filename">/proc</code>ファイルシステムを使用してpostmasterの無名共有セグメントサイズとシステムのhuge pageサイズの値をチェックします。
 これは以下のような感じになるでしょう。
 </p><pre class="programlisting">
 $ <strong class="userinput"><code>head -1 $PGDATA/postmaster.pid</code></strong>
@@ -842,7 +874,7 @@ $ <strong class="userinput"><code>grep Huge /proc/meminfo</code></strong>
     start if not enough huge pages are available.
 -->
 <span class="productname">PostgreSQL</span>のhuge pagesのデフォルトの動作は、可能な場合はhuge pagesを使用し、失敗した場合は通常のページを使用します。
-<code class="filename">postgresql.conf</code>で<a class="link" href="runtime-config-resource.html#GUC-HUGE-PAGES"><code class="varname">huge_pages</code></a>を<code class="literal">on</code>に設定することで、huge pagesの使用を強制することができます。
+<code class="filename">postgresql.conf</code>で<a class="xref" href="runtime-config-resource.html#GUC-HUGE-PAGES">huge_pages</a>を<code class="literal">on</code>に設定することで、huge pagesの使用を強制することができます。
 この設定の場合、十分なhuge pagesが確保できなければ、<span class="productname">PostgreSQL</span>の起動に失敗することに注意してください。
    </p><p>
 <!--

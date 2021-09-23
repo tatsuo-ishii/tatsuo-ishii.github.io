@@ -259,26 +259,36 @@
         script commands require superuser privileges.  (Such commands would
         fail anyway, but it's more user-friendly to give the error up front.)
 -->
-このパラメータが<code class="literal">true</code>（デフォルト）の場合、スーパーユーザのみが拡張を作成または新しいバージョンに更新することができます。
-<code class="literal">false</code>に設定されている場合は、インストレーション内でコマンドを実行するまたはスクリプトを更新するために必要な権限のみが必要とされます。
+このパラメータが<code class="literal">true</code>（デフォルト）の場合、スーパーユーザのみが拡張を作成または新しいバージョンに更新することができます（ただし、後述する<code class="varname">trusted</code>も参照してください）。
+<code class="literal">false</code>に設定されている場合は、インストール中のコマンド実行またはスクリプト更新のために必要な権限のみが必要とされます。
+いずれかスクリプトコマンドがスーパーユーザ権限を必要とするなら、通常は<code class="literal">true</code>に設定されるべきです。
+（このようなコマンドはいずれにせよ失敗するでしょうけれども、前もってエラーを出す方がよりユーザフレンドリです。）
        </p></dd><dt><span class="term"><code class="varname">trusted</code> (<code class="type">boolean</code>)</span></dt><dd><p>
-        This parameter, if set to <code class="literal">true</code> (which is not the
+<!--
+        This parameter, if set to <literal>true</literal> (which is not the
         default), allows some non-superusers to install an extension that
-        has <code class="varname">superuser</code> set to <code class="literal">true</code>.
+        has <varname>superuser</varname> set to <literal>true</literal>.
         Specifically, installation will be permitted for anyone who has
-        <code class="literal">CREATE</code> privilege on the current database.
-        When the user executing <code class="command">CREATE EXTENSION</code> is not
+        <literal>CREATE</literal> privilege on the current database.
+        When the user executing <command>CREATE EXTENSION</command> is not
         a superuser but is allowed to install by virtue of this parameter,
         then the installation or update script is run as the bootstrap
         superuser, not as the calling user.
-        This parameter is irrelevant if <code class="varname">superuser</code> is
-        <code class="literal">false</code>.
+        This parameter is irrelevant if <varname>superuser</varname> is
+        <literal>false</literal>.
         Generally, this should not be set true for extensions that could
         allow access to otherwise-superuser-only abilities, such as
         file system access.
         Also, marking an extension trusted requires significant extra effort
         to write the extension's installation and update script(s) securely;
-        see <a class="xref" href="extend-extensions.html#EXTEND-EXTENSIONS-SECURITY" title="37.17.6. 拡張のためのセキュリティに関する考慮事項">37.17.6</a>.
+        see <xref linkend="extend-extensions-security"/>.
+-->
+このパラメータは、<code class="literal">true</code>（デフォルトではありません）に設定されている場合、一部の非スーパーユーザが<code class="varname">superuser</code>に<code class="literal">true</code>を設定している拡張をインストールできるようにします。
+具体的には、現在のデータベースに<code class="literal">CREATE</code>権限を持っているユーザにインストールが許可されるようになります。
+<code class="command">CREATE EXTENSION</code>を実行するユーザがスーパーユーザでないけれども本パラメータの効力でインストールできるとき、インストールやスクリプトの更新は実行したユーザではなく、サービス起動のスーパーユーザとして実行されます。
+<code class="varname">superuser</code>が<code class="literal">false</code>の場合、本パラメータは無意味です。
+一般に、ファイルシステムのアクセスなど、別の方法ではスーパーユーザのみができることにアクセスができる拡張に対して、これをtrueにすべきではありません。
+また、拡張をtrustedとして作成するには、拡張のインストールとスクリプト更新を安全に記述するために、かなりの追加の労力が影響が必要です。<a class="xref" href="extend-extensions.html#EXTEND-EXTENSIONS-SECURITY" title="37.17.6. 拡張のためのセキュリティに関する考慮事項">37.17.6</a>を参照してください。
        </p></dd><dt><span class="term"><code class="varname">relocatable</code> (<code class="type">boolean</code>)</span></dt><dd><p>
 <!--
         An extension is <firstterm>relocatable</firstterm> if it is possible to move
@@ -348,15 +358,20 @@
 これは、このスクリプトが<code class="command">CREATE EXTENSION</code>（<a class="xref" href="extend-extensions.html#EXTEND-EXTENSIONS-EXAMPLE" title="37.17.7. 拡張の例">37.17.7</a>のスクリプト例を参照）ではなく<span class="application">psql</span>に渡された場合にエラーを発生するために一般的に使用するために用意されたものです。
 これがないと、ユーザは間違って拡張としてではなく、<span class="quote">「<span class="quote">まとまっていない</span>」</span>オブジェクトとして拡張の内容をロードしてしまい、復旧が多少困難な状態になる可能性があります。
     </p><p>
+<!--
      If the extension script contains the
-     string <code class="literal">@extowner@</code>, that string is replaced with the
-     (suitably quoted) name of the user calling <code class="command">CREATE
-     EXTENSION</code> or <code class="command">ALTER EXTENSION</code>.  Typically
+     string <literal>@extowner@</literal>, that string is replaced with the
+     (suitably quoted) name of the user calling <command>CREATE
+     EXTENSION</command> or <command>ALTER EXTENSION</command>.  Typically
      this feature is used by extensions that are marked trusted to assign
      ownership of selected objects to the calling user rather than the
      bootstrap superuser.  (One should be careful about doing so, however.
      For example, assigning ownership of a C-language function to a
      non-superuser would create a privilege escalation path for that user.)
+-->
+拡張のスクリプトに文字列<code class="literal">@extowner@</code>が含まれている場合、この文字列は、<code class="command">CREATE EXTENSION</code>や<code class="command">ALTER EXTENSION</code>を実行した（適切にクォートされた）ユーザ名で置き換えられます。
+典型的には、この機能はtrustedと印付けされた拡張が選択されたオブジェクトにサービス起動のスーパーユーザではなく実行したユーザを所有者として割り当てる際に使われます。
+（とはいえ、このようにするには注意深くすべきです。例えば、C言語関数の所有者を非スーパーユーザに割り当てると、そのユーザに権限昇格の経路を作ることになるでしょう）
     </p><p>
 <!--
      While the script files can contain any characters allowed by the specified
@@ -793,12 +808,16 @@ SELECT * FROM pg_extension_update_paths('<em class="replaceable"><code>extension
 <code class="varname">superuser</code>プロパティを真にしている拡張はインストールや更新スクリプトの中で行われるアクションのセキュリティ面での危険も考慮しなければなりません。
 悪意あるユーザが不用意に書かれた拡張スクリプトを悪用してトロイの木馬を作成し、スーパーユーザ権限を獲得できるようにすることは、そう難しくありません。
     </p><p>
-     If an extension is marked <code class="varname">trusted</code>, then its
+<!--
+     If an extension is marked <varname>trusted</varname>, then its
      installation schema can be selected by the installing user, who might
      intentionally use an insecure schema in hopes of gaining superuser
      privileges.  Therefore, a trusted extension is extremely exposed from a
      security standpoint, and all its script commands must be carefully
      examined to ensure that no compromise is possible.
+-->
+拡張が<code class="varname">trusted</code>と印付けされている場合、そのインストールスキーマはインストールするユーザにより選択できます。そのユーザはスーパーユーザ権限を獲得することを狙って意図的に安全でないスキーマを使用するかもしれません。
+したがって、trustedの拡張はセキュリティ観点から極めて危険で、そのスクリプトのコマンドは危険性がないことを確実にするため注意深く検証されなければなりません。
     </p><p>
 <!--
      Advice about writing functions securely is provided in
@@ -941,6 +960,7 @@ XXX 名前を(スキーマ)修飾するだけでは十分ではありません�
 この危険性は両方の拡張を同じスキーマにインストールすることで軽減できます。
 悪意あるオブジェクトをインストール時の<code class="varname">search_path</code>内で参照された拡張の前に置くことができないからです。
 しかしながら、現時点ではこれを要求するメカニズムはありません。
+今のところ、最良の手段は他の拡張に依存する拡張であるなら、依存する拡張が常に<code class="literal">pg_catalog</code>にインストールされるのでない限り、拡張をtrustedと印付けしないことです。
      </p><p>
 <!--
       Do <emphasis>not</emphasis> use <command>CREATE OR REPLACE
