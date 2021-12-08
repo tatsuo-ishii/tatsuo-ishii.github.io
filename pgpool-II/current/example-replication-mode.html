@@ -1,0 +1,1759 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Replication Mode and Snapshot Isolation Mode Configuration Example</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REV="MADE"
+HREF="mailto:pgsql-docs@postgresql.org"><LINK
+REL="HOME"
+TITLE="pgpool-II 4.4devel Documentation"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="Configuration Examples"
+HREF="example-configs.html"><LINK
+REL="PREVIOUS"
+TITLE="Pgpool-II + Watchdog Setup Example"
+HREF="example-cluster.html"><LINK
+REL="NEXT"
+TITLE="AWS Configuration Example"
+HREF="example-aws.html"><LINK
+REL="STYLESHEET"
+TYPE="text/css"
+HREF="stylesheet.css"><META
+HTTP-EQUIV="Content-Type"
+CONTENT="text/html; charset=ISO-8859-1"><META
+NAME="creation"
+CONTENT="2021-12-06T23:36:20"></HEAD
+><BODY
+CLASS="SECT1"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="4"
+ALIGN="center"
+VALIGN="bottom"
+><A
+HREF="index.html"
+>pgpool-II 4.4devel Documentation</A
+></TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+TITLE="Pgpool-II + Watchdog Setup Example"
+HREF="example-cluster.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="example-configs.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="60%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 8. Configuration Examples</TD
+><TD
+WIDTH="20%"
+ALIGN="right"
+VALIGN="top"
+><A
+TITLE="AWS Configuration Example"
+HREF="example-aws.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="EXAMPLE-REPLICATION-MODE"
+>8.3. Replication Mode and Snapshot Isolation Mode Configuration Example</A
+></H1
+><P
+>  This section shows an example of how to configure <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+  replication mode and snapshot isolation mode.
+ </P
+><P
+>  In streaming replication mode described in <A
+HREF="example-cluster.html"
+>Section 8.2</A
+>,
+  replication is performed by PostgreSQL's streaming replication functionality.
+  However, in native replication mode, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+  performs replication by routing write queries to all
+  <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> servers.
+ </P
+><P
+>  Snapshot isolation mode is similar to native replication mode except it adds
+  the visibility consistency among nodes.
+ </P
+><P
+>  <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 14 is used in this configuration example.
+  All scripts have been tested with <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 10 and later.
+ </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-STRUCTURE"
+>8.3.1. Cluster Structure</A
+></H2
+><P
+>   In this example, we use one <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> and
+   three PostgreSQL servers to describe how to configure and use Pgpool-II's
+   replication.
+  </P
+><P
+>   In thie example we use 3 servers with CentOS 7.9 installed.
+   Let these servers be <TT
+CLASS="LITERAL"
+>server1</TT
+>,
+   <TT
+CLASS="LITERAL"
+>server2</TT
+>, <TT
+CLASS="LITERAL"
+>server3</TT
+>.
+   We install <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> on all servers and
+   <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> on server1.
+  </P
+><P
+>   In this example we use the minimum settings to configure replication.
+   In a production environment, it is recommended to enable Watchdog
+   to avoid single points of failure.
+   For more details about Watchdog configurations, please refer to <A
+HREF="example-cluster.html#EXAMPLE-CLUSTER-PGPOOL-CONFIG-WATCHDOG"
+>Section 8.2.6.10</A
+>.
+  </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-TABLE-IP"
+></A
+><P
+><B
+>Table 8-7. Hostname and IP address</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><COL><THEAD
+><TR
+><TH
+>Hostname</TH
+><TH
+>IP Address</TH
+><TH
+>Virtual IP</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>server1</TD
+><TD
+>192.168.137.101</TD
+><TD
+>PostgreSQL node0, Pgpool-II</TD
+></TR
+><TR
+><TD
+>server2</TD
+><TD
+>192.168.137.102</TD
+><TD
+>PostgreSQL node1</TD
+></TR
+><TR
+><TD
+>server3</TD
+><TD
+>192.168.137.103</TD
+><TD
+>PostgreSQL node2</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+><DIV
+CLASS="TABLE"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-TABLE-POSTGRESQL-CONFIG"
+></A
+><P
+><B
+>Table 8-8. PostgreSQL version and Configuration</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><COL><THEAD
+><TR
+><TH
+>Item</TH
+><TH
+>Value</TH
+><TH
+>Detail</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>PostgreSQL Version</TD
+><TD
+>14.0</TD
+><TD
+>-</TD
+></TR
+><TR
+><TD
+>port</TD
+><TD
+>5432</TD
+><TD
+>-</TD
+></TR
+><TR
+><TD
+>$PGDATA</TD
+><TD
+>/var/lib/pgsql/14/data</TD
+><TD
+>-</TD
+></TR
+><TR
+><TD
+>Archive mode</TD
+><TD
+>on</TD
+><TD
+>/var/lib/pgsql/archivedir</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+><DIV
+CLASS="TABLE"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-TABLE-PGPOOL-CONFIG"
+></A
+><P
+><B
+>Table 8-9. Pgpool-II version and Configuration</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><COL><THEAD
+><TR
+><TH
+>Item</TH
+><TH
+>Value</TH
+><TH
+>Detail</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>Pgpool-II Version</TD
+><TD
+>4.3.0</TD
+><TD
+>-</TD
+></TR
+><TR
+><TD
+ROWSPAN="2"
+>port</TD
+><TD
+>9999</TD
+><TD
+>Pgpool-II accepts connections</TD
+></TR
+><TR
+><TD
+>9898</TD
+><TD
+>PCP process accepts connections</TD
+></TR
+><TR
+><TD
+>Config file</TD
+><TD
+>/etc/pgpool-II/pgpool.conf</TD
+><TD
+>Pgpool-II config file</TD
+></TR
+><TR
+><TD
+>Pgpool-II start user</TD
+><TD
+>postgres (Pgpool-II 4.1 or later)</TD
+><TD
+>Pgpool-II 4.0 or before, the default startup user is root</TD
+></TR
+><TR
+><TD
+ROWSPAN="2"
+>Clustering mode</TD
+><TD
+>native replication mode</TD
+><TD
+>-</TD
+></TR
+><TR
+><TD
+>snapshot isolation mode</TD
+><TD
+>-</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-INSTALLATION"
+>8.3.2. Installation</A
+></H2
+><P
+>   In this example, we install <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.3 and <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> 14.0 using RPM packages.
+  </P
+><P
+>   Install <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> using <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> YUM repository.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+># yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+# yum install -y postgresql14-server
+  </PRE
+><P
+>   Install <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> using Pgpool-II YUM repository.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+># yum install -y https://www.pgpool.net/yum/rpms/4.3/redhat/rhel-7-x86_64/pgpool-II-release-4.3-1.noarch.rpm
+# yum install -y pgpool-II-pg14-*
+  </PRE
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-PRE-SETUP"
+>8.3.3. Before Starting</A
+></H2
+><P
+>   Before you start the configuration process, please check the following prerequisites.
+  </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-POSTGRES-PASSWORD"
+>8.3.3.1. Setting password of postgres user</A
+></H3
+><P
+>    Run the following command to set the password of <TT
+CLASS="LITERAL"
+>postgres</TT
+> user on each server.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# passwd postgres
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-SSH"
+>8.3.3.2. Configure passwordless SSH login</A
+></H3
+><P
+>    To use the online recovery of <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>,
+    the settings that allow <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>passwordless</I
+></SPAN
+> SSH to all
+    servers are requried.
+    Execute the following command on all servers to set up passwordless
+    <TT
+CLASS="LITERAL"
+>SSH</TT
+>.
+    The generated key file name is <TT
+CLASS="LITERAL"
+>id_rsa_pgpool</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# su - postgres
+[all servers]$ cd ~/.ssh
+[all servers]$ ssh-keygen -t rsa -f id_rsa_pgpool
+[all servers]$ ssh-copy-id -i id_rsa_pgpool.pub postgres@server1
+[all servers]$ ssh-copy-id -i id_rsa_pgpool.pub postgres@server2
+[all servers]$ ssh-copy-id -i id_rsa_pgpool.pub postgres@server3
+   </PRE
+><P
+>    After setting SSH, use <TT
+CLASS="COMMAND"
+>ssh postgres@serverX -i ~/.ssh/id_rsa_pgpool</TT
+> command to
+    make sure that you can log in without entering a password. Edit <TT
+CLASS="FILENAME"
+>/etc/ssh/sshd_config</TT
+>
+    if necessary and restart sshd.
+   </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-PGPASS"
+>8.3.3.3. Create .pgpass</A
+></H3
+><P
+>    To allow <TT
+CLASS="LITERAL"
+>repl</TT
+> user to execute online recovery scripts
+    without specifying password, we create the <TT
+CLASS="FILENAME"
+>.pgpass</TT
+> file
+    in <TT
+CLASS="LITERAL"
+>postgres</TT
+> user's home directory and change the
+    permission to <TT
+CLASS="LITERAL"
+>600</TT
+> on each server.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# su - postgres
+[all servers]$ vi /var/lib/pgsql/.pgpass
+server1:5432:replication:repl:&lt;repl user password&gt;
+server2:5432:replication:repl:&lt;repl user password&gt;
+server3:5432:replication:repl:&lt;repl user password&gt;
+server1:5432:postgres:postgres:&lt;postgres user password&gt;
+server2:5432:postgres:postgres:&lt;postgres user password&gt;
+server3:5432:postgres:postgres:&lt;postgres user password&gt;
+[all servers]$ chmod 600 /var/lib/pgsql/.pgpass
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-FIREWALL"
+>8.3.3.4. Configure firewall</A
+></H3
+><P
+>     When connect to <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> and <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> servers, the target port must be accessible by enabling firewall management softwares. Following is an example for <SPAN
+CLASS="SYSTEMITEM"
+>CentOS/RHEL7</SPAN
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# firewall-cmd --permanent --zone=public --add-service=postgresql
+[all servers]# firewall-cmd --permanent --zone=public --add-port=9999/tcp --add-port=9898/tcp
+[all servers]# firewall-cmd --reload
+   </PRE
+><P
+>    If Watchdog is enabled, you also need to open port 9000 and 9694.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# firewall-cmd --permanent --zone=public --add-port=9000/tcp  --add-port=9694/udp
+   </PRE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-POSTGRESQL-CONFIG"
+>8.3.4. <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> Configuration</A
+></H2
+><P
+>   This section describes how to create and configure a PostgreSQL server.
+  </P
+><P
+>   In this example, we use WAL archiving.
+   First, we create the directory <TT
+CLASS="FILENAME"
+>/var/lib/pgsql/archivedir</TT
+>
+   to store <ACRONYM
+CLASS="ACRONYM"
+>WAL</ACRONYM
+> segments on all servers.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# su - postgres
+[all servers]$ mkdir /var/lib/pgsql/archivedir
+  </PRE
+><P
+>   Create only one PostgreSQL server on server1.
+   The other two PostgreSQL servers are created by using Pgpool-II's online
+   recovery functionality in <A
+HREF="example-replication-mode.html#EXAMPLE-REPLICATION-MODE-CREATE-REPLICAS"
+>Section 8.3.8.1</A
+>.
+  </P
+><P
+>   Run the following command to create a PostgreSQL database cluster on server1.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# su - postgres
+[server1]$ /usr/pgsql-14/bin/initdb -E UTF8 --no-locale
+  </PRE
+><P
+>   Then edit <TT
+CLASS="FILENAME"
+>$PGDATA/postgresql.conf</TT
+> on server1.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]$ vi $PGDATA/postgresql.conf
+listen_addresses = '*'
+archive_mode = on
+archive_command = 'cp "%p" "/var/lib/pgsql/archivedir/%f"'
+  </PRE
+><P
+>   Assuming that all the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> servers and the
+   <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> servers are in the same subnet and edit <TT
+CLASS="FILENAME"
+>pg_hba.conf</TT
+> to
+   enable <TT
+CLASS="LITERAL"
+>scram-sha-256</TT
+> authentication method.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]$ vi $PGDATA/pg_hba.conf
+host    all             all             samenet                 scram-sha-256
+host    replication     all             samenet                 scram-sha-256
+  </PRE
+><P
+>   Run the following command to start PostgreSQL server.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]$ /usr/pgsql-14/bin/pg_ctl start
+  </PRE
+><P
+>   Create PostgreSQL users.
+  </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-USER"
+></A
+><P
+><B
+>Table 8-10. PostgreSQL users</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><COL><COL><COL><THEAD
+><TR
+><TH
+>User Name</TH
+><TH
+>Password</TH
+><TH
+>Detail</TH
+></TR
+></THEAD
+><TBODY
+><TR
+><TD
+>repl</TD
+><TD
+>repl</TD
+><TD
+>PostgreSQL replication user</TD
+></TR
+><TR
+><TD
+>pgpool</TD
+><TD
+>pgpool</TD
+><TD
+>       User performing health check (<A
+HREF="runtime-config-health-check.html#GUC-HEALTH-CHECK-USER"
+>health_check_user</A
+>)
+      </TD
+></TR
+><TR
+><TD
+>postgres</TD
+><TD
+>postgres</TD
+><TD
+>User performing online recovery</TD
+></TR
+></TBODY
+></TABLE
+></DIV
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]$ psql -U postgres -p 5432
+postgres=# SET password_encryption = 'scram-sha-256';
+postgres=# CREATE ROLE pgpool WITH LOGIN;
+postgres=# CREATE ROLE repl WITH REPLICATION LOGIN;
+postgres=# \password pgpool
+postgres=# \password repl
+postgres=# \password postgres
+  </PRE
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-SI-MODE"
+>8.3.4.1. Settings for snapshot isolation mode</A
+></H3
+><P
+>    Snapshot isolation mode is only available when PostgreSQL's transaction isolation
+    level is "<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>repeatable read</I
+></SPAN
+>".
+    If you want to use snapshot isolation mode, set
+    <TT
+CLASS="VARNAME"
+>default_transaction_isolation ='repeatable read'</TT
+> in
+    <TT
+CLASS="FILENAME"
+>postgresql.conf</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]$ vi $PGDATA/postgresql.conf
+default_transaction_isolation = 'repeatable read'
+   </PRE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-PGPOOL-CONFIG"
+>8.3.5. Configure <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+></A
+></H2
+><P
+>   When installing <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> using RPM, the
+   <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configuration sample files are in
+   <TT
+CLASS="FILENAME"
+>/etc/pgpool-II</TT
+>.
+  </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-CLUSTERING-MODE"
+>8.3.5.1. Clustering mode</A
+></H3
+><P
+>    First, specify <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> clustering mode in <A
+HREF="runtime-config-running-mode.html#GUC-BACKEND-CLUSTERING-MODE"
+>backend_clustering_mode</A
+>.
+   </P
+><P
+></P
+><UL
+><LI
+><P
+>      Native replication mode
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>backend_clustering_mode = 'native_replication'
+     </PRE
+></LI
+><LI
+><P
+>      Snapshot isolation mode
+     </P
+><PRE
+CLASS="PROGRAMLISTING"
+>backend_clustering_mode = 'snapshot_isolation'
+     </PRE
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-LISTEN-ADDRESSES"
+>8.3.5.2. listen_addresses</A
+></H3
+><P
+>    To allow Pgpool-II to accept all incoming connections, we set <TT
+CLASS="VARNAME"
+>listen_addresses = '*'</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>listen_addresses = '*'
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE--HEALTH-CHECK"
+>8.3.5.3. Health Check</A
+></H3
+><P
+>    Enable health check to allow <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> to detect PostgreSQL failure.
+    Also, if the network is unstable, the health check fails even though the backend is running
+    properly, failover or degenerate operation may occur.
+    In order to prevent such incorrect detection of health check, we set <TT
+CLASS="VARNAME"
+>health_check_max_retries = 3</TT
+>.
+    Specify <A
+HREF="runtime-config-health-check.html#GUC-HEALTH-CHECK-USER"
+>health_check_user</A
+> and <A
+HREF="runtime-config-health-check.html#GUC-HEALTH-CHECK-PASSWORD"
+>health_check_password</A
+>.
+    In this example, we leave <A
+HREF="runtime-streaming-replication-check.html#GUC-SR-CHECK-PASSWORD"
+>sr_check_password</A
+> empty, and create the entry
+    in <A
+HREF="runtime-config-connection.html#GUC-POOL-PASSWD"
+>pool_passwd</A
+>.
+    See <A
+HREF="example-replication-mode.html#EXAMPLE-REPLICATION-MODE-AUTH"
+>Section 8.3.5.6</A
+> for how to create the entry in <A
+HREF="runtime-config-connection.html#GUC-POOL-PASSWD"
+>pool_passwd</A
+>.
+    From <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.0, if these parameters are left blank,
+    <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> will first try to get the password for that
+    specific user from <A
+HREF="runtime-config-connection.html#GUC-POOL-PASSWD"
+>pool_passwd</A
+> file before using the empty password.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>health_check_period = 5
+health_check_timeout = 30
+health_check_user = 'pgpool'
+health_check_password = ''
+health_check_max_retries = 3
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-BACKEND-SETTINGS"
+>8.3.5.4. Backend Settings</A
+></H3
+><P
+>    Specify the <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> backend information.
+    Multiple backends can be specified by adding a number at the end of the parameter name.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+># - Backend Connection Settings -
+
+backend_hostname0 = 'server1'
+backend_port0 = 5432
+backend_weight0 = 1
+backend_data_directory0 = '/var/lib/pgsql/14/data'
+backend_flag0 = 'ALLOW_TO_FAILOVER'
+
+backend_hostname1 = 'server2'
+backend_port1 = 5432
+backend_weight1 = 1
+backend_data_directory1 = '/var/lib/pgsql/14/data'
+backend_flag1 = 'ALLOW_TO_FAILOVER'
+
+backend_hostname2 = 'server3'
+backend_port2 = 5432
+backend_weight2 = 1
+backend_data_directory2 = '/var/lib/pgsql/14/data'
+backend_flag2 = 'ALLOW_TO_FAILOVER'
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-ONLINE-RECOVERY"
+>8.3.5.5. Online Recovery</A
+></H3
+><P
+>    Next, in order to perform online recovery we specify the
+    <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> user name and online recovery command
+    <TT
+CLASS="COMMAND"
+>recovery_1st_stage_command</TT
+> and <TT
+CLASS="COMMAND"
+>recovery_2nd_stage_command</TT
+>.
+    Because <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>Superuser</I
+></SPAN
+> privilege in <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>
+    is required for performing online recovery, we specify <TT
+CLASS="LITERAL"
+>postgres</TT
+> user in <A
+HREF="runtime-online-recovery.html#GUC-RECOVERY-USER"
+>recovery_user</A
+>.
+   </P><PRE
+CLASS="PROGRAMLISTING"
+>recovery_user = 'postgres'
+recovery_password = ''
+
+recovery_1st_stage_command = 'recovery_1st_stage'
+recovery_2nd_stage_command = 'recovery_2nd_stage'
+   </PRE
+><P>
+    The sample scripts
+    <A
+HREF="https://git.postgresql.org/gitweb/?p=pgpool2.git;a=blob_plain;f=src/sample/scripts/replication_mode_recovery_1st_stage.sample;hb=refs/heads/V4_3_STABLE"
+TARGET="_top"
+>replication_mode_recovery_1st_stage.sample</A
+>,
+    <A
+HREF="https://git.postgresql.org/gitweb/?p=pgpool2.git;a=blob_plain;f=src/sample/scripts/replication_mode_recovery_2nd_stage.sample;hb=refs/heads/V4_3_STABLE"
+TARGET="_top"
+>replication_mode_recovery_2nd_stage.sample</A
+>
+    and
+    <A
+HREF="https://git.postgresql.org/gitweb/?p=pgpool2.git;a=blob_plain;f=src/sample/scripts/pgpool_remote_start.sample;hb=refs/heads/V4_3_STABLE"
+TARGET="_top"
+>pgpool_remote_start.sample</A
+>
+    are installed in <TT
+CLASS="FILENAME"
+>/etc/pgpool-II/</TT
+>.
+    Create the scripts used by online recovery command from sample scripts and copy these files to the database cluster directory.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# cp -p /etc/pgpool-II/replication_mode_recovery_1st_stage.sample /var/lib/pgsql/14/data/recovery_1st_stage
+[server1]# cp -p /etc/pgpool-II/replication_mode_recovery_2nd_stage.sample /var/lib/pgsql/14/data/recovery_2nd_stage
+[server1]# cp -p /etc/pgpool-II/pgpool_remote_start.sample /var/lib/pgsql/14/data/pgpool_remote_start
+[server1]# chown postgres:postgres /var/lib/pgsql/14/data/{recovery_1st_stage,recovery_2nd_stage,pgpool_remote_start}
+   </PRE
+><P
+>    Basically, it should work if you change <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>PGHOME</I
+></SPAN
+> according to PostgreSQL installation directory.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# vi /var/lib/pgsql/14/data/recovery_1st_stage
+...
+PGHOME=/usr/pgsql-14
+...
+
+[server1]# vi /var/lib/pgsql/14/data/recovery_2nd_stage
+...
+PGHOME=/usr/pgsql-14
+...
+
+[server1]# vi /var/lib/pgsql/14/data/pgpool_remote_start
+...
+PGHOME=/usr/pgsql-14
+...
+   </PRE
+><P
+>    In order to use the online recovery functionality, the functions of
+    <CODE
+CLASS="FUNCTION"
+>pgpool_recovery</CODE
+>, <CODE
+CLASS="FUNCTION"
+>pgpool_remote_start</CODE
+>,
+    <CODE
+CLASS="FUNCTION"
+>pgpool_switch_xlog</CODE
+> are required, so we need to install
+    <CODE
+CLASS="FUNCTION"
+>pgpool_recovery</CODE
+> on template1 of <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> server
+    <TT
+CLASS="LITERAL"
+>server1</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# su - postgres
+[server1]$ psql template1 -c "CREATE EXTENSION pgpool_recovery"
+   </PRE
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>     The <TT
+CLASS="FILENAME"
+>recovery_1st_stage</TT
+> script does not support tablespaces.
+     If you are using tablespaces, you need to modify the script to support tablespaces.
+    </P
+></BLOCKQUOTE
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-AUTH"
+>8.3.5.6. Client Authentication Configuration</A
+></H3
+><P
+>    Enable client authentication between client and <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>.
+    When installing with RPM, the <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> configuration file
+    <TT
+CLASS="FILENAME"
+>pool_hba.conf</TT
+> is in <TT
+CLASS="FILENAME"
+>/etc/pgpool-II</TT
+>.
+    By default, pool_hba authentication is disabled, set <TT
+CLASS="VARNAME"
+>enable_pool_hba = on</TT
+>
+    to enable it.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>enable_pool_hba = on
+   </PRE
+><P
+>    The format of <TT
+CLASS="FILENAME"
+>pool_hba.conf</TT
+> file follows very closely PostgreSQL's
+    <TT
+CLASS="FILENAME"
+>pg_hba.conf</TT
+> format. Set <TT
+CLASS="LITERAL"
+>pgpool</TT
+> and <TT
+CLASS="LITERAL"
+>postgres</TT
+> user's authentication method to <TT
+CLASS="LITERAL"
+>scram-sha-256</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# vi /etc/pgpool-II/pool_hba.conf
+host    all         pgpool           0.0.0.0/0          scram-sha-256
+host    all         postgres         0.0.0.0/0          scram-sha-256
+   </PRE
+><DIV
+CLASS="NOTE"
+><BLOCKQUOTE
+CLASS="NOTE"
+><P
+><B
+>Note: </B
+>     Please note that in <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.0 only AES encrypted password or clear text password
+     can be specified in <A
+HREF="runtime-config-health-check.html#GUC-HEALTH-CHECK-PASSWORD"
+>health_check_password</A
+>, <A
+HREF="runtime-streaming-replication-check.html#GUC-SR-CHECK-PASSWORD"
+>sr_check_password</A
+>,
+       <A
+HREF="runtime-watchdog-config.html#GUC-WD-LIFECHECK-PASSWORD"
+>wd_lifecheck_password</A
+>, <A
+HREF="runtime-online-recovery.html#GUC-RECOVERY-PASSWORD"
+>recovery_password</A
+> in <TT
+CLASS="FILENAME"
+>pgpool.conf</TT
+>.
+    </P
+></BLOCKQUOTE
+></DIV
+><P
+>    The default password file name for authentication is <A
+HREF="runtime-config-connection.html#GUC-POOL-PASSWD"
+>pool_passwd</A
+>.
+     To use <TT
+CLASS="LITERAL"
+>scram-sha-256</TT
+> authentication, the decryption key to decrypt the passwords
+     is required. We create the <TT
+CLASS="LITERAL"
+>.pgpoolkey</TT
+> file in <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+     start user <TT
+CLASS="LITERAL"
+>postgres</TT
+>'s (<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.1 or later) home directory.
+     (<SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> 4.0 or before, by default <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+     is started as <TT
+CLASS="LITERAL"
+>root</TT
+>)
+     </P><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# su - postgres
+[server1]$ echo 'some string' &#62; ~/.pgpoolkey
+[server1]$ chmod 600 ~/.pgpoolkey
+     </PRE
+><P>
+   </P
+><P
+>    Execute command <TT
+CLASS="COMMAND"
+>pg_enc -m -k /path/to/.pgpoolkey -u username -p</TT
+> to register user
+    name and <TT
+CLASS="LITERAL"
+>AES</TT
+> encrypted password in file <TT
+CLASS="FILENAME"
+>pool_passwd</TT
+>.
+    If <TT
+CLASS="FILENAME"
+>pool_passwd</TT
+> doesn't exist yet, it will be created in the same directory as
+    <TT
+CLASS="FILENAME"
+>pgpool.conf</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# su - postgres
+[server1]$ pg_enc -m -k ~/.pgpoolkey -u pgpool -p
+db password: [pgpool user's password]
+[server1]$ pg_enc -m -k ~/.pgpoolkey -u postgres -p
+db password: [postgres user's password]
+
+[server1]$ cat /etc/pgpool-II/pool_passwd
+pgpool:AESheq2ZMZjynddMWk5sKP/Rw==
+postgres:AESHs/pWL5rtXy2IwuzroHfqg==
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-PCP-PASSWORD"
+>8.3.5.7. PCP password</A
+></H3
+><P
+>    Since user authentication is required to use the <TT
+CLASS="LITERAL"
+>PCP</TT
+> command,
+    we need to specify user name and md5 encrypted password in <TT
+CLASS="FILENAME"
+>pcp.conf</TT
+>
+    in format "<TT
+CLASS="LITERAL"
+>username:encrypted password</TT
+>".
+   </P
+><P
+>    We use <A
+HREF="pg-md5.html"
+>pg_md5</A
+> to create the encrypted password entry for <TT
+CLASS="LITERAL"
+>pgpool</TT
+> user as below:
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# echo 'pgpool:'`pg_md5 PCP password` &gt;&gt; /etc/pgpool-II/pcp.conf
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-LOG"
+>8.3.5.8. Logging</A
+></H3
+><P
+>    Since Pgpool-II 4.2, the logging collector process has been implemented.
+    In the example, we enable logging collector.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>log_destination = 'stderr'
+logging_collector = on
+log_directory = '/var/log/pgpool_log'
+log_filename = 'pgpool-%Y-%m-%d_%H%M%S.log'
+log_truncate_on_rotation = on
+log_rotation_age = 1d
+log_rotation_size = 10MB
+   </PRE
+><P
+>    Create the log directory on server1.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# mkdir /var/log/pgpool_log/
+[server1]# chown postgres:postgres /var/log/pgpool_log/
+   </PRE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-SYSCONFIG"
+>8.3.6. /etc/sysconfig/pgpool Configuration</A
+></H2
+><P
+>   When starting <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>, if the <TT
+CLASS="FILENAME"
+>pgpool_status</TT
+>
+   file exists, <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> will read the backend status (up/down) from the
+   <TT
+CLASS="FILENAME"
+>pgpool_status</TT
+> file.
+  </P
+><P
+>   If you want to ignore the <TT
+CLASS="FILENAME"
+>pgpool_status</TT
+> file at startup of
+   <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>, add "- D" to the start option OPTS to
+   <TT
+CLASS="FILENAME"
+>/etc/sysconfig/pgpool</TT
+>.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[all servers]# vi /etc/sysconfig/pgpool
+...
+OPTS=" -D -n"
+  </PRE
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-START-STOP"
+>8.3.7. Starting/Stopping Pgpool-II</A
+></H2
+><P
+>   Before starting <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>, please start
+   <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> servers first.
+   Also, when stopping <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+>,
+   it is necessary to stop Pgpool-II first.
+   Run the following command to start or stop <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>.
+  </P
+><P
+></P
+><UL
+><LI
+><P
+>     Starting <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+    </P
+><PRE
+CLASS="PROGRAMLISTING"
+># systemctl start pgpool.service
+    </PRE
+></LI
+><LI
+><P
+>     Stopping <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>
+    </P
+><PRE
+CLASS="PROGRAMLISTING"
+># systemctl stop pgpool.service
+    </PRE
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-TRY"
+>8.3.8. How to use</A
+></H2
+><P
+>   Once the configuration is completed, let's start to use <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>.
+  </P
+><P
+>   First, let's start <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+>.
+  </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# systemctl start pgpool.service
+  </PRE
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-CREATE-REPLICAS"
+>8.3.8.1. Create PostgreSQL servers using online recovery</A
+></H3
+><P
+>    Then, we create PostgreSQL node1 and node2 using online recovery.
+    Ensure that <TT
+CLASS="FILENAME"
+>recovery_1st_stage</TT
+>,
+    <TT
+CLASS="FILENAME"
+>recovery_2nd_stage</TT
+> and <TT
+CLASS="FILENAME"
+>pgpool_remote_start</TT
+>
+    scripts used by <TT
+CLASS="COMMAND"
+>pcp_recovery_node</TT
+> command are in the database
+    cluster directory on server1.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# pcp_recovery_node -h server1 -p 9898 -U pgpool -n 1
+Password:
+pcp_recovery_node -- Command Successful
+
+[server1]# pcp_recovery_node -h server1 -p 9898 -U pgpool -n 2
+Password:
+pcp_recovery_node -- Command Successful
+   </PRE
+><P
+>    If <TT
+CLASS="COMMAND"
+>pcp_recovery_node</TT
+> has run successfully,
+    verify that the PostgreSQL node0 is started as the main node,
+    and node1 and node2 are started as replicas.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+># psql -h server1 -p 9999 -U pgpool postgres -c "show pool_nodes"
+Password for user pgpool:
+ node_id | hostname | port | status | pg_status | lb_weight |  role   | pg_role | select_cnt | load_balance_node | replication_delay | replication_state | replication_sync_state | last_status_change
+ ---------+----------+------+--------+-----------+-----------+---------+---------+------------+-------------------+-------------------+-------------------+------------------------+---------------------
+ 0       | server1  | 5432 | up     | up        | 0.333333  | main    | main    | 0          | true              | 0                 |                   |                        | 2021-12-02 16:48:21
+ 1       | server2  | 5432 | up     | up        | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:48:21
+ 2       | server3  | 5432 | up     | up        | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:48:21
+(3 rows)
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-VERIFY-REPLICATION"
+>8.3.8.2. Verify replication</A
+></H3
+><P
+>    Next, let's verify the replication functionality using a benchmark tool pgbench.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# /usr/pgsql-14/bin/createdb test -U postgres -p 9999
+[server1]# /usr/pgsql-14/bin/pgbench -h server1 -U postgres -i -p 9999 test
+   </PRE
+><P
+>    To check if the replication works correctly, directly connect to each PostgreSQL
+    server to see if they return identical results.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# /usr/pgsql-14/bin/psql -h server1 -U postgres -p 5432 test
+test=# \d
+              List of relations
+ Schema |       Name       | Type  |  Owner
+--------+------------------+-------+----------
+ public | pgbench_accounts | table | postgres
+ public | pgbench_branches | table | postgres
+ public | pgbench_history  | table | postgres
+ public | pgbench_tellers  | table | postgres
+(4 rows)
+
+[server1]# /usr/pgsql-14/bin/psql -h server2 -U postgres -p 5432 test
+test=# \d
+              List of relations
+ Schema |       Name       | Type  |  Owner
+--------+------------------+-------+----------
+ public | pgbench_accounts | table | postgres
+ public | pgbench_branches | table | postgres
+ public | pgbench_history  | table | postgres
+ public | pgbench_tellers  | table | postgres
+(4 rows)
+
+[server1]# /usr/pgsql-14/bin/psql -h server3 -U postgres -p 5432 test
+test=# \d
+              List of relations
+ Schema |       Name       | Type  |  Owner
+--------+------------------+-------+----------
+ public | pgbench_accounts | table | postgres
+ public | pgbench_branches | table | postgres
+ public | pgbench_history  | table | postgres
+ public | pgbench_tellers  | table | postgres
+(4 rows)
+   </PRE
+><P
+>    server1, server2 and server3 return identical results.
+   </P
+><P
+>    Next, let's run pgbench for a while and check to results.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# /usr/pgsql-14/bin/pgbench -h server1 -U postgres -p 9999 -T 10 test
+   </PRE
+><P
+>    All PostgreSQL servers return identical results.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# /usr/pgsql-14/bin/psql -h server1 -U postgres -p 5432 test -c "SELECT sum(abalance) FROM pgbench_accounts"
+Password for user postgres:
+  sum
+--------
+ -99710
+(1 row)
+
+[server1]# /usr/pgsql-14/bin/psql -h server2 -U postgres -p 5432 test -c "SELECT sum(abalance) FROM pgbench_accounts"
+Password for user postgres:
+  sum
+--------
+ -99710
+(1 row)
+
+[server1]# /usr/pgsql-14/bin/psql -h server3 -U postgres -p 5432 test -c "SELECT sum(abalance) FROM pgbench_accounts"
+Password for user postgres:
+  sum
+--------
+ -99710
+(1 row)
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-VERIFY-NODE-FAILURE"
+>8.3.8.3. PostgreSQL failure</A
+></H3
+><P
+>    Next, stop the PostgreSQL main node on server1
+    and verify the switchover of the main node.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# su - postgres -c "/usr/pgsql-14/bin/pg_ctl -m i stop"
+   </PRE
+><P
+>    After stopping <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> on <TT
+CLASS="LITERAL"
+>server1</TT
+>,
+    switchover occurs and <SPAN
+CLASS="PRODUCTNAME"
+>PostgreSQL</SPAN
+> on
+    <TT
+CLASS="LITERAL"
+>server2</TT
+> becomes the new main node.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+>[server1]# psql -h server1 -p 9999 -U pgpool postgres -c "show pool_nodes"
+Password for user pgpool:
+ node_id | hostname | port | status | pg_status | lb_weight |  role   | pg_role | select_cnt | load_balance_node | replication_delay | replication_state | replication_sync_state | last_status_change
+---------+----------+------+--------+-----------+-----------+---------+---------+------------+-------------------+-------------------+-------------------+------------------------+---------------------
+ 0       | server1  | 5432 | down   | down      | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:57:45
+ 1       | server2  | 5432 | up     | up        | 0.333333  | main    | main    | 1          | true              | 0                 |                   |                        | 2021-12-02 16:48:21
+ 2       | server3  | 5432 | up     | up        | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:48:21
+(3 rows)
+   </PRE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="EXAMPLE-REPLICATION-MODE-TRY-ONLINE-RECOVERY"
+>8.3.8.4. Online Recovery</A
+></H3
+><P
+>    Here, we use <SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> online recovery functionality to
+    restore the PostgreSQL node0 on <TT
+CLASS="LITERAL"
+>server1</TT
+>.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+># pcp_recovery_node -h server1 -p 9898 -U pgpool -n 0
+Password:
+pcp_recovery_node -- Command Successful
+   </PRE
+><P
+>    Then verify that <TT
+CLASS="LITERAL"
+>server1</TT
+> is started as the main node.
+   </P
+><PRE
+CLASS="PROGRAMLISTING"
+># psql -h server1 -p 9999 -U pgpool postgres -c "show pool_nodes"
+Password for user pgpool:
+ node_id | hostname | port | status | pg_status | lb_weight |  role   | pg_role | select_cnt | load_balance_node | replication_delay | replication_state | replication_sync_state | last_status_change
+---------+----------+------+--------+-----------+-----------+---------+---------+------------+-------------------+-------------------+-------------------+------------------------+---------------------
+ 0       | server1  | 5432 | up     | up        | 0.333333  | main    | main    | 0          | true              | 0                 |                   |                        | 2021-12-02 16:57:45
+ 1       | server2  | 5432 | up     | up        | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:48:21
+ 2       | server3  | 5432 | up     | up        | 0.333333  | replica | replica | 0          | false             | 0                 |                   |                        | 2021-12-02 16:48:21
+(3 rows)
+   </PRE
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="example-cluster.html"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="example-aws.html"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><SPAN
+CLASS="PRODUCTNAME"
+>Pgpool-II</SPAN
+> + Watchdog Setup Example</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="example-configs.html"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>AWS Configuration Example</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
