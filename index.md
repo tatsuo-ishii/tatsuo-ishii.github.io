@@ -32,6 +32,6 @@ layout: default
 - [PostgreSQL 9.5.1 (last update: 2016/03/25)](doc-ja/9.5.1)
 - [PostgreSQL 9.4.5 (last update: 2016/07/07)](doc-ja/9.4.5)
 
-## Pgpool-II 4.3 dev SGML doc
-- [Pgpool-II 4.3 dev (English) (last update: 2021/11/09)](pgpool-II/current)
-- [Pgpool-II 4.3 dev (Japanese) (last update: 2021/11/09)](pgpool-II/current-ja)
+## Pgpool-II 4.4 dev SGML doc
+- [Pgpool-II 4.4 dev (English) (last update: 2021/12/22)](pgpool-II/current)
+- [Pgpool-II 4.4 dev (Japanese) (last update: 2021/12/22)](pgpool-II/current-ja)
