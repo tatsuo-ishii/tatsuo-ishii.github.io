@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>33.4. Asynchronous Command Processing</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="libpq-exec.html" title="33.3. Command Execution Functions" /><link rel="next" href="libpq-single-row-mode.html" title="33.5. Retrieving Query Results Row-by-Row" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">33.4. Asynchronous Command Processing</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="libpq-exec.html" title="33.3. Command Execution Functions">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="libpq.html" title="Chapter 33. libpq — C Library">Up</a></td><th width="60%" align="center">Chapter 33. <span xmlns="http://www.w3.org/1999/xhtml" class="application">libpq</span> — C Library</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="libpq-single-row-mode.html" title="33.5. Retrieving Query Results Row-by-Row">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="LIBPQ-ASYNC"><div class="titlepage"><div><div><h2 class="title" style="clear: both">33.4. Asynchronous Command Processing</h2></div></div></div><a id="id-1.7.3.11.2" class="indexterm"></a><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>34.4. Asynchronous Command Processing</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="libpq-exec.html" title="34.3. Command Execution Functions" /><link rel="next" href="libpq-pipeline-mode.html" title="34.5. Pipeline Mode" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">34.4. Asynchronous Command Processing</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="libpq-exec.html" title="34.3. Command Execution Functions">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="libpq.html" title="Chapter 34. libpq — C Library">Up</a></td><th width="60%" align="center">Chapter 34. <span xmlns="http://www.w3.org/1999/xhtml" class="application">libpq</span> — C Library</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="libpq-pipeline-mode.html" title="34.5. Pipeline Mode">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="LIBPQ-ASYNC"><div class="titlepage"><div><div><h2 class="title" style="clear: both">34.4. Asynchronous Command Processing</h2></div></div></div><a id="id-1.7.3.11.2" class="indexterm"></a><p>
    The <a class="xref" href="libpq-exec.html#LIBPQ-PQEXEC"><code class="function">PQexec</code></a> function is adequate for submitting
    commands in normal, synchronous applications.  It has a few
    deficiencies, however, that can be of importance to some users:
@@ -59,6 +59,9 @@ int PQsendQuery(PGconn *conn, const char *command);
        results.  <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERY"><code class="function">PQsendQuery</code></a> cannot be called again
        (on the same connection) until <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a>
        has returned a null pointer, indicating that the command is done.
+      </p><p>
+       In pipeline mode, command strings containing more than one SQL command
+       are disallowed.
       </p></dd><dt id="LIBPQ-PQSENDQUERYPARAMS"><span class="term"><code class="function">PQsendQueryParams</code><a id="id-1.7.3.11.4.15.2.1.2" class="indexterm"></a></span></dt><dd><p>
        Submits a command and separate parameters to the server without
        waiting for the result(s).
@@ -77,8 +80,8 @@ int PQsendQueryParams(PGconn *conn,
        query parameters can be specified separately from the query string.
        The function's parameters are handled identically to
        <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPARAMS"><code class="function">PQexecParams</code></a>.  Like
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPARAMS"><code class="function">PQexecParams</code></a>, it will not work on 2.0-protocol
-       connections, and it allows only one command in the query string.
+       <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPARAMS"><code class="function">PQexecParams</code></a>, it allows only one command in the
+       query string.
       </p></dd><dt id="LIBPQ-PQSENDPREPARE"><span class="term"><code class="function">PQsendPrepare</code><a id="id-1.7.3.11.4.15.3.1.2" class="indexterm"></a></span></dt><dd><p>
        Sends a request to create a prepared statement with the given
        parameters, without waiting for completion.
@@ -95,9 +98,7 @@ int PQsendPrepare(PGconn *conn,
        After a successful call, call <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a> to
        determine whether the server successfully created the prepared
        statement.  The function's parameters are handled identically to
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQPREPARE"><code class="function">PQprepare</code></a>.  Like
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQPREPARE"><code class="function">PQprepare</code></a>, it will not work on 2.0-protocol
-       connections.
+       <a class="xref" href="libpq-exec.html#LIBPQ-PQPREPARE"><code class="function">PQprepare</code></a>.
       </p></dd><dt id="LIBPQ-PQSENDQUERYPREPARED"><span class="term"><code class="function">PQsendQueryPrepared</code><a id="id-1.7.3.11.4.15.4.1.2" class="indexterm"></a></span></dt><dd><p>
        Sends a request to execute a prepared statement with given
        parameters, without waiting for the result(s).
@@ -115,9 +116,7 @@ int PQsendQueryPrepared(PGconn *conn,
        the command to be executed is specified by naming a
        previously-prepared statement, instead of giving a query string.
        The function's parameters are handled identically to
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPREPARED"><code class="function">PQexecPrepared</code></a>.  Like
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPREPARED"><code class="function">PQexecPrepared</code></a>, it will not work on
-       2.0-protocol connections.
+       <a class="xref" href="libpq-exec.html#LIBPQ-PQEXECPREPARED"><code class="function">PQexecPrepared</code></a>.
       </p></dd><dt id="LIBPQ-PQSENDDESCRIBEPREPARED"><span class="term"><code class="function">PQsendDescribePrepared</code><a id="id-1.7.3.11.4.15.5.1.2" class="indexterm"></a></span></dt><dd><p>
        Submits a request to obtain information about the specified
        prepared statement, without waiting for completion.
@@ -129,9 +128,7 @@ int PQsendDescribePrepared(PGconn *conn, const char *stmtName);
        it returns 1 if it was able to dispatch the request, and 0 if not.
        After a successful call, call <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a> to
        obtain the results.  The function's parameters are handled
-       identically to <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPREPARED"><code class="function">PQdescribePrepared</code></a>.  Like
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPREPARED"><code class="function">PQdescribePrepared</code></a>, it will not work on
-       2.0-protocol connections.
+       identically to <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPREPARED"><code class="function">PQdescribePrepared</code></a>.
       </p></dd><dt id="LIBPQ-PQSENDDESCRIBEPORTAL"><span class="term"><code class="function">PQsendDescribePortal</code><a id="id-1.7.3.11.4.15.6.1.2" class="indexterm"></a></span></dt><dd><p>
        Submits a request to obtain information about the specified
        portal, without waiting for completion.
@@ -143,17 +140,16 @@ int PQsendDescribePortal(PGconn *conn, const char *portalName);
        it returns 1 if it was able to dispatch the request, and 0 if not.
        After a successful call, call <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a> to
        obtain the results.  The function's parameters are handled
-       identically to <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPORTAL"><code class="function">PQdescribePortal</code></a>.  Like
-       <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPORTAL"><code class="function">PQdescribePortal</code></a>, it will not work on
-       2.0-protocol connections.
+       identically to <a class="xref" href="libpq-exec.html#LIBPQ-PQDESCRIBEPORTAL"><code class="function">PQdescribePortal</code></a>.
       </p></dd><dt id="LIBPQ-PQGETRESULT"><span class="term"><code class="function">PQgetResult</code><a id="id-1.7.3.11.4.15.7.1.2" class="indexterm"></a></span></dt><dd><p>
        Waits for the next result from a prior
        <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERY"><code class="function">PQsendQuery</code></a>,
        <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERYPARAMS"><code class="function">PQsendQueryParams</code></a>,
        <a class="xref" href="libpq-async.html#LIBPQ-PQSENDPREPARE"><code class="function">PQsendPrepare</code></a>,
        <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERYPREPARED"><code class="function">PQsendQueryPrepared</code></a>,
-       <a class="xref" href="libpq-async.html#LIBPQ-PQSENDDESCRIBEPREPARED"><code class="function">PQsendDescribePrepared</code></a>, or
-       <a class="xref" href="libpq-async.html#LIBPQ-PQSENDDESCRIBEPORTAL"><code class="function">PQsendDescribePortal</code></a>
+       <a class="xref" href="libpq-async.html#LIBPQ-PQSENDDESCRIBEPREPARED"><code class="function">PQsendDescribePrepared</code></a>,
+       <a class="xref" href="libpq-async.html#LIBPQ-PQSENDDESCRIBEPORTAL"><code class="function">PQsendDescribePortal</code></a>, or
+       <a class="xref" href="libpq-pipeline-mode.html#LIBPQ-PQPIPELINESYNC"><code class="function">PQpipelineSync</code></a>
        call, and returns it.
        A null pointer is returned when the command is complete and there
        will be no more results.
@@ -174,6 +170,17 @@ PGresult *PQgetResult(PGconn *conn);
        active and the necessary response data has not yet been read by
        <a class="xref" href="libpq-async.html#LIBPQ-PQCONSUMEINPUT"><code class="function">PQconsumeInput</code>
      </a>.
+      </p><p>
+       In pipeline mode, <code class="function">PQgetResult</code> will return normally
+       unless an error occurs; for any subsequent query sent after the one
+       that caused the error until (and excluding) the next synchronization point,
+       a special result of type <code class="literal">PGRES_PIPELINE_ABORTED</code> will
+       be returned, and a null pointer will be returned after it.
+       When the pipeline synchronization point is reached, a result of type
+       <code class="literal">PGRES_PIPELINE_SYNC</code> will be returned.
+       The result of the next query after the synchronization point follows
+       immediately (that is, no null pointer is returned after
+       the synchronization point.)
       </p><div class="note"><h3 class="title">Note</h3><p>
         Even when <a class="xref" href="libpq-exec.html#LIBPQ-PQRESULTSTATUS"><code class="function">PQresultStatus</code></a> indicates a fatal
         error, <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a> should be called until it
@@ -193,7 +200,7 @@ PGresult *PQgetResult(PGconn *conn);
    Another frequently-desired feature that can be obtained with
    <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERY"><code class="function">PQsendQuery</code></a> and <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a>
    is retrieving large query results a row at a time.  This is discussed
-   in <a class="xref" href="libpq-single-row-mode.html" title="33.5. Retrieving Query Results Row-by-Row">Section 33.5</a>.
+   in <a class="xref" href="libpq-single-row-mode.html" title="34.6. Retrieving Query Results Row-by-Row">Section 34.6</a>.
   </p><p>
    By itself, calling <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a>
    will still cause the client to block until the server completes the
@@ -255,12 +262,12 @@ int PQisBusy(PGconn *conn);
    call <a class="xref" href="libpq-async.html#LIBPQ-PQISBUSY"><code class="function">PQisBusy</code></a>, followed by
    <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a> if <a class="xref" href="libpq-async.html#LIBPQ-PQISBUSY"><code class="function">PQisBusy</code></a>
    returns false (0).  It can also call <code class="function">PQnotifies</code>
-   to detect <code class="command">NOTIFY</code> messages (see <a class="xref" href="libpq-notify.html" title="33.8. Asynchronous Notification">Section 33.8</a>).
+   to detect <code class="command">NOTIFY</code> messages (see <a class="xref" href="libpq-notify.html" title="34.9. Asynchronous Notification">Section 34.9</a>).
   </p><p>
    A client that uses
    <a class="xref" href="libpq-async.html#LIBPQ-PQSENDQUERY"><code class="function">PQsendQuery</code></a>/<a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a>
    can also attempt to cancel a command that is still being processed
-   by the server; see <a class="xref" href="libpq-cancel.html" title="33.6. Canceling Queries in Progress">Section 33.6</a>.  But regardless of
+   by the server; see <a class="xref" href="libpq-cancel.html" title="34.7. Canceling Queries in Progress">Section 34.7</a>.  But regardless of
    the return value of <a class="xref" href="libpq-cancel.html#LIBPQ-PQCANCEL"><code class="function">PQcancel</code></a>, the application
    must continue with the normal result-reading sequence using
    <a class="xref" href="libpq-async.html#LIBPQ-PQGETRESULT"><code class="function">PQgetResult</code></a>.  A successful cancellation will
@@ -324,8 +331,8 @@ int PQflush(PGconn *conn);
    <a class="xref" href="libpq-async.html#LIBPQ-PQFLUSH"><code class="function">PQflush</code></a> returns 0.  (It is necessary to check for
    read-ready and drain the input with <a class="xref" href="libpq-async.html#LIBPQ-PQCONSUMEINPUT"><code class="function">PQconsumeInput</code>
      </a>,
-   because the server can block trying to send us data, e.g. NOTICE
+   because the server can block trying to send us data, e.g., NOTICE
    messages, and won't read our data until we read its.)  Once
    <a class="xref" href="libpq-async.html#LIBPQ-PQFLUSH"><code class="function">PQflush</code></a> returns 0, wait for the socket to be
    read-ready and then read the response as described above.
-  </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="libpq-exec.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="libpq.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="libpq-single-row-mode.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">33.3. Command Execution Functions </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 33.5. Retrieving Query Results Row-by-Row</td></tr></table></div></body></html>
+  </p></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr></hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="libpq-exec.html" title="34.3. Command Execution Functions">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="libpq.html" title="Chapter 34. libpq — C Library">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="libpq-pipeline-mode.html" title="34.5. Pipeline Mode">Next</a></td></tr><tr><td width="40%" align="left" valign="top">34.3. Command Execution Functions </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 34.5. Pipeline Mode</td></tr></table></div></body></html>

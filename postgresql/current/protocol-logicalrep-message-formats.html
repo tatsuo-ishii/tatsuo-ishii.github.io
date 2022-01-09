@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>52.9. Logical Replication Message Formats</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="protocol-error-fields.html" title="52.8. Error and Notice Message Fields" /><link rel="next" href="protocol-changes.html" title="52.10. Summary of Changes since Protocol 2.0" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">52.9. Logical Replication Message Formats</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="protocol-error-fields.html" title="52.8. Error and Notice Message Fields">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="protocol.html" title="Chapter 52. Frontend/Backend Protocol">Up</a></td><th width="60%" align="center">Chapter 52. Frontend/Backend Protocol</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 14devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="protocol-changes.html" title="52.10. Summary of Changes since Protocol 2.0">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="PROTOCOL-LOGICALREP-MESSAGE-FORMATS"><div class="titlepage"><div><div><h2 class="title" style="clear: both">52.9. Logical Replication Message Formats</h2></div></div></div><p>
-This section describes the detailed format of each logical replication message.
-These messages are returned either by the replication slot SQL interface or are
-sent by a walsender. In case of a walsender they are encapsulated inside the replication
-protocol WAL messages as described in <a class="xref" href="protocol-replication.html" title="52.4. Streaming Replication Protocol">Section 52.4</a>
-and generally obey same message flow as physical replication.
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>53.9. Logical Replication Message Formats</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="protocol-error-fields.html" title="53.8. Error and Notice Message Fields" /><link rel="next" href="protocol-changes.html" title="53.10. Summary of Changes since Protocol 2.0" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">53.9. Logical Replication Message Formats</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="protocol-error-fields.html" title="53.8. Error and Notice Message Fields">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="protocol.html" title="Chapter 53. Frontend/Backend Protocol">Up</a></td><th width="60%" align="center">Chapter 53. Frontend/Backend Protocol</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="protocol-changes.html" title="53.10. Summary of Changes since Protocol 2.0">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="PROTOCOL-LOGICALREP-MESSAGE-FORMATS"><div class="titlepage"><div><div><h2 class="title" style="clear: both">53.9. Logical Replication Message Formats</h2></div></div></div><p>
+This section describes the detailed format of each logical replication
+message.  These messages are either returned by the replication slot SQL
+interface or are sent by a walsender.  In the case of a walsender they are
+encapsulated inside replication protocol WAL messages as described in
+<a class="xref" href="protocol-replication.html" title="53.4. Streaming Replication Protocol">Section 53.4</a>, and generally obey the same message
+flow as physical replication.
 </p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
 Begin
 </span></dt><dd><p>
@@ -14,18 +15,53 @@ Begin
 </span></dt><dd><p>
                 Identifies the message as a begin message.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (XLogRecPtr)
 </span></dt><dd><p>
                 The final LSN of the transaction.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (TimestampTz)
 </span></dt><dd><p>
                 Commit timestamp of the transaction. The value is in number
                 of microseconds since PostgreSQL epoch (2000-01-01).
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
                 Xid of the transaction.
+</p></dd></dl></div><p>
+</p></dd><dt><span class="term">
+Message
+</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('M')
+</span></dt><dd><p>
+                Identifies the message as a logical decoding message.
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction (only present for streamed transactions).
+                This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int8
+</span></dt><dd><p>
+                Flags; Either 0 for no flags or 1 if the logical decoding
+                message is transactional.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the logical decoding message.
+</p></dd><dt><span class="term">
+        String
+</span></dt><dd><p>
+                The prefix of the logical decoding message.
+</p></dd><dt><span class="term">
+        Int32
+</span></dt><dd><p>
+                Length of the content.
+</p></dd><dt><span class="term">
+        Byte<em class="replaceable"><code>n</code></em>
+</span></dt><dd><p>
+                The content of the logical decoding message.
 </p></dd></dl></div><p>
 </p></dd><dt><span class="term">
 Commit
@@ -36,19 +72,19 @@ Commit
 </span></dt><dd><p>
                 Identifies the message as a commit message.
 </p></dd><dt><span class="term">
-        Int8
+        Int8(0)
 </span></dt><dd><p>
-                Flags; currently unused (must be 0).
+                Flags; currently unused.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (XLogRecPtr)
 </span></dt><dd><p>
                 The LSN of the commit.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (XLogRecPtr)
 </span></dt><dd><p>
                 The end LSN of the transaction.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (TimestampTz)
 </span></dt><dd><p>
                 Commit timestamp of the transaction. The value is in number
                 of microseconds since PostgreSQL epoch (2000-01-01).
@@ -62,7 +98,7 @@ Origin
 </span></dt><dd><p>
                 Identifies the message as an origin message.
 </p></dd><dt><span class="term">
-        Int64
+        Int64 (XLogRecPtr)
 </span></dt><dd><p>
                 The LSN of the commit on the origin server.
 </p></dd><dt><span class="term">
@@ -81,9 +117,14 @@ Relation
 </span></dt><dd><p>
                 Identifies the message as a relation message.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
-                ID of the relation.
+               Xid of the transaction (only present for streamed transactions).
+               This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int32 (Oid)
+</span></dt><dd><p>
+                OID of the relation.
 </p></dd><dt><span class="term">
         String
 </span></dt><dd><p>
@@ -113,9 +154,9 @@ Relation
 </span></dt><dd><p>
                 Name of the column.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (Oid)
 </span></dt><dd><p>
-                ID of the column's data type.
+                OID of the column's data type.
 </p></dd><dt><span class="term">
         Int32
 </span></dt><dd><p>
@@ -130,9 +171,14 @@ Type
 </span></dt><dd><p>
                 Identifies the message as a type message.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
-                ID of the data type.
+               Xid of the transaction (only present for streamed transactions).
+               This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int32 (Oid)
+</span></dt><dd><p>
+                OID of the data type.
 </p></dd><dt><span class="term">
         String
 </span></dt><dd><p>
@@ -151,9 +197,14 @@ Insert
 </span></dt><dd><p>
                 Identifies the message as an insert message.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
-                ID of the relation corresponding to the ID in the relation
+                Xid of the transaction (only present for streamed transactions).
+                This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int32 (Oid)
+</span></dt><dd><p>
+                OID of the relation corresponding to the ID in the relation
                 message.
 </p></dd><dt><span class="term">
         Byte1('N')
@@ -173,9 +224,14 @@ Update
 </span></dt><dd><p>
                 Identifies the message as an update message.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
-                ID of the relation corresponding to the ID in the relation
+               Xid of the transaction (only present for streamed transactions).
+               This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int32 (Oid)
+</span></dt><dd><p>
+                OID of the relation corresponding to the ID in the relation
                 message.
 </p></dd><dt><span class="term">
         Byte1('K')
@@ -217,9 +273,14 @@ Delete
 </span></dt><dd><p>
                 Identifies the message as a delete message.
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (TransactionId)
 </span></dt><dd><p>
-                ID of the relation corresponding to the ID in the relation
+               Xid of the transaction (only present for streamed transactions).
+               This field is available since protocol version 2.
+</p></dd><dt><span class="term">
+        Int32 (Oid)
+</span></dt><dd><p>
+                OID of the relation corresponding to the ID in the relation
                 message.
 </p></dd><dt><span class="term">
         Byte1('K')
@@ -230,8 +291,8 @@ Delete
 </p></dd><dt><span class="term">
         Byte1('O')
 </span></dt><dd><p>
-                Identifies the following TupleData message as a old tuple.
-                This field is present if the table in which the delete has
+                Identifies the following TupleData message as an old tuple.
+                This field is present if the table in which the delete
                 happened has REPLICA IDENTITY set to FULL.
 </p></dd><dt><span class="term">
         TupleData
@@ -251,6 +312,11 @@ Truncate
 </span></dt><dd><p>
                 Identifies the message as a truncate message.
 </p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+               Xid of the transaction (only present for streamed transactions).
+               This field is available since protocol version 2.
+</p></dd><dt><span class="term">
         Int32
 </span></dt><dd><p>
                 Number of relations
@@ -260,11 +326,240 @@ Truncate
                 Option bits for <code class="command">TRUNCATE</code>:
                 1 for <code class="literal">CASCADE</code>, 2 for <code class="literal">RESTART IDENTITY</code>
 </p></dd><dt><span class="term">
-        Int32
+        Int32 (Oid)
 </span></dt><dd><p>
-                ID of the relation corresponding to the ID in the relation
+                OID of the relation corresponding to the ID in the relation
                 message.  This field is repeated for each relation.
 </p></dd></dl></div><p>
+</p></dd></dl></div><p>
+
+The following messages (Stream Start, Stream Stop, Stream Commit, and
+Stream Abort) are available since protocol version 2.
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+Stream Start
+</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('S')
+</span></dt><dd><p>
+                Identifies the message as a stream start message.
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">
+        Int8
+</span></dt><dd><p>
+                A value of 1 indicates this is the first stream segment for
+                this XID, 0 for any other stream segment.
+</p></dd></dl></div><p>
+</p></dd><dt><span class="term">
+Stream Stop
+</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('E')
+</span></dt><dd><p>
+                Identifies the message as a stream stop message.
+</p></dd></dl></div><p>
+</p></dd><dt><span class="term">
+Stream Commit
+</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('c')
+</span></dt><dd><p>
+                Identifies the message as a stream commit message.
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">
+        Int8(0)
+</span></dt><dd><p>
+                Flags; currently unused.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the commit.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Commit timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd></dl></div><p>
+</p></dd><dt><span class="term">
+Stream Abort
+</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('A')
+</span></dt><dd><p>
+                Identifies the message as a stream abort message.
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the subtransaction (will be same as xid of the transaction for top-level
+                transactions).
+</p></dd></dl></div><p>
+</p></dd></dl></div><p>
+The following messages (Begin Prepare, Prepare, Commit Prepared, Rollback Prepared, Stream Prepare)
+are available since protocol version 3.
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Begin Prepare</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Byte1('b')</span></dt><dd><p>
+                Identifies the message as the beginning of a two-phase transaction message.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the prepare.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the prepared transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Prepare timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">String</span></dt><dd><p>
+                The user defined GID of the two-phase transaction.
+</p></dd></dl></div><p>
+
+</p></dd><dt><span class="term">Prepare</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Byte1('P')</span></dt><dd><p>
+                Identifies the message as a two-phase prepared transaction message.
+</p></dd><dt><span class="term">
+        Int8(0)
+</span></dt><dd><p>
+                Flags; currently unused.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the prepare.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the prepared transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Prepare timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">String</span></dt><dd><p>
+                The user defined GID of the two-phase transaction.
+</p></dd></dl></div><p>
+
+</p></dd><dt><span class="term">Commit Prepared</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Byte1('K')</span></dt><dd><p>
+                Identifies the message as the commit of a two-phase transaction message.
+</p></dd><dt><span class="term">
+        Int8(0)
+</span></dt><dd><p>
+                Flags; currently unused.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the commit prepared.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the commit prepared transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Commit timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">String</span></dt><dd><p>
+                The user defined GID of the two-phase transaction.
+</p></dd></dl></div><p>
+
+</p></dd><dt><span class="term">Rollback Prepared</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Byte1('r')</span></dt><dd><p>
+                Identifies the message as the rollback of a two-phase transaction message.
+</p></dd><dt><span class="term">
+        Int8(0)
+</span></dt><dd><p>
+                Flags; currently unused.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the prepared transaction.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the rollback prepared transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Prepare timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Rollback timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">String</span></dt><dd><p>
+                The user defined GID of the two-phase transaction.
+</p></dd></dl></div><p>
+
+</p></dd><dt><span class="term">Stream Prepare</span></dt><dd><p>
+
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Byte1('p')</span></dt><dd><p>
+                Identifies the message as a two-phase stream prepare message.
+</p></dd><dt><span class="term">
+        Int8(0)
+</span></dt><dd><p>
+                Flags; currently unused.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The LSN of the prepare.
+</p></dd><dt><span class="term">
+        Int64 (XLogRecPtr)
+</span></dt><dd><p>
+                The end LSN of the prepare transaction.
+</p></dd><dt><span class="term">
+        Int64 (TimestampTz)
+</span></dt><dd><p>
+                Prepare timestamp of the transaction. The value is in number
+                of microseconds since PostgreSQL epoch (2000-01-01).
+</p></dd><dt><span class="term">
+        Int32 (TransactionId)
+</span></dt><dd><p>
+                Xid of the transaction.
+</p></dd><dt><span class="term">String</span></dt><dd><p>
+                The user defined GID of the two-phase transaction.
+</p></dd></dl></div><p>
+
 </p></dd></dl></div><p>
 
 The following message parts are shared by the above messages.
@@ -296,6 +591,12 @@ TupleData
         Byte1('t')
 </span></dt><dd><p>
                 Identifies the data as text formatted value.
+</p></dd></dl></div><p>
+        Or
+</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">
+        Byte1('b')
+</span></dt><dd><p>
+                Identifies the data as binary formatted value.
 </p></dd><dt><span class="term">
         Int32
 </span></dt><dd><p>
@@ -303,9 +604,9 @@ TupleData
 </p></dd><dt><span class="term">
         Byte<em class="replaceable"><code>n</code></em>
 </span></dt><dd><p>
-                The value of the column, in text format.  (A future release
-                might support additional formats.)
+                The value of the column, either in binary or in text format.
+                (As specified in the preceding format byte).
                 <em class="replaceable"><code>n</code></em> is the above length.
 
 </p></dd></dl></div><p>
-</p></dd></dl></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="protocol-error-fields.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="protocol.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="protocol-changes.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">52.8. Error and Notice Message Fields </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 52.10. Summary of Changes since Protocol 2.0</td></tr></table></div></body></html>
+</p></dd></dl></div></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr></hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="protocol-error-fields.html" title="53.8. Error and Notice Message Fields">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="protocol.html" title="Chapter 53. Frontend/Backend Protocol">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="protocol-changes.html" title="53.10. Summary of Changes since Protocol 2.0">Next</a></td></tr><tr><td width="40%" align="left" valign="top">53.8. Error and Notice Message Fields </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 53.10. Summary of Changes since Protocol 2.0</td></tr></table></div></body></html>
