@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>第48章 バックグラウンドワーカプロセス</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="spi-spi-start-transaction.html" title="SPI_start_transaction" /><link rel="next" href="logicaldecoding.html" title="第49章 ロジカルデコーディング" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body id="docContent" class="container-fluid col-10"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="4" align="center"><a accesskey="h" href="index.html">PostgreSQL 14.0文書</a></th></tr><tr><td width="10%" align="left"></td><td width="10%" align="left"></td><td width="60%" align="center"><a href="server-programming.html" title="パート V. サーバプログラミング">パート V. サーバプログラミング</a></td><td width="20%" align="right"></td></tr><tr><td width="10%" align="left"><a accesskey="p" href="spi-spi-start-transaction.html" title="SPI_start_transaction">前へ</a> </td><td width="10%" align="left"><a accesskey="u" href="server-programming.html" title="パート V. サーバプログラミング">上へ</a></td><td width="60%" align="center">第48章 バックグラウンドワーカプロセス</td><td width="20%" align="right"> <a accesskey="n" href="logicaldecoding.html" title="第49章 ロジカルデコーディング">次へ</a></td></tr></table><hr /></div><div class="chapter" id="BGWORKER"><div class="titlepage"><div><div><h2 class="title">第48章 バックグラウンドワーカプロセス</h2></div></div></div><!--
  <title>Background Worker Processes</title>
---><a id="id-1.8.13.2" class="indexterm"></a><p>
+--><a id="id-1.8.13.2" class="indexterm"></a><a id="id-1.8.13.3" class="indexterm"></a><p>
 <!--
   PostgreSQL can be extended to run user-supplied code in separate processes.
   Such processes are started, stopped and monitored by <command>postgres</command>,
@@ -102,7 +102,7 @@ typedef struct BackgroundWorker
        buffers, or any custom data structures which the worker itself may
        wish to create and use.
 -->
-<a id="id-1.8.13.8.2.1.2.1.1" class="indexterm"></a>
+<a id="id-1.8.13.9.2.1.2.1.1" class="indexterm"></a>
 共有メモリへのアクセスを要求します。
 共有メモリアクセスがないワーカは、重量または軽量のロック、共有バッファ、ワーカが作成して利用したいカスタムデータ構造等、<span class="productname">PostgreSQL</span>の共有データ構造にアクセスできません。
       </p></dd><dt><span class="term"><code class="literal">BGWORKER_BACKEND_DATABASE_CONNECTION</code></span></dt><dd><p>
@@ -114,7 +114,7 @@ typedef struct BackgroundWorker
        database must also attach shared memory using
        <literal>BGWORKER_SHMEM_ACCESS</literal>, or worker start-up will fail.
 -->
-<a id="id-1.8.13.8.2.2.2.1.1" class="indexterm"></a>
+<a id="id-1.8.13.9.2.2.2.1.1" class="indexterm"></a>
 トランザクションやクエリの実行が出来るデータベース接続を要求します。
 <code class="literal">BGWORKER_BACKEND_DATABASE_CONNECTION</code>を使用してデータベースに接続するバックグラウンドワーカは<code class="literal">BGWORKER_SHMEM_ACCESS</code>を使用して共有メモリにアタッチしなければなりません。さもなければ起動時に失敗します。
       </p></dd></dl></div><p>
@@ -151,7 +151,7 @@ typedef struct BackgroundWorker
    or <literal>BGW_NEVER_RESTART</literal>, indicating not to restart the
    process in case of a crash.
 -->
-<code class="structfield">bgw_restart_time</code>は、プロセスがクラッシュした場合に<code class="command">postgres</code>がそのプロセスを再起動するために待つ必要のある間隔を秒単位で指定します。
+<code class="structfield">bgw_restart_time</code>は、万が一プロセスがクラッシュした場合に<code class="command">postgres</code>がそのプロセスを再起動するために待つ必要のある間隔を秒単位で指定します。
 これは任意の正の値、またはクラッシュしても再起動させない場合に<code class="literal">BGW_NEVER_RESTART</code>を指定します。
   </p><p>
 <!--
@@ -356,8 +356,10 @@ postmasterがバックグラウンドワーカを開始しようと試みたか�
    notifications with the <command>LISTEN</command> command, as there is no
    infrastructure for a worker to consume such notifications.
 -->
-バックグラウンドワーカは、サーバプログラミングインタフェース(<acronym class="acronym">SPI</acronym>)経由で<code class="command">NOTIFY</code>コマンドにより非同期に通知を送る場合、囲んでいるトランザクションをコミットした後、通知を配信することができるように明示的に<code class="function">ProcessCompletedNotifies</code>を呼ぶ必要があります。
-バックグラウンドワーカは、<acronym class="acronym">SPI</acronym>を通じて<code class="command">LISTEN</code>による非同期通知の受信を登録した場合、ワーカがこれらの通知をログに記録しますが、ワーカが傍受し、それらの通知に応答するためのプログラム的な方法はありません。
+バックグラウンドワーカは、<acronym class="acronym">SPI</acronym>経由で<code class="command">NOTIFY</code>コマンドを使用して、あるいは<code class="function">Async_Notify()</code>で直接、非同期通知メッセージを送ることができます。
+そのような通知はトランザクションのコミット時に送信されます。
+バックグラウンドワーカは、<code class="command">LISTEN</code>コマンドによる非同期通知メッセージの受信登録をすべきではありません。
+ワーカがそのような通知を消費する基盤が存在しないからです。
   </p><p>
 <!--
    The <filename>src/test/modules/worker_spi</filename> module

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>27.4. ホットスタンバイ</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="warm-standby-failover.html" title="27.3. フェイルオーバー" /><link rel="next" href="monitoring.html" title="第28章 データベース活動状況の監視" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body id="docContent" class="container-fluid col-10"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="4" align="center"><a accesskey="h" href="index.html">PostgreSQL 14.0文書</a></th></tr><tr><td width="10%" align="left"></td><td width="10%" align="left"></td><td width="60%" align="center"><a href="high-availability.html" title="第27章 高可用性、負荷分散およびレプリケーション">第27章 高可用性、負荷分散およびレプリケーション</a></td><td width="20%" align="right"></td></tr><tr><td width="10%" align="left"><a accesskey="p" href="warm-standby-failover.html" title="27.3. フェイルオーバー">前へ</a> </td><td width="10%" align="left"><a accesskey="u" href="high-availability.html" title="第27章 高可用性、負荷分散およびレプリケーション">上へ</a></td><td width="60%" align="center">27.4. ホットスタンバイ</td><td width="20%" align="right"> <a accesskey="n" href="monitoring.html" title="第28章 データベース活動状況の監視">次へ</a></td></tr></table><hr /></div><div class="sect1" id="HOT-STANDBY"><div class="titlepage"><div><div><h2 class="title" style="clear: both">27.4. ホットスタンバイ</h2></div></div></div><!--
   <title>Hot Standby</title>
---><a id="id-1.6.14.18.2" class="indexterm"></a><p>
+--><a id="id-1.6.14.24.2" class="indexterm"></a><a id="id-1.6.14.24.3" class="indexterm"></a><p>
 <!--
     Hot Standby is the term used to describe the ability to connect to
     the server and run read-only queries while the server is in archive
@@ -52,7 +52,7 @@
 したがって、同じ問い合わせをほとんど同時にプライマリとスタンバイに対して実行すると、異なる結果が返る可能性があります。
 スタンバイ上のデータはプライマリに対して<em class="firstterm">最後には一貫性を持つ</em>といいます。
 あるトランザクションのコミットレコードがスタンバイ上で再生されると、そのトランザクションでなされた変更はスタンバイで獲得されるすべての新規スナップショットで可視になります。
-現在のトランザクション隔離レベルに応じて、スナップショットは各問い合わせの開始時または各トランザクションの開始時に獲得されます。
+現在のトランザクション分離レベルに応じて、スナップショットは各問い合わせの開始時または各トランザクションの開始時に獲得されます。
 詳細については<a class="xref" href="transaction-iso.html" title="13.2. トランザクションの分離">13.2</a>を参照してください。
    </p><p>
 <!--
@@ -246,7 +246,7 @@
 -->
 ホットスタンバイ中は、<code class="varname">transaction_read_only</code>パラメータは常に真であり、変更することはできません。
 しかし、データベースを変更するような試行がない限り、ホットスタンバイ中の接続は他のデータベース接続とほとんど同じように動作します。
-もし、フェイルオーバーまたはスイッチオーバが発生すると、データベースは通常処理モードに切り替わります。
+もし、フェイルオーバーまたはスイッチオーバーが発生すると、データベースは通常処理モードに切り替わります。
 サーバのモードが変わってもセッションは接続を保持します。
 ホットスタンバイが完了すると、読み書き可能なトランザクションを（ホットスタンバイ中に始まったセッションからであっても）始められるようになります。
    </p><p>
@@ -262,7 +262,8 @@
     can be used to monitor the progress of recovery, or to allow you to
     write complex programs that restore the database to particular states.
 -->
-ユーザは<code class="command">SHOW transaction_read_only</code>を発行することで、そのセッションが読み取り専用かどうかを調べることができます。
+ユーザは<code class="command">SHOW in_hot_standby</code>を発行することで、そのセッションが読み取り専用かどうかを調べることができます。
+（サーババージョンが14より前では<code class="varname">in_hot_standby</code>パラメータは存在しませんでした。古いバージョンでの可能な代替方法は、<code class="command">SHOW transaction_read_only</code>です。）
 さらに、ユーザがスタンバイサーバに関する情報にアクセスできる関数群(<a class="xref" href="functions-admin.html#FUNCTIONS-RECOVERY-INFO-TABLE" title="表9.88 リカバリ情報関数">表 9.88</a>)があります。
 これらによりデータベースの現状認識を行うプログラムを作成することができます。
 これらを使用して、リカバリの進行状況を監視するために使用したり、データベースを特定の状態にリストアする複雑なプログラムを作成したりすることができます。
@@ -451,8 +452,8 @@ WALに記録された操作はすでにプライマリで発生したもので�
 -->
 スタンバイ側の問い合わせとWAL再生の間でもっともよくあるコンフリクト理由は<span class="quote">「<span class="quote">早すぎる消去</span>」</span>です。
 通常<span class="productname">PostgreSQL</span>はMVCC規則にしたがって正確なデータの可視性を確実にするために、古い行バージョンを参照するトランザクションが存在しない場合それらを消去することが許されています。
-しかし、この規則はマスタ上で実行するトランザクションのみに適用させることができます。
-したがって、スタンバイ上のトランザクションでまだ可視である行バージョンを、マスタ上の消去処理が削除してしまう可能性があります。
+しかし、この規則はプライマリ上で実行するトランザクションのみに適用させることができます。
+したがって、スタンバイ上のトランザクションでまだ可視である行バージョンを、プライマリ上の消去処理が削除してしまう可能性があります。
    </p><p>
 <!--
     Experienced users should note that both row version cleanup and row version
@@ -526,9 +527,13 @@ WALに記録された操作はすでにプライマリで発生したもので�
 問い合わせキャンセルの個数とその原因はスタンバイサーバ上の<code class="structname">pg_stat_database_conflicts</code>システムビューを用いて参照することができます。
 また<code class="structname">pg_stat_database</code>システムビューには要約された情報が含まれます。
    </p><p>
+<!--
     Users can control whether a log message is produced when WAL replay is waiting
-    longer than <code class="varname">deadlock_timeout</code> for conflicts. This
-    is controlled by the <a class="xref" href="runtime-config-logging.html#GUC-LOG-RECOVERY-CONFLICT-WAITS">log_recovery_conflict_waits</a> parameter.
+    longer than <varname>deadlock_timeout</varname> for conflicts. This
+    is controlled by the <xref linkend="guc-log-recovery-conflict-waits"/> parameter.
+-->
+コンフリクトのためにWAL再生が<code class="varname">deadlock_timeout</code>より長くかかる場合にログメッセージを出力するかどうかをユーザは制御できます。
+<a class="xref" href="runtime-config-logging.html#GUC-LOG-RECOVERY-CONFLICT-WAITS">log_recovery_conflict_waits</a>パラメータで制御します。
    </p></div><div class="sect2" id="HOT-STANDBY-ADMIN"><div class="titlepage"><div><div><h3 class="title">27.4.3. 管理者のための概説</h3></div></div></div><!--
    <title>Administrator's Overview</title>
 --><p>
@@ -545,7 +550,7 @@ WALに記録された操作はすでにプライマリで発生したもので�
     To confirm the server has come up, either loop trying to connect from
     the application, or look for these messages in the server logs:
 -->
-<code class="filename">postgresql.conf</code>において<code class="varname">hot_standby</code>が<code class="literal">on</code>で（これはデフォルトです）、かつ<code class="filename">standby.signal</code>が存在すれば、サーバはホットスタンバイモードで稼動します。
+<code class="filename">postgresql.conf</code>において<code class="varname">hot_standby</code>が<code class="literal">on</code>で（これはデフォルトです）、かつ<a class="link" href="warm-standby.html#FILE-STANDBY-SIGNAL"><code class="filename">standby.signal</code></a><a id="id-1.6.14.24.8.2.5" class="indexterm"></a>が存在すれば、サーバはホットスタンバイモードで稼動します。
 しかし、サーバはまず問い合わせが実行できる程度の一貫性を持つ状態を提供するために十分なリカバリを完了させなければなりませんので、ホットスタンバイでの接続が有効になるまでに多少の時間がかかるかもしれません。
 サーバの準備ができたことを確認するために、アプリケーションで接続試行を繰り返すか、サーバログに以下のメッセージがあるかどうかを確認します。
 
@@ -602,13 +607,10 @@ LOG:  database system is ready to accept read-only connections
     transactions, then recovery could not continue until the standby's
     configuration is changed.  The parameters affected are:
 -->
-プライマリサーバにおける設定値を変更した場合、スタンバイサーバにおいて数個のパラメータの再設定が必要です。
-スタンバイサーバにおける設定値は、プライマリサーバにおける設定値以上でなければなりません。
-ですから、これらの値を増やしたいなら、プライマリで設定を変更する前に、まずスタンバイで設定変更するべきです。
-逆にこれらの値を減らしたいなら、スタンバイで設定を変更する前に、まずプライマリで設定変更するべきです。
-これらのパラメータが所定値未満の設定の場合、スタンバイは起動を取りやめます。
-所定値以上の設定により、スタンバイサーバは再起動してリカバリが再び開始されます。
-このパラメータは以下です。
+いくつかのパラメータの設定により、トランザクションID、ロック、準備されたトランザクションを追跡するための共有メモリのサイズが決まります。
+リカバリ中に共有メモリを使い尽くすことがないことを確実にするために、スタンバイサーバにおける設定値は、プライマリサーバにおける設定値以上でなければなりません。
+たとえばプライマリが準備されたトランザクションを実行していてスタンバイが準備されたトランザクションを追跡するための共有メモリを獲得していなければ、スタンバイは設定が変更されるまではリカバリを続けることができません。
+影響があるパラメータは以下です。
 
       </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>
          <code class="varname">max_connections</code>
@@ -622,6 +624,7 @@ LOG:  database system is ready to accept read-only connections
          <code class="varname">max_worker_processes</code>
         </p></li></ul></div><p>
 
+<!--
     The easiest way to ensure this does not become a problem is to have these
     parameters set on the standbys to values equal to or greater than on the
     primary.  Therefore, if you want to increase these values, you should do
@@ -633,11 +636,22 @@ LOG:  database system is ready to accept read-only connections
     standbys that follow it.  Therefore, to avoid this becoming a problem
     during a switchover or failover, it is recommended to keep these settings
     the same on all standby servers.
+-->
+これが問題にならないようにする確実な方法は、スタンバイにおけるこれらのパラメータの値をプライマリでの値以上にすることです。
+ですから、これらの値を増やしたいなら、プライマリで設定を変更する前に、まずスタンバイで設定変更するべきです。
+逆にこれらの値を減らしたいなら、スタンバイで設定を変更する前に、まずプライマリで設定変更するべきです。
+スタンバイが昇格したときは、それが追従するスタンバイにとって必要なパラメータ設定の新しい基準になるということを覚えておいてください。
+ですから、スイッチオーバーやフェイルオーバー中にこれが問題にならないようにするために、これらの設定値をすべてのスタンバイで同じにしておくことをお勧めします。
    </p><p>
+<!--
     The WAL tracks changes to these parameters on the
     primary.  If a hot standby processes WAL that indicates that the current
     value on the primary is higher than its own value, it will log a warning
     and pause recovery, for example:
+-->
+プライマリでWALはこれらのパラメータの変更を追跡します。
+ホットスタンバイが現在のプライマリの値がスタンバイの値よりも大きいことを示すWALを処理すると、警告をログし、リカバリを中断します。
+例を示します。
 </p><pre class="screen">
 WARNING:  hot standby is not possible because of insufficient parameter settings
 DETAIL:  max_connections = 80 is a lower setting than on the primary server, where its value was 100.
@@ -645,11 +659,15 @@ LOG:  recovery has paused
 DETAIL:  If recovery is unpaused, the server will shut down.
 HINT:  You can then restart the server after making the necessary configuration changes.
 </pre><p>
+<!--
     At that point, the settings on the standby need to be updated and the
     instance restarted before recovery can continue.  If the standby is not a
     hot standby, then when it encounters the incompatible parameter change, it
     will shut down immediately without pausing, since there is then no value
     in keeping it up.
+-->
+この時点で、スタンバイの設定を変更し、リカバリを継続するためにインスタンスを再起動する必要があります。
+スタンバイがホットスタンバイでない場合は、整合性のないパラメータの変更があると、休止することなく直ちにシャットダウンします。起動し続ける意味がないからです。
    </p><p>
 <!--
     It is important that the administrator select appropriate settings for
@@ -971,8 +989,8 @@ WALの再実行はトリガに基づいたものではありません。
      being intentionally taken down, coordinating to make sure the standby
      becomes the new primary smoothly is also standard procedure.
 -->
-スタンバイ問い合わせ用の有効な起動ポイントは、マスタにおけるチェックポイント毎に生成されます。
-マスタが停止状態にある時にスタンバイが停止した場合、プライマリが起動し、さらに起動ポイントをWALログに生成するまで再度ホットスタンバイになることができないことがあります。
+スタンバイ問い合わせ用の有効な起動ポイントは、プライマリにおけるチェックポイント毎に生成されます。
+プライマリが停止状態にある時にスタンバイが停止した場合、プライマリが起動し、さらに起動ポイントをWALログに生成するまで再度ホットスタンバイになることができないことがあります。
 この状況は、通常考えられる状態では問題ではありません。
 一般的に、プライマリが停止し利用できなくなった場合、それはスタンバイに対して新しいプライマリに切り替わることを要求するような深刻な失敗が原因であることが多いはずです。
 また、プライマリを意図的に停止させるような状況では、それに伴いスタンバイが新しいプライマリになめらかに切り替わることも普通の手順です。
@@ -999,9 +1017,9 @@ WALの再実行はトリガに基づいたものではありません。
      An attempt to set a transaction to the serializable isolation level in
      hot standby mode will generate an error.
 -->
-シリアライザブルトランザクション隔離レベルはまだホットスタンバイでは利用できません。
+シリアライザブルトランザクション分離レベルはまだホットスタンバイでは利用できません。
 （<a class="xref" href="transaction-iso.html#XACT-SERIALIZABLE" title="13.2.3. シリアライザブル分離レベル">13.2.3</a>および<a class="xref" href="applevel-consistency.html#SERIALIZABLE-CONSISTENCY" title="13.4.1. シリアライザブルトランザクションを用いた一貫性の強化">13.4.1</a>参照）
-ホットスタンバイにおいてトランザクションをシリアライザブルトランザクション隔離レベルに設定しようとすると、エラーになります。
+ホットスタンバイにおいてトランザクションをシリアライザブルトランザクション分離レベルに設定しようとすると、エラーになります。
     </p></li></ul></div><p>
 
    </p></div></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr></hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="warm-standby-failover.html" title="27.3. フェイルオーバー">前へ</a> </td><td width="20%" align="center"><a accesskey="u" href="high-availability.html" title="第27章 高可用性、負荷分散およびレプリケーション">上へ</a></td><td width="40%" align="right"> <a accesskey="n" href="monitoring.html" title="第28章 データベース活動状況の監視">次へ</a></td></tr><tr><td width="40%" align="left" valign="top">27.3. フェイルオーバー </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 14.0文書">ホーム</a></td><td width="40%" align="right" valign="top"> 第28章 データベース活動状況の監視</td></tr></table></div></body></html>
