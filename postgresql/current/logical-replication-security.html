@@ -1,15 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>31.7. Security</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="logical-replication-monitoring.html" title="31.6. Monitoring" /><link rel="next" href="logical-replication-config.html" title="31.8. Configuration Settings" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">31.7. Security</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="logical-replication-monitoring.html" title="31.6. Monitoring">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="logical-replication.html" title="Chapter 31. Logical Replication">Up</a></td><th width="60%" align="center">Chapter 31. Logical Replication</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="logical-replication-config.html" title="31.8. Configuration Settings">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="LOGICAL-REPLICATION-SECURITY"><div class="titlepage"><div><div><h2 class="title" style="clear: both">31.7. Security</h2></div></div></div><p>
-   A user able to modify the schema of subscriber-side tables can execute
-   arbitrary code as the role which owns any subscription which modifies those tables.  Limit ownership
-   and <code class="literal">TRIGGER</code> privilege on such tables to trusted roles.
-   Moreover, if untrusted users can create tables, use only
-   publications that list tables explicitly.  That is to say, create a
-   subscription <code class="literal">FOR ALL TABLES</code> or
-   <code class="literal">FOR ALL TABLES IN SCHEMA</code> only when superusers trust
-   every user permitted to create a non-temp table on the publisher or the
-   subscriber.
-  </p><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>31.9. Security</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="logical-replication-monitoring.html" title="31.8. Monitoring" /><link rel="next" href="logical-replication-config.html" title="31.10. Configuration Settings" /></head><body id="docContent" class="container-fluid col-10"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">31.9. Security</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="logical-replication-monitoring.html" title="31.8. Monitoring">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="logical-replication.html" title="Chapter 31. Logical Replication">Up</a></td><th width="60%" align="center">Chapter 31. Logical Replication</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 16devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="logical-replication-config.html" title="31.10. Configuration Settings">Next</a></td></tr></table><hr /></div><div class="sect1" id="LOGICAL-REPLICATION-SECURITY"><div class="titlepage"><div><div><h2 class="title" style="clear: both">31.9. Security <a href="#LOGICAL-REPLICATION-SECURITY" class="id_link">#</a></h2></div></div></div><p>
    The role used for the replication connection must have
    the <code class="literal">REPLICATION</code> attribute (or be a superuser).  If the
    role lacks <code class="literal">SUPERUSER</code> and <code class="literal">BYPASSRLS</code>,
@@ -32,10 +22,40 @@
    superuser. To create a publication that publishes all tables or all tables in
    schema automatically, the user must be a superuser.
   </p><p>
-   To create a subscription, the user must be a superuser.
+   There are currently no privileges on publications.  Any subscription (that
+   is able to connect) can access any publication.  Thus, if you intend to
+   hide some information from particular subscribers, such as by using row
+   filters or column lists, or by not adding the whole table to the
+   publication, be aware that other publications in the same database could
+   expose the same information.  Publication privileges might be added to
+   <span class="productname">PostgreSQL</span> in the future to allow for
+   finer-grained access control.
   </p><p>
-   The subscription apply process will run in the local database with the
-   privileges of the subscription owner.
+   To create a subscription, the user must have the privileges of the
+   the <code class="literal">pg_create_subscription</code> role, as well as
+   <code class="literal">CREATE</code> privileges on the database.
+  </p><p>
+   The subscription apply process will, at a session level, run with the
+   privileges of the subscription owner. However, when performing an insert,
+   update, delete, or truncate operation on a particular table, it will switch
+   roles to the table owner and perform the operation with the table owner's
+   privileges. This means that the subscription owner needs to be able to
+   <code class="literal">SET ROLE</code> to each role that owns a replicated table.
+  </p><p>
+   If the subscription has been configured with
+   <code class="literal">run_as_owner = true</code>, then no user switching will
+   occur. Instead, all operations will be performed with the permissions
+   of the subscription owner. In this case, the subscription owner only
+   needs privileges to <code class="literal">SELECT</code>, <code class="literal">INSERT</code>,
+   <code class="literal">UPDATE</code>, and <code class="literal">DELETE</code> from the
+   target table, and does not need privileges to <code class="literal">SET ROLE</code>
+   to the table owner. However, this also means that any user who owns
+   a table into which replication is happening can execute arbitrary code with
+   the privileges of the subscription owner. For example, they could do this
+   by simply attaching a trigger to one of the tables which they own.
+   Because it is usually undesirable to allow one role to freely assume
+   the privileges of another, this option should be avoided unless user
+   security within the database is of no concern.
   </p><p>
    On the publisher, privileges are only checked once at the start of a
    replication connection and are not re-checked as each change record is read.
@@ -45,4 +65,4 @@
    transaction when the ownership of the subscription is changed by a
    concurrent transaction, the application of the current transaction will
    continue under the old owner's privileges.
-  </p></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr></hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="logical-replication-monitoring.html" title="31.6. Monitoring">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="logical-replication.html" title="Chapter 31. Logical Replication">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="logical-replication-config.html" title="31.8. Configuration Settings">Next</a></td></tr><tr><td width="40%" align="left" valign="top">31.6. Monitoring </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 31.8. Configuration Settings</td></tr></table></div></body></html>
+  </p></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="logical-replication-monitoring.html" title="31.8. Monitoring">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="logical-replication.html" title="Chapter 31. Logical Replication">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="logical-replication-config.html" title="31.10. Configuration Settings">Next</a></td></tr><tr><td width="40%" align="left" valign="top">31.8. Monitoring </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 16devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 31.10. Configuration Settings</td></tr></table></div></body></html>

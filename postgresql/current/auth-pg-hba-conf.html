@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>21.1. The pg_hba.conf File</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="client-authentication.html" title="Chapter 21. Client Authentication" /><link rel="next" href="auth-username-maps.html" title="21.2. User Name Maps" /></head><body id="docContent" class="container-fluid col-10"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">21.1. The <code xmlns="http://www.w3.org/1999/xhtml" class="filename">pg_hba.conf</code> File</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="client-authentication.html" title="Chapter 21. Client Authentication">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="client-authentication.html" title="Chapter 21. Client Authentication">Up</a></td><th width="60%" align="center">Chapter 21. Client Authentication</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="auth-username-maps.html" title="21.2. User Name Maps">Next</a></td></tr></table><hr></hr></div><div class="sect1" id="AUTH-PG-HBA-CONF"><div class="titlepage"><div><div><h2 class="title" style="clear: both">21.1. The <code class="filename">pg_hba.conf</code> File</h2></div></div></div><a id="id-1.6.8.8.2" class="indexterm"></a><p>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>21.1. The pg_hba.conf File</title><link rel="stylesheet" type="text/css" href="stylesheet.css" /><link rev="made" href="pgsql-docs@lists.postgresql.org" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /><link rel="prev" href="client-authentication.html" title="Chapter 21. Client Authentication" /><link rel="next" href="auth-username-maps.html" title="21.2. User Name Maps" /></head><body id="docContent" class="container-fluid col-10"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="5" align="center">21.1. The <code class="filename">pg_hba.conf</code> File</th></tr><tr><td width="10%" align="left"><a accesskey="p" href="client-authentication.html" title="Chapter 21. Client Authentication">Prev</a> </td><td width="10%" align="left"><a accesskey="u" href="client-authentication.html" title="Chapter 21. Client Authentication">Up</a></td><th width="60%" align="center">Chapter 21. Client Authentication</th><td width="10%" align="right"><a accesskey="h" href="index.html" title="PostgreSQL 16devel Documentation">Home</a></td><td width="10%" align="right"> <a accesskey="n" href="auth-username-maps.html" title="21.2. User Name Maps">Next</a></td></tr></table><hr /></div><div class="sect1" id="AUTH-PG-HBA-CONF"><div class="titlepage"><div><div><h2 class="title" style="clear: both">21.1. The <code class="filename">pg_hba.conf</code> File <a href="#AUTH-PG-HBA-CONF" class="id_link">#</a></h2></div></div></div><a id="id-1.6.8.8.2" class="indexterm"></a><p>
    Client authentication is controlled by a configuration file,
    which traditionally is named
    <code class="filename">pg_hba.conf</code> and is stored in the database
    cluster's data directory.
    (<acronym class="acronym">HBA</acronym> stands for host-based authentication.) A default
    <code class="filename">pg_hba.conf</code> file is installed when the data
-   directory is initialized by <code class="command">initdb</code>.  It is
+   directory is initialized by <a class="xref" href="app-initdb.html" title="initdb"><span class="refentrytitle"><span class="application">initdb</span></span></a>.  It is
    possible to place the authentication configuration file elsewhere,
    however; see the <a class="xref" href="runtime-config-file-locations.html#GUC-HBA-FILE">hba_file</a> configuration parameter.
   </p><p>
@@ -23,8 +23,8 @@
    meaning, and just match a database, user, or host with that name.
    Backslash line continuation applies even within quoted text or comments.
   </p><p>
-   Each record specifies a connection type, a client IP address range
-   (if relevant for the connection type), a database name, a user name,
+   Each authentication record specifies a connection type, a client IP address
+   range (if relevant for the connection type), a database name, a user name,
    and the authentication method to be used for connections matching
    these parameters. The first record with a matching connection type,
    client address, requested database, and user name is used to perform
@@ -33,19 +33,35 @@
    fails, subsequent records are not considered. If no record matches,
    access is denied.
   </p><p>
+   Each record can be an include directive or an authentication record.
+   Include directives specify files that can be included, that contain
+   additional records. The records will be inserted in place of the
+   include directives. Include directives only contain two fields:
+   <code class="literal">include</code>, <code class="literal">include_if_exists</code> or
+   <code class="literal">include_dir</code> directive and the file or directory to be
+   included. The file or directory can be a relative or absolute path, and can
+   be double-quoted.  For the <code class="literal">include_dir</code> form, all files
+   not starting with a <code class="literal">.</code> and ending with
+   <code class="literal">.conf</code> will be included. Multiple files within an include
+   directory are processed in file name order (according to C locale rules,
+   i.e., numbers before letters, and uppercase letters before lowercase ones).
+  </p><p>
    A record can have several formats:
 </p><pre class="synopsis">
-local         <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>auth-method</code></em> [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-host          <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostssl       <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostnossl     <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostgssenc    <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-host          <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostssl       <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostnossl     <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostgssenc    <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
-hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+local               <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>auth-method</code></em> [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+host                <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostssl             <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostnossl           <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostgssenc          <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostnogssenc        <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>address</code></em>     <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+host                <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostssl             <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostnossl           <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostgssenc          <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+hostnogssenc        <em class="replaceable"><code>database</code></em>  <em class="replaceable"><code>user</code></em>  <em class="replaceable"><code>IP-address</code></em>  <em class="replaceable"><code>IP-mask</code></em>      <em class="replaceable"><code>auth-method</code></em>  [<span class="optional"><em class="replaceable"><code>auth-options</code></em></span>]
+include             <em class="replaceable"><code>file</code></em>
+include_if_exists   <em class="replaceable"><code>file</code></em>
+include_dir         <em class="replaceable"><code>directory</code></em>
 </pre><p>
    The meaning of the fields is as follows:
 
@@ -112,16 +128,24 @@ hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="rep
        doesn't match with logical replication connections. Note that physical
        replication connections do not specify any particular database whereas
        logical replication connections do specify it.
-       Otherwise, this is the name of
-       a specific <span class="productname">PostgreSQL</span> database.
-       Multiple database names can be supplied by separating them with
-       commas.  A separate file containing database names can be specified by
-       preceding the file name with <code class="literal">@</code>.
+       Otherwise, this is the name of a specific
+       <span class="productname">PostgreSQL</span> database or a regular expression.
+       Multiple database names and/or regular expressions can be supplied by
+       separating them with commas.
+      </p><p>
+       If the database name starts with a slash (<code class="literal">/</code>), the
+       remainder of the name is treated as a regular expression.
+       (See <a class="xref" href="functions-matching.html#POSIX-SYNTAX-DETAILS" title="9.7.3.1. Regular Expression Details">Section 9.7.3.1</a> for details of
+       <span class="productname">PostgreSQL</span>'s regular expression syntax.)
+      </p><p>
+       A separate file containing database names and/or regular expressions
+       can be specified by preceding the file name with <code class="literal">@</code>.
       </p></dd><dt><span class="term"><em class="replaceable"><code>user</code></em></span></dt><dd><p>
        Specifies which database user name(s) this record
        matches. The value <code class="literal">all</code> specifies that it
        matches all users.  Otherwise, this is either the name of a specific
-       database user, or a group name preceded by <code class="literal">+</code>.
+       database user, a regular expression (when starting with a slash
+       (<code class="literal">/</code>), or a group name preceded by <code class="literal">+</code>.
        (Recall that there is no real distinction between users and groups
        in <span class="productname">PostgreSQL</span>; a <code class="literal">+</code> mark really means
        <span class="quote">“<span class="quote">match any of the roles that are directly or indirectly members
@@ -130,9 +154,16 @@ hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="rep
        considered to be a member of a role if they are explicitly a member
        of the role, directly or indirectly, and not just by virtue of
        being a superuser.
-       Multiple user names can be supplied by separating them with commas.
-       A separate file containing user names can be specified by preceding the
-       file name with <code class="literal">@</code>.
+       Multiple user names and/or regular expressions can be supplied by
+       separating them with commas.
+      </p><p>
+       If the user name starts with a slash (<code class="literal">/</code>), the
+       remainder of the name is treated as a regular expression.
+       (See <a class="xref" href="functions-matching.html#POSIX-SYNTAX-DETAILS" title="9.7.3.1. Regular Expression Details">Section 9.7.3.1</a> for details of
+       <span class="productname">PostgreSQL</span>'s regular expression syntax.)
+      </p><p>
+       A separate file containing user names and/or regular expressions can
+       be specified by preceding the file name with <code class="literal">@</code>.
       </p></dd><dt><span class="term"><em class="replaceable"><code>address</code></em></span></dt><dd><p>
        Specifies the client machine address(es) that this record
        matches.  This field can contain either a host name, an IP
@@ -164,8 +195,6 @@ hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="rep
        An entry given in IPv4 format will match only IPv4 connections,
        and an entry given in IPv6 format will match only IPv6 connections,
        even if the represented address is in the IPv4-in-IPv6 range.
-       Note that entries in IPv6 format will be rejected if the system's
-       C library does not have support for IPv6 addresses.
       </p><p>
        You can also write <code class="literal">all</code> to match any IP address,
        <code class="literal">samehost</code> to match any of the server's own IP
@@ -241,7 +270,9 @@ hostnogssenc  <em class="replaceable"><code>database</code></em>  <em class="rep
       </p></dd><dt><span class="term"><em class="replaceable"><code>auth-method</code></em></span></dt><dd><p>
        Specifies the authentication method to use when a connection matches
        this record. The possible choices are summarized here; details
-       are in <a class="xref" href="auth-methods.html" title="21.3. Authentication Methods">Section 21.3</a>.
+       are in <a class="xref" href="auth-methods.html" title="21.3. Authentication Methods">Section 21.3</a>.  All the options
+       are lower case and treated case sensitively, so even acronyms like
+       <code class="literal">ldap</code> must be specified as lower case.
 
        </p><div class="variablelist"><dl class="variablelist"><dt><span class="term"><code class="literal">trust</code></span></dt><dd><p>
           Allow the connection unconditionally. This method
@@ -343,6 +374,18 @@ openssl x509 -in myclient.crt -noout --subject -nameopt RFC2253 | sed "s/^subjec
 </pre><p>
         Care needs to be taken when using this option, especially when using
         regular expression matching against the <code class="literal">DN</code>.
+      </p></dd><dt><span class="term"><code class="literal">include</code></span></dt><dd><p>
+       This line will be replaced by the contents of the given file.
+      </p></dd><dt><span class="term"><code class="literal">include_if_exists</code></span></dt><dd><p>
+       This line will be replaced by the content of the given file if the
+       file exists. Otherwise, a message is logged to indicate that the file
+       has been skipped.
+      </p></dd><dt><span class="term"><code class="literal">include_dir</code></span></dt><dd><p>
+       This line will be replaced by the contents of all the files found in
+       the directory, if they don't start with a <code class="literal">.</code> and end
+       with <code class="literal">.conf</code>, processed in file name order (according
+       to C locale rules, i.e., numbers before letters, and uppercase letters
+       before lowercase ones).
       </p></dd></dl></div><p>
   </p><p>
    Files included by <code class="literal">@</code> constructs are read as lists of names,
@@ -367,7 +410,7 @@ openssl x509 -in myclient.crt -noout --subject -nameopt RFC2253 | sed "s/^subjec
   </p><p>
    The <code class="filename">pg_hba.conf</code> file is read on start-up and when
    the main server process receives a
-   <span class="systemitem">SIGHUP</span><a id="id-1.6.8.8.9.3" class="indexterm"></a>
+   <span class="systemitem">SIGHUP</span><a id="id-1.6.8.8.10.3" class="indexterm"></a>
    signal. If you edit the file on an
    active system, you will need to signal the postmaster
    (using <code class="literal">pg_ctl reload</code>, calling the SQL function
@@ -379,7 +422,7 @@ openssl x509 -in myclient.crt -noout --subject -nameopt RFC2253 | sed "s/^subjec
     applied by subsequent new connections.
    </p></div><p>
    The system view
-   <a class="link" href="view-pg-hba-file-rules.html" title="52.73. pg_hba_file_rules"><code class="structname">pg_hba_file_rules</code></a>
+   <a class="link" href="view-pg-hba-file-rules.html" title="54.9. pg_hba_file_rules"><code class="structname">pg_hba_file_rules</code></a>
    can be helpful for pre-testing changes to the <code class="filename">pg_hba.conf</code>
    file, or for diagnosing problems if loading of the file did not have the
    desired effects.  Rows in the view with
@@ -423,6 +466,14 @@ host    all             all             ::1/128                 trust
 #
 # TYPE  DATABASE        USER            ADDRESS                 METHOD
 host    all             all             localhost               trust
+
+# The same using a regular expression for DATABASE, that allows connection
+# to the database db1, db2 and any databases with a name beginning with "db"
+# and finishing with a number using two to four digits (like "db1234" or
+# "db12").
+#
+# TYPE  DATABASE                   USER            ADDRESS          METHOD
+local   db1,"/^db\d{2,4}$",db2     all             localhost        trust
 
 # Allow any user from any host with IP address 192.168.93.x to connect
 # to database "postgres" as the same user name that ident reports for
@@ -470,15 +521,16 @@ host    all             all             192.168.12.10/32        gss
 # TYPE  DATABASE        USER            ADDRESS                 METHOD
 host    all             all             192.168.0.0/16          ident map=omicron
 
-# If these are the only three lines for local connections, they will
+# If these are the only four lines for local connections, they will
 # allow local users to connect only to their own databases (databases
-# with the same name as their database user name) except for administrators
-# and members of role "support", who can connect to all databases.  The file
-# $PGDATA/admins contains a list of names of administrators.  Passwords
-# are required in all cases.
+# with the same name as their database user name) except for users whose
+# name end with "helpdesk", administrators and members of role "support",
+# who can connect to all databases.  The file $PGDATA/admins contains a
+# list of names of administrators.  Passwords are required in all cases.
 #
 # TYPE  DATABASE        USER            ADDRESS                 METHOD
 local   sameuser        all                                     md5
+local   all             /^.*helpdesk$                           md5
 local   all             @admins                                 md5
 local   all             +support                                md5
 
@@ -487,4 +539,4 @@ local   all             @admins,+support                        md5
 
 # The database column can also use lists and file names:
 local   db1,db2,@demodbs  all                                   md5
-</pre></div></div><br class="example-break" /></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr></hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="client-authentication.html" title="Chapter 21. Client Authentication">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="client-authentication.html" title="Chapter 21. Client Authentication">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="auth-username-maps.html" title="21.2. User Name Maps">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 21. Client Authentication </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 15devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 21.2. User Name Maps</td></tr></table></div></body></html>
+</pre></div></div><br class="example-break" /></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="client-authentication.html" title="Chapter 21. Client Authentication">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="client-authentication.html" title="Chapter 21. Client Authentication">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="auth-username-maps.html" title="21.2. User Name Maps">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 21. Client Authentication </td><td width="20%" align="center"><a accesskey="h" href="index.html" title="PostgreSQL 16devel Documentation">Home</a></td><td width="40%" align="right" valign="top"> 21.2. User Name Maps</td></tr></table></div></body></html>
